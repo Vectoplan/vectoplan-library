@@ -1,0 +1,55 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/variants/default.json",
+  "schema_version": "vplib.variant.v1",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "package_id": "vplib.vp.hochbau.bloecke.basic_stone_block",
+  "variant_id": "default",
+  "id": "default",
+  "label": "Default Stone Block",
+  "name": "Default Stone Block",
+  "description": "Standardvariante des Basic Stone Block für den ersten Library-Scan-Test.",
+  "enabled": true,
+  "status": "valid",
+  "is_default": true,
+  "sort_order": 10,
+  "dimensions": {
+    "unit": "m",
+    "width": 1.0,
+    "height": 1.0,
+    "depth": 1.0
+  },
+  "grid": {
+    "occupies_cells": {
+      "x": 1,
+      "y": 1,
+      "z": 1
+    },
+    "snap_mode": "cell",
+    "anchor": "bottom_center"
+  },
+  "material": {
+    "material_id": "vp.material.stone.basic",
+    "label": "Basic Stone",
+    "kind": "stone",
+    "density_kg_m3": 2200
+  },
+  "render": {
+    "render_variant_id": "stone_default",
+    "color_hint": "#8A8A8A",
+    "texture_ref": null,
+    "mesh_ref": null,
+    "preview_ref": null
+  },
+  "physical": {
+    "mass_kg": 2200,
+    "solid": true,
+    "collision_profile": "full_block"
+  },
+  "editor": {
+    "inventory_label": "Basic Stone Block",
+    "placement_mode": "grid_cell",
+    "rotatable": false,
+    "stackable": true
+  },
+  "overrides": {}
+}

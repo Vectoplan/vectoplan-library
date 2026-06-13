@@ -1,0 +1,56 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/editor/inventory.json",
+  "schema_version": "vplib.editor.inventory.v1",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "package_id": "vplib.vp.hochbau.bloecke.basic_stone_block",
+  "inventory_id": "vp.inventory.hochbau.bloecke.basic_stone_block",
+  "label": "Basic Stone Block",
+  "description": "Ein einfacher Steinblock für den ersten Creative-Library-Test.",
+  "enabled": true,
+  "visible": true,
+  "selectable": true,
+  "object_kind": "cell_block",
+  "domain": "hochbau",
+  "category": "bloecke",
+  "subcategory": "basis",
+  "classification_path": "hochbau/bloecke/basis",
+  "default_variant_id": "default",
+  "icon_ref": null,
+  "thumbnail_ref": null,
+  "preview_ref": null,
+  "sort": {
+    "group": "hochbau.bloecke",
+    "group_label": "Blöcke",
+    "category": "basic_blocks",
+    "category_label": "Basisblöcke",
+    "sort_order": 10
+  },
+  "search": {
+    "keywords": [
+      "stone",
+      "stein",
+      "block",
+      "basic",
+      "test",
+      "creative_library"
+    ],
+    "aliases": [
+      "Steinblock",
+      "Stone Block",
+      "Basic Block"
+    ]
+  },
+  "badges": [
+    {
+      "id": "test",
+      "label": "Test",
+      "kind": "status"
+    }
+  ],
+  "editor_flags": {
+    "show_in_inventory": true,
+    "allow_drag_to_scene": true,
+    "allow_quick_place": true,
+    "requires_asset_preview": false
+  }
+}

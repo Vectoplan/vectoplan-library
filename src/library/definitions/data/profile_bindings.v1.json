@@ -1,0 +1,963 @@
+{
+  "_file": "services/vectoplan-library/src/library/definitions/data/profile_bindings.v1.json",
+  "schema_version": "1.0",
+  "definitions_version": "v1",
+  "dataset": "profile_bindings",
+  "label": "VECTOPLAN Profile Binding Definitions",
+  "description": "Kanonische Bindungen zwischen Taxonomie, object_kind, family_profile und variant_profile. Diese Datei entscheidet, welches fachliche Profil und welches Variantenprofil für einen Create-Kontext gelten. Das Frontend soll daraus ableiten, welche Felder der Variant Drawer zeigt.",
+  "items": [
+    {
+      "id": "binding.hochbau.bloecke.basis.cell_block.simple_cell_block",
+      "label": "Hochbau / Blöcke / Basis → Einfacher Rasterblock",
+      "description": "Standardbindung für einfache Hochbau-Basisblöcke wie den bestehenden basic_stone_block.",
+      "active": true,
+      "sort_order": 10,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "bloecke",
+      "subcategory": "basis",
+      "object_kind": "cell_block",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "tags": ["hochbau", "bloecke", "basis", "migration"],
+      "aliases": ["basic_stone_block", "basis_block", "simple_block"],
+      "i18n": {
+        "de": "Hochbau / Blöcke / Basis → Einfacher Rasterblock",
+        "en": "Building / blocks / base → simple cell block"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "migration_safe": true,
+        "supports_legacy_source_layout": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "migration_role": "keeps_existing_basic_stone_block_green",
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.any.bloecke.basis.cell_block.simple_cell_block",
+      "label": "Alle Domains / Blöcke / Basis → Einfacher Rasterblock",
+      "description": "Fallbackbindung für einfache Basisblöcke in beliebigen Domains.",
+      "active": true,
+      "sort_order": 20,
+      "priority": 200,
+      "domain": null,
+      "category": "bloecke",
+      "subcategory": "basis",
+      "object_kind": "cell_block",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "tags": ["fallback", "bloecke", "basis"],
+      "aliases": ["simple_cell_block_fallback"],
+      "i18n": {
+        "de": "Alle Domains / Blöcke / Basis → Einfacher Rasterblock",
+        "en": "Any domain / blocks / base → simple cell block"
+      },
+      "match": {
+        "strategy": "category_subcategory_object_kind_fallback"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "fallback": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.any.any.any.cell_block.simple_cell_block",
+      "label": "Fallback cell_block → Einfacher Rasterblock",
+      "description": "Letzter Fallback für cell_block, wenn keine spezifischere Taxonomiebindung gefunden wird.",
+      "active": true,
+      "sort_order": 30,
+      "priority": 1000,
+      "domain": null,
+      "category": null,
+      "subcategory": null,
+      "object_kind": "cell_block",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "tags": ["fallback", "cell_block"],
+      "aliases": ["cell_block_default"],
+      "i18n": {
+        "de": "Fallback cell_block → Einfacher Rasterblock",
+        "en": "Fallback cell_block → simple cell block"
+      },
+      "match": {
+        "strategy": "object_kind_fallback",
+        "use_only_if_no_specific_binding_matches": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "fallback": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.hochbau.waende.ziegel.cell_block.wall_masonry",
+      "label": "Hochbau / Wände / Ziegel → Mauerwerkswand",
+      "description": "Bindung für Ziegelwände und Mauerwerksprodukte im Hochbau.",
+      "active": true,
+      "sort_order": 100,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "waende",
+      "subcategory": "ziegel",
+      "object_kind": "cell_block",
+      "family_profile_id": "wall_masonry",
+      "variant_profile_id": "wall_masonry_product.v1",
+      "tags": ["hochbau", "waende", "ziegel", "mauerwerk"],
+      "aliases": ["ziegelwand", "brick_wall", "masonry_wall"],
+      "i18n": {
+        "de": "Hochbau / Wände / Ziegel → Mauerwerkswand",
+        "en": "Building / walls / brick → masonry wall"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "supports_product_like_variants": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "reference_case": "schlagmann_t90_365",
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.hochbau.waende.mauerwerk.cell_block.wall_masonry",
+      "label": "Hochbau / Wände / Mauerwerk → Mauerwerkswand",
+      "description": "Bindung für allgemeine Mauerwerkswände im Hochbau.",
+      "active": true,
+      "sort_order": 110,
+      "priority": 20,
+      "domain": "hochbau",
+      "category": "waende",
+      "subcategory": "mauerwerk",
+      "object_kind": "cell_block",
+      "family_profile_id": "wall_masonry",
+      "variant_profile_id": "wall_masonry_product.v1",
+      "tags": ["hochbau", "waende", "mauerwerk"],
+      "aliases": ["mauerwerkswand", "masonry"],
+      "i18n": {
+        "de": "Hochbau / Wände / Mauerwerk → Mauerwerkswand",
+        "en": "Building / walls / masonry → masonry wall"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "supports_product_like_variants": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.hochbau.bloecke.basis.cell_block.wall_masonry",
+      "label": "Hochbau / Blöcke / Basis → Mauerwerkswand optional",
+      "description": "Spezielle optionale Bindung für bestehende oder frühe Wandpakete, die noch unter Blöcke/Basis liegen, aber fachlich Mauerwerk sind.",
+      "active": true,
+      "sort_order": 120,
+      "priority": 300,
+      "domain": "hochbau",
+      "category": "bloecke",
+      "subcategory": "basis",
+      "object_kind": "cell_block",
+      "family_profile_id": "wall_masonry",
+      "variant_profile_id": "wall_masonry_product.v1",
+      "tags": ["hochbau", "legacy", "mauerwerk"],
+      "aliases": ["legacy_wall_block"],
+      "i18n": {
+        "de": "Hochbau / Blöcke / Basis → Mauerwerkswand optional",
+        "en": "Building / blocks / base → optional masonry wall"
+      },
+      "match": {
+        "strategy": "legacy_optional",
+        "use_only_if_family_profile_selected": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "legacy_support": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.hochbau.waende.beton.cell_block.wall_concrete",
+      "label": "Hochbau / Wände / Beton → Betonwand",
+      "description": "Bindung für Betonwände im Hochbau.",
+      "active": true,
+      "sort_order": 200,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "waende",
+      "subcategory": "beton",
+      "object_kind": "cell_block",
+      "family_profile_id": "wall_concrete",
+      "variant_profile_id": "concrete_structural_part.v1",
+      "tags": ["hochbau", "waende", "beton"],
+      "aliases": ["betonwand", "concrete_wall"],
+      "i18n": {
+        "de": "Hochbau / Wände / Beton → Betonwand",
+        "en": "Building / walls / concrete → concrete wall"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.hochbau.waende.stahlbeton.cell_block.wall_concrete",
+      "label": "Hochbau / Wände / Stahlbeton → Betonwand",
+      "description": "Bindung für Stahlbetonwände im Hochbau.",
+      "active": true,
+      "sort_order": 210,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "waende",
+      "subcategory": "stahlbeton",
+      "object_kind": "cell_block",
+      "family_profile_id": "wall_concrete",
+      "variant_profile_id": "concrete_structural_part.v1",
+      "tags": ["hochbau", "waende", "stahlbeton"],
+      "aliases": ["stahlbetonwand", "reinforced_concrete_wall"],
+      "i18n": {
+        "de": "Hochbau / Wände / Stahlbeton → Betonwand",
+        "en": "Building / walls / reinforced concrete → concrete wall"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.hochbau.decken.massivdecke.cell_block.slab_concrete",
+      "label": "Hochbau / Decken / Massivdecke → Betondecke",
+      "description": "Bindung für massive Beton- oder Stahlbetondecken.",
+      "active": true,
+      "sort_order": 300,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "decken",
+      "subcategory": "massivdecke",
+      "object_kind": "cell_block",
+      "family_profile_id": "slab_concrete",
+      "variant_profile_id": "concrete_structural_part.v1",
+      "tags": ["hochbau", "decken", "massivdecke", "beton"],
+      "aliases": ["betondecke", "massivdecke", "massivdecken", "concrete_slab"],
+      "i18n": {
+        "de": "Hochbau / Decken / Massivdecke → Betondecke",
+        "en": "Building / slabs / concrete slab → concrete slab"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.hochbau.decken.massivdecken.cell_block.slab_concrete",
+      "label": "Hochbau / Decken / Massivdecken → Betondecke",
+      "description": "Alias-Bindung für Taxonomie-Slug massivdecken. Verweist auf dasselbe fachliche Profil wie massivdecke.",
+      "active": true,
+      "sort_order": 301,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "decken",
+      "subcategory": "massivdecken",
+      "object_kind": "cell_block",
+      "family_profile_id": "slab_concrete",
+      "variant_profile_id": "concrete_structural_part.v1",
+      "tags": ["hochbau", "decken", "massivdecken", "beton", "alias"],
+      "aliases": ["massivdecke", "betondecke", "betondecken", "concrete_slab"],
+      "i18n": {
+        "de": "Hochbau / Decken / Massivdecken → Betondecke",
+        "en": "Building / slabs / concrete slabs → concrete slab"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "alias_for": "binding.hochbau.decken.massivdecke.cell_block.slab_concrete"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "alias_binding": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.hochbau.decken.beton.cell_block.slab_concrete",
+      "label": "Hochbau / Decken / Beton → Betondecke",
+      "description": "Bindung für Betondecken.",
+      "active": true,
+      "sort_order": 310,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "decken",
+      "subcategory": "beton",
+      "object_kind": "cell_block",
+      "family_profile_id": "slab_concrete",
+      "variant_profile_id": "concrete_structural_part.v1",
+      "tags": ["hochbau", "decken", "beton"],
+      "aliases": ["betondecke", "concrete_slab"],
+      "i18n": {
+        "de": "Hochbau / Decken / Beton → Betondecke",
+        "en": "Building / slabs / concrete → concrete slab"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.hochbau.decken.betondecke.cell_block.slab_concrete",
+      "label": "Hochbau / Decken / Betondecke → Betondecke",
+      "description": "Alias-Bindung für Taxonomie-Slug betondecke.",
+      "active": true,
+      "sort_order": 311,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "decken",
+      "subcategory": "betondecke",
+      "object_kind": "cell_block",
+      "family_profile_id": "slab_concrete",
+      "variant_profile_id": "concrete_structural_part.v1",
+      "tags": ["hochbau", "decken", "betondecke", "beton", "alias"],
+      "aliases": ["betondecken", "massivdecke", "massivdecken", "concrete_slab"],
+      "i18n": {
+        "de": "Hochbau / Decken / Betondecke → Betondecke",
+        "en": "Building / slabs / concrete slab → concrete slab"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "alias_for": "binding.hochbau.decken.beton.cell_block.slab_concrete"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "alias_binding": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.hochbau.decken.betondecken.cell_block.slab_concrete",
+      "label": "Hochbau / Decken / Betondecken → Betondecke",
+      "description": "Alias-Bindung für Taxonomie-Slug betondecken.",
+      "active": true,
+      "sort_order": 312,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "decken",
+      "subcategory": "betondecken",
+      "object_kind": "cell_block",
+      "family_profile_id": "slab_concrete",
+      "variant_profile_id": "concrete_structural_part.v1",
+      "tags": ["hochbau", "decken", "betondecken", "beton", "alias"],
+      "aliases": ["betondecke", "massivdecke", "massivdecken", "concrete_slab"],
+      "i18n": {
+        "de": "Hochbau / Decken / Betondecken → Betondecke",
+        "en": "Building / slabs / concrete slabs → concrete slab"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "alias_for": "binding.hochbau.decken.beton.cell_block.slab_concrete"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "alias_binding": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.tiefbau.strassen.fahrbahn.cell_block.road_pavement_block",
+      "label": "Tiefbau / Straßen / Fahrbahn → Straßenblock",
+      "description": "Bindung für Fahrbahn- und Straßenbaublöcke.",
+      "active": true,
+      "sort_order": 400,
+      "priority": 10,
+      "domain": "tiefbau",
+      "category": "strassen",
+      "subcategory": "fahrbahn",
+      "object_kind": "cell_block",
+      "family_profile_id": "road_pavement_block",
+      "variant_profile_id": "road_pavement_block.v1",
+      "tags": ["tiefbau", "strassen", "fahrbahn"],
+      "aliases": ["strassenblock", "road_block"],
+      "i18n": {
+        "de": "Tiefbau / Straßen / Fahrbahn → Straßenblock",
+        "en": "Civil / roads / carriageway → road block"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.tiefbau.oberflaechen.belag.cell_block.road_pavement_block",
+      "label": "Tiefbau / Oberflächen / Belag → Belagsblock",
+      "description": "Bindung für Belags- und Oberflächenbauteile.",
+      "active": true,
+      "sort_order": 410,
+      "priority": 10,
+      "domain": "tiefbau",
+      "category": "oberflaechen",
+      "subcategory": "belag",
+      "object_kind": "cell_block",
+      "family_profile_id": "road_pavement_block",
+      "variant_profile_id": "road_pavement_block.v1",
+      "tags": ["tiefbau", "oberflaechen", "belag"],
+      "aliases": ["belagsblock", "pavement_block"],
+      "i18n": {
+        "de": "Tiefbau / Oberflächen / Belag → Belagsblock",
+        "en": "Civil / surfaces / pavement → pavement block"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.tiefbau.oberflaechen.pflaster.cell_block.road_pavement_block",
+      "label": "Tiefbau / Oberflächen / Pflaster → Belagsblock",
+      "description": "Bindung für Pflaster- und Belagsbauteile.",
+      "active": true,
+      "sort_order": 420,
+      "priority": 10,
+      "domain": "tiefbau",
+      "category": "oberflaechen",
+      "subcategory": "pflaster",
+      "object_kind": "cell_block",
+      "family_profile_id": "road_pavement_block",
+      "variant_profile_id": "road_pavement_block.v1",
+      "tags": ["tiefbau", "oberflaechen", "pflaster"],
+      "aliases": ["pflaster", "pavement"],
+      "i18n": {
+        "de": "Tiefbau / Oberflächen / Pflaster → Belagsblock",
+        "en": "Civil / surfaces / paving → pavement block"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.any.any.any.multi_cell_module.multi_cell_generic",
+      "label": "Fallback multi_cell_module → Generisches Mehrblockmodul",
+      "description": "Fallbackbindung für Mehrblockmodule, wenn keine spezifischere Modulbindung gefunden wird.",
+      "active": true,
+      "sort_order": 500,
+      "priority": 1000,
+      "domain": null,
+      "category": null,
+      "subcategory": null,
+      "object_kind": "multi_cell_module",
+      "family_profile_id": "multi_cell_generic",
+      "variant_profile_id": "multi_cell_module.v1",
+      "tags": ["fallback", "multi_cell_module"],
+      "aliases": ["multi_cell_module_default"],
+      "i18n": {
+        "de": "Fallback multi_cell_module → Generisches Mehrblockmodul",
+        "en": "Fallback multi_cell_module → generic multi-cell module"
+      },
+      "match": {
+        "strategy": "object_kind_fallback",
+        "use_only_if_no_specific_binding_matches": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "fallback": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.hochbau.treppen.treppenkern.multi_cell_module.stair_core_module",
+      "label": "Hochbau / Treppen / Treppenkern → Treppenkern",
+      "description": "Bindung für Treppenkerne und Treppenmodule.",
+      "active": true,
+      "sort_order": 510,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "treppen",
+      "subcategory": "treppenkern",
+      "object_kind": "multi_cell_module",
+      "family_profile_id": "stair_core_module",
+      "variant_profile_id": "multi_cell_module.v1",
+      "tags": ["hochbau", "treppen", "treppenkern"],
+      "aliases": ["treppenkern", "stair_core"],
+      "i18n": {
+        "de": "Hochbau / Treppen / Treppenkern → Treppenkern",
+        "en": "Building / stairs / stair core → stair core"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.tiefbau.schaechte.revisionsschacht.multi_cell_module.shaft_module",
+      "label": "Tiefbau / Schächte / Revisionsschacht → Schachtmodul",
+      "description": "Bindung für Revisionsschächte im Tiefbau.",
+      "active": true,
+      "sort_order": 520,
+      "priority": 10,
+      "domain": "tiefbau",
+      "category": "schaechte",
+      "subcategory": "revisionsschacht",
+      "object_kind": "multi_cell_module",
+      "family_profile_id": "shaft_module",
+      "variant_profile_id": "multi_cell_module.v1",
+      "tags": ["tiefbau", "schaechte", "revisionsschacht"],
+      "aliases": ["revisionsschacht", "shaft"],
+      "i18n": {
+        "de": "Tiefbau / Schächte / Revisionsschacht → Schachtmodul",
+        "en": "Civil / shafts / inspection shaft → shaft module"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.hochbau.technik.installation.multi_cell_module.installation_module",
+      "label": "Hochbau / Technik / Installation → Installationsmodul",
+      "description": "Bindung für technische Installationsmodule.",
+      "active": true,
+      "sort_order": 530,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "technik",
+      "subcategory": "installation",
+      "object_kind": "multi_cell_module",
+      "family_profile_id": "installation_module",
+      "variant_profile_id": "multi_cell_module.v1",
+      "tags": ["hochbau", "technik", "installation"],
+      "aliases": ["installationsmodul", "technical_module"],
+      "i18n": {
+        "de": "Hochbau / Technik / Installation → Installationsmodul",
+        "en": "Building / technical / installation → installation module"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.hochbau.fundamente.beton.multi_cell_module.foundation_module",
+      "label": "Hochbau / Fundamente / Beton → Fundamentmodul",
+      "description": "Bindung für Betonfundamente und Gründungsmodule.",
+      "active": true,
+      "sort_order": 540,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "fundamente",
+      "subcategory": "beton",
+      "object_kind": "multi_cell_module",
+      "family_profile_id": "foundation_module",
+      "variant_profile_id": "concrete_structural_part.v1",
+      "tags": ["hochbau", "fundamente", "beton"],
+      "aliases": ["fundament", "foundation"],
+      "i18n": {
+        "de": "Hochbau / Fundamente / Beton → Fundamentmodul",
+        "en": "Building / foundations / concrete → foundation module"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind"
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.any.any.any.catalog_object.generic_catalog_object",
+      "label": "Fallback catalog_object → Generisches Katalogobjekt",
+      "description": "Fallbackbindung für Katalogobjekte, wenn keine spezifischere Katalogbindung gefunden wird.",
+      "active": true,
+      "sort_order": 600,
+      "priority": 1000,
+      "domain": null,
+      "category": null,
+      "subcategory": null,
+      "object_kind": "catalog_object",
+      "family_profile_id": "generic_catalog_object",
+      "variant_profile_id": "catalog_object.v1",
+      "tags": ["fallback", "catalog_object"],
+      "aliases": ["catalog_object_default"],
+      "i18n": {
+        "de": "Fallback catalog_object → Generisches Katalogobjekt",
+        "en": "Fallback catalog_object → generic catalog object"
+      },
+      "match": {
+        "strategy": "object_kind_fallback",
+        "use_only_if_no_specific_binding_matches": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "fallback": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.hochbau.technik.wasserhahn.catalog_object.sanitary_faucet",
+      "label": "Hochbau / Technik / Wasserhahn → Wasserhahn",
+      "description": "Bindung für Wasserhähne und Armaturen unter Technik.",
+      "active": true,
+      "sort_order": 610,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "technik",
+      "subcategory": "wasserhahn",
+      "object_kind": "catalog_object",
+      "family_profile_id": "sanitary_faucet",
+      "variant_profile_id": "sanitary_faucet_catalog.v1",
+      "tags": ["hochbau", "technik", "wasserhahn", "sanitaer"],
+      "aliases": ["wasserhahn", "armatur", "faucet"],
+      "i18n": {
+        "de": "Hochbau / Technik / Wasserhahn → Wasserhahn",
+        "en": "Building / technical / faucet → faucet"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "supports_product_like_variants": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "reference_case": "sanitary_faucet",
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.hochbau.sanitaer.armatur.catalog_object.sanitary_faucet",
+      "label": "Hochbau / Sanitär / Armatur → Wasserhahn",
+      "description": "Bindung für Sanitärarmaturen.",
+      "active": true,
+      "sort_order": 620,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "sanitaer",
+      "subcategory": "armatur",
+      "object_kind": "catalog_object",
+      "family_profile_id": "sanitary_faucet",
+      "variant_profile_id": "sanitary_faucet_catalog.v1",
+      "tags": ["hochbau", "sanitaer", "armatur"],
+      "aliases": ["armatur", "faucet", "tap"],
+      "i18n": {
+        "de": "Hochbau / Sanitär / Armatur → Wasserhahn",
+        "en": "Building / sanitary / fitting → faucet"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "supports_product_like_variants": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.hochbau.ausstattung.schulbank.catalog_object.furniture_catalog_object",
+      "label": "Hochbau / Ausstattung / Schulbank → Möbelobjekt",
+      "description": "Bindung für Schulbänke und ähnliche Möbelobjekte.",
+      "active": true,
+      "sort_order": 630,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "ausstattung",
+      "subcategory": "schulbank",
+      "object_kind": "catalog_object",
+      "family_profile_id": "furniture_catalog_object",
+      "variant_profile_id": "catalog_object.v1",
+      "tags": ["hochbau", "ausstattung", "moebel"],
+      "aliases": ["schulbank", "desk", "furniture"],
+      "i18n": {
+        "de": "Hochbau / Ausstattung / Schulbank → Möbelobjekt",
+        "en": "Building / equipment / school desk → furniture object"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "supports_product_like_variants": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.hochbau.moebel.basis.catalog_object.furniture_catalog_object",
+      "label": "Hochbau / Möbel / Basis → Möbelobjekt",
+      "description": "Allgemeine Bindung für Möbelobjekte.",
+      "active": true,
+      "sort_order": 640,
+      "priority": 50,
+      "domain": "hochbau",
+      "category": "moebel",
+      "subcategory": "basis",
+      "object_kind": "catalog_object",
+      "family_profile_id": "furniture_catalog_object",
+      "variant_profile_id": "catalog_object.v1",
+      "tags": ["hochbau", "moebel"],
+      "aliases": ["moebel", "furniture"],
+      "i18n": {
+        "de": "Hochbau / Möbel / Basis → Möbelobjekt",
+        "en": "Building / furniture / base → furniture object"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "supports_product_like_variants": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.hochbau.technik.geraet.catalog_object.equipment_catalog_object",
+      "label": "Hochbau / Technik / Gerät → Technisches Gerät",
+      "description": "Bindung für technische Geräte und Ausstattung.",
+      "active": true,
+      "sort_order": 650,
+      "priority": 10,
+      "domain": "hochbau",
+      "category": "technik",
+      "subcategory": "geraet",
+      "object_kind": "catalog_object",
+      "family_profile_id": "equipment_catalog_object",
+      "variant_profile_id": "catalog_object.v1",
+      "tags": ["hochbau", "technik", "geraet"],
+      "aliases": ["geraet", "equipment", "technical_equipment"],
+      "i18n": {
+        "de": "Hochbau / Technik / Gerät → Technisches Gerät",
+        "en": "Building / technical / device → technical equipment"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "supports_product_like_variants": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.any.any.any.adaptive_system.adaptive_bridge_component",
+      "label": "Fallback adaptive_system → Adaptives Brückenbauteil",
+      "description": "Fallbackbindung für adaptive Systeme, wenn keine spezifischere adaptive Bindung gefunden wird.",
+      "active": true,
+      "sort_order": 700,
+      "priority": 1000,
+      "domain": null,
+      "category": null,
+      "subcategory": null,
+      "object_kind": "adaptive_system",
+      "family_profile_id": "adaptive_bridge_component",
+      "variant_profile_id": "adaptive_system.v1",
+      "tags": ["fallback", "adaptive_system"],
+      "aliases": ["adaptive_system_default"],
+      "i18n": {
+        "de": "Fallback adaptive_system → Adaptives Brückenbauteil",
+        "en": "Fallback adaptive_system → adaptive bridge component"
+      },
+      "match": {
+        "strategy": "object_kind_fallback",
+        "use_only_if_no_specific_binding_matches": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "fallback": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.ingenieurbau.bruecken.brueckenkappe.adaptive_system.bridge_cap",
+      "label": "Ingenieurbau / Brücken / Brückenkappe → Brückenkappe",
+      "description": "Bindung für adaptive Brückenkappen.",
+      "active": true,
+      "sort_order": 710,
+      "priority": 10,
+      "domain": "ingenieurbau",
+      "category": "bruecken",
+      "subcategory": "brueckenkappe",
+      "object_kind": "adaptive_system",
+      "family_profile_id": "bridge_cap",
+      "variant_profile_id": "adaptive_system.v1",
+      "tags": ["ingenieurbau", "bruecken", "brueckenkappe", "adaptiv"],
+      "aliases": ["brueckenkappe", "bridge_cap"],
+      "i18n": {
+        "de": "Ingenieurbau / Brücken / Brückenkappe → Brückenkappe",
+        "en": "Engineering / bridges / bridge cap → bridge cap"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "requires_dynamic_modules": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "requires_dynamic_modules": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.ingenieurbau.bruecken.widerlager.adaptive_system.bridge_abutment_concrete",
+      "label": "Ingenieurbau / Brücken / Widerlager → Beton-Widerlager",
+      "description": "Bindung für Brückenwiderlager als adaptives oder kontextabhängiges Betonbauteil.",
+      "active": true,
+      "sort_order": 720,
+      "priority": 10,
+      "domain": "ingenieurbau",
+      "category": "bruecken",
+      "subcategory": "widerlager",
+      "object_kind": "adaptive_system",
+      "family_profile_id": "bridge_abutment_concrete",
+      "variant_profile_id": "concrete_structural_part.v1",
+      "tags": ["ingenieurbau", "bruecken", "widerlager", "beton"],
+      "aliases": ["widerlager", "brueckenwiderlager", "bridge_abutment"],
+      "i18n": {
+        "de": "Ingenieurbau / Brücken / Widerlager → Beton-Widerlager",
+        "en": "Engineering / bridges / abutment → concrete bridge abutment"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "supports_concrete_structural_variant": true,
+        "requires_dynamic_modules": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "reference_case": "bridge_abutment_concrete",
+        "future_overlay_ready": true,
+        "requires_dynamic_modules": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.ingenieurbau.tragwerk.widerlager.adaptive_system.bridge_abutment_concrete",
+      "label": "Ingenieurbau / Tragwerk / Widerlager → Beton-Widerlager",
+      "description": "Alternative Bindung für Widerlager unter Tragwerk.",
+      "active": true,
+      "sort_order": 730,
+      "priority": 10,
+      "domain": "ingenieurbau",
+      "category": "tragwerk",
+      "subcategory": "widerlager",
+      "object_kind": "adaptive_system",
+      "family_profile_id": "bridge_abutment_concrete",
+      "variant_profile_id": "concrete_structural_part.v1",
+      "tags": ["ingenieurbau", "tragwerk", "widerlager", "beton"],
+      "aliases": ["widerlager_tragwerk"],
+      "i18n": {
+        "de": "Ingenieurbau / Tragwerk / Widerlager → Beton-Widerlager",
+        "en": "Engineering / structure / abutment → concrete bridge abutment"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "supports_concrete_structural_variant": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "binding.ingenieurbau.bruecken.randbalken.adaptive_system.edge_beam_system",
+      "label": "Ingenieurbau / Brücken / Randbalken → Randbalken-System",
+      "description": "Bindung für Randbalken und randartige Brückenbauteile.",
+      "active": true,
+      "sort_order": 740,
+      "priority": 10,
+      "domain": "ingenieurbau",
+      "category": "bruecken",
+      "subcategory": "randbalken",
+      "object_kind": "adaptive_system",
+      "family_profile_id": "edge_beam_system",
+      "variant_profile_id": "adaptive_system.v1",
+      "tags": ["ingenieurbau", "bruecken", "randbalken", "adaptiv"],
+      "aliases": ["randbalken", "edge_beam"],
+      "i18n": {
+        "de": "Ingenieurbau / Brücken / Randbalken → Randbalken-System",
+        "en": "Engineering / bridges / edge beam → edge beam system"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "requires_dynamic_modules": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "requires_dynamic_modules": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "binding.ingenieurbau.bruecken.gelaender.adaptive_system.railing_system",
+      "label": "Ingenieurbau / Brücken / Geländer → Geländersystem",
+      "description": "Bindung für adaptive Geländer- und Schutzsysteme an Brücken.",
+      "active": true,
+      "sort_order": 750,
+      "priority": 10,
+      "domain": "ingenieurbau",
+      "category": "bruecken",
+      "subcategory": "gelaender",
+      "object_kind": "adaptive_system",
+      "family_profile_id": "railing_system",
+      "variant_profile_id": "adaptive_system.v1",
+      "tags": ["ingenieurbau", "bruecken", "gelaender", "adaptiv"],
+      "aliases": ["gelaender", "geländer", "railing"],
+      "i18n": {
+        "de": "Ingenieurbau / Brücken / Geländer → Geländersystem",
+        "en": "Engineering / bridges / railing → railing system"
+      },
+      "match": {
+        "strategy": "exact_taxonomy_and_object_kind",
+        "requires_dynamic_modules": true
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "requires_dynamic_modules": true,
+        "stability": "planned"
+      }
+    }
+  ]
+}

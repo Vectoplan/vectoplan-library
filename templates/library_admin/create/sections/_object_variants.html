@@ -1,0 +1,1496 @@
+{# services/vectoplan-library/templates/library_admin/create/sections/_object_variants.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard · Step 3: Object & Variants
+
+  Zweck:
+  - Rendert Schritt 3 des Create-Wizards: Objektklasse und Varianten.
+  - Hält Step 3 bewusst flach, damit der Variant-Editor mehr nutzbare Fläche hat.
+  - Bindet die backendgesteuerte Definitionsschicht an den Create-Wizard an.
+  - Delegiert Variantenliste, Variant-Editor, Drawer, Optional Fields und
+    definition_variants_json an:
+      templates/library_admin/create/variants/_variant_workspace.html
+
+  Aktuelles UI-Ziel:
+  - Normalmodus:
+      - Step-Header sichtbar.
+      - Objektart-Auswahl sichtbar.
+      - Objektart-Hinweis sichtbar.
+      - Variantenübersicht sichtbar.
+  - Varianten-Bearbeitungsmodus:
+      - Step-Header bleibt sichtbar.
+      - Objektart-Auswahl wird ausgeblendet.
+      - Objektart-Hinweis wird ausgeblendet.
+      - Variant Workspace / Drawer nutzt die volle Step-Fläche.
+  - Keine zusätzliche "Bearbeitung"-Card auf dieser Ebene.
+  - Keine unnötige Verschachtelung zwischen "Objekt und Varianten" und Workspace.
+  - Technische Debug-/Profilanzeigen gehören nicht in diese Datei.
+
+  Verantwortung dieser Datei:
+  - Step-3-Shell.
+  - Object-Kind-Auswahl.
+  - Object-Kind-Hinweis.
+  - Hidden Profile IDs.
+  - Kontextattribute für Definitions-/Variant-Runtime.
+  - Include des Variant Workspace.
+  - Editor-State-Propagation auf die gesamte Step-3-Section.
+  - Defensiver JS-Bootstrap mit try/catch und DOM-Cache.
+
+  Nicht-Verantwortung:
+  - Variantenliste rendern.
+  - Variant Drawer rendern.
+  - Variant Fields rendern.
+  - Optional Fields rendern.
+  - Variant Values validieren.
+  - definition_variants_json synchronisieren.
+  - Varianten in VPLIB-Dateien schreiben.
+  - Backend API-Aufrufe direkt aus dem Template.
+  - Package-Erzeugung.
+  - Three.js-Logik.
+
+  Stabiler Backend-Vertrag:
+  - object_kind
+  - family_profile_id
+  - variant_profile_id
+  - definition_variants_json
+  - default_variant_id
+
+  Relevante Variant-Payload-Felder:
+  - variants[...][is_default]
+  - variants[...][kind]
+  - variants[...][name]
+  - variants[...][slug]
+  - variants[...][description]
+  - variants[...][variant_profile_id]
+  - variants[...][definition_values_json]
+  - variants[...][definition_summary]
+  - variants[...][definition_managed]
+  - variants[...][additional_field_keys]
+
+  Wichtige Hooks:
+  - data-vp-create-section="object-variants"
+  - data-vp-object-variants-top="true"
+  - data-vp-object-kind-area="true"
+  - data-create-object-kind="true"
+  - data-vp-family-profile-id-field="true"
+  - data-vp-variant-profile-id-field="true"
+  - data-vp-object-kind-note
+  - data-vp-variant-editor-state="closed|open"
+  - data-vp-variant-workspace-root="true"       aus _variant_workspace.html
+  - data-vp-definition-managed-variants="true"  aus _variant_workspace.html
+
+  Event-Vertrag:
+  - dispatch: vectoplan:create:object-kind-changed
+  - dispatch: vectoplan:create:variant-profile-resolve-requested
+  - dispatch: vectoplan:create:object-variants-ready
+  - dispatch: vectoplan:create:object-variants-editor-state-changed
+  - listen:   vectoplan:create:variant-family-profile-resolved
+  - listen:   vectoplan:create:variant-profile-resolved
+  - listen:   vectoplan:create:definitions-ready
+  - listen:   vectoplan:create:definitions-unavailable
+  - listen:   vectoplan:create:variant-state-changed
+  - listen:   vectoplan:create:variant-state-synced
+  - listen:   vectoplan:create:variant-editor-opened
+  - listen:   vectoplan:create:variant-editor-closed
+  - listen:   vectoplan:create:variant-drawer-opened
+  - listen:   vectoplan:create:variant-drawer-closed
+  - listen:   vectoplan:create:variant-drawer-session-started
+  - listen:   vectoplan:create:variant-drawer-session-prepared
+  - listen:   vectoplan:create:variant-drawer-apply-finished
+  - listen:   vectoplan:create:variant-drawer-apply-failed
+  - listen:   vectoplan:create:variant-drawer-reset
+  - listen:   vectoplan:create:variant-drawer-cancel-requested
+  - listen:   vectoplan:create:variant-workspace-editor-state-changed
+  - listen:   vectoplan:create:variant-table-editor-mode-changed
+
+  Robustheit:
+  - Alle Kontextdaten werden defensiv normalisiert.
+  - Fehlende Options/Definitions/Draft-Daten führen nicht zum Template-Abbruch.
+  - JS benutzt try/catch und cached DOM-Referenzen.
+  - Editor-State wird auf Parent, Workspace, Drawer, Table und Slots gespiegelt.
+  - Objektart-Bereich wird nur dann wieder eingeblendet, wenn er vorher durch
+    diesen Editor-State verborgen wurde.
+  - Bestehende Hooks bleiben kompatibel.
+----------------------------------------------------------------------------- #}
+
+
+{% if create_ui is not defined %}
+  {% import "library_admin/create/_macros.html" as create_ui %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  1. Options defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if _options is defined and _options is mapping and 'data' in _options and _options['data'] is mapping %}
+  {% set _object_variants_options = _options['data'] %}
+{% elif _options is defined and _options is mapping %}
+  {% set _object_variants_options = _options %}
+{% elif create_options is defined and create_options is mapping and 'data' in create_options and create_options['data'] is mapping %}
+  {% set _object_variants_options = create_options['data'] %}
+{% elif create_options is defined and create_options is mapping %}
+  {% set _object_variants_options = create_options %}
+{% else %}
+  {% set _object_variants_options = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  2. Definitions-Kontext defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if _object_variants_options is mapping and 'definitions' in _object_variants_options and _object_variants_options['definitions'] is mapping %}
+  {% set _object_variants_definitions = _object_variants_options['definitions'] %}
+{% elif definitions is defined and definitions is mapping %}
+  {% set _object_variants_definitions = definitions %}
+{% else %}
+  {% set _object_variants_definitions = {} %}
+{% endif %}
+
+{% if _object_variants_options is mapping and 'definitions_options' in _object_variants_options and _object_variants_options['definitions_options'] is mapping %}
+  {% set _object_variants_definitions_options = _object_variants_options['definitions_options'] %}
+{% elif _object_variants_definitions is mapping and 'options' in _object_variants_definitions and _object_variants_definitions['options'] is mapping %}
+  {% set _object_variants_definitions_options = _object_variants_definitions['options'] %}
+{% elif definitions_options is defined and definitions_options is mapping %}
+  {% set _object_variants_definitions_options = definitions_options %}
+{% else %}
+  {% set _object_variants_definitions_options = {} %}
+{% endif %}
+
+{% if _object_variants_options is mapping and 'definition_catalogs' in _object_variants_options and _object_variants_options['definition_catalogs'] is mapping %}
+  {% set _object_variants_definition_catalogs = _object_variants_options['definition_catalogs'] %}
+{% elif _object_variants_definitions is mapping and 'definitions' in _object_variants_definitions and _object_variants_definitions['definitions'] is mapping %}
+  {% set _object_variants_definition_catalogs = _object_variants_definitions['definitions'] %}
+{% elif definition_catalogs is defined and definition_catalogs is mapping %}
+  {% set _object_variants_definition_catalogs = definition_catalogs %}
+{% elif _object_variants_definitions is mapping %}
+  {% set _object_variants_definition_catalogs = _object_variants_definitions %}
+{% else %}
+  {% set _object_variants_definition_catalogs = {} %}
+{% endif %}
+
+{% set _definitions_available = false %}
+
+{% if _object_variants_definitions is mapping %}
+  {% if _object_variants_definitions.get('ok') is sameas true %}
+    {% set _definitions_available = true %}
+  {% elif (_object_variants_definitions.get('ok') | string | lower) in ['true', '1', 'yes', 'ja', 'ok', 'healthy'] %}
+    {% set _definitions_available = true %}
+  {% endif %}
+{% endif %}
+
+{% if not _definitions_available and _object_variants_definition_catalogs is mapping %}
+  {% if 'variant_profiles' in _object_variants_definition_catalogs and _object_variants_definition_catalogs['variant_profiles'] %}
+    {% set _definitions_available = true %}
+  {% elif 'variables' in _object_variants_definition_catalogs and _object_variants_definition_catalogs['variables'] %}
+    {% set _definitions_available = true %}
+  {% elif 'family_profiles' in _object_variants_definition_catalogs and _object_variants_definition_catalogs['family_profiles'] %}
+    {% set _definitions_available = true %}
+  {% endif %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  3. Object-Kind-Optionen defensiv lesen
+----------------------------------------------------------------------------- #}
+
+{% if _object_kinds is defined and _object_kinds is iterable and _object_kinds is not string and (_object_kinds | length) > 0 %}
+  {% set _variants_object_kinds = _object_kinds %}
+{% elif _object_variants_options is mapping and 'object_kinds' in _object_variants_options and _object_variants_options['object_kinds'] is iterable and _object_variants_options['object_kinds'] is not string and (_object_variants_options['object_kinds'] | length) > 0 %}
+  {% set _variants_object_kinds = _object_variants_options['object_kinds'] %}
+{% elif _object_variants_definitions_options is mapping and 'object_kinds' in _object_variants_definitions_options and _object_variants_definitions_options['object_kinds'] is iterable and _object_variants_definitions_options['object_kinds'] is not string and (_object_variants_definitions_options['object_kinds'] | length) > 0 %}
+  {% set _variants_object_kinds = _object_variants_definitions_options['object_kinds'] %}
+{% elif _object_variants_definition_catalogs is mapping and 'object_kinds' in _object_variants_definition_catalogs and _object_variants_definition_catalogs['object_kinds'] is iterable and _object_variants_definition_catalogs['object_kinds'] is not string and (_object_variants_definition_catalogs['object_kinds'] | length) > 0 %}
+  {% set _variants_object_kinds = _object_variants_definition_catalogs['object_kinds'] %}
+{% else %}
+  {% set _variants_object_kinds = [] %}
+{% endif %}
+
+{% if _variants_object_kinds | length > 0 %}
+  {% set _has_object_kinds = true %}
+{% else %}
+  {% set _has_object_kinds = false %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  4. Draft defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if create_initial_draft is defined and create_initial_draft is mapping %}
+  {% set _variants_draft = create_initial_draft %}
+{% elif _initial_draft is defined and _initial_draft is mapping %}
+  {% set _variants_draft = _initial_draft %}
+{% elif _draft is defined and _draft is mapping %}
+  {% set _variants_draft = _draft %}
+{% elif draft is defined and draft is mapping %}
+  {% set _variants_draft = draft %}
+{% elif vplib_draft is defined and vplib_draft is mapping %}
+  {% set _variants_draft = vplib_draft %}
+{% else %}
+  {% set _variants_draft = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  5. Object Kind / Profile IDs defensiv lesen
+
+  Wichtig:
+  family_profile_id und variant_profile_id bleiben leer, wenn sie nicht aus
+  einem echten Draft kommen. Sie dürfen nicht mit statischen Defaults vorbelegt
+  werden, sonst blockiert ein explizites variant_profile_id die automatische
+  Resolver-Logik.
+----------------------------------------------------------------------------- #}
+
+{% if _variants_draft is mapping and 'object_kind' in _variants_draft and _variants_draft['object_kind'] %}
+  {% set _selected_object_kind = _variants_draft['object_kind'] %}
+{% elif _variants_draft is mapping and 'object_class' in _variants_draft and _variants_draft['object_class'] %}
+  {% set _selected_object_kind = _variants_draft['object_class'] %}
+{% elif _variants_draft is mapping and 'family' in _variants_draft and _variants_draft['family'] is mapping and 'object_kind' in _variants_draft['family'] and _variants_draft['family']['object_kind'] %}
+  {% set _selected_object_kind = _variants_draft['family']['object_kind'] %}
+{% elif _variants_draft is mapping and 'family' in _variants_draft and _variants_draft['family'] is mapping and 'object_class' in _variants_draft['family'] and _variants_draft['family']['object_class'] %}
+  {% set _selected_object_kind = _variants_draft['family']['object_class'] %}
+{% elif _selected_object_kind is defined and _selected_object_kind %}
+  {% set _selected_object_kind = _selected_object_kind %}
+{% else %}
+  {% set _selected_object_kind = 'cell_block' %}
+{% endif %}
+
+{% set _selected_object_kind_normalized = _selected_object_kind | string | lower | replace('-', '_') | replace(' ', '_') %}
+
+{% if _variants_draft is mapping and 'family_profile_id' in _variants_draft and _variants_draft['family_profile_id'] %}
+  {% set _selected_family_profile_id = _variants_draft['family_profile_id'] %}
+{% elif _variants_draft is mapping and 'family' in _variants_draft and _variants_draft['family'] is mapping and 'family_profile_id' in _variants_draft['family'] and _variants_draft['family']['family_profile_id'] %}
+  {% set _selected_family_profile_id = _variants_draft['family']['family_profile_id'] %}
+{% elif _selected_family_profile_id is defined and _selected_family_profile_id %}
+  {% set _selected_family_profile_id = _selected_family_profile_id %}
+{% else %}
+  {% set _selected_family_profile_id = '' %}
+{% endif %}
+
+{% if _variants_draft is mapping and 'variant_profile_id' in _variants_draft and _variants_draft['variant_profile_id'] %}
+  {% set _selected_variant_profile_id = _variants_draft['variant_profile_id'] %}
+{% elif _variants_draft is mapping and 'family' in _variants_draft and _variants_draft['family'] is mapping and 'variant_profile_id' in _variants_draft['family'] and _variants_draft['family']['variant_profile_id'] %}
+  {% set _selected_variant_profile_id = _variants_draft['family']['variant_profile_id'] %}
+{% elif _selected_variant_profile_id is defined and _selected_variant_profile_id %}
+  {% set _selected_variant_profile_id = _selected_variant_profile_id %}
+{% else %}
+  {% set _selected_variant_profile_id = '' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  6. Varianten und Default defensiv lesen
+
+  Diese Werte werden an den Variant Workspace weitergereicht. Die eigentliche
+  Tabellen-/State-Synchronisation liegt nicht in dieser Datei.
+----------------------------------------------------------------------------- #}
+
+{% if _variants_draft is mapping and 'definition_variants_json' in _variants_draft and _variants_draft['definition_variants_json'] %}
+  {% set _definition_variants_json = _variants_draft['definition_variants_json'] %}
+{% elif definition_variants_json is defined and definition_variants_json %}
+  {% set _definition_variants_json = definition_variants_json %}
+{% else %}
+  {% set _definition_variants_json = '' %}
+{% endif %}
+
+{% if _variants_draft is mapping and 'variants' in _variants_draft and _variants_draft['variants'] is iterable and _variants_draft['variants'] is not string %}
+  {% if _variants_draft['variants'] is mapping %}
+    {% set _draft_variants = [] %}
+  {% else %}
+    {% set _draft_variants = _variants_draft['variants'] %}
+  {% endif %}
+{% elif _variants_draft is mapping and 'family' in _variants_draft and _variants_draft['family'] is mapping and 'variants' in _variants_draft['family'] and _variants_draft['family']['variants'] is iterable and _variants_draft['family']['variants'] is not string %}
+  {% if _variants_draft['family']['variants'] is mapping %}
+    {% set _draft_variants = [] %}
+  {% else %}
+    {% set _draft_variants = _variants_draft['family']['variants'] %}
+  {% endif %}
+{% else %}
+  {% set _draft_variants = [] %}
+{% endif %}
+
+{% if _variants_draft is mapping and 'default_variant_id' in _variants_draft and _variants_draft['default_variant_id'] %}
+  {% set _default_variant_id = _variants_draft['default_variant_id'] %}
+{% elif _variants_draft is mapping and 'default_variant' in _variants_draft and _variants_draft['default_variant'] %}
+  {% set _default_variant_id = _variants_draft['default_variant'] %}
+{% elif _variants_draft is mapping and 'variants' in _variants_draft and _variants_draft['variants'] is mapping and 'default' in _variants_draft['variants'] %}
+  {% set _default_variant_id = 'default' %}
+{% else %}
+  {% set _default_variant_id = 'default' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  7. Objektart-Hinweise ableiten
+----------------------------------------------------------------------------- #}
+
+{% if _selected_object_kind_normalized in ['cell_block', 'adaptive_system'] %}
+  {% set _object_kind_locks_cells = true %}
+{% else %}
+  {% set _object_kind_locks_cells = false %}
+{% endif %}
+
+{% if _selected_object_kind_normalized == 'cell_block' %}
+  {% set _object_kind_label = 'Rasterbauteil / Einzelblock' %}
+  {% set _object_kind_hint = 'Ein einzelner Raster- oder Blockbaustein. Das Editor-Raster wird später auf 1 × 1 × 1 fixiert.' %}
+{% elif _selected_object_kind_normalized == 'multi_cell_module' %}
+  {% set _object_kind_label = 'Mehrblock-Modul' %}
+  {% set _object_kind_hint = 'Ein Modul, das mehrere Rasterzellen belegen kann.' %}
+{% elif _selected_object_kind_normalized == 'catalog_object' %}
+  {% set _object_kind_label = 'Katalogobjekt' %}
+  {% set _object_kind_hint = 'Ein freies Objekt wie Möbel, Armatur, Gerät oder Ausstattung.' %}
+{% elif _selected_object_kind_normalized == 'adaptive_system' %}
+  {% set _object_kind_label = 'Adaptives System' %}
+  {% set _object_kind_hint = 'Ein kontextabhängiges System. Die dynamische Logik bleibt deklarativ vorbereitet.' %}
+{% else %}
+  {% set _object_kind_label = _selected_object_kind %}
+  {% set _object_kind_hint = 'Objektart für dieses Library-Element.' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  8. Workspace-Aliase für Include bereitstellen
+
+  Diese Namen werden von den Varianten-Subtemplates bevorzugt gelesen.
+----------------------------------------------------------------------------- #}
+
+{% set _vp_variant_options = _object_variants_options %}
+{% set _vp_variant_definitions = _object_variants_definitions %}
+{% set _vp_variant_definitions_options = _object_variants_definitions_options %}
+{% set _vp_variant_definition_catalogs = _object_variants_definition_catalogs %}
+{% set _vp_variant_definitions_available = _definitions_available %}
+{% set _vp_variant_draft = _variants_draft %}
+{% set _vp_variant_draft_variants = _draft_variants %}
+{% set _vp_variant_definition_variants_json = _definition_variants_json %}
+{% set _vp_variant_default_variant_id = _default_variant_id %}
+{% set _vp_variant_object_kind = _selected_object_kind %}
+{% set _vp_variant_object_kind_normalized = _selected_object_kind_normalized %}
+{% set _vp_variant_family_profile_id = _selected_family_profile_id %}
+{% set _vp_variant_profile_id = _selected_variant_profile_id %}
+{% set vp_variant_workspace_id = 'vp-create-object-variants-workspace' %}
+
+
+<div
+  class="vplib-create-step__panel vp-create-section vp-create-section--object-variants is-variant-editor-closed"
+  data-create-section="object-variants"
+  data-vp-create-section="object-variants"
+  data-create-section-required="true"
+  data-create-selected-object-kind="{{ _selected_object_kind_normalized }}"
+  data-create-object-kind-locks-cells="{% if _object_kind_locks_cells %}true{% else %}false{% endif %}"
+  data-create-object-kind-count="{{ _variants_object_kinds | length }}"
+  data-vp-definitions-enabled="{% if _definitions_available %}true{% else %}false{% endif %}"
+  data-vp-definitions-available="{% if _definitions_available %}true{% else %}false{% endif %}"
+  data-vp-current-object-kind="{{ _selected_object_kind_normalized }}"
+  data-vp-current-family-profile-id="{{ _selected_family_profile_id }}"
+  data-vp-current-variant-profile-id="{{ _selected_variant_profile_id }}"
+  data-vp-default-variant-id="{{ _default_variant_id }}"
+  data-vp-definition-managed-variants="true"
+  data-vp-step-panel="object-variants"
+  data-vp-object-variants-layout="flat"
+  data-vp-variant-editor-state="closed"
+  data-vp-object-variants-editor-state="closed"
+  aria-labelledby="vp-create-object-variants-title"
+>
+  <header
+    class="vplib-create-step__header vp-create-object-variants__header"
+    data-vp-object-variants-header="true"
+  >
+    <div class="vplib-create-step__header-main vp-create-object-variants__header-main">
+      <p class="vplib-create-step__kicker">
+        Schritt 3 von 6
+      </p>
+
+      <h2
+        id="vp-create-object-variants-title"
+        class="vplib-create-step__title"
+      >
+        Objekt und Varianten
+      </h2>
+
+      <p class="vplib-create-step__description">
+        Wähle die Objektklasse. Varianten werden aus backendseitigen Definitionsprofilen aufgebaut und bleiben Teil derselben Family.
+      </p>
+    </div>
+
+    <span
+      class="vplib-create-step__badge"
+      data-vp-step-required-badge
+      aria-label="Pflichtschritt"
+    >
+      Pflicht
+    </span>
+  </header>
+
+  <div
+    class="vplib-create-step__body vp-create-object-variants__body"
+    data-vp-object-variants-body="true"
+  >
+    <div
+      class="vp-create-object-variants__top"
+      data-vp-object-variants-top="true"
+      data-vp-object-kind-area="true"
+      data-vp-editor-hidden-when-open="true"
+    >
+      <div
+        class="vp-create-object-variants__field"
+        data-vp-object-kind-field-area="true"
+      >
+        {{ create_ui.render_select(
+          'object_kind',
+          'Objektart',
+          _variants_object_kinds,
+          _selected_object_kind,
+          'Objektart wählen',
+          'Bestimmt, wie das Package fachlich behandelt wird.',
+          true,
+          not _has_object_kinds,
+          true,
+          false,
+          'create-object-kind',
+          'data-create-object-kind="true" data-create-preview-source="object-kind" data-vp-step-field="object.kind" data-vp-object-kind-field="true" autocomplete="off"'
+        ) }}
+
+        {% if not _has_object_kinds %}
+          <input
+            type="hidden"
+            name="object_kind"
+            value="{{ _selected_object_kind }}"
+            data-create-object-kind-fallback="true"
+            data-vp-object-kind-field="true"
+          />
+        {% endif %}
+
+        <input
+          type="hidden"
+          name="family_profile_id"
+          value="{{ _selected_family_profile_id }}"
+          data-vp-family-profile-id-field="true"
+          data-create-field="family_profile_id"
+        />
+
+        <input
+          type="hidden"
+          name="variant_profile_id"
+          value="{{ _selected_variant_profile_id }}"
+          data-vp-variant-profile-id-field="true"
+          data-create-field="variant_profile_id"
+        />
+      </div>
+
+      <aside
+        class="vp-create-object-kind-note"
+        data-create-object-kind-note="true"
+        data-create-object-kind-note-value="{{ _selected_object_kind_normalized }}"
+        data-vp-object-kind-note
+        aria-label="Hinweis zur Objektart"
+      >
+        <div class="vp-create-object-kind-note__icon" aria-hidden="true">
+          <span class="vp-create-object-kind-note__glyph">□</span>
+        </div>
+
+        <div class="vp-create-object-kind-note__copy">
+          <strong data-create-object-kind-note-label="true">
+            {{ _object_kind_label }}
+          </strong>
+
+          <span data-create-object-kind-note-text="true">
+            {{ _object_kind_hint }}
+          </span>
+        </div>
+      </aside>
+    </div>
+
+    <div
+      class="vp-create-object-variants__workspace"
+      data-vp-object-variants-workspace-slot="true"
+      data-vp-variant-editor-state="closed"
+    >
+      {% include "library_admin/create/variants/_variant_workspace.html" ignore missing with context %}
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    var SECTION_SELECTOR = '[data-vp-create-section="object-variants"]';
+    var READY_ATTR = "data-vp-object-variants-ready";
+    var EVENTS_BOUND_ATTR = "data-vp-object-variants-events-bound";
+    var COMPONENT_NAME = "VECTOPLAN Create Object Variants";
+    var COMPONENT_VERSION = "0.4.0";
+
+    function warn(message, error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+
+    function toArray(value) {
+      try {
+        return Array.prototype.slice.call(value || []);
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function normalize(value) {
+      try {
+        return String(value || "")
+          .trim()
+          .toLowerCase()
+          .replace(/[-\s]+/g, "_")
+          .replace(/[^a-z0-9_./]/g, "");
+      } catch (error) {
+        return "";
+      }
+    }
+
+    function normalizeEditorState(value) {
+      try {
+        var state = String(value || "").trim().toLowerCase();
+
+        if (
+          state === "open" ||
+          state === "opened" ||
+          state === "edit" ||
+          state === "editing" ||
+          state === "active"
+        ) {
+          return "open";
+        }
+
+        return "closed";
+      } catch (error) {
+        return "closed";
+      }
+    }
+
+    function dispatch(node, eventName, detail, cancelable) {
+      try {
+        if (!node || !eventName) {
+          return null;
+        }
+
+        var event = new CustomEvent(eventName, {
+          bubbles: true,
+          cancelable: !!cancelable,
+          detail: detail || {}
+        });
+
+        node.dispatchEvent(event);
+        return event;
+      } catch (error) {
+        warn("Could not dispatch event: " + eventName, error);
+        return null;
+      }
+    }
+
+    function dispatchNativeEvent(node, eventName) {
+      try {
+        if (!node || !eventName) {
+          return false;
+        }
+
+        node.dispatchEvent(new Event(eventName, {
+          bubbles: true,
+          cancelable: false
+        }));
+
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function setFieldValue(field, value, options) {
+      try {
+        if (!field) {
+          return;
+        }
+
+        var nextValue = value === null || value === undefined ? "" : String(value);
+
+        if (field.value === nextValue) {
+          return;
+        }
+
+        field.value = nextValue;
+        field.setAttribute("data-vp-last-object-variants-sync", String(Date.now()));
+
+        if (!options || options.silent !== true) {
+          dispatchNativeEvent(field, "input");
+          dispatchNativeEvent(field, "change");
+        }
+      } catch (error) {
+        warn("Field update failed.", error);
+      }
+    }
+
+    function getFieldValue(field, fallback) {
+      try {
+        if (!field) {
+          return fallback || "";
+        }
+
+        return field.value || fallback || "";
+      } catch (error) {
+        return fallback || "";
+      }
+    }
+
+    function firstExisting(root, selectors) {
+      try {
+        if (!root || !selectors || !selectors.length) {
+          return null;
+        }
+
+        for (var index = 0; index < selectors.length; index += 1) {
+          var node = root.querySelector(selectors[index]);
+
+          if (node) {
+            return node;
+          }
+        }
+
+        return null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function cacheSection(section) {
+      try {
+        return {
+          section: section,
+
+          header: section.querySelector('[data-vp-object-variants-header="true"]'),
+          body: section.querySelector('[data-vp-object-variants-body="true"]'),
+
+          objectTop: section.querySelector('[data-vp-object-variants-top="true"]'),
+          objectKindArea: section.querySelector('[data-vp-object-kind-area="true"]'),
+          objectKindFieldArea: section.querySelector('[data-vp-object-kind-field-area="true"]'),
+
+          objectKindSelect: firstExisting(section, [
+            '[data-create-object-kind="true"]',
+            '[data-vp-object-kind-field="true"]',
+            '[name="object_kind"]',
+            '[name="object_class"]'
+          ]),
+
+          objectKindNote: section.querySelector("[data-vp-object-kind-note]"),
+          objectKindLabel: section.querySelector('[data-create-object-kind-note-label="true"]'),
+          objectKindText: section.querySelector('[data-create-object-kind-note-text="true"]'),
+
+          familyProfileField: section.querySelector('[data-vp-family-profile-id-field="true"]'),
+          variantProfileField: section.querySelector('[data-vp-variant-profile-id-field="true"]'),
+
+          workspaceSlot: section.querySelector('[data-vp-object-variants-workspace-slot="true"]'),
+
+          workspace: firstExisting(section, [
+            '[data-vp-variant-workspace-root="true"]',
+            '[data-vp-variant-workspace="true"]',
+            '.vp-create-variant-workspace'
+          ]),
+
+          tableSlot: firstExisting(section, [
+            '[data-vp-variant-table-slot="true"]',
+            '.vp-create-variant-workspace__table-slot'
+          ]),
+
+          drawerSlot: firstExisting(section, [
+            '[data-vp-variant-drawer-slot="true"]',
+            '.vp-create-variant-workspace__drawer-slot'
+          ]),
+
+          table: firstExisting(section, [
+            '[data-vp-variant-table-root="true"]',
+            '[data-vp-variant-table="true"]',
+            '[data-create-variant-table="true"]'
+          ]),
+
+          drawer: firstExisting(section, [
+            '[data-vp-variant-drawer-root="true"]',
+            '[data-vp-variant-drawer="true"]',
+            '.vp-create-variant-drawer'
+          ]),
+
+          countLabel: firstExisting(section, [
+            "[data-vp-variant-count-label]",
+            "[data-vp-variant-count-label='true']"
+          ])
+        };
+      } catch (error) {
+        warn("Could not cache section nodes.", error);
+
+        return {
+          section: section
+        };
+      }
+    }
+
+    var objectKindMeta = {
+      cell_block: {
+        label: "Rasterbauteil / Einzelblock",
+        text: "Ein einzelner Raster- oder Blockbaustein. Das Editor-Raster wird später auf 1 × 1 × 1 fixiert.",
+        locksCells: true
+      },
+      multi_cell_module: {
+        label: "Mehrblock-Modul",
+        text: "Ein Modul, das mehrere Rasterzellen belegen kann.",
+        locksCells: false
+      },
+      catalog_object: {
+        label: "Katalogobjekt",
+        text: "Ein freies Objekt wie Möbel, Armatur, Gerät oder Ausstattung.",
+        locksCells: false
+      },
+      adaptive_system: {
+        label: "Adaptives System",
+        text: "Ein kontextabhängiges System. Die dynamische Logik bleibt deklarativ vorbereitet.",
+        locksCells: true
+      }
+    };
+
+    function readObjectKind(cache) {
+      try {
+        var rawValue = cache.objectKindSelect
+          ? getFieldValue(cache.objectKindSelect, "")
+          : cache.section.getAttribute("data-create-selected-object-kind");
+
+        return normalize(rawValue) || "cell_block";
+      } catch (error) {
+        return "cell_block";
+      }
+    }
+
+    function getProfilePayloadFromDetail(detail) {
+      try {
+        var payload = detail || {};
+        var familyProfileId = payload.family_profile_id || payload.familyProfileId || "";
+        var variantProfileId = payload.variant_profile_id || payload.variantProfileId || "";
+
+        if (!familyProfileId && payload.profilePayload && payload.profilePayload.family_profile_id) {
+          familyProfileId = payload.profilePayload.family_profile_id;
+        }
+
+        if (!variantProfileId && payload.profilePayload && payload.profilePayload.variant_profile_id) {
+          variantProfileId = payload.profilePayload.variant_profile_id;
+        }
+
+        if (!familyProfileId && payload.family_profile && payload.family_profile.id) {
+          familyProfileId = payload.family_profile.id;
+        }
+
+        if (!variantProfileId && payload.variant_profile && payload.variant_profile.id) {
+          variantProfileId = payload.variant_profile.id;
+        }
+
+        if (!variantProfileId && payload.profile && payload.profile.id) {
+          variantProfileId = payload.profile.id;
+        }
+
+        return {
+          familyProfileId: familyProfileId || "",
+          variantProfileId: variantProfileId || ""
+        };
+      } catch (error) {
+        return {
+          familyProfileId: "",
+          variantProfileId: ""
+        };
+      }
+    }
+
+    function getRuntimeTargets(cache) {
+      try {
+        return [
+          cache.workspaceSlot,
+          cache.workspace,
+          cache.tableSlot,
+          cache.drawerSlot,
+          cache.table,
+          cache.drawer
+        ].filter(Boolean);
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function updateObjectKindNote(cache) {
+      try {
+        var key = readObjectKind(cache);
+        var meta = objectKindMeta[key] || {
+          label: key || "Objektart",
+          text: "Objektart für dieses Library-Element.",
+          locksCells: false
+        };
+
+        cache.section.setAttribute("data-create-selected-object-kind", key);
+        cache.section.setAttribute("data-vp-current-object-kind", key);
+        cache.section.setAttribute("data-create-object-kind-locks-cells", meta.locksCells ? "true" : "false");
+
+        if (cache.objectKindNote) {
+          cache.objectKindNote.setAttribute("data-create-object-kind-note-value", key);
+        }
+
+        if (cache.objectKindLabel) {
+          cache.objectKindLabel.textContent = meta.label;
+        }
+
+        if (cache.objectKindText) {
+          cache.objectKindText.textContent = meta.text;
+        }
+
+        syncObjectKindToTargets(cache, key);
+      } catch (error) {
+        warn("Object kind note update failed.", error);
+      }
+    }
+
+    function syncObjectKindToTargets(cache, objectKind) {
+      try {
+        var key = normalize(objectKind) || "cell_block";
+
+        getRuntimeTargets(cache).forEach(function (target) {
+          try {
+            target.setAttribute("data-vp-current-object-kind", key);
+            target.setAttribute("data-create-selected-object-kind", key);
+          } catch (targetError) {
+            warn("Object kind target write skipped.", targetError);
+          }
+        });
+      } catch (error) {
+        warn("Object kind target sync failed.", error);
+      }
+    }
+
+    function syncProfilesToTargets(cache, familyProfileId, variantProfileId, options) {
+      try {
+        var familyId = familyProfileId || "";
+        var variantId = variantProfileId || "";
+        var silent = options && options.silent === true;
+        var allowEmpty = options && options.allowEmpty === true;
+
+        if (familyId || allowEmpty) {
+          setFieldValue(cache.familyProfileField, familyId, {
+            silent: silent
+          });
+          cache.section.setAttribute("data-vp-current-family-profile-id", familyId);
+        }
+
+        if (variantId || allowEmpty) {
+          setFieldValue(cache.variantProfileField, variantId, {
+            silent: silent
+          });
+          cache.section.setAttribute("data-vp-current-variant-profile-id", variantId);
+        }
+
+        getRuntimeTargets(cache).forEach(function (target) {
+          try {
+            if (familyId || allowEmpty) {
+              target.setAttribute("data-vp-current-family-profile-id", familyId);
+              target.setAttribute("data-vp-family-profile-id", familyId);
+            }
+
+            if (variantId || allowEmpty) {
+              target.setAttribute("data-vp-current-variant-profile-id", variantId);
+              target.setAttribute("data-vp-variant-profile-id", variantId);
+            }
+          } catch (targetError) {
+            warn("Profile target write skipped.", targetError);
+          }
+        });
+      } catch (error) {
+        warn("Profile target sync failed.", error);
+      }
+    }
+
+    function clearResolvedProfiles(cache) {
+      try {
+        syncProfilesToTargets(cache, "", "", {
+          silent: false,
+          allowEmpty: true
+        });
+      } catch (error) {
+        warn("Clearing resolved profiles failed.", error);
+      }
+    }
+
+    function setManagedHidden(node, hidden, reason) {
+      try {
+        if (!node) {
+          return false;
+        }
+
+        if (hidden) {
+          node.setAttribute("data-vp-hidden-by-variant-editor", "true");
+          node.setAttribute("data-vp-hidden-reason", reason || "variant_editor_open");
+          node.setAttribute("aria-hidden", "true");
+          node.hidden = true;
+          node.setAttribute("hidden", "");
+          return true;
+        }
+
+        if (node.getAttribute("data-vp-hidden-by-variant-editor") === "true") {
+          node.removeAttribute("data-vp-hidden-by-variant-editor");
+          node.removeAttribute("data-vp-hidden-reason");
+          node.removeAttribute("aria-hidden");
+          node.hidden = false;
+          node.removeAttribute("hidden");
+          return true;
+        }
+
+        return false;
+      } catch (error) {
+        warn("Managed hidden update failed.", error);
+        return false;
+      }
+    }
+
+    function markEditorState(node, state, source) {
+      try {
+        if (!node) {
+          return false;
+        }
+
+        node.setAttribute("data-vp-variant-editor-state", state);
+        node.setAttribute("data-vp-object-variants-editor-state", state);
+        node.setAttribute("data-vp-variant-editor-state-source", source || COMPONENT_NAME);
+
+        if (node.classList) {
+          node.classList.toggle("is-variant-editor-open", state === "open");
+          node.classList.toggle("is-variant-editor-closed", state !== "open");
+        }
+
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function readInitialEditorState(cache) {
+      try {
+        var candidates = [
+          cache.section,
+          cache.workspace,
+          cache.workspaceSlot,
+          cache.drawer,
+          cache.drawerSlot,
+          document.documentElement
+        ].filter(Boolean);
+
+        for (var index = 0; index < candidates.length; index += 1) {
+          var value = candidates[index].getAttribute("data-vp-variant-editor-state") ||
+            candidates[index].getAttribute("data-vp-object-variants-editor-state") ||
+            "";
+
+          if (value) {
+            return normalizeEditorState(value);
+          }
+        }
+
+        return "closed";
+      } catch (error) {
+        return "closed";
+      }
+    }
+
+    function setEditorState(cache, nextState, options) {
+      try {
+        var state = normalizeEditorState(nextState);
+        var previousState = normalizeEditorState(cache.section.getAttribute("data-vp-variant-editor-state") || "closed");
+        var source = options && options.source ? options.source : "object_variants";
+        var silent = options && options.silent === true;
+
+        markEditorState(cache.section, state, source);
+        markEditorState(cache.body, state, source);
+        markEditorState(cache.workspaceSlot, state, source);
+        markEditorState(cache.workspace, state, source);
+        markEditorState(cache.tableSlot, state, source);
+        markEditorState(cache.drawerSlot, state, source);
+        markEditorState(cache.table, state, source);
+        markEditorState(cache.drawer, state, source);
+
+        setManagedHidden(cache.objectTop, state === "open", source);
+        setManagedHidden(cache.objectKindArea, state === "open", source);
+
+        if (cache.workspaceSlot) {
+          cache.workspaceSlot.setAttribute(
+            "data-vp-object-kind-area-hidden",
+            state === "open" ? "true" : "false"
+          );
+        }
+
+        try {
+          document.documentElement.setAttribute("data-vp-object-variants-editor-state", state);
+        } catch (htmlError) {
+          /* no-op */
+        }
+
+        if (!silent && previousState !== state) {
+          dispatch(document, "vectoplan:create:object-variants-editor-state-changed", {
+            component: COMPONENT_NAME,
+            version: COMPONENT_VERSION,
+            state: state,
+            editorState: state,
+            open: state === "open",
+            previousState: previousState,
+            source: source
+          });
+        }
+
+        return state;
+      } catch (error) {
+        warn("Editor state update failed.", error);
+        return "closed";
+      }
+    }
+
+    function requestProfileResolve(cache, reason) {
+      try {
+        var objectKind = readObjectKind(cache);
+
+        var detail = {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          reason: reason || "object_variants",
+          context: {
+            object_kind: objectKind,
+            family_profile_id: getFieldValue(cache.familyProfileField, ""),
+            variant_profile_id: getFieldValue(cache.variantProfileField, "")
+          }
+        };
+
+        dispatch(document, "vectoplan:create:variant-profile-resolve-requested", detail);
+
+        if (
+          window.VectoplanCreateVariantProfiles &&
+          typeof window.VectoplanCreateVariantProfiles.resolveCurrentProfile === "function"
+        ) {
+          window.VectoplanCreateVariantProfiles.resolveCurrentProfile({
+            source: reason || "object_variants"
+          });
+        } else if (
+          window.VectoplanCreateDefinitionsRuntime &&
+          typeof window.VectoplanCreateDefinitionsRuntime.resolveCurrentProfile === "function"
+        ) {
+          window.VectoplanCreateDefinitionsRuntime.resolveCurrentProfile();
+        }
+      } catch (error) {
+        warn("Profile resolve request failed.", error);
+      }
+    }
+
+    function handleObjectKindChanged(cache, reason) {
+      try {
+        var objectKind = readObjectKind(cache);
+
+        updateObjectKindNote(cache);
+        clearResolvedProfiles(cache);
+
+        dispatch(document, "vectoplan:create:object-kind-changed", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          object_kind: objectKind,
+          objectKind: objectKind,
+          reason: reason || "change"
+        });
+
+        requestProfileResolve(cache, reason || "object_kind_changed");
+      } catch (error) {
+        warn("Object kind change handling failed.", error);
+      }
+    }
+
+    function setProfileResolved(cache, detail) {
+      try {
+        var profilePayload = getProfilePayloadFromDetail(detail);
+
+        syncProfilesToTargets(
+          cache,
+          profilePayload.familyProfileId,
+          profilePayload.variantProfileId,
+          {
+            silent: false,
+            allowEmpty: false
+          }
+        );
+      } catch (error) {
+        warn("Profile resolved update failed.", error);
+      }
+    }
+
+    function setDefinitionsState(cache, available, detail) {
+      try {
+        var state = available ? "true" : "false";
+
+        cache.section.setAttribute("data-vp-definitions-enabled", state);
+        cache.section.setAttribute("data-vp-definitions-available", state);
+
+        getRuntimeTargets(cache).forEach(function (target) {
+          try {
+            target.setAttribute("data-vp-definitions-available", state);
+          } catch (targetError) {
+            warn("Definitions target write skipped.", targetError);
+          }
+        });
+
+        if (!available) {
+          cache.section.setAttribute(
+            "data-vp-definition-error",
+            detail && detail.error && detail.error.message
+              ? detail.error.message
+              : "definitions_unavailable"
+          );
+        } else {
+          cache.section.removeAttribute("data-vp-definition-error");
+        }
+      } catch (error) {
+        warn("Definitions state update failed.", error);
+      }
+    }
+
+    function syncVariantCount(cache, detail) {
+      try {
+        var count = null;
+
+        if (detail && detail.state && detail.state.variants && detail.state.variants.length !== undefined) {
+          count = detail.state.variants.length;
+        } else if (detail && detail.variants && detail.variants.length !== undefined) {
+          count = detail.variants.length;
+        } else if (cache.table) {
+          count = cache.table.querySelectorAll('[data-vp-variant-row="true"], [data-create-variant-row="true"]').length;
+        }
+
+        if (count === null || count === undefined || isNaN(parseInt(count, 10))) {
+          return;
+        }
+
+        count = parseInt(count, 10);
+
+        cache.section.setAttribute("data-vp-variant-count", String(count));
+
+        getRuntimeTargets(cache).forEach(function (target) {
+          try {
+            target.setAttribute("data-vp-variant-count", String(count));
+          } catch (targetError) {
+            warn("Variant count target write skipped.", targetError);
+          }
+        });
+
+        if (cache.countLabel) {
+          cache.countLabel.textContent = count === 1 ? "1 Variante" : count + " Varianten";
+        }
+      } catch (error) {
+        warn("Variant count sync failed.", error);
+      }
+    }
+
+    function handleExternalEditorEvent(cache, state, source) {
+      try {
+        setEditorState(cache, state, {
+          source: source,
+          silent: false
+        });
+      } catch (error) {
+        warn("External editor event handling failed.", error);
+      }
+    }
+
+    function bindEditorStateEvents(cache) {
+      try {
+        [
+          "vectoplan:create:variant-editor-opened",
+          "vectoplan:create:variant-drawer-opened",
+          "vectoplan:create:variant-edit-started",
+          "vectoplan:create:variant-drawer-session-started",
+          "vectoplan:create:variant-drawer-session-prepared"
+        ].forEach(function (eventName) {
+          document.addEventListener(eventName, function () {
+            handleExternalEditorEvent(cache, "open", eventName);
+          });
+        });
+
+        [
+          "vectoplan:create:variant-editor-closed",
+          "vectoplan:create:variant-drawer-closed",
+          "vectoplan:create:variant-edit-ended",
+          "vectoplan:create:variant-applied",
+          "vectoplan:create:variant-cancelled",
+          "vectoplan:create:variant-drawer-reset",
+          "vectoplan:create:variant-drawer-cancel-requested",
+          "vectoplan:create:variant-empty-state-close-requested",
+          "vectoplan:create:variant-drawer-apply-finished"
+        ].forEach(function (eventName) {
+          document.addEventListener(eventName, function () {
+            handleExternalEditorEvent(cache, "closed", eventName);
+          });
+        });
+
+        document.addEventListener("vectoplan:create:variant-drawer-apply-failed", function () {
+          handleExternalEditorEvent(cache, "open", "vectoplan:create:variant-drawer-apply-failed");
+        });
+
+        document.addEventListener("vectoplan:create:variant-workspace-editor-state-changed", function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+            handleExternalEditorEvent(
+              cache,
+              detail.state || detail.editorState || (detail.open ? "open" : "closed"),
+              detail.source || "workspace_editor_state_changed"
+            );
+          } catch (error) {
+            warn("Workspace editor-state listener failed.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:variant-table-editor-mode-changed", function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+            handleExternalEditorEvent(
+              cache,
+              detail.mode || detail.editorMode || (detail.open ? "open" : "closed"),
+              detail.source || "table_editor_mode_changed"
+            );
+          } catch (error) {
+            warn("Table editor-mode listener failed.", error);
+          }
+        });
+      } catch (error) {
+        warn("Editor state event binding failed.", error);
+      }
+    }
+
+    function bindEvents(cache) {
+      try {
+        if (!cache.section || cache.section.getAttribute(EVENTS_BOUND_ATTR) === "true") {
+          return;
+        }
+
+        if (cache.objectKindSelect) {
+          cache.objectKindSelect.addEventListener("change", function () {
+            handleObjectKindChanged(cache, "object_kind_change");
+          });
+
+          cache.objectKindSelect.addEventListener("input", function () {
+            updateObjectKindNote(cache);
+          });
+        }
+
+        document.addEventListener("vectoplan:create:variant-family-profile-resolved", function (event) {
+          setProfileResolved(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-profile-resolved", function (event) {
+          setProfileResolved(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:definitions-ready", function (event) {
+          setDefinitionsState(cache, true, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:definitions-unavailable", function (event) {
+          setDefinitionsState(cache, false, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-state-changed", function (event) {
+          syncVariantCount(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-state-synced", function (event) {
+          syncVariantCount(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-added", function (event) {
+          setProfileResolved(cache, event && event.detail ? event.detail : {});
+          syncVariantCount(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-updated", function (event) {
+          setProfileResolved(cache, event && event.detail ? event.detail : {});
+          syncVariantCount(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-removed", function (event) {
+          syncVariantCount(cache, event && event.detail ? event.detail : {});
+        });
+
+        bindEditorStateEvents(cache);
+
+        cache.section.setAttribute(EVENTS_BOUND_ATTR, "true");
+      } catch (error) {
+        warn("Event binding failed.", error);
+      }
+    }
+
+    function exposeApi(cache) {
+      try {
+        var previousApi = window.VectoplanCreateObjectVariants || {};
+
+        window.VectoplanCreateObjectVariants = Object.assign({}, previousApi, {
+          version: COMPONENT_VERSION,
+          section: cache.section,
+
+          refresh: function () {
+            try {
+              updateObjectKindNote(cache);
+              syncProfilesToTargets(
+                cache,
+                getFieldValue(cache.familyProfileField, ""),
+                getFieldValue(cache.variantProfileField, ""),
+                {
+                  silent: true,
+                  allowEmpty: false
+                }
+              );
+              syncVariantCount(cache, {});
+              setEditorState(cache, readInitialEditorState(cache), {
+                source: "public_refresh",
+                silent: true
+              });
+              return true;
+            } catch (error) {
+              warn("Public refresh failed.", error);
+              return false;
+            }
+          },
+
+          requestProfileResolve: function (reason) {
+            requestProfileResolve(cache, reason || "public_api");
+          },
+
+          setEditorState: function (state, options) {
+            return setEditorState(cache, state, options || {
+              source: "public_api"
+            });
+          },
+
+          openEditorState: function () {
+            return setEditorState(cache, "open", {
+              source: "public_api_open"
+            });
+          },
+
+          closeEditorState: function () {
+            return setEditorState(cache, "closed", {
+              source: "public_api_close"
+            });
+          },
+
+          getObjectKind: function () {
+            return readObjectKind(cache);
+          },
+
+          getFamilyProfileId: function () {
+            return getFieldValue(cache.familyProfileField, "");
+          },
+
+          getVariantProfileId: function () {
+            return getFieldValue(cache.variantProfileField, "");
+          },
+
+          getSnapshot: function () {
+            return {
+              ready: cache.section.getAttribute(READY_ATTR) === "true",
+              version: COMPONENT_VERSION,
+              object_kind: readObjectKind(cache),
+              family_profile_id: getFieldValue(cache.familyProfileField, ""),
+              variant_profile_id: getFieldValue(cache.variantProfileField, ""),
+              definitions_available: cache.section.getAttribute("data-vp-definitions-available") === "true",
+              variant_count: cache.section.getAttribute("data-vp-variant-count") || "",
+              editor_state: cache.section.getAttribute("data-vp-variant-editor-state") || "closed",
+              object_kind_area_hidden: cache.objectTop ? cache.objectTop.hidden : false,
+              has_workspace: !!cache.workspace,
+              has_drawer: !!cache.drawer
+            };
+          }
+        });
+      } catch (error) {
+        warn("API exposure failed.", error);
+      }
+    }
+
+    function initializeSection(section) {
+      try {
+        if (!section || section.getAttribute(READY_ATTR) === "true") {
+          return;
+        }
+
+        var cache = cacheSection(section);
+
+        updateObjectKindNote(cache);
+        syncProfilesToTargets(
+          cache,
+          getFieldValue(cache.familyProfileField, ""),
+          getFieldValue(cache.variantProfileField, ""),
+          {
+            silent: true,
+            allowEmpty: false
+          }
+        );
+        syncVariantCount(cache, {});
+        setEditorState(cache, readInitialEditorState(cache), {
+          source: "initialize",
+          silent: true
+        });
+        bindEvents(cache);
+        exposeApi(cache);
+
+        section.setAttribute(READY_ATTR, "true");
+        section.setAttribute("data-vp-object-variants-version", COMPONENT_VERSION);
+
+        dispatch(document, "vectoplan:create:object-variants-ready", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          object_kind: readObjectKind(cache),
+          family_profile_id: getFieldValue(cache.familyProfileField, ""),
+          variant_profile_id: getFieldValue(cache.variantProfileField, ""),
+          editor_state: section.getAttribute("data-vp-variant-editor-state") || "closed"
+        });
+
+        if (!getFieldValue(cache.familyProfileField, "") || !getFieldValue(cache.variantProfileField, "")) {
+          window.setTimeout(function () {
+            requestProfileResolve(cache, "object_variants_ready");
+          }, 80);
+        }
+      } catch (error) {
+        warn("Section initialization failed.", error);
+
+        try {
+          section.setAttribute("data-vp-object-variants-status", "initialization_failed");
+          section.setAttribute("data-vp-object-variants-error", String(error && error.message ? error.message : error));
+        } catch (statusError) {
+          /* no-op */
+        }
+      }
+    }
+
+    function initializeAll() {
+      try {
+        toArray(document.querySelectorAll(SECTION_SELECTOR)).forEach(function (section) {
+          initializeSection(section);
+        });
+      } catch (error) {
+        warn("Global initialization failed.", error);
+      }
+    }
+
+    try {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializeAll, {
+          once: true
+        });
+      } else {
+        initializeAll();
+      }
+    } catch (error) {
+      warn("Bootstrap failed.", error);
+    }
+  })();
+</script>

@@ -1,0 +1,742 @@
+{
+  "_file": "services/vectoplan-library/src/library/definitions/data/document_types.v1.json",
+  "schema_version": "1.0",
+  "definitions_version": "v1",
+  "dataset": "document_types",
+  "label": "VECTOPLAN Document Type Definitions",
+  "description": "Kanonischer Dokumenttypenkatalog für Varianten, Herstellerreferenzen und spätere Product Overlays. Varianten referenzieren Dokumentgruppen über stabile Dokumenttypen statt über freie Feldnamen.",
+  "items": [
+    {
+      "id": "datasheet",
+      "label": "Datenblatt",
+      "description": "Technisches oder herstellerbezogenes Datenblatt zu einem Bauteil, Objekt, Material oder Produkt.",
+      "active": true,
+      "sort_order": 10,
+      "tags": [
+        "technical",
+        "product",
+        "manufacturer",
+        "datasheet"
+      ],
+      "aliases": [
+        "datenblatt",
+        "technical_datasheet",
+        "product_datasheet",
+        "data_sheet"
+      ],
+      "i18n": {
+        "de": "Datenblatt",
+        "en": "Datasheet"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ],
+      "max_size_mb": 50,
+      "multiple": true,
+      "ui": {
+        "icon": "file-text",
+        "group": "technical",
+        "recommended": true,
+        "upload_label": "Datenblatt hinzufügen",
+        "empty_label": "Noch kein Datenblatt hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "test_report",
+      "label": "Prüfbericht",
+      "description": "Prüfbericht, Prüfzeugnis oder sonstiger technischer Nachweis aus Labor, Prüfstelle oder Herstellerprüfung.",
+      "active": true,
+      "sort_order": 20,
+      "tags": [
+        "test",
+        "report",
+        "technical",
+        "proof"
+      ],
+      "aliases": [
+        "pruefbericht",
+        "prüfbericht",
+        "pruefzeugnis",
+        "prüfzeugnis",
+        "test_certificate",
+        "test_report"
+      ],
+      "i18n": {
+        "de": "Prüfbericht",
+        "en": "Test report"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ],
+      "max_size_mb": 100,
+      "multiple": true,
+      "ui": {
+        "icon": "clipboard-check",
+        "group": "technical",
+        "recommended": true,
+        "upload_label": "Prüfbericht hinzufügen",
+        "empty_label": "Noch kein Prüfbericht hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "approval",
+      "label": "Zulassung",
+      "description": "Allgemeine bauaufsichtliche Zulassung, technische Zulassung oder sonstiger offizieller Verwendungsnachweis.",
+      "active": true,
+      "sort_order": 30,
+      "tags": [
+        "approval",
+        "regulatory",
+        "proof",
+        "construction"
+      ],
+      "aliases": [
+        "zulassung",
+        "abz",
+        "eta",
+        "approval_document",
+        "technical_approval"
+      ],
+      "i18n": {
+        "de": "Zulassung",
+        "en": "Approval"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ],
+      "max_size_mb": 100,
+      "multiple": true,
+      "ui": {
+        "icon": "badge-check",
+        "group": "regulatory",
+        "recommended": true,
+        "upload_label": "Zulassung hinzufügen",
+        "empty_label": "Noch keine Zulassung hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "certificate",
+      "label": "Zertifikat",
+      "description": "Zertifikat, Bescheinigung oder qualifizierter Nachweis zu Produkt, Material, Herstellung oder Leistung.",
+      "active": true,
+      "sort_order": 40,
+      "tags": [
+        "certificate",
+        "proof",
+        "quality",
+        "manufacturer"
+      ],
+      "aliases": [
+        "zertifikat",
+        "certificate",
+        "certification",
+        "bescheinigung"
+      ],
+      "i18n": {
+        "de": "Zertifikat",
+        "en": "Certificate"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ],
+      "max_size_mb": 50,
+      "multiple": true,
+      "ui": {
+        "icon": "award",
+        "group": "proof",
+        "recommended": false,
+        "upload_label": "Zertifikat hinzufügen",
+        "empty_label": "Noch kein Zertifikat hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "declaration_of_performance",
+      "label": "Leistungserklärung",
+      "description": "Leistungserklärung, z. B. im Kontext von Bauprodukten und CE-/DoP-Dokumentation.",
+      "active": true,
+      "sort_order": 50,
+      "tags": [
+        "declaration",
+        "performance",
+        "dop",
+        "construction_product"
+      ],
+      "aliases": [
+        "leistungserklaerung",
+        "leistungserklärung",
+        "dop",
+        "declaration_of_performance",
+        "performance_declaration"
+      ],
+      "i18n": {
+        "de": "Leistungserklärung",
+        "en": "Declaration of performance"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ],
+      "max_size_mb": 100,
+      "multiple": true,
+      "ui": {
+        "icon": "file-check",
+        "group": "regulatory",
+        "recommended": true,
+        "upload_label": "Leistungserklärung hinzufügen",
+        "empty_label": "Noch keine Leistungserklärung hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "technical_drawing",
+      "label": "Technische Zeichnung",
+      "description": "Technische Zeichnung, Detailzeichnung, Schnitt, Anschlussdetail oder geometrisches Referenzdokument.",
+      "active": true,
+      "sort_order": 60,
+      "tags": [
+        "drawing",
+        "technical",
+        "geometry",
+        "detail"
+      ],
+      "aliases": [
+        "technische_zeichnung",
+        "zeichnung",
+        "detailzeichnung",
+        "technical_drawing",
+        "drawing"
+      ],
+      "i18n": {
+        "de": "Technische Zeichnung",
+        "en": "Technical drawing"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/svg+xml",
+        "application/dxf",
+        "application/octet-stream"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".svg",
+        ".dxf",
+        ".dwg"
+      ],
+      "max_size_mb": 150,
+      "multiple": true,
+      "ui": {
+        "icon": "drafting-compass",
+        "group": "geometry",
+        "recommended": false,
+        "upload_label": "Technische Zeichnung hinzufügen",
+        "empty_label": "Noch keine technische Zeichnung hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "may_require_special_viewer": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "installation_manual",
+      "label": "Montageanleitung",
+      "description": "Montage-, Einbau- oder Installationsanleitung für Produkte, Geräte, Ausstattung oder Bauteile.",
+      "active": true,
+      "sort_order": 70,
+      "tags": [
+        "manual",
+        "installation",
+        "product",
+        "instruction"
+      ],
+      "aliases": [
+        "montageanleitung",
+        "installationsanleitung",
+        "installation_manual",
+        "mounting_manual",
+        "manual"
+      ],
+      "i18n": {
+        "de": "Montageanleitung",
+        "en": "Installation manual"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ],
+      "max_size_mb": 100,
+      "multiple": true,
+      "ui": {
+        "icon": "book-open",
+        "group": "product",
+        "recommended": true,
+        "upload_label": "Montageanleitung hinzufügen",
+        "empty_label": "Noch keine Montageanleitung hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "product_sheet",
+      "label": "Produktblatt",
+      "description": "Kurzes Produktblatt, Verkaufsblatt oder kompakte Produktübersicht.",
+      "active": true,
+      "sort_order": 80,
+      "tags": [
+        "product",
+        "sheet",
+        "manufacturer",
+        "commercial"
+      ],
+      "aliases": [
+        "produktblatt",
+        "product_sheet",
+        "sales_sheet",
+        "produktuebersicht",
+        "produktübersicht"
+      ],
+      "i18n": {
+        "de": "Produktblatt",
+        "en": "Product sheet"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ],
+      "max_size_mb": 50,
+      "multiple": true,
+      "ui": {
+        "icon": "file",
+        "group": "product",
+        "recommended": false,
+        "upload_label": "Produktblatt hinzufügen",
+        "empty_label": "Noch kein Produktblatt hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "environmental_declaration",
+      "label": "Umweltproduktdeklaration",
+      "description": "EPD oder vergleichbare Umweltproduktdeklaration.",
+      "active": true,
+      "sort_order": 90,
+      "tags": [
+        "environment",
+        "epd",
+        "sustainability",
+        "product"
+      ],
+      "aliases": [
+        "epd",
+        "umweltproduktdeklaration",
+        "environmental_product_declaration",
+        "environmental_declaration"
+      ],
+      "i18n": {
+        "de": "Umweltproduktdeklaration",
+        "en": "Environmental product declaration"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ],
+      "max_size_mb": 100,
+      "multiple": true,
+      "ui": {
+        "icon": "leaf",
+        "group": "sustainability",
+        "recommended": false,
+        "upload_label": "Umweltproduktdeklaration hinzufügen",
+        "empty_label": "Noch keine Umweltproduktdeklaration hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "safety_data_sheet",
+      "label": "Sicherheitsdatenblatt",
+      "description": "Sicherheitsdatenblatt für relevante Produkte, Stoffe oder Materialien.",
+      "active": true,
+      "sort_order": 100,
+      "tags": [
+        "safety",
+        "material",
+        "product",
+        "datasheet"
+      ],
+      "aliases": [
+        "sicherheitsdatenblatt",
+        "sdb",
+        "safety_data_sheet",
+        "msds"
+      ],
+      "i18n": {
+        "de": "Sicherheitsdatenblatt",
+        "en": "Safety data sheet"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ],
+      "max_size_mb": 100,
+      "multiple": true,
+      "ui": {
+        "icon": "shield-alert",
+        "group": "safety",
+        "recommended": false,
+        "upload_label": "Sicherheitsdatenblatt hinzufügen",
+        "empty_label": "Noch kein Sicherheitsdatenblatt hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "warranty",
+      "label": "Garantie / Gewährleistung",
+      "description": "Garantie-, Gewährleistungs- oder Servicebedingungen zu einem Produkt.",
+      "active": true,
+      "sort_order": 110,
+      "tags": [
+        "warranty",
+        "commercial",
+        "product",
+        "service"
+      ],
+      "aliases": [
+        "garantie",
+        "gewaehrleistung",
+        "gewährleistung",
+        "warranty"
+      ],
+      "i18n": {
+        "de": "Garantie / Gewährleistung",
+        "en": "Warranty"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ],
+      "max_size_mb": 50,
+      "multiple": true,
+      "ui": {
+        "icon": "shield-check",
+        "group": "commercial",
+        "recommended": false,
+        "upload_label": "Garantiedokument hinzufügen",
+        "empty_label": "Noch kein Garantiedokument hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "image",
+      "label": "Bild",
+      "description": "Bild, Foto, Produktbild oder Vorschaubild.",
+      "active": true,
+      "sort_order": 120,
+      "tags": [
+        "image",
+        "preview",
+        "render",
+        "visual"
+      ],
+      "aliases": [
+        "bild",
+        "foto",
+        "image",
+        "preview_image",
+        "product_image"
+      ],
+      "i18n": {
+        "de": "Bild",
+        "en": "Image"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/svg+xml"
+      ],
+      "allowed_extensions": [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".svg"
+      ],
+      "max_size_mb": 25,
+      "multiple": true,
+      "ui": {
+        "icon": "image",
+        "group": "visual",
+        "recommended": false,
+        "upload_label": "Bild hinzufügen",
+        "empty_label": "Noch kein Bild hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "can_be_preview_asset": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "model_3d",
+      "label": "3D-Modell",
+      "description": "3D-Modell oder Render-Artefakt, z. B. GLB für Vorschau und Platzierung.",
+      "active": true,
+      "sort_order": 130,
+      "tags": [
+        "3d",
+        "model",
+        "render",
+        "asset"
+      ],
+      "aliases": [
+        "3d_model",
+        "model",
+        "mesh",
+        "glb",
+        "gltf"
+      ],
+      "i18n": {
+        "de": "3D-Modell",
+        "en": "3D model"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "model/gltf-binary",
+        "model/gltf+json",
+        "application/octet-stream"
+      ],
+      "allowed_extensions": [
+        ".glb",
+        ".gltf"
+      ],
+      "max_size_mb": 250,
+      "multiple": true,
+      "ui": {
+        "icon": "box",
+        "group": "visual",
+        "recommended": false,
+        "upload_label": "3D-Modell hinzufügen",
+        "empty_label": "Noch kein 3D-Modell hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "future_overlay_ready": true,
+        "can_be_render_asset": true,
+        "runtime_artifact": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "other",
+      "label": "Sonstiges Dokument",
+      "description": "Sonstiges referenziertes Dokument, das keinem spezifischeren Dokumenttyp zugeordnet werden kann.",
+      "active": true,
+      "sort_order": 1000,
+      "tags": [
+        "other",
+        "fallback"
+      ],
+      "aliases": [
+        "sonstiges",
+        "other",
+        "misc"
+      ],
+      "i18n": {
+        "de": "Sonstiges Dokument",
+        "en": "Other document"
+      },
+      "required_for_profiles": [],
+      "allowed_mime_types": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "text/plain",
+        "text/markdown",
+        "application/json"
+      ],
+      "allowed_extensions": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".txt",
+        ".md",
+        ".json"
+      ],
+      "max_size_mb": 50,
+      "multiple": true,
+      "ui": {
+        "icon": "paperclip",
+        "group": "other",
+        "recommended": false,
+        "upload_label": "Dokument hinzufügen",
+        "empty_label": "Noch kein sonstiges Dokument hinterlegt"
+      },
+      "metadata": {
+        "core_document_type": true,
+        "fallback": true,
+        "stability": "stable"
+      }
+    }
+  ]
+}

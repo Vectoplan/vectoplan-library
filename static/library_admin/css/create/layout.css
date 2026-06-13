@@ -1,0 +1,1143 @@
+/* services/vectoplan-library/static/library_admin/css/create/layout.css */
+
+/* -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Layout Styles
+
+  Zweck:
+  - Layout-Basis für die /create-Wizard-Oberfläche.
+  - Kein Hero-Layout mehr.
+  - Kein Alert-Stack mehr.
+  - Kein Statuskarten-Grid mehr.
+  - Kein Help-/Result-Layout mehr.
+  - Kein langes Admin-Formular mehr.
+  - Unterstützt die Fullscreen-Struktur aus create.html und wizard.css.
+  - Enthält allgemeine Layout-, Spacing-, Typografie- und Hilfsklassen.
+  - Wizard-spezifische Hauptregeln liegen in create/wizard.css.
+  - Variant-Workspace-Details liegen in create/variant-workspace.css.
+  - Variant-Drawer-Details liegen in create/variant-drawer.css.
+  - Optional-Field-Details liegen in create/variant-optional-fields.css.
+  - Preview-Details liegen in create/preview.css.
+  - Action-Details liegen in create/actions.css.
+  - Formular-Details liegen in create/forms.css.
+  - Tabellen-/Row-Details liegen in create/tables.css.
+
+  Aktuelles UI-Ziel:
+  - Breite Wizard-Fläche statt eingequetschter Admin-Seite.
+  - Header-Stepper kann volle Breite nutzen.
+  - Step 3 bleibt flach:
+      Objekt und Varianten
+      Objektart
+      Hinweis
+      Varianten-Workspace / Editor
+  - Keine zusätzliche "Bearbeitung"-Card auf Layout-Ebene.
+  - Keine Debug-/Meta-Blöcke sichtbar erzwingen.
+  - Größere, besser lesbare lokale Texte.
+  - Keine unnötigen Scrollbars auf Wrapper-Ebene.
+  - Nur fachliche Inhaltsbereiche dürfen lokal scrollen.
+
+  Robustheitsprinzip:
+  - CSS hat kein try/catch.
+  - Robustheit entsteht durch:
+    - starke Scope-Klassen
+    - defensive Legacy-Kompatibilität
+    - min-width: 0 / min-height: 0
+    - niedrige Layout-Spezifität, damit Fach-CSS überschreiben kann
+    - keine Abhängigkeit zu gelöschten Partials
+    - keine direkten Backend-Annahmen
+
+  Erwartete neue Shell:
+  - body.vp-create-page
+  - .vplib-create-app
+  - .vplib-create-app__shell
+  - .vplib-create-app__form
+  - .vplib-create-app__workspace
+  - .vplib-create-app__main
+  - .vplib-create-app__aside
+
+  Noch tolerierte Legacy-Klassen:
+  - .vp-create-shell
+  - .vp-create-form
+  - .vp-create-layout
+  - .vp-create-layout__main
+  - .vp-create-layout__side
+
+  Gelöschte Partials:
+  - templates/library_admin/create/_hero.html
+  - templates/library_admin/create/_alerts.html
+  - templates/library_admin/create/sections/_help.html
+  - templates/library_admin/create/sections/_result.html
+
+  Abhängigkeit:
+  - Wird nach create/tokens.css und create/base.css geladen.
+  - create/wizard.css wird später geladen und darf Layout-Regeln überschreiben.
+----------------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+  1. Local Layout Tokens
+----------------------------------------------------------------------------- */
+
+:root {
+  --vp-create-layout-page-bg: var(--vp-create-bg, #f4f7fb);
+  --vp-create-layout-surface: var(--vp-create-surface, #ffffff);
+  --vp-create-layout-surface-soft: var(--vp-create-surface-soft, #f8fafc);
+  --vp-create-layout-surface-muted: var(--vp-create-muted-soft, rgba(148, 163, 184, 0.08));
+
+  --vp-create-layout-border: var(--vp-create-border, rgba(15, 23, 42, 0.12));
+  --vp-create-layout-border-soft: var(--vp-create-border-soft, rgba(15, 23, 42, 0.08));
+  --vp-create-layout-border-strong: var(--vp-create-border-strong, rgba(15, 23, 42, 0.18));
+
+  --vp-create-layout-text: var(--vp-create-text, #0f172a);
+  --vp-create-layout-text-strong: var(--vp-create-text-strong, #0f172a);
+  --vp-create-layout-text-muted: var(--vp-create-text-muted, #64748b);
+  --vp-create-layout-text-soft: var(--vp-create-text-soft, #94a3b8);
+
+  --vp-create-layout-primary: var(--vp-create-primary, #2563eb);
+  --vp-create-layout-primary-soft: var(--vp-create-primary-soft, rgba(37, 99, 235, 0.10));
+  --vp-create-layout-primary-border: rgba(37, 99, 235, 0.26);
+
+  --vp-create-layout-warning: var(--vp-create-warning, #d97706);
+  --vp-create-layout-warning-soft: rgba(245, 158, 11, 0.10);
+  --vp-create-layout-warning-border: rgba(245, 158, 11, 0.32);
+
+  --vp-create-layout-radius-xs: var(--vp-create-radius-sm, 0.5rem);
+  --vp-create-layout-radius-sm: var(--vp-create-radius-md, 0.875rem);
+  --vp-create-layout-radius-md: var(--vp-create-radius-lg, 1rem);
+  --vp-create-layout-radius-lg: var(--vp-create-radius-xl, 1.35rem);
+  --vp-create-layout-radius-full: var(--vp-create-radius-full, 999px);
+
+  --vp-create-layout-gap-xs: var(--vp-create-space-2, 0.5rem);
+  --vp-create-layout-gap-sm: var(--vp-create-space-3, 0.75rem);
+  --vp-create-layout-gap-md: var(--vp-create-space-4, 1rem);
+  --vp-create-layout-gap-lg: var(--vp-create-space-5, 1.25rem);
+
+  --vp-create-layout-font-xs: var(--vp-create-text-xs, 0.75rem);
+  --vp-create-layout-font-sm: 0.9rem;
+  --vp-create-layout-font-base: 0.98rem;
+  --vp-create-layout-font-md: 1.05rem;
+
+  --vp-create-layout-line-normal: 1.42;
+  --vp-create-layout-line-snug: var(--vp-create-line-snug, 1.35);
+}
+
+
+/* -----------------------------------------------------------------------------
+  2. Page Contract
+----------------------------------------------------------------------------- */
+
+html[data-create-document="true"],
+html[data-vp-create-document="true"] {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+
+body.vp-create-page,
+body[data-create-page="true"],
+body[data-vp-create-page="true"] {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+  color: var(--vp-create-layout-text);
+  background: var(--vp-create-layout-page-bg);
+}
+
+body.vp-create-page *,
+body[data-create-page="true"] *,
+body[data-vp-create-page="true"] * {
+  box-sizing: border-box;
+}
+
+.vp-create-page a,
+body[data-create-page="true"] a,
+body[data-vp-create-page="true"] a {
+  color: inherit;
+}
+
+.vp-create-page code,
+body[data-create-page="true"] code,
+body[data-vp-create-page="true"] code {
+  font-family: var(--vp-create-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+}
+
+
+/* -----------------------------------------------------------------------------
+  3. New Shell Base
+
+  wizard.css definiert die finale Grid-Struktur. Diese Regeln sorgen nur dafür,
+  dass die Shell vor dem Laden der Wizard-Regeln stabil und breit bleibt.
+----------------------------------------------------------------------------- */
+
+.vplib-create-app {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vplib-create-app__shell,
+.vplib-create-app__form,
+.vplib-create-app__workspace,
+.vplib-create-app__main,
+.vplib-create-app__aside {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vplib-create-app__shell {
+  width: 100%;
+}
+
+.vplib-create-app__form {
+  width: 100%;
+}
+
+.vplib-create-app__workspace {
+  width: 100%;
+}
+
+.vplib-create-app__main,
+.vplib-create-app__aside {
+  overflow: hidden;
+}
+
+
+/* -----------------------------------------------------------------------------
+  4. Legacy Shell Compatibility
+
+  Die neue Shell nutzt .vplib-create-app.
+  Diese alten Klassen bleiben als Fallback stabil, falls ein Partial oder ein
+  älterer Zustand sie noch verwendet.
+----------------------------------------------------------------------------- */
+
+.vp-create-shell {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-form {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-layout {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-layout__main,
+.vp-create-layout__side {
+  min-width: 0;
+  min-height: 0;
+}
+
+
+/* -----------------------------------------------------------------------------
+  5. Removed Legacy Blocks
+
+  Diese Klassen werden bewusst nicht mehr aktiv gestaltet.
+  Falls alte Markup-Reste versehentlich noch gerendert werden, sollen sie nicht
+  wieder ein langes Admin-Layout erzwingen.
+----------------------------------------------------------------------------- */
+
+.vp-create-hero,
+.vp-create-alert-stack,
+.vp-create-status-grid,
+[data-create-help-card="true"],
+[data-create-result-card="true"] {
+  display: none !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+  6. Generic Text Helpers
+----------------------------------------------------------------------------- */
+
+.vp-create-eyebrow {
+  margin: 0 0 var(--vp-create-layout-gap-xs);
+  color: var(--vp-create-layout-primary);
+  font-size: var(--vp-create-text-xs, 0.75rem);
+  font-weight: var(--vp-create-weight-bold, 700);
+  letter-spacing: var(--vp-create-letter-wider, 0.08em);
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.vp-create-muted {
+  color: var(--vp-create-layout-text-muted);
+}
+
+.vp-create-soft {
+  color: var(--vp-create-layout-text-soft);
+}
+
+.vp-create-mono {
+  font-family: var(--vp-create-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+}
+
+.vp-create-nowrap {
+  white-space: nowrap;
+}
+
+.vp-create-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-break {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+
+/* -----------------------------------------------------------------------------
+  7. Section Contracts
+----------------------------------------------------------------------------- */
+
+.vp-create-section {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-section + .vp-create-section {
+  margin-top: 0;
+}
+
+.vp-create-section[hidden] {
+  display: none !important;
+}
+
+.vp-create-section--identity,
+.vp-create-section--taxonomy,
+.vp-create-section--object-variants,
+.vp-create-section--geometry,
+.vp-create-section--technical,
+.vp-create-section--actions {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-card {
+  min-width: 0;
+}
+
+.vp-create-card--sticky {
+  position: static;
+}
+
+.vplib-create-step__panel.vp-create-section {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vplib-create-step__body {
+  min-width: 0;
+  min-height: 0;
+}
+
+
+/* -----------------------------------------------------------------------------
+  8. Subsections
+----------------------------------------------------------------------------- */
+
+.vp-create-subsection {
+  min-width: 0;
+  margin-top: var(--vp-create-layout-gap-lg);
+  padding-top: var(--vp-create-layout-gap-md);
+  border-top: 1px solid var(--vp-create-layout-border-soft);
+}
+
+.vp-create-subsection:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.vp-create-subsection__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--vp-create-gap-md, 1rem);
+  min-width: 0;
+  margin-bottom: var(--vp-create-layout-gap-md);
+}
+
+.vp-create-subsection__copy {
+  display: grid;
+  gap: var(--vp-create-space-1, 0.25rem);
+  min-width: 0;
+}
+
+.vp-create-subsection__action {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+.vp-create-subsection__title {
+  margin: 0;
+  color: var(--vp-create-layout-text-strong);
+  font-size: var(--vp-create-layout-font-md);
+  font-weight: var(--vp-create-weight-bold, 700);
+  line-height: var(--vp-create-layout-line-snug);
+}
+
+.vp-create-subsection__text {
+  margin: 0;
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-layout-font-sm);
+  line-height: var(--vp-create-layout-line-normal);
+}
+
+
+/* -----------------------------------------------------------------------------
+  9. Compact Subheader
+
+  Wird von den Wizard-Sections genutzt, damit alte große Header nicht mehr nötig
+  sind.
+----------------------------------------------------------------------------- */
+
+.vp-create-compact-subheader {
+  min-width: 0;
+  margin-bottom: var(--vp-create-layout-gap-sm);
+}
+
+.vp-create-compact-subheader__title {
+  margin: 0;
+  color: var(--vp-create-layout-text-strong);
+  font-size: var(--vp-create-layout-font-md);
+  font-weight: var(--vp-create-weight-bold, 700);
+  line-height: var(--vp-create-layout-line-snug);
+}
+
+.vp-create-compact-subheader__text {
+  max-width: 78ch;
+  margin: var(--vp-create-space-1, 0.25rem) 0 0;
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-layout-font-sm);
+  line-height: var(--vp-create-layout-line-normal);
+}
+
+
+/* -----------------------------------------------------------------------------
+  10. Step-Local Helper Grids
+----------------------------------------------------------------------------- */
+
+.vp-create-field-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--vp-create-layout-gap-md);
+  min-width: 0;
+}
+
+.vp-create-field-grid > * {
+  min-width: 0;
+}
+
+.vp-create-field-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.vp-create-field-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vp-create-field-grid--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vp-create-field-grid--dense {
+  gap: var(--vp-create-layout-gap-sm);
+}
+
+
+/* -----------------------------------------------------------------------------
+  11. Assist / Summary Cards
+----------------------------------------------------------------------------- */
+
+.vp-create-identity-assist,
+.vp-create-taxonomy-assist,
+.vp-create-variant-assist,
+.vp-create-geometry-summary,
+.vp-create-technical-assist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--vp-create-layout-gap-sm);
+  min-width: 0;
+}
+
+.vp-create-geometry-summary {
+  margin-top: 0;
+}
+
+.vp-create-assist-card {
+  min-width: 0;
+  border: 1px solid var(--vp-create-layout-border-soft);
+  border-radius: var(--vp-create-layout-radius-sm);
+  background: var(--vp-create-layout-surface-muted);
+  padding: var(--vp-create-layout-gap-md);
+}
+
+.vp-create-assist-card--compact {
+  padding: var(--vp-create-layout-gap-sm);
+}
+
+.vp-create-assist-card__label {
+  display: block;
+  margin: 0 0 var(--vp-create-space-1, 0.25rem);
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-text-2xs, 0.6875rem);
+  font-weight: var(--vp-create-weight-bold, 700);
+  letter-spacing: var(--vp-create-letter-wide, 0.06em);
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.vp-create-assist-card__title {
+  display: block;
+  min-width: 0;
+  color: var(--vp-create-layout-text-strong);
+  font-size: var(--vp-create-layout-font-sm);
+  font-weight: var(--vp-create-weight-bold, 700);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-assist-card__text {
+  margin: var(--vp-create-space-2, 0.5rem) 0 0;
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-layout-font-xs);
+  line-height: 1.4;
+}
+
+
+/* -----------------------------------------------------------------------------
+  12. Derived Notes / Inline Warnings
+
+  Kleine Hinweise innerhalb eines Schritts. Ersetzt alte große Alert-/Help-Blöcke.
+----------------------------------------------------------------------------- */
+
+.vp-create-derived-note,
+.vp-create-inline-warning {
+  min-width: 0;
+}
+
+.vp-create-derived-note__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--vp-create-layout-gap-xs);
+  min-width: 0;
+  border: 1px solid var(--vp-create-layout-border-soft);
+  border-radius: var(--vp-create-layout-radius-sm);
+  background: var(--vp-create-layout-surface-muted);
+  padding: var(--vp-create-layout-gap-sm);
+}
+
+.vp-create-derived-note__label {
+  flex: 0 0 auto;
+  color: var(--vp-create-layout-primary);
+  font-size: var(--vp-create-layout-font-xs);
+  font-weight: var(--vp-create-weight-bold, 700);
+  line-height: 1.2;
+}
+
+.vp-create-derived-note__text {
+  min-width: 0;
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-layout-font-xs);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.vp-create-derived-note__text code {
+  color: var(--vp-create-layout-text-strong);
+}
+
+.vp-create-inline-warning {
+  border: 1px solid var(--vp-create-layout-warning-border);
+  border-radius: var(--vp-create-layout-radius-sm);
+  background: var(--vp-create-layout-warning-soft);
+  color: #92400e;
+  padding: var(--vp-create-layout-gap-sm);
+  font-size: var(--vp-create-layout-font-xs);
+  line-height: 1.4;
+}
+
+.vp-create-inline-warning strong {
+  color: #78350f;
+}
+
+
+/* -----------------------------------------------------------------------------
+  13. Taxonomy Path
+----------------------------------------------------------------------------- */
+
+.vp-create-taxonomy-path,
+.vp-create-help-path {
+  display: grid;
+  gap: var(--vp-create-layout-gap-xs);
+  min-width: 0;
+  padding: var(--vp-create-layout-gap-sm);
+  border: 1px solid var(--vp-create-layout-border-soft);
+  border-radius: var(--vp-create-layout-radius-sm);
+  background: var(--vp-create-layout-surface-muted);
+}
+
+.vp-create-taxonomy-path__label,
+.vp-create-help-path__label {
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-text-2xs, 0.6875rem);
+  font-weight: var(--vp-create-weight-bold, 700);
+  letter-spacing: var(--vp-create-letter-wide, 0.06em);
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.vp-create-taxonomy-path__value,
+.vp-create-help-path__value {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vp-create-layout-text-strong);
+  font-size: var(--vp-create-layout-font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* -----------------------------------------------------------------------------
+  14. Object Variants Step Local Layout
+----------------------------------------------------------------------------- */
+
+.vp-create-section--object-variants {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-object-variants__header,
+.vp-create-object-variants__header-main {
+  min-width: 0;
+}
+
+.vp-create-object-variants__body {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-object-variants__top {
+  min-width: 0;
+}
+
+.vp-create-object-variants__field {
+  min-width: 0;
+}
+
+.vp-create-object-variants__workspace {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-object-variants__workspace > * {
+  min-width: 0;
+}
+
+
+/* -----------------------------------------------------------------------------
+  15. Object-Kind Note
+----------------------------------------------------------------------------- */
+
+.vp-create-object-kind-note {
+  display: flex;
+  align-items: center;
+  gap: var(--vp-create-layout-gap-sm);
+  min-width: 0;
+  border: 1px solid var(--vp-create-layout-border-soft);
+  border-radius: var(--vp-create-layout-radius-md);
+  background: var(--vp-create-layout-surface-muted);
+  padding: var(--vp-create-layout-gap-sm);
+}
+
+.vp-create-object-kind-note__icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--vp-create-layout-border-soft);
+  border-radius: var(--vp-create-layout-radius-sm);
+  background: var(--vp-create-bg-overlay, rgba(255, 255, 255, 0.82));
+  color: var(--vp-create-layout-primary);
+  display: grid;
+  place-items: center;
+}
+
+.vp-create-object-kind-note__glyph {
+  font-size: 1rem;
+  font-weight: var(--vp-create-weight-heavy, 800);
+  line-height: 1;
+}
+
+.vp-create-object-kind-note__copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.vp-create-object-kind-note__copy strong {
+  min-width: 0;
+  color: var(--vp-create-layout-text-strong);
+  font-size: 0.95rem;
+  font-weight: var(--vp-create-weight-bold, 700);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-object-kind-note__copy span {
+  color: var(--vp-create-layout-text-muted);
+  font-size: 0.84rem;
+  line-height: 1.38;
+}
+
+
+/* -----------------------------------------------------------------------------
+  16. Variant / Variable Editor Headers
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-editor,
+.vp-create-variable-editor {
+  min-width: 0;
+}
+
+.vp-create-variant-editor--compact,
+.vp-create-variable-editor--compact {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.vp-create-variant-editor__header,
+.vp-create-variable-editor__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--vp-create-gap-md, 1rem);
+  min-width: 0;
+  margin-bottom: var(--vp-create-layout-gap-sm);
+}
+
+.vp-create-variant-editor__title-wrap,
+.vp-create-variable-editor__title-wrap {
+  min-width: 0;
+}
+
+.vp-create-variant-editor__title,
+.vp-create-variable-editor__title {
+  margin: 0;
+  color: var(--vp-create-layout-text-strong);
+  font-size: var(--vp-create-layout-font-md);
+  font-weight: var(--vp-create-weight-bold, 700);
+  line-height: var(--vp-create-layout-line-snug);
+}
+
+.vp-create-variant-editor__description,
+.vp-create-variable-editor__description {
+  max-width: 82ch;
+  margin: var(--vp-create-space-1, 0.25rem) 0 0;
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-layout-font-sm);
+  line-height: var(--vp-create-layout-line-normal);
+}
+
+.vp-create-variant-editor__tools,
+.vp-create-variable-editor__tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--vp-create-layout-gap-xs);
+  flex: 0 0 auto;
+}
+
+.vp-create-variant-editor__count,
+.vp-create-variable-editor__count {
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-layout-font-xs);
+  font-weight: var(--vp-create-weight-semibold, 600);
+  white-space: nowrap;
+}
+
+
+/* -----------------------------------------------------------------------------
+  17. Action Status Strip
+----------------------------------------------------------------------------- */
+
+.vp-create-action-status-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--vp-create-layout-gap-sm);
+  min-width: 0;
+}
+
+.vp-create-mini-status {
+  min-width: 0;
+  border: 1px solid var(--vp-create-layout-border-soft);
+  border-radius: var(--vp-create-layout-radius-sm);
+  background: var(--vp-create-layout-surface-muted);
+  padding: var(--vp-create-layout-gap-sm);
+}
+
+.vp-create-mini-status__label {
+  display: block;
+  margin-bottom: var(--vp-create-space-1, 0.25rem);
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-text-2xs, 0.6875rem);
+  font-weight: var(--vp-create-weight-bold, 700);
+  letter-spacing: var(--vp-create-letter-wide, 0.06em);
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.vp-create-mini-status__value {
+  display: block;
+  min-width: 0;
+  color: var(--vp-create-layout-text-strong);
+  font-size: var(--vp-create-layout-font-sm);
+  font-weight: var(--vp-create-weight-bold, 700);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-mini-status__value--mono {
+  font-family: var(--vp-create-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+}
+
+.vp-create-mini-status__hint {
+  display: block;
+  margin-top: var(--vp-create-space-1, 0.25rem);
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-layout-font-xs);
+  line-height: 1.35;
+}
+
+
+/* -----------------------------------------------------------------------------
+  18. Mobile Hint
+
+  Bleibt vorhanden, falls einzelne Macros ihn noch rendern. Im Wizard soll er
+  nur auf kleinen Breiten sichtbar werden.
+----------------------------------------------------------------------------- */
+
+.vp-create-mobile-hint,
+.vp-create-mobile-action-hint {
+  display: none;
+  margin-top: var(--vp-create-layout-gap-md);
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-layout-font-sm);
+  line-height: 1.4;
+}
+
+
+/* -----------------------------------------------------------------------------
+  19. Link / Action Link Helpers
+----------------------------------------------------------------------------- */
+
+.vp-create-help-links,
+.vp-create-action-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vp-create-layout-gap-xs);
+  min-width: 0;
+  margin-top: var(--vp-create-layout-gap-md);
+}
+
+.vp-create-hero-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--vp-create-layout-border);
+  border-radius: var(--vp-create-layout-radius-full);
+  color: var(--vp-create-layout-text-soft);
+  font-size: var(--vp-create-layout-font-xs);
+  font-weight: var(--vp-create-weight-semibold, 600);
+  line-height: 1;
+  text-decoration: none;
+  background: var(--vp-create-layout-surface-muted);
+  transition: var(--vp-create-transition-fast, 150ms ease);
+}
+
+.vp-create-hero-link:hover {
+  border-color: var(--vp-create-layout-border-strong);
+  color: var(--vp-create-layout-text-strong);
+  text-decoration: none;
+  background: var(--vp-create-layout-primary-soft);
+}
+
+.vp-create-hero-link:focus-visible {
+  outline: none;
+  box-shadow: var(--vp-create-shadow-focus, 0 0 0 3px rgba(37, 99, 235, 0.22));
+}
+
+
+/* -----------------------------------------------------------------------------
+  20. Ordered Lists
+
+  Legacy-kompatibel, falls einzelne kleinere Ablaufhinweise später wieder
+  innerhalb eines Steps auftauchen.
+----------------------------------------------------------------------------- */
+
+.vp-create-ordered-list {
+  display: grid;
+  gap: var(--vp-create-layout-gap-sm);
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--vp-create-layout-text-muted);
+  font-size: var(--vp-create-layout-font-sm);
+}
+
+.vp-create-ordered-list li {
+  padding-left: var(--vp-create-space-1, 0.25rem);
+}
+
+.vp-create-ordered-list li::marker {
+  color: var(--vp-create-layout-primary);
+  font-weight: var(--vp-create-weight-bold, 700);
+}
+
+.vp-create-ordered-list strong {
+  display: block;
+  margin-bottom: var(--vp-create-space-1, 0.25rem);
+}
+
+.vp-create-ordered-list span {
+  display: block;
+}
+
+
+/* -----------------------------------------------------------------------------
+  21. Generic Hidden / Accessibility Helpers
+----------------------------------------------------------------------------- */
+
+.vp-create-sr-only,
+.vp-create-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+}
+
+[data-vp-layout-hidden="true"] {
+  display: none !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+  22. Dark Theme Fallback
+----------------------------------------------------------------------------- */
+
+[data-theme="dark"],
+.vplib-create-app[data-theme="dark"],
+.dark .vplib-create-app {
+  --vp-create-layout-page-bg: var(--vp-create-bg, #0b1120);
+  --vp-create-layout-surface: var(--vp-create-surface, #111827);
+  --vp-create-layout-surface-soft: var(--vp-create-surface-soft, #0f172a);
+  --vp-create-layout-surface-muted: rgba(148, 163, 184, 0.08);
+
+  --vp-create-layout-border: var(--vp-create-border, rgba(148, 163, 184, 0.18));
+  --vp-create-layout-border-soft: var(--vp-create-border-soft, rgba(148, 163, 184, 0.12));
+  --vp-create-layout-border-strong: var(--vp-create-border-strong, rgba(148, 163, 184, 0.28));
+
+  --vp-create-layout-text: var(--vp-create-text, #e5e7eb);
+  --vp-create-layout-text-strong: var(--vp-create-text-strong, #f8fafc);
+  --vp-create-layout-text-muted: var(--vp-create-text-muted, #cbd5e1);
+  --vp-create-layout-text-soft: var(--vp-create-text-soft, #94a3b8);
+}
+
+[data-theme="dark"] .vp-create-object-kind-note__icon,
+.vplib-create-app[data-theme="dark"] .vp-create-object-kind-note__icon,
+.dark .vplib-create-app .vp-create-object-kind-note__icon {
+  background: rgba(15, 23, 42, 0.84);
+}
+
+
+/* -----------------------------------------------------------------------------
+  23. Responsive Layout Helpers
+
+  Die zentrale Wizard-Responsiveness liegt in wizard.css.
+  Hier nur allgemeine lokale Anpassungen.
+----------------------------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .vp-create-action-status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .vp-create-action-status-strip .vp-create-mini-status:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 980px) {
+  .vp-create-field-grid--two,
+  .vp-create-field-grid--three,
+  .vp-create-field-grid--four {
+    grid-template-columns: 1fr;
+  }
+
+  .vp-create-identity-assist,
+  .vp-create-taxonomy-assist,
+  .vp-create-variant-assist,
+  .vp-create-geometry-summary,
+  .vp-create-technical-assist {
+    grid-template-columns: 1fr;
+  }
+
+  .vp-create-action-status-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .vp-create-action-status-strip .vp-create-mini-status:nth-child(3) {
+    grid-column: auto;
+  }
+
+  .vp-create-object-kind-note__copy strong {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 640px) {
+  .vp-create-subsection {
+    margin-top: var(--vp-create-layout-gap-md);
+    padding-top: var(--vp-create-layout-gap-sm);
+  }
+
+  .vp-create-subsection__header,
+  .vp-create-variant-editor__header,
+  .vp-create-variable-editor__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vp-create-subsection__action,
+  .vp-create-variant-editor__tools,
+  .vp-create-variable-editor__tools {
+    justify-content: stretch;
+  }
+
+  .vp-create-subsection__action .vp-create-button,
+  .vp-create-variant-editor__tools .vp-create-button,
+  .vp-create-variable-editor__tools .vp-create-button {
+    width: 100%;
+  }
+
+  .vp-create-derived-note__inner,
+  .vp-create-object-kind-note {
+    align-items: flex-start;
+  }
+
+  .vp-create-object-kind-note {
+    gap: var(--vp-create-layout-gap-xs);
+  }
+
+  .vp-create-mobile-hint,
+  .vp-create-mobile-action-hint {
+    display: block;
+  }
+
+  .vp-create-taxonomy-path__value,
+  .vp-create-help-path__value,
+  .vp-create-assist-card__title,
+  .vp-create-mini-status__value {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 420px) {
+  .vp-create-field-grid {
+    gap: var(--vp-create-layout-gap-sm);
+  }
+
+  .vp-create-derived-note__inner {
+    flex-direction: column;
+    gap: var(--vp-create-space-1, 0.25rem);
+  }
+
+  .vp-create-object-kind-note__icon {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  24. Reduced Motion
+----------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .vp-create-hero-link {
+    transition: none;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  25. Print
+----------------------------------------------------------------------------- */
+
+@media print {
+  body.vp-create-page,
+  body[data-create-page="true"],
+  body[data-vp-create-page="true"] {
+    width: auto;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    background: #ffffff;
+  }
+
+  .vplib-create-app,
+  .vplib-create-app__shell,
+  .vplib-create-app__workspace,
+  .vplib-create-app__main,
+  .vplib-create-app__aside,
+  .vp-create-shell,
+  .vp-create-layout,
+  .vp-create-layout__main,
+  .vp-create-layout__side {
+    display: block;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .vp-create-card--sticky {
+    position: static;
+  }
+
+  .vp-create-hero,
+  .vp-create-alert-stack,
+  .vp-create-status-grid,
+  [data-create-help-card="true"],
+  [data-create-result-card="true"] {
+    display: none !important;
+  }
+}

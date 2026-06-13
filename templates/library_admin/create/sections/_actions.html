@@ -1,0 +1,789 @@
+{# services/vectoplan-library/templates/library_admin/create/sections/_actions.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard · Step 6: Actions
+
+  Zweck:
+  - Finaler Wizard-Schritt für die /create-Oberfläche.
+  - Stellt die Backend-Aktionen bereit:
+    - Draft bauen
+    - Validieren
+    - Package-Plan
+    - Download
+    - Save
+  - Ersetzt die gelöschte _result.html durch kompaktes Inline-Feedback.
+  - Keine Business-Logik im Template.
+  - Keine direkte Dateioperation im Browser.
+  - Keine Formularauswertung im Template.
+  - Keine API-Aufrufe im Template.
+  - Keine Help-Section.
+  - Keine Alert-Section.
+  - Keine Hero-Section.
+
+  Backend-/JS-Vertrag:
+  Diese data-create-action Werte bleiben stabil:
+  - draft
+  - validate
+  - package-plan
+  - download
+  - save
+
+  Erwartet aus create.html:
+  - create_ui als importiertes Makro-Modul
+  - _write_enabled
+  - _health_ok
+  - _api_prefix
+  - optional _source_root
+
+  Bestehende JS-Hooks bleiben erhalten:
+  - data-create-actions-card="true"
+  - data-create-action="draft"
+  - data-create-action="validate"
+  - data-create-action="package-plan"
+  - data-create-action="download"
+  - data-create-action="save"
+  - data-create-action-status="true"
+
+  Neue defensive Hooks:
+  - data-vp-create-section="actions"
+  - data-vp-actions-feedback
+  - data-vp-actions-result-output
+  - data-vp-actions-result-copy
+  - data-vp-actions-result-clear
+----------------------------------------------------------------------------- #}
+
+
+{% if create_ui is not defined %}
+  {% import "library_admin/create/_macros.html" as create_ui %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  1. Kontext defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if _write_enabled is defined %}
+  {% set _actions_write_enabled_raw = _write_enabled %}
+{% elif create_options is defined and create_options is mapping and 'write_enabled' in create_options %}
+  {% set _actions_write_enabled_raw = create_options['write_enabled'] %}
+{% else %}
+  {% set _actions_write_enabled_raw = false %}
+{% endif %}
+
+{% set _actions_write_enabled_text = _actions_write_enabled_raw | string | lower %}
+{% if _actions_write_enabled_raw is sameas true or _actions_write_enabled_text in ['true', '1', 'yes', 'ja', 'enabled', 'active', 'on'] %}
+  {% set _actions_write_enabled = true %}
+{% else %}
+  {% set _actions_write_enabled = false %}
+{% endif %}
+
+
+{% if _health_ok is defined %}
+  {% set _actions_health_ok_raw = _health_ok %}
+{% elif create_health is defined and create_health is mapping and 'ok' in create_health %}
+  {% set _actions_health_ok_raw = create_health['ok'] %}
+{% else %}
+  {% set _actions_health_ok_raw = false %}
+{% endif %}
+
+{% set _actions_health_ok_text = _actions_health_ok_raw | string | lower %}
+{% if _actions_health_ok_raw is sameas true or _actions_health_ok_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy'] %}
+  {% set _actions_health_ok = true %}
+{% else %}
+  {% set _actions_health_ok = false %}
+{% endif %}
+
+
+{% if _api_prefix is defined and _api_prefix %}
+  {% set _actions_api_prefix = _api_prefix %}
+{% elif create_api_prefix is defined and create_api_prefix %}
+  {% set _actions_api_prefix = create_api_prefix %}
+{% else %}
+  {% set _actions_api_prefix = '/api/v1/vplib/create' %}
+{% endif %}
+
+
+{% if _source_root is defined and _source_root %}
+  {% set _actions_source_root = _source_root %}
+{% elif create_options is defined and create_options is mapping and 'source_root' in create_options and create_options['source_root'] %}
+  {% set _actions_source_root = create_options['source_root'] %}
+{% else %}
+  {% set _actions_source_root = '' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  2. Labels ableiten
+----------------------------------------------------------------------------- #}
+
+{% if _actions_write_enabled %}
+  {% set _save_state_label = 'Write aktiv' %}
+  {% set _save_hint = 'Speichern schreibt nach Bestätigung in den Source-Bereich.' %}
+  {% set _save_badge_state = 'warning' %}
+{% else %}
+  {% set _save_state_label = 'Write deaktiviert' %}
+  {% set _save_hint = 'Speichern ist deaktiviert. Download bleibt verfügbar.' %}
+  {% set _save_badge_state = 'muted' %}
+{% endif %}
+
+{% if _actions_health_ok %}
+  {% set _health_state_label = 'Health grün' %}
+  {% set _health_hint = 'Create-Service ist erreichbar.' %}
+  {% set _health_badge_state = 'ok' %}
+{% else %}
+  {% set _health_state_label = 'Health prüfen' %}
+  {% set _health_hint = 'Aktionen können fehlschlagen, falls der Create-Service nicht erreichbar ist.' %}
+  {% set _health_badge_state = 'warning' %}
+{% endif %}
+
+
+<div
+  class="vplib-create-step__panel vp-create-card vp-create-section vp-create-section--actions vp-create-actions-card"
+  data-create-section="actions"
+  data-vp-create-section="actions"
+  data-create-actions-card="true"
+  data-create-write-enabled="{% if _actions_write_enabled %}true{% else %}false{% endif %}"
+  data-create-health-ok="{% if _actions_health_ok %}true{% else %}false{% endif %}"
+  data-create-api-prefix="{{ _actions_api_prefix }}"
+  data-create-source-root="{{ _actions_source_root }}"
+  data-vp-step-panel="actions"
+  aria-labelledby="vp-create-actions-title"
+>
+  <header class="vplib-create-step__header">
+    <div class="vplib-create-step__header-main">
+      <p class="vplib-create-step__kicker">
+        Schritt 6 von 6
+      </p>
+
+      <h2
+        id="vp-create-actions-title"
+        class="vplib-create-step__title"
+      >
+        Prüfen und erzeugen
+      </h2>
+
+      <p class="vplib-create-step__description">
+        Baue den Draft, validiere die Struktur, prüfe den Package-Plan und erzeuge anschließend das VPLIB-Archiv.
+      </p>
+    </div>
+
+    <span
+      class="vplib-create-step__badge"
+      data-vp-step-final-badge
+      aria-label="Finaler Schritt"
+    >
+      Final
+    </span>
+  </header>
+
+  <div class="vplib-create-step__body">
+    <div class="vplib-create-step__grid">
+      <div
+        class="vplib-create-step__field vplib-create-step__field--full vp-create-action-status-strip"
+        data-vp-actions-status-strip
+        aria-label="Create-Service Status"
+      >
+        <article
+          class="vp-create-mini-status"
+          data-vp-action-health-status="{{ _health_badge_state }}"
+        >
+          <span class="vp-create-mini-status__label">
+            Service
+          </span>
+
+          <strong class="vp-create-mini-status__value">
+            {{ _health_state_label }}
+          </strong>
+
+          <span class="vp-create-mini-status__hint">
+            {{ _health_hint }}
+          </span>
+        </article>
+
+        <article
+          class="vp-create-mini-status"
+          data-vp-action-write-status="{{ _save_badge_state }}"
+        >
+          <span class="vp-create-mini-status__label">
+            Save
+          </span>
+
+          <strong class="vp-create-mini-status__value">
+            {{ _save_state_label }}
+          </strong>
+
+          <span class="vp-create-mini-status__hint">
+            {{ _save_hint }}
+          </span>
+        </article>
+
+        <article class="vp-create-mini-status">
+          <span class="vp-create-mini-status__label">
+            API
+          </span>
+
+          <strong class="vp-create-mini-status__value vp-create-mini-status__value--mono">
+            {{ _actions_api_prefix }}
+          </strong>
+
+          <span class="vp-create-mini-status__hint">
+            Create-Endpunkte bleiben Backend-gesteuert.
+          </span>
+        </article>
+      </div>
+
+      <div
+        class="vplib-create-step__field vplib-create-step__field--full vp-create-action-stack"
+        data-create-action-stack="true"
+        data-vp-action-stack
+        aria-label="Create-Aktionen"
+      >
+        <button
+          class="vp-create-button vp-create-button--secondary vp-create-action-button"
+          type="button"
+          data-create-action="draft"
+          data-create-action-label="Draft bauen"
+          data-vp-action-button
+        >
+          <span class="vp-create-button__label">
+            Draft bauen
+          </span>
+          <span class="vp-create-button__hint">
+            Eingaben normalisieren
+          </span>
+        </button>
+
+        <button
+          class="vp-create-button vp-create-button--secondary vp-create-action-button"
+          type="button"
+          data-create-action="validate"
+          data-create-action-label="Validieren"
+          data-vp-action-button
+        >
+          <span class="vp-create-button__label">
+            Validieren
+          </span>
+          <span class="vp-create-button__hint">
+            Pflichtfelder und Package-Struktur prüfen
+          </span>
+        </button>
+
+        <button
+          class="vp-create-button vp-create-button--secondary vp-create-action-button"
+          type="button"
+          data-create-action="package-plan"
+          data-create-action-label="Package-Plan"
+          data-vp-action-button
+        >
+          <span class="vp-create-button__label">
+            Package-Plan
+          </span>
+          <span class="vp-create-button__hint">
+            Geplante Dateien ansehen
+          </span>
+        </button>
+
+        <button
+          class="vp-create-button vp-create-button--primary vp-create-action-button"
+          type="button"
+          data-create-action="download"
+          data-create-action-label="VPLIB downloaden"
+          data-vp-action-button
+        >
+          <span class="vp-create-button__label">
+            VPLIB downloaden
+          </span>
+          <span class="vp-create-button__hint">
+            Archiv erzeugen, ohne zu speichern
+          </span>
+        </button>
+
+        <button
+          class="vp-create-button vp-create-button--danger vp-create-action-button"
+          type="button"
+          data-create-action="save"
+          data-create-action-label="In Library speichern"
+          data-create-requires-write="true"
+          data-vp-action-button
+          {% if not _actions_write_enabled %}disabled aria-disabled="true"{% else %}aria-disabled="false"{% endif %}
+        >
+          <span class="vp-create-button__label">
+            In Library speichern
+          </span>
+
+          <span class="vp-create-button__hint">
+            {% if _actions_write_enabled %}
+              In Source-Bereich schreiben
+            {% else %}
+              Write-Flag nicht aktiv
+            {% endif %}
+          </span>
+        </button>
+      </div>
+
+      <div
+        class="vplib-create-step__field vplib-create-step__field--full vp-create-action-feedback"
+        data-vp-actions-feedback
+        data-vp-actions-feedback-state="idle"
+        aria-labelledby="vp-create-action-feedback-title"
+      >
+        <div class="vp-create-action-feedback__header">
+          <div class="vp-create-action-feedback__title-wrap">
+            <h3
+              id="vp-create-action-feedback-title"
+              class="vp-create-action-feedback__title"
+            >
+              Ergebnis
+            </h3>
+
+            <p
+              class="vp-create-action-feedback__status"
+              data-create-action-status="true"
+              data-vp-action-status
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              Bereit. Wähle eine Aktion.
+            </p>
+          </div>
+
+          <div class="vp-create-action-feedback__tools">
+            <button
+              class="vp-create-button vp-create-button--ghost vp-create-button--small"
+              type="button"
+              data-create-copy-result="true"
+              data-vp-actions-result-copy
+              disabled
+              aria-disabled="true"
+            >
+              Kopieren
+            </button>
+
+            <button
+              class="vp-create-button vp-create-button--ghost vp-create-button--small"
+              type="button"
+              data-create-clear-result="true"
+              data-vp-actions-result-clear
+              disabled
+              aria-disabled="true"
+            >
+              Leeren
+            </button>
+          </div>
+        </div>
+
+        <div
+          class="vp-create-result-summary"
+          data-create-result-summary="true"
+          data-vp-actions-result-summary
+          hidden
+        ></div>
+
+        <pre
+          class="vp-create-result-output"
+          data-create-result-output="true"
+          data-vp-actions-result-output
+          tabindex="0"
+          aria-label="Backend-Ergebnis als JSON"
+          hidden
+        ><code data-vp-actions-result-code>{}</code></pre>
+      </div>
+
+      <div
+        class="vplib-create-step__field vplib-create-step__field--full vp-create-derived-note"
+        data-vp-derived-note="actions"
+        aria-label="Ablaufhinweis"
+      >
+        <div class="vp-create-derived-note__inner">
+          <span class="vp-create-derived-note__label">
+            Ablauf:
+          </span>
+
+          <span class="vp-create-derived-note__text">
+            Empfohlen: Draft → Validieren → Package-Plan → Download. Save nur bei aktivem Write-Flag.
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" data-vp-actions-config>
+    {
+      "apiPrefix": {{ _actions_api_prefix | tojson }},
+      "writeEnabled": {% if _actions_write_enabled %}true{% else %}false{% endif %},
+      "healthOk": {% if _actions_health_ok %}true{% else %}false{% endif %},
+      "sourceRoot": {{ _actions_source_root | tojson }},
+      "actions": ["draft", "validate", "package-plan", "download", "save"]
+    }
+  </script>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    try {
+      var section = document.querySelector('[data-vp-create-section="actions"]');
+
+      if (!section || section.getAttribute("data-vp-actions-ready") === "true") {
+        return;
+      }
+
+      var statusNode = section.querySelector("[data-vp-action-status]") ||
+        section.querySelector('[data-create-action-status="true"]');
+
+      var feedback = section.querySelector("[data-vp-actions-feedback]");
+      var resultSummary = section.querySelector("[data-vp-actions-result-summary]") ||
+        section.querySelector('[data-create-result-summary="true"]');
+
+      var resultOutput = section.querySelector("[data-vp-actions-result-output]") ||
+        section.querySelector('[data-create-result-output="true"]');
+
+      var resultCode = section.querySelector("[data-vp-actions-result-code]");
+      var copyButton = section.querySelector("[data-vp-actions-result-copy]") ||
+        section.querySelector('[data-create-copy-result="true"]');
+
+      var clearButton = section.querySelector("[data-vp-actions-result-clear]") ||
+        section.querySelector('[data-create-clear-result="true"]');
+
+      var actionButtons = Array.prototype.slice.call(
+        section.querySelectorAll("[data-create-action]")
+      );
+
+      var configScript = section.querySelector("[data-vp-actions-config]");
+      var config = {
+        apiPrefix: "/api/v1/vplib/create",
+        writeEnabled: false,
+        healthOk: false,
+        sourceRoot: "",
+        actions: ["draft", "validate", "package-plan", "download", "save"]
+      };
+
+      try {
+        if (configScript && configScript.textContent) {
+          var parsedConfig = JSON.parse(configScript.textContent);
+
+          if (parsedConfig && typeof parsedConfig === "object") {
+            config = Object.assign(config, parsedConfig);
+          }
+        }
+      } catch (jsonError) {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Actions] Config parse failed.", jsonError);
+        }
+      }
+
+      function setFeedbackState(state) {
+        try {
+          var safeState = state || "idle";
+
+          section.setAttribute("data-vp-actions-state", safeState);
+
+          if (feedback) {
+            feedback.setAttribute("data-vp-actions-feedback-state", safeState);
+          }
+        } catch (error) {
+          /* no-op */
+        }
+      }
+
+      function setStatus(message, state) {
+        try {
+          if (statusNode) {
+            statusNode.textContent = message || "Bereit.";
+          }
+
+          setFeedbackState(state || "idle");
+        } catch (error) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Actions] Status update failed.", error);
+          }
+        }
+      }
+
+      function setButtonBusy(actionName, busy) {
+        try {
+          actionButtons.forEach(function (button) {
+            var buttonAction = button.getAttribute("data-create-action");
+            var isTarget = buttonAction === actionName;
+
+            button.classList.toggle("is-running", !!busy && isTarget);
+            button.setAttribute("data-vp-action-running", !!busy && isTarget ? "true" : "false");
+
+            if (busy && isTarget) {
+              button.setAttribute("aria-busy", "true");
+            } else {
+              button.removeAttribute("aria-busy");
+            }
+          });
+        } catch (error) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Actions] Busy state update failed.", error);
+          }
+        }
+      }
+
+      function setToolEnabled(button, enabled) {
+        try {
+          if (!button) {
+            return;
+          }
+
+          button.disabled = !enabled;
+          button.setAttribute("aria-disabled", enabled ? "false" : "true");
+        } catch (error) {
+          /* no-op */
+        }
+      }
+
+      function getResultText() {
+        try {
+          if (!resultOutput) {
+            return "";
+          }
+
+          if (resultCode) {
+            return resultCode.textContent || "";
+          }
+
+          return resultOutput.textContent || "";
+        } catch (error) {
+          return "";
+        }
+      }
+
+      function hasUsefulResult() {
+        try {
+          var text = getResultText().trim();
+
+          return !!text && text !== "{}" && text !== "null" && text !== "undefined";
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function revealResultIfNeeded() {
+        try {
+          var hasResult = hasUsefulResult();
+
+          if (resultOutput) {
+            resultOutput.hidden = !hasResult;
+          }
+
+          if (resultSummary) {
+            resultSummary.hidden = !hasResult && !String(resultSummary.textContent || "").trim();
+          }
+
+          setToolEnabled(copyButton, hasResult);
+          setToolEnabled(clearButton, hasResult);
+
+          if (hasResult) {
+            setFeedbackState("result");
+          }
+        } catch (error) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Actions] Result reveal failed.", error);
+          }
+        }
+      }
+
+      function clearResult() {
+        try {
+          if (resultCode) {
+            resultCode.textContent = "{}";
+          } else if (resultOutput) {
+            resultOutput.textContent = "{}";
+          }
+
+          if (resultOutput) {
+            resultOutput.hidden = true;
+          }
+
+          if (resultSummary) {
+            resultSummary.textContent = "";
+            resultSummary.hidden = true;
+          }
+
+          setToolEnabled(copyButton, false);
+          setToolEnabled(clearButton, false);
+          setStatus("Bereit. Wähle eine Aktion.", "idle");
+        } catch (error) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Actions] Clear result failed.", error);
+          }
+        }
+      }
+
+      function copyResult() {
+        try {
+          var text = getResultText();
+
+          if (!text || !text.trim() || text.trim() === "{}") {
+            setStatus("Kein Ergebnis zum Kopieren vorhanden.", "idle");
+            return;
+          }
+
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            navigator.clipboard.writeText(text).then(function () {
+              setStatus("Ergebnis kopiert.", "ok");
+            }).catch(function (error) {
+              setStatus("Kopieren fehlgeschlagen.", "warning");
+
+              if (window.console && typeof window.console.warn === "function") {
+                window.console.warn("[VECTOPLAN Create Actions] Clipboard copy failed.", error);
+              }
+            });
+
+            return;
+          }
+
+          var textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.setAttribute("readonly", "readonly");
+          textarea.style.position = "fixed";
+          textarea.style.left = "-9999px";
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textarea);
+          setStatus("Ergebnis kopiert.", "ok");
+        } catch (error) {
+          setStatus("Kopieren fehlgeschlagen.", "warning");
+
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Actions] Copy result failed.", error);
+          }
+        }
+      }
+
+      actionButtons.forEach(function (button) {
+        try {
+          button.addEventListener("click", function () {
+            var action = button.getAttribute("data-create-action") || "action";
+            var label = button.getAttribute("data-create-action-label") || action;
+
+            if (button.disabled || button.getAttribute("aria-disabled") === "true") {
+              if (action === "save" && !config.writeEnabled) {
+                setStatus("Speichern ist deaktiviert. Write-Flag ist nicht aktiv.", "warning");
+              }
+
+              return;
+            }
+
+            setButtonBusy(action, true);
+            setStatus(label + " wird ausgeführt …", "running");
+
+            window.setTimeout(function () {
+              try {
+                setButtonBusy(action, false);
+              } catch (error) {
+                /* no-op */
+              }
+            }, 1800);
+          });
+        } catch (error) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Actions] Action listener binding skipped.", error);
+          }
+        }
+      });
+
+      if (copyButton) {
+        copyButton.addEventListener("click", function (event) {
+          try {
+            event.preventDefault();
+            copyResult();
+          } catch (error) {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[VECTOPLAN Create Actions] Copy click failed.", error);
+            }
+          }
+        });
+      }
+
+      if (clearButton) {
+        clearButton.addEventListener("click", function (event) {
+          try {
+            event.preventDefault();
+            clearResult();
+          } catch (error) {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[VECTOPLAN Create Actions] Clear click failed.", error);
+            }
+          }
+        });
+      }
+
+      try {
+        if (resultOutput && window.MutationObserver) {
+          var observer = new MutationObserver(function () {
+            revealResultIfNeeded();
+          });
+
+          observer.observe(resultOutput, {
+            childList: true,
+            characterData: true,
+            subtree: true
+          });
+        }
+      } catch (observerError) {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Actions] Result observer failed.", observerError);
+        }
+      }
+
+      document.addEventListener("vectoplan:create:action-start", function (event) {
+        try {
+          var action = event && event.detail ? event.detail.action : "";
+          var label = event && event.detail ? event.detail.label : action;
+
+          setButtonBusy(action, true);
+          setStatus((label || action || "Aktion") + " wird ausgeführt …", "running");
+        } catch (error) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Actions] action-start handling failed.", error);
+          }
+        }
+      });
+
+      document.addEventListener("vectoplan:create:action-complete", function (event) {
+        try {
+          var action = event && event.detail ? event.detail.action : "";
+
+          setButtonBusy(action, false);
+          setStatus("Aktion abgeschlossen.", "ok");
+          revealResultIfNeeded();
+        } catch (error) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Actions] action-complete handling failed.", error);
+          }
+        }
+      });
+
+      document.addEventListener("vectoplan:create:action-error", function (event) {
+        try {
+          var action = event && event.detail ? event.detail.action : "";
+
+          setButtonBusy(action, false);
+          setStatus("Aktion fehlgeschlagen.", "error");
+          revealResultIfNeeded();
+        } catch (error) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Actions] action-error handling failed.", error);
+          }
+        }
+      });
+
+      revealResultIfNeeded();
+      section.setAttribute("data-vp-actions-ready", "true");
+    } catch (error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Actions] Defensive initialization failed.", error);
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+  })();
+</script>

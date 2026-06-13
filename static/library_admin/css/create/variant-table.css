@@ -1,0 +1,1016 @@
+/* static/library_admin/css/create/variant-table.css */
+/* -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard · Variant Table
+
+  Zweck:
+  - Darstellung der definition-managed Variantenliste.
+  - Die Tabelle ist bewusst read-only.
+  - Bearbeitung läuft über den Variant Drawer.
+  - Hidden Fields bleiben für Backend-/Create-Kompatibilität vorhanden.
+  - Default-Variante ist geschützt.
+  - Varianten werden aus zentralem JS-State gespiegelt.
+
+  Architektur:
+  - Keine fachlichen Sonderfälle pro Profil.
+  - Keine hart kodierten Felder wie U-Wert, Betonklasse, Hersteller usw.
+  - Nur Darstellung von:
+      - Default
+      - Variante
+      - Profil
+      - Kurzwerte
+      - Aktionen
+
+  Erwartete Haupt-Hooks:
+  - .vp-create-variant-table
+  - .vp-create-variant-row
+  - [data-vp-variant-table-root="true"]
+  - [data-vp-variant-row="true"]
+  - [data-vp-row-definition-summary="true"]
+  - [data-vp-edit-definition-variant="true"]
+  - [data-vp-remove-definition-variant="true"]
+----------------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+  1. Table Tokens
+----------------------------------------------------------------------------- */
+
+:root {
+  --vp-variant-table-bg: var(--vp-create-surface, #ffffff);
+  --vp-variant-table-bg-soft: var(--vp-create-surface-soft, #f8fafc);
+  --vp-variant-table-bg-muted: var(--vp-create-surface-muted, #f1f5f9);
+  --vp-variant-table-bg-hover: var(--vp-create-surface-hover, #f8fafc);
+  --vp-variant-table-bg-active: var(--vp-create-accent-soft, rgba(37, 99, 235, 0.08));
+
+  --vp-variant-table-border: var(--vp-create-border, rgba(15, 23, 42, 0.12));
+  --vp-variant-table-border-strong: var(--vp-create-border-strong, rgba(15, 23, 42, 0.2));
+
+  --vp-variant-table-text: var(--vp-create-text, #0f172a);
+  --vp-variant-table-text-muted: var(--vp-create-text-muted, #64748b);
+  --vp-variant-table-text-soft: var(--vp-create-text-soft, #94a3b8);
+
+  --vp-variant-table-accent: var(--vp-create-accent, #2563eb);
+  --vp-variant-table-accent-soft: var(--vp-create-accent-soft, rgba(37, 99, 235, 0.1));
+
+  --vp-variant-table-success: var(--vp-create-success, #16a34a);
+  --vp-variant-table-success-soft: var(--vp-create-success-soft, rgba(22, 163, 74, 0.1));
+
+  --vp-variant-table-warning: var(--vp-create-warning, #d97706);
+  --vp-variant-table-warning-soft: var(--vp-create-warning-soft, rgba(217, 119, 6, 0.12));
+
+  --vp-variant-table-danger: var(--vp-create-danger, #dc2626);
+  --vp-variant-table-danger-soft: var(--vp-create-danger-soft, rgba(220, 38, 38, 0.1));
+
+  --vp-variant-table-radius: var(--vp-create-radius-lg, 18px);
+  --vp-variant-table-radius-sm: var(--vp-create-radius, 12px);
+  --vp-variant-table-radius-xs: var(--vp-create-radius-sm, 8px);
+
+  --vp-variant-table-shadow: var(--vp-create-shadow-xs, 0 4px 18px rgba(15, 23, 42, 0.06));
+
+  --vp-variant-table-gap: 0.625rem;
+  --vp-variant-table-padding: clamp(0.75rem, 1.25vw, 1rem);
+  --vp-variant-table-row-padding: clamp(0.7rem, 1vw, 0.9rem);
+
+  --vp-variant-table-head-height: 2.625rem;
+  --vp-variant-table-row-min-height: 4.25rem;
+
+  --vp-variant-table-col-default: minmax(5.5rem, 0.6fr);
+  --vp-variant-table-col-variant: minmax(11rem, 1.4fr);
+  --vp-variant-table-col-profile: minmax(10rem, 1fr);
+  --vp-variant-table-col-summary: minmax(14rem, 1.8fr);
+  --vp-variant-table-col-actions: minmax(10rem, 0.9fr);
+
+  --vp-variant-table-transition: 150ms ease;
+}
+
+
+/* -----------------------------------------------------------------------------
+  2. Theme Compatibility
+----------------------------------------------------------------------------- */
+
+[data-theme="dark"] {
+  --vp-variant-table-bg: var(--vp-create-surface, #111827);
+  --vp-variant-table-bg-soft: var(--vp-create-surface-soft, #0f172a);
+  --vp-variant-table-bg-muted: var(--vp-create-surface-muted, #1f2937);
+  --vp-variant-table-bg-hover: var(--vp-create-surface-hover, #172033);
+  --vp-variant-table-bg-active: var(--vp-create-accent-soft, rgba(96, 165, 250, 0.14));
+
+  --vp-variant-table-border: var(--vp-create-border, rgba(148, 163, 184, 0.18));
+  --vp-variant-table-border-strong: var(--vp-create-border-strong, rgba(148, 163, 184, 0.3));
+
+  --vp-variant-table-text: var(--vp-create-text, #f8fafc);
+  --vp-variant-table-text-muted: var(--vp-create-text-muted, #cbd5e1);
+  --vp-variant-table-text-soft: var(--vp-create-text-soft, #94a3b8);
+
+  --vp-variant-table-success-soft: var(--vp-create-success-soft, rgba(34, 197, 94, 0.14));
+  --vp-variant-table-warning-soft: var(--vp-create-warning-soft, rgba(245, 158, 11, 0.16));
+  --vp-variant-table-danger-soft: var(--vp-create-danger-soft, rgba(248, 113, 113, 0.14));
+
+  --vp-variant-table-shadow: var(--vp-create-shadow-xs, 0 8px 24px rgba(0, 0, 0, 0.22));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --vp-variant-table-bg: var(--vp-create-surface, #111827);
+    --vp-variant-table-bg-soft: var(--vp-create-surface-soft, #0f172a);
+    --vp-variant-table-bg-muted: var(--vp-create-surface-muted, #1f2937);
+    --vp-variant-table-bg-hover: var(--vp-create-surface-hover, #172033);
+    --vp-variant-table-border: var(--vp-create-border, rgba(148, 163, 184, 0.18));
+    --vp-variant-table-border-strong: var(--vp-create-border-strong, rgba(148, 163, 184, 0.3));
+    --vp-variant-table-text: var(--vp-create-text, #f8fafc);
+    --vp-variant-table-text-muted: var(--vp-create-text-muted, #cbd5e1);
+    --vp-variant-table-text-soft: var(--vp-create-text-soft, #94a3b8);
+    --vp-variant-table-shadow: var(--vp-create-shadow-xs, 0 8px 24px rgba(0, 0, 0, 0.22));
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  3. Table Shell
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-table,
+[data-vp-variant-table-root="true"] {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vp-variant-table-text);
+  background: var(--vp-variant-table-bg);
+  border: 1px solid var(--vp-variant-table-border);
+  border-radius: var(--vp-variant-table-radius);
+  box-shadow: var(--vp-variant-table-shadow);
+}
+
+.vp-create-variant-table *,
+.vp-create-variant-table *::before,
+.vp-create-variant-table *::after {
+  box-sizing: border-box;
+}
+
+.vp-create-variant-table[hidden],
+[data-vp-variant-table-root="true"][hidden] {
+  display: none !important;
+}
+
+.vp-create-variant-table--readonly {
+  user-select: text;
+}
+
+.vp-create-variant-table--definitions {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.04),
+      rgba(255, 255, 255, 0)
+    ),
+    var(--vp-variant-table-bg);
+}
+
+.vp-create-variant-table[data-vp-variant-table-status="initialization_failed"],
+.vp-create-variant-table[data-vp-variant-table-status="render_failed"] {
+  border-color: color-mix(in srgb, var(--vp-variant-table-danger) 35%, var(--vp-variant-table-border));
+}
+
+
+/* -----------------------------------------------------------------------------
+  4. Table Head
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-table__head {
+  display: grid;
+  grid-template-columns:
+    var(--vp-variant-table-col-default)
+    var(--vp-variant-table-col-variant)
+    var(--vp-variant-table-col-profile)
+    var(--vp-variant-table-col-summary)
+    var(--vp-variant-table-col-actions);
+  gap: var(--vp-variant-table-gap);
+  align-items: center;
+  min-height: var(--vp-variant-table-head-height);
+  padding: 0 var(--vp-variant-table-padding);
+  color: var(--vp-variant-table-text-soft);
+  font-size: 0.74rem;
+  font-weight: 760;
+  line-height: 1.1;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  background: var(--vp-variant-table-bg-soft);
+  border-bottom: 1px solid var(--vp-variant-table-border);
+}
+
+.vp-create-variant-table__head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-variant-table__head span:last-child {
+  text-align: right;
+}
+
+
+/* -----------------------------------------------------------------------------
+  5. Table Body
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-table__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  background: var(--vp-variant-table-bg);
+}
+
+.vp-create-variant-table__body:empty {
+  min-height: 7rem;
+}
+
+.vp-create-variant-table__body:empty::before {
+  content: "Keine Varianten vorhanden.";
+  display: grid;
+  place-items: center;
+  min-height: 7rem;
+  padding: 1rem;
+  color: var(--vp-variant-table-text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+
+/* -----------------------------------------------------------------------------
+  6. Row Layout
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-row {
+  position: relative;
+  display: grid;
+  grid-template-columns:
+    var(--vp-variant-table-col-default)
+    var(--vp-variant-table-col-variant)
+    var(--vp-variant-table-col-profile)
+    var(--vp-variant-table-col-summary)
+    var(--vp-variant-table-col-actions);
+  gap: var(--vp-variant-table-gap);
+  align-items: center;
+  min-width: 0;
+  min-height: var(--vp-variant-table-row-min-height);
+  padding: var(--vp-variant-table-row-padding) var(--vp-variant-table-padding);
+  background: var(--vp-variant-table-bg);
+  border-bottom: 1px solid var(--vp-variant-table-border);
+  transition:
+    background-color var(--vp-variant-table-transition),
+    border-color var(--vp-variant-table-transition),
+    box-shadow var(--vp-variant-table-transition),
+    transform var(--vp-variant-table-transition);
+}
+
+.vp-create-variant-row:last-child {
+  border-bottom: 0;
+}
+
+.vp-create-variant-row:hover {
+  background: var(--vp-variant-table-bg-hover);
+}
+
+.vp-create-variant-row:focus-within {
+  z-index: 1;
+  background: var(--vp-variant-table-bg-active);
+  box-shadow:
+    inset 3px 0 0 var(--vp-variant-table-accent),
+    0 0 0 1px color-mix(in srgb, var(--vp-variant-table-accent) 28%, transparent);
+}
+
+.vp-create-variant-row--default {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-table-accent-soft),
+      transparent 42%
+    ),
+    var(--vp-variant-table-bg);
+}
+
+.vp-create-variant-row--default:hover {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-table-accent-soft),
+      transparent 48%
+    ),
+    var(--vp-variant-table-bg-hover);
+}
+
+.vp-create-variant-row--managed {
+  --vp-variant-row-managed-border: color-mix(in srgb, var(--vp-variant-table-accent) 16%, var(--vp-variant-table-border));
+}
+
+.vp-create-variant-row--managed::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--vp-variant-table-accent);
+  opacity: 0.35;
+}
+
+.vp-create-variant-row--error,
+.vp-create-variant-row[data-vp-row-status="error"],
+.vp-create-variant-row[data-vp-row-validation-state="invalid"] {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-table-danger-soft),
+      transparent 52%
+    ),
+    var(--vp-variant-table-bg);
+}
+
+.vp-create-variant-row[data-vp-row-validation-state="warning"] {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-table-warning-soft),
+      transparent 52%
+    ),
+    var(--vp-variant-table-bg);
+}
+
+
+/* -----------------------------------------------------------------------------
+  7. Cells
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-row__cell {
+  min-width: 0;
+}
+
+.vp-create-variant-row__cell--default {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.vp-create-variant-row__cell--variant {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.25rem;
+}
+
+.vp-create-variant-row__cell--profile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.vp-create-variant-row__cell--summary {
+  min-width: 0;
+}
+
+.vp-create-variant-row__cell--actions {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+
+/* -----------------------------------------------------------------------------
+  8. Variant Identity
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-row__title-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.vp-create-variant-row__title {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vp-variant-table-text);
+  font-size: 0.94rem;
+  font-weight: 760;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-variant-row__id {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vp-variant-table-text-soft);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-variant-row__id::before {
+  content: "#";
+  margin-right: 0.1rem;
+  opacity: 0.75;
+}
+
+.vp-create-variant-row__description {
+  margin: 0.2rem 0 0;
+  display: -webkit-box;
+  max-width: 62ch;
+  overflow: hidden;
+  color: var(--vp-variant-table-text-muted);
+  font-size: 0.81rem;
+  line-height: 1.4;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+
+/* -----------------------------------------------------------------------------
+  9. Pills
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-default-pill,
+.vp-create-definition-profile-pill,
+.vp-create-variant-managed-pill {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 1.65rem;
+  padding: 0.3rem 0.55rem;
+  overflow: hidden;
+  font-size: 0.735rem;
+  font-weight: 720;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+.vp-create-variant-default-pill {
+  color: var(--vp-variant-table-text-muted);
+  background: var(--vp-variant-table-bg-muted);
+  border-color: var(--vp-variant-table-border);
+}
+
+.vp-create-variant-default-pill--active {
+  color: var(--vp-variant-table-accent);
+  background: var(--vp-variant-table-accent-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-table-accent) 26%, transparent);
+}
+
+.vp-create-definition-profile-pill {
+  color: var(--vp-variant-table-text-muted);
+  background: var(--vp-variant-table-bg-soft);
+  border-color: var(--vp-variant-table-border);
+}
+
+.vp-create-variant-row--managed .vp-create-definition-profile-pill {
+  color: var(--vp-variant-table-accent);
+  background: var(--vp-variant-table-accent-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-table-accent) 22%, transparent);
+}
+
+.vp-create-variant-managed-pill {
+  color: var(--vp-variant-table-success);
+  background: var(--vp-variant-table-success-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-table-success) 22%, transparent);
+}
+
+
+/* -----------------------------------------------------------------------------
+  10. Summary
+----------------------------------------------------------------------------- */
+
+.vp-create-definition-summary {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--vp-variant-table-text-muted);
+  font-size: 0.835rem;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+}
+
+.vp-create-variant-row__cell--summary .vp-create-definition-summary {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.vp-create-definition-summary:empty::before {
+  content: "Noch keine Kurzwerte";
+  color: var(--vp-variant-table-text-soft);
+}
+
+.vp-create-definition-summary[data-vp-summary-state="empty"] {
+  color: var(--vp-variant-table-text-soft);
+  font-style: italic;
+}
+
+.vp-create-definition-summary[data-vp-summary-state="error"] {
+  color: var(--vp-variant-table-danger);
+}
+
+
+/* -----------------------------------------------------------------------------
+  11. Actions
+----------------------------------------------------------------------------- */
+
+.vp-create-row-action,
+.vp-create-row-action--definition {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+}
+
+.vp-create-variant-row .vp-create-button {
+  min-height: 2rem;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.79rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.vp-create-variant-row .vp-create-button--ghost {
+  color: var(--vp-variant-table-text-muted);
+}
+
+.vp-create-variant-row .vp-create-button--ghost:hover {
+  color: var(--vp-variant-table-text);
+  background: var(--vp-variant-table-bg-muted);
+}
+
+.vp-create-variant-row [data-vp-variant-action="edit"] {
+  color: var(--vp-variant-table-accent);
+}
+
+.vp-create-variant-row [data-vp-variant-action="remove"] {
+  color: var(--vp-variant-table-danger);
+}
+
+.vp-create-variant-row [data-vp-variant-action="remove"]:hover {
+  background: var(--vp-variant-table-danger-soft);
+}
+
+.vp-create-variant-row [data-vp-variant-action="locked"],
+.vp-create-variant-row [data-create-static-disabled="true"] {
+  color: var(--vp-variant-table-text-soft);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.vp-create-variant-row .vp-create-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--vp-variant-table-accent) 72%, white);
+  outline-offset: 2px;
+}
+
+
+/* -----------------------------------------------------------------------------
+  12. Hidden Compatibility Fields
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-row__hidden,
+.vp-create-variant-row__hidden[hidden],
+[data-vp-variant-row-hidden-fields="true"],
+[data-vp-variant-row-hidden-fields="true"][hidden] {
+  display: none !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+  13. Empty State
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-table__empty {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.25rem;
+  padding: 1.25rem;
+  color: var(--vp-variant-table-text-muted);
+  text-align: center;
+  background: var(--vp-variant-table-bg-soft);
+  border-top: 1px solid var(--vp-variant-table-border);
+}
+
+.vp-create-variant-table__empty[hidden] {
+  display: none !important;
+}
+
+.vp-create-variant-table__empty strong {
+  color: var(--vp-variant-table-text);
+  font-size: 0.95rem;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.vp-create-variant-table__empty span {
+  color: var(--vp-variant-table-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+
+/* -----------------------------------------------------------------------------
+  14. Runtime / Loading States
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-table[data-vp-variant-table-ready="true"],
+.vp-create-variant-table[data-vp-variant-table-controller-ready="true"] {
+  animation: vpVariantTableReady var(--vp-variant-table-transition) ease-out;
+}
+
+.vp-create-variant-table[data-vp-variant-count="0"] .vp-create-variant-table__body {
+  min-height: 7rem;
+}
+
+.vp-create-variant-table[data-vp-variant-table-busy="true"] {
+  cursor: progress;
+}
+
+.vp-create-variant-table[data-vp-variant-table-busy="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--vp-variant-table-accent-soft) 70%, transparent),
+      transparent
+    );
+  animation: vpVariantTableBusy 1.4s linear infinite;
+}
+
+.vp-create-variant-table[data-vp-variant-table-readonly="true"] .vp-create-input,
+.vp-create-variant-table[data-vp-variant-table-readonly="true"] input:not([type="hidden"]),
+.vp-create-variant-table[data-vp-variant-table-readonly="true"] select,
+.vp-create-variant-table[data-vp-variant-table-readonly="true"] textarea {
+  pointer-events: none;
+}
+
+
+/* -----------------------------------------------------------------------------
+  15. Legacy Compatibility
+
+  Diese Selektoren halten ältere Markup-Versionen stabil, falls während der
+  Migration noch alte Klassen oder Hooks parallel existieren.
+----------------------------------------------------------------------------- */
+
+.vp-create-check-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  color: var(--vp-variant-table-text-muted);
+  font-size: 0.82rem;
+}
+
+.vp-create-check-cell input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--vp-variant-table-accent);
+}
+
+.vp-create-definition-profile-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.vp-create-field--compact {
+  min-width: 0;
+}
+
+.vp-create-field--compact .vp-create-input {
+  min-width: 0;
+}
+
+
+/* -----------------------------------------------------------------------------
+  16. Responsive Table
+----------------------------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .vp-create-variant-table {
+    --vp-variant-table-col-default: minmax(4.75rem, 0.55fr);
+    --vp-variant-table-col-variant: minmax(10rem, 1.3fr);
+    --vp-variant-table-col-profile: minmax(8.5rem, 0.9fr);
+    --vp-variant-table-col-summary: minmax(12rem, 1.45fr);
+    --vp-variant-table-col-actions: minmax(8.5rem, 0.85fr);
+  }
+
+  .vp-create-variant-row .vp-create-button {
+    padding-inline: 0.58rem;
+  }
+}
+
+@media (max-width: 980px) {
+  .vp-create-variant-table__head,
+  .vp-create-variant-row {
+    grid-template-columns:
+      minmax(4.75rem, 0.55fr)
+      minmax(10rem, 1.35fr)
+      minmax(8.5rem, 0.95fr)
+      minmax(12rem, 1.5fr);
+  }
+
+  .vp-create-variant-table__head span:nth-child(5),
+  .vp-create-variant-row__cell--actions {
+    grid-column: 1 / -1;
+  }
+
+  .vp-create-variant-table__head span:nth-child(5) {
+    display: none;
+  }
+
+  .vp-create-variant-row__cell--actions {
+    justify-content: flex-start;
+    padding-top: 0.25rem;
+  }
+
+  .vp-create-row-action,
+  .vp-create-row-action--definition {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .vp-create-variant-table {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .vp-create-variant-table__head {
+    display: none;
+  }
+
+  .vp-create-variant-table__body {
+    gap: 0.75rem;
+    background: transparent;
+  }
+
+  .vp-create-variant-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+    min-height: 0;
+    padding: 0.9rem;
+    background: var(--vp-variant-table-bg);
+    border: 1px solid var(--vp-variant-table-border);
+    border-radius: var(--vp-variant-table-radius-sm);
+    box-shadow: var(--vp-variant-table-shadow);
+  }
+
+  .vp-create-variant-row:last-child {
+    border-bottom: 1px solid var(--vp-variant-table-border);
+  }
+
+  .vp-create-variant-row::before {
+    border-radius: var(--vp-variant-table-radius-sm) 0 0 var(--vp-variant-table-radius-sm);
+  }
+
+  .vp-create-variant-row__cell {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.32fr) minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+  }
+
+  .vp-create-variant-row__cell::before {
+    content: attr(data-vp-mobile-label);
+    color: var(--vp-variant-table-text-soft);
+    font-size: 0.72rem;
+    font-weight: 760;
+    letter-spacing: 0.045em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .vp-create-variant-row__cell--default::before {
+    content: "Default";
+  }
+
+  .vp-create-variant-row__cell--variant::before {
+    content: "Variante";
+  }
+
+  .vp-create-variant-row__cell--profile::before {
+    content: "Profil";
+  }
+
+  .vp-create-variant-row__cell--summary::before {
+    content: "Kurzwerte";
+  }
+
+  .vp-create-variant-row__cell--actions::before {
+    content: "Aktion";
+  }
+
+  .vp-create-variant-row__cell--default,
+  .vp-create-variant-row__cell--actions {
+    justify-content: stretch;
+  }
+
+  .vp-create-row-action,
+  .vp-create-row-action--definition {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .vp-create-variant-row {
+    padding: 0.8rem;
+  }
+
+  .vp-create-variant-row__cell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35rem;
+  }
+
+  .vp-create-variant-row__cell::before {
+    margin-bottom: -0.1rem;
+  }
+
+  .vp-create-row-action,
+  .vp-create-row-action--definition {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .vp-create-variant-row .vp-create-button {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  17. Accessibility
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-row [tabindex="-1"]:focus {
+  outline: none;
+}
+
+.vp-create-variant-table [aria-live="polite"] {
+  overflow-anchor: none;
+}
+
+.vp-create-variant-table button:focus-visible,
+.vp-create-variant-row button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--vp-variant-table-accent) 72%, white);
+  outline-offset: 2px;
+}
+
+.vp-create-variant-row__title[title],
+.vp-create-variant-row__id[title],
+.vp-create-definition-summary[title] {
+  cursor: help;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vp-create-variant-table,
+  .vp-create-variant-table *,
+  .vp-create-variant-table *::before,
+  .vp-create-variant-table *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  18. Forced Colors / High Contrast
+----------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  .vp-create-variant-table,
+  .vp-create-variant-row,
+  .vp-create-variant-table__empty,
+  .vp-create-variant-default-pill,
+  .vp-create-definition-profile-pill,
+  .vp-create-variant-managed-pill {
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+
+  .vp-create-variant-row--managed::before {
+    background: CanvasText;
+  }
+
+  .vp-create-variant-default-pill--active,
+  .vp-create-variant-managed-pill,
+  .vp-create-definition-profile-pill {
+    color: CanvasText;
+    background: Canvas;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  19. Print
+----------------------------------------------------------------------------- */
+
+@media print {
+  .vp-create-variant-table {
+    color: #000;
+    background: transparent;
+    border: 1px solid #000;
+    box-shadow: none;
+  }
+
+  .vp-create-variant-table__head {
+    color: #000;
+    background: transparent;
+    border-bottom: 1px solid #000;
+  }
+
+  .vp-create-variant-row {
+    break-inside: avoid;
+    color: #000;
+    background: transparent !important;
+    border-bottom: 1px solid #000;
+    box-shadow: none;
+  }
+
+  .vp-create-variant-row::before {
+    display: none;
+  }
+
+  .vp-create-variant-row__cell--actions {
+    display: none;
+  }
+
+  .vp-create-variant-default-pill,
+  .vp-create-definition-profile-pill,
+  .vp-create-variant-managed-pill {
+    color: #000;
+    background: transparent;
+    border: 1px solid #000;
+  }
+
+  .vp-create-definition-summary,
+  .vp-create-variant-row__description,
+  .vp-create-variant-row__id {
+    color: #000;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  20. Animations
+----------------------------------------------------------------------------- */
+
+@keyframes vpVariantTableReady {
+  from {
+    opacity: 0.86;
+    transform: translateY(2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes vpVariantTableBusy {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}

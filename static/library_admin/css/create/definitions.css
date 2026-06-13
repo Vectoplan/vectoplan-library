@@ -1,0 +1,758 @@
+/* services/vectoplan-library/static/library_admin/css/create/definitions.css */
+
+/* -----------------------------------------------------------------------------
+   VECTOPLAN Library · Create Definitions Styles
+
+   Zweck:
+   - Styles für backendgesteuerte Definitionsdaten im /create-Wizard.
+   - Styles für Profilstatus in Schritt 3.
+   - Styles für definition-managed Varianten.
+   - Styles für den Variant-Profile-Drawer.
+   - Keine API-Logik.
+   - Keine JS-Abhängigkeit außer stabilen data-vp-* Hooks.
+   - Kann zusätzlich zur minimalen JS-Inline-Fallback-Style-Injektion geladen
+     werden und überschreibt diese bewusst sauberer.
+
+   Erwartete Klassen / Hooks:
+   - .vp-create-profile-status
+   - .vp-create-variant-editor
+   - .vp-definition-drawer
+   - .vp-definition-drawer-is-open
+   - data-vp-profile-resolution-state
+   - data-vp-definition-managed-variants
+   - data-vp-definition-variant-profile-id
+
+   Importposition:
+   - Nach wizard.css
+   - Vor themes.css
+----------------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   1. Definitions Status in Step 3
+----------------------------------------------------------------------------- */
+
+.vp-create-profile-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--vp-create-border-subtle, rgba(148, 163, 184, 0.3));
+  border-radius: var(--vp-create-radius-lg, 18px);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.08),
+      rgba(14, 165, 233, 0.05)
+    ),
+    var(--vp-create-surface-muted, #f8fafc);
+  color: var(--vp-create-text, #0f172a);
+  box-shadow: var(--vp-create-shadow-soft, 0 14px 38px rgba(15, 23, 42, 0.08));
+}
+
+.vp-create-profile-status__main {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.vp-create-profile-status__kicker {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--vp-create-accent, #2563eb);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.vp-create-profile-status__kicker::before {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+  opacity: 0.85;
+}
+
+.vp-create-profile-status__title {
+  display: block;
+  color: var(--vp-create-text-strong, #020617);
+  font-size: 0.98rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.vp-create-profile-status__text {
+  display: block;
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.vp-create-profile-status__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.vp-create-profile-status__meta span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.38rem 0.55rem;
+  border: 1px solid var(--vp-create-border-subtle, rgba(148, 163, 184, 0.3));
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.vp-create-profile-status__meta strong {
+  overflow: hidden;
+  max-width: 18rem;
+  color: var(--vp-create-text, #0f172a);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-profile-status[data-vp-profile-resolution-state="resolved"] {
+  border-color: rgba(34, 197, 94, 0.35);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(34, 197, 94, 0.09),
+      rgba(16, 185, 129, 0.05)
+    ),
+    var(--vp-create-surface-muted, #f8fafc);
+}
+
+.vp-create-profile-status[data-vp-profile-resolution-state="resolved"]
+  .vp-create-profile-status__kicker {
+  color: var(--vp-create-success, #16a34a);
+}
+
+.vp-create-profile-status[data-vp-profile-resolution-state="error"],
+.vp-create-profile-status[data-vp-profile-resolution-state="unavailable"] {
+  border-color: rgba(239, 68, 68, 0.35);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(239, 68, 68, 0.08),
+      rgba(244, 63, 94, 0.05)
+    ),
+    var(--vp-create-surface-muted, #f8fafc);
+}
+
+.vp-create-profile-status[data-vp-profile-resolution-state="error"]
+  .vp-create-profile-status__kicker,
+.vp-create-profile-status[data-vp-profile-resolution-state="unavailable"]
+  .vp-create-profile-status__kicker {
+  color: var(--vp-create-danger, #dc2626);
+}
+
+
+/* -----------------------------------------------------------------------------
+   2. Variant Editor: definition-managed state
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-editor[data-vp-definition-managed-variants="true"] {
+  position: relative;
+}
+
+.vp-create-variant-editor[data-vp-definition-managed-variants="true"]::before {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.07);
+  color: var(--vp-create-accent, #2563eb);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  content: "Backend-Profil";
+  pointer-events: none;
+}
+
+.vp-create-variant-row[data-vp-definition-variant-profile-id]:not([data-vp-definition-variant-profile-id=""]) {
+  border-color: rgba(37, 99, 235, 0.28);
+  background:
+    linear-gradient(
+      90deg,
+      rgba(37, 99, 235, 0.065),
+      rgba(255, 255, 255, 0)
+    ),
+    var(--vp-create-surface, #ffffff);
+}
+
+.vp-create-variant-row[data-vp-definition-variant-profile-id]:not([data-vp-definition-variant-profile-id=""])
+  [data-create-field="variant_kind"] {
+  border-color: rgba(37, 99, 235, 0.32);
+}
+
+.vp-create-variant-row[data-vp-definition-variant-profile-id]:not([data-vp-definition-variant-profile-id=""])
+  [data-create-field="variant_name"] {
+  font-weight: 650;
+}
+
+
+/* -----------------------------------------------------------------------------
+   3. Drawer Root / Backdrop
+----------------------------------------------------------------------------- */
+
+.vp-definition-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--vp-create-z-modal, 9999);
+  display: none;
+  color: var(--vp-create-text, #0f172a);
+  pointer-events: none;
+}
+
+.vp-definition-drawer.is-open {
+  display: block;
+  pointer-events: auto;
+}
+
+.vp-definition-drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(37, 99, 235, 0.18),
+      rgba(15, 23, 42, 0.54)
+    );
+  cursor: pointer;
+}
+
+.vp-definition-drawer__backdrop:focus-visible {
+  outline: 3px solid var(--vp-create-focus, #2563eb);
+  outline-offset: -3px;
+}
+
+.vp-definition-drawer-is-open,
+.vp-definition-drawer-is-open body {
+  overflow: hidden;
+}
+
+
+/* -----------------------------------------------------------------------------
+   4. Drawer Panel
+----------------------------------------------------------------------------- */
+
+.vp-definition-drawer__panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  width: min(56rem, 100vw);
+  height: 100%;
+  flex-direction: column;
+  background: var(--vp-create-surface, #ffffff);
+  box-shadow:
+    -28px 0 80px rgba(15, 23, 42, 0.24),
+    -1px 0 0 rgba(148, 163, 184, 0.22);
+  color: var(--vp-create-text, #0f172a);
+  transform: translateX(0);
+}
+
+.vp-definition-drawer.is-open .vp-definition-drawer__panel {
+  animation: vpDefinitionDrawerEnter 180ms ease-out both;
+}
+
+@keyframes vpDefinitionDrawerEnter {
+  from {
+    opacity: 0.7;
+    transform: translateX(2rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+   5. Drawer Header / Meta
+----------------------------------------------------------------------------- */
+
+.vp-definition-drawer__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.5rem 1.75rem 1.1rem;
+  border-bottom: 1px solid var(--vp-create-border-subtle, rgba(148, 163, 184, 0.24));
+  background:
+    linear-gradient(
+      135deg,
+      rgba(37, 99, 235, 0.06),
+      rgba(14, 165, 233, 0.03)
+    ),
+    var(--vp-create-surface, #ffffff);
+}
+
+.vp-definition-drawer__header h2 {
+  margin: 0;
+  color: var(--vp-create-text-strong, #020617);
+  font-size: clamp(1.18rem, 1.4vw, 1.45rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.18;
+}
+
+.vp-definition-drawer__header p {
+  max-width: 46rem;
+  margin: 0.5rem 0 0;
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.vp-definition-drawer__close {
+  flex: 0 0 auto;
+  padding: 0.52rem 0.78rem;
+  border: 1px solid var(--vp-create-border, rgba(148, 163, 184, 0.48));
+  border-radius: 999px;
+  background: var(--vp-create-surface, #ffffff);
+  color: var(--vp-create-text, #0f172a);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.vp-definition-drawer__close:hover {
+  border-color: rgba(37, 99, 235, 0.36);
+  color: var(--vp-create-accent, #2563eb);
+}
+
+.vp-definition-drawer__close:focus-visible {
+  outline: 3px solid var(--vp-create-focus, #2563eb);
+  outline-offset: 2px;
+}
+
+.vp-definition-drawer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.8rem 1.75rem;
+  border-bottom: 1px solid var(--vp-create-border-subtle, rgba(148, 163, 184, 0.2));
+  background: var(--vp-create-surface-muted, #f8fafc);
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: 0.78rem;
+}
+
+.vp-definition-drawer__meta span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.32rem 0.55rem;
+  border: 1px solid var(--vp-create-border-subtle, rgba(148, 163, 184, 0.26));
+  border-radius: 999px;
+  background: var(--vp-create-surface, #ffffff);
+}
+
+.vp-definition-drawer__meta strong {
+  overflow: hidden;
+  max-width: 20rem;
+  color: var(--vp-create-text, #0f172a);
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* -----------------------------------------------------------------------------
+   6. Drawer Body / Sections
+----------------------------------------------------------------------------- */
+
+.vp-definition-drawer__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1.45rem 1.75rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.vp-definition-drawer__section {
+  padding: 0 0 1.55rem;
+  margin: 0 0 1.55rem;
+  border-bottom: 1px solid var(--vp-create-border-subtle, rgba(148, 163, 184, 0.2));
+}
+
+.vp-definition-drawer__section:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+.vp-definition-drawer__section h3 {
+  margin: 0 0 0.35rem;
+  color: var(--vp-create-text-strong, #020617);
+  font-size: 1rem;
+  font-weight: 780;
+  line-height: 1.25;
+}
+
+.vp-definition-drawer__section-description {
+  max-width: 46rem;
+  margin: 0 0 0.95rem;
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: 0.87rem;
+  line-height: 1.45;
+}
+
+.vp-definition-drawer__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.95rem 1rem;
+}
+
+
+/* -----------------------------------------------------------------------------
+   7. Drawer Fields
+----------------------------------------------------------------------------- */
+
+.vp-definition-drawer__field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: var(--vp-create-text, #0f172a);
+  font-size: 0.88rem;
+}
+
+.vp-definition-drawer__label {
+  color: var(--vp-create-text-strong, #020617);
+  font-size: 0.86rem;
+  font-weight: 720;
+  line-height: 1.25;
+}
+
+.vp-definition-drawer__required {
+  color: var(--vp-create-danger, #dc2626);
+  font-weight: 800;
+}
+
+.vp-definition-drawer__hint {
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.vp-definition-drawer__field input,
+.vp-definition-drawer__field select,
+.vp-definition-drawer__field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.68rem 0.78rem;
+  border: 1px solid var(--vp-create-border, rgba(148, 163, 184, 0.52));
+  border-radius: var(--vp-create-radius-md, 12px);
+  background: var(--vp-create-input-bg, #ffffff);
+  color: var(--vp-create-text, #0f172a);
+  font: inherit;
+  line-height: 1.25;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.vp-definition-drawer__field input:hover,
+.vp-definition-drawer__field select:hover,
+.vp-definition-drawer__field textarea:hover {
+  border-color: rgba(37, 99, 235, 0.42);
+}
+
+.vp-definition-drawer__field input:focus,
+.vp-definition-drawer__field select:focus,
+.vp-definition-drawer__field textarea:focus {
+  border-color: var(--vp-create-accent, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+  outline: none;
+}
+
+.vp-definition-drawer__field textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.vp-definition-drawer__field select[multiple] {
+  min-height: 7.5rem;
+}
+
+
+/* -----------------------------------------------------------------------------
+   8. Drawer Error / Footer
+----------------------------------------------------------------------------- */
+
+.vp-definition-drawer__error {
+  margin: 0 1.75rem 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-radius: var(--vp-create-radius-md, 14px);
+  background: rgba(254, 242, 242, 0.94);
+  color: #991b1b;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.vp-definition-drawer__error.is-hidden {
+  display: none;
+}
+
+.vp-definition-drawer__error strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 780;
+}
+
+.vp-definition-drawer__error ul {
+  padding: 0;
+  margin: 0.35rem 0 0 1.2rem;
+}
+
+.vp-definition-drawer__footer {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding: 1rem 1.75rem 1.25rem;
+  border-top: 1px solid var(--vp-create-border-subtle, rgba(148, 163, 184, 0.22));
+  background: var(--vp-create-surface-muted, #f8fafc);
+}
+
+.vp-definition-drawer__button {
+  display: inline-flex;
+  min-height: 2.45rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.68rem 1rem;
+  border: 1px solid var(--vp-create-border, rgba(148, 163, 184, 0.48));
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 720;
+  line-height: 1.1;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.vp-definition-drawer__button:hover {
+  transform: translateY(-1px);
+}
+
+.vp-definition-drawer__button:focus-visible {
+  outline: 3px solid var(--vp-create-focus, #2563eb);
+  outline-offset: 2px;
+}
+
+.vp-definition-drawer__button--secondary {
+  background: var(--vp-create-surface, #ffffff);
+  color: var(--vp-create-text, #0f172a);
+}
+
+.vp-definition-drawer__button--secondary:hover {
+  border-color: rgba(37, 99, 235, 0.36);
+  color: var(--vp-create-accent, #2563eb);
+}
+
+.vp-definition-drawer__button--primary {
+  border-color: var(--vp-create-accent-strong, #1d4ed8);
+  background: var(--vp-create-accent-strong, #1d4ed8);
+  color: #ffffff;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.22);
+}
+
+.vp-definition-drawer__button--primary:hover {
+  border-color: var(--vp-create-accent, #2563eb);
+  background: var(--vp-create-accent, #2563eb);
+}
+
+
+/* -----------------------------------------------------------------------------
+   9. Dark Theme
+----------------------------------------------------------------------------- */
+
+[data-theme="dark"] .vp-create-profile-status,
+[data-vp-create-theme="dark"] .vp-create-profile-status {
+  border-color: rgba(148, 163, 184, 0.24);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(37, 99, 235, 0.18),
+      rgba(14, 165, 233, 0.08)
+    ),
+    var(--vp-create-surface-muted, #111827);
+}
+
+[data-theme="dark"] .vp-create-profile-status__meta span,
+[data-vp-create-theme="dark"] .vp-create-profile-status__meta span {
+  background: rgba(15, 23, 42, 0.7);
+}
+
+[data-theme="dark"] .vp-definition-drawer__panel,
+[data-vp-create-theme="dark"] .vp-definition-drawer__panel {
+  background: var(--vp-create-surface, #0f172a);
+  color: var(--vp-create-text, #e5e7eb);
+  box-shadow:
+    -28px 0 80px rgba(0, 0, 0, 0.45),
+    -1px 0 0 rgba(148, 163, 184, 0.18);
+}
+
+[data-theme="dark"] .vp-definition-drawer__header,
+[data-vp-create-theme="dark"] .vp-definition-drawer__header {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(37, 99, 235, 0.18),
+      rgba(14, 165, 233, 0.08)
+    ),
+    var(--vp-create-surface, #0f172a);
+}
+
+[data-theme="dark"] .vp-definition-drawer__meta,
+[data-vp-create-theme="dark"] .vp-definition-drawer__meta,
+[data-theme="dark"] .vp-definition-drawer__footer,
+[data-vp-create-theme="dark"] .vp-definition-drawer__footer {
+  background: var(--vp-create-surface-muted, #111827);
+}
+
+[data-theme="dark"] .vp-definition-drawer__meta span,
+[data-vp-create-theme="dark"] .vp-definition-drawer__meta span,
+[data-theme="dark"] .vp-definition-drawer__close,
+[data-vp-create-theme="dark"] .vp-definition-drawer__close,
+[data-theme="dark"] .vp-definition-drawer__button--secondary,
+[data-vp-create-theme="dark"] .vp-definition-drawer__button--secondary,
+[data-theme="dark"] .vp-definition-drawer__field input,
+[data-vp-create-theme="dark"] .vp-definition-drawer__field input,
+[data-theme="dark"] .vp-definition-drawer__field select,
+[data-vp-create-theme="dark"] .vp-definition-drawer__field select,
+[data-theme="dark"] .vp-definition-drawer__field textarea,
+[data-vp-create-theme="dark"] .vp-definition-drawer__field textarea {
+  background: rgba(15, 23, 42, 0.78);
+  color: var(--vp-create-text, #e5e7eb);
+}
+
+[data-theme="dark"] .vp-definition-drawer__error,
+[data-vp-create-theme="dark"] .vp-definition-drawer__error {
+  background: rgba(127, 29, 29, 0.22);
+  color: #fecaca;
+}
+
+
+/* -----------------------------------------------------------------------------
+   10. Responsive
+----------------------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .vp-definition-drawer__panel {
+    width: min(100vw, 48rem);
+  }
+
+  .vp-definition-drawer__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vp-create-profile-status__meta strong {
+    max-width: 12rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .vp-definition-drawer__panel {
+    width: 100vw;
+  }
+
+  .vp-definition-drawer__header,
+  .vp-definition-drawer__meta,
+  .vp-definition-drawer__body,
+  .vp-definition-drawer__footer {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .vp-definition-drawer__header {
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .vp-definition-drawer__close {
+    align-self: flex-start;
+  }
+
+  .vp-definition-drawer__footer {
+    flex-direction: column-reverse;
+  }
+
+  .vp-definition-drawer__button {
+    width: 100%;
+  }
+
+  .vp-create-profile-status__meta {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .vp-create-profile-status__meta span {
+    justify-content: space-between;
+  }
+
+  .vp-create-profile-status__meta strong {
+    max-width: 60vw;
+  }
+
+  .vp-create-variant-editor[data-vp-definition-managed-variants="true"]::before {
+    position: static;
+    width: max-content;
+    margin: 0 0 0.75rem;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+   11. Reduced Motion
+----------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .vp-definition-drawer.is-open .vp-definition-drawer__panel {
+    animation: none;
+  }
+
+  .vp-definition-drawer__button,
+  .vp-definition-drawer__field input,
+  .vp-definition-drawer__field select,
+  .vp-definition-drawer__field textarea {
+    transition: none;
+  }
+
+  .vp-definition-drawer__button:hover {
+    transform: none;
+  }
+}

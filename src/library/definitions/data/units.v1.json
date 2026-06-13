@@ -1,0 +1,723 @@
+{
+  "_file": "services/vectoplan-library/src/library/definitions/data/units.v1.json",
+  "schema_version": "1.0",
+  "definitions_version": "v1",
+  "dataset": "units",
+  "label": "VECTOPLAN Unit Definitions",
+  "description": "Kanonischer Einheitenkatalog für VECTOPLAN Library Definitions. Variablen referenzieren diese IDs stabil über ihr unit-Feld. IDs sind bewusst ASCII-/JSON-/Code-freundlich, Labels und Symbole können echte Sonderzeichen enthalten.",
+  "items": [
+    {
+      "id": "mm",
+      "label": "Millimeter",
+      "description": "Längeneinheit Millimeter.",
+      "active": true,
+      "sort_order": 10,
+      "symbol": "mm",
+      "quantity_kind": "length",
+      "base_unit": "m",
+      "conversion_factor_to_base": 0.001,
+      "precision": 0,
+      "tags": [
+        "length",
+        "metric",
+        "geometry"
+      ],
+      "aliases": [
+        "millimeter",
+        "millimetre"
+      ],
+      "i18n": {
+        "de": "Millimeter",
+        "en": "Millimetre"
+      },
+      "metadata": {
+        "core_unit": true,
+        "recommended_for_dimensions": true
+      }
+    },
+    {
+      "id": "cm",
+      "label": "Zentimeter",
+      "description": "Längeneinheit Zentimeter.",
+      "active": true,
+      "sort_order": 20,
+      "symbol": "cm",
+      "quantity_kind": "length",
+      "base_unit": "m",
+      "conversion_factor_to_base": 0.01,
+      "precision": 1,
+      "tags": [
+        "length",
+        "metric",
+        "geometry"
+      ],
+      "aliases": [
+        "centimeter",
+        "centimetre",
+        "zentimeter"
+      ],
+      "i18n": {
+        "de": "Zentimeter",
+        "en": "Centimetre"
+      },
+      "metadata": {
+        "core_unit": true
+      }
+    },
+    {
+      "id": "m",
+      "label": "Meter",
+      "description": "Basiseinheit für Längen.",
+      "active": true,
+      "sort_order": 30,
+      "symbol": "m",
+      "quantity_kind": "length",
+      "base_unit": "m",
+      "conversion_factor_to_base": 1,
+      "precision": 3,
+      "tags": [
+        "length",
+        "metric",
+        "geometry"
+      ],
+      "aliases": [
+        "meter",
+        "metre"
+      ],
+      "i18n": {
+        "de": "Meter",
+        "en": "Metre"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "m2",
+      "label": "Quadratmeter",
+      "description": "Flächeneinheit Quadratmeter.",
+      "active": true,
+      "sort_order": 100,
+      "symbol": "m²",
+      "quantity_kind": "area",
+      "base_unit": "m2",
+      "conversion_factor_to_base": 1,
+      "precision": 3,
+      "tags": [
+        "area",
+        "metric",
+        "quantity"
+      ],
+      "aliases": [
+        "sqm",
+        "square_meter",
+        "square_metre",
+        "m²"
+      ],
+      "i18n": {
+        "de": "Quadratmeter",
+        "en": "Square metre"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "cm2",
+      "label": "Quadratzentimeter",
+      "description": "Flächeneinheit Quadratzentimeter.",
+      "active": true,
+      "sort_order": 110,
+      "symbol": "cm²",
+      "quantity_kind": "area",
+      "base_unit": "m2",
+      "conversion_factor_to_base": 0.0001,
+      "precision": 2,
+      "tags": [
+        "area",
+        "metric"
+      ],
+      "aliases": [
+        "square_centimeter",
+        "square_centimetre",
+        "cm²"
+      ],
+      "i18n": {
+        "de": "Quadratzentimeter",
+        "en": "Square centimetre"
+      },
+      "metadata": {
+        "core_unit": true
+      }
+    },
+    {
+      "id": "m3",
+      "label": "Kubikmeter",
+      "description": "Volumeneinheit Kubikmeter.",
+      "active": true,
+      "sort_order": 200,
+      "symbol": "m³",
+      "quantity_kind": "volume",
+      "base_unit": "m3",
+      "conversion_factor_to_base": 1,
+      "precision": 3,
+      "tags": [
+        "volume",
+        "metric",
+        "quantity"
+      ],
+      "aliases": [
+        "cubic_meter",
+        "cubic_metre",
+        "cbm",
+        "m³"
+      ],
+      "i18n": {
+        "de": "Kubikmeter",
+        "en": "Cubic metre"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "cm3",
+      "label": "Kubikzentimeter",
+      "description": "Volumeneinheit Kubikzentimeter.",
+      "active": true,
+      "sort_order": 210,
+      "symbol": "cm³",
+      "quantity_kind": "volume",
+      "base_unit": "m3",
+      "conversion_factor_to_base": 0.000001,
+      "precision": 2,
+      "tags": [
+        "volume",
+        "metric"
+      ],
+      "aliases": [
+        "cubic_centimeter",
+        "cubic_centimetre",
+        "cm³"
+      ],
+      "i18n": {
+        "de": "Kubikzentimeter",
+        "en": "Cubic centimetre"
+      },
+      "metadata": {
+        "core_unit": true
+      }
+    },
+    {
+      "id": "kg",
+      "label": "Kilogramm",
+      "description": "Masseneinheit Kilogramm.",
+      "active": true,
+      "sort_order": 300,
+      "symbol": "kg",
+      "quantity_kind": "mass",
+      "base_unit": "kg",
+      "conversion_factor_to_base": 1,
+      "precision": 3,
+      "tags": [
+        "mass",
+        "metric"
+      ],
+      "aliases": [
+        "kilogram",
+        "kilogramm"
+      ],
+      "i18n": {
+        "de": "Kilogramm",
+        "en": "Kilogram"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "t",
+      "label": "Tonne",
+      "description": "Masseneinheit Tonne.",
+      "active": true,
+      "sort_order": 310,
+      "symbol": "t",
+      "quantity_kind": "mass",
+      "base_unit": "kg",
+      "conversion_factor_to_base": 1000,
+      "precision": 3,
+      "tags": [
+        "mass",
+        "metric"
+      ],
+      "aliases": [
+        "tonne",
+        "metric_ton"
+      ],
+      "i18n": {
+        "de": "Tonne",
+        "en": "Tonne"
+      },
+      "metadata": {
+        "core_unit": true
+      }
+    },
+    {
+      "id": "kg_m3",
+      "label": "Kilogramm pro Kubikmeter",
+      "description": "Dichteeinheit für Rohdichte und Materialdichte.",
+      "active": true,
+      "sort_order": 400,
+      "symbol": "kg/m³",
+      "quantity_kind": "density",
+      "base_unit": "kg_m3",
+      "conversion_factor_to_base": 1,
+      "precision": 0,
+      "tags": [
+        "density",
+        "material",
+        "physics"
+      ],
+      "aliases": [
+        "kg/m3",
+        "kg/m³",
+        "density"
+      ],
+      "i18n": {
+        "de": "Kilogramm pro Kubikmeter",
+        "en": "Kilogram per cubic metre"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "N_mm2",
+      "label": "Newton pro Quadratmillimeter",
+      "description": "Spannungs- und Festigkeitseinheit, z. B. für Druckfestigkeit.",
+      "active": true,
+      "sort_order": 500,
+      "symbol": "N/mm²",
+      "quantity_kind": "stress",
+      "base_unit": "N_mm2",
+      "conversion_factor_to_base": 1,
+      "precision": 2,
+      "tags": [
+        "strength",
+        "stress",
+        "structural"
+      ],
+      "aliases": [
+        "N/mm2",
+        "N/mm²",
+        "MPa",
+        "megapascal"
+      ],
+      "i18n": {
+        "de": "Newton pro Quadratmillimeter",
+        "en": "Newton per square millimetre"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true,
+        "equivalent_to": "MPa"
+      }
+    },
+    {
+      "id": "MPa",
+      "label": "Megapascal",
+      "description": "Spannungs- und Festigkeitseinheit. 1 MPa entspricht 1 N/mm².",
+      "active": true,
+      "sort_order": 510,
+      "symbol": "MPa",
+      "quantity_kind": "stress",
+      "base_unit": "N_mm2",
+      "conversion_factor_to_base": 1,
+      "precision": 2,
+      "tags": [
+        "strength",
+        "stress",
+        "structural"
+      ],
+      "aliases": [
+        "megapascal"
+      ],
+      "i18n": {
+        "de": "Megapascal",
+        "en": "Megapascal"
+      },
+      "metadata": {
+        "core_unit": true,
+        "equivalent_to": "N/mm²"
+      }
+    },
+    {
+      "id": "W_m2K",
+      "label": "Watt pro Quadratmeter Kelvin",
+      "description": "Einheit für den Wärmedurchgangskoeffizienten U-Wert.",
+      "active": true,
+      "sort_order": 600,
+      "symbol": "W/m²K",
+      "quantity_kind": "thermal_transmittance",
+      "base_unit": "W_m2K",
+      "conversion_factor_to_base": 1,
+      "precision": 3,
+      "tags": [
+        "thermal",
+        "energy",
+        "u_value"
+      ],
+      "aliases": [
+        "W/m2K",
+        "W/m²K",
+        "U-Wert",
+        "u_value"
+      ],
+      "i18n": {
+        "de": "Watt pro Quadratmeter Kelvin",
+        "en": "Watt per square metre Kelvin"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "W_mK",
+      "label": "Watt pro Meter Kelvin",
+      "description": "Einheit für Wärmeleitfähigkeit λ.",
+      "active": true,
+      "sort_order": 610,
+      "symbol": "W/mK",
+      "quantity_kind": "thermal_conductivity",
+      "base_unit": "W_mK",
+      "conversion_factor_to_base": 1,
+      "precision": 3,
+      "tags": [
+        "thermal",
+        "energy",
+        "lambda"
+      ],
+      "aliases": [
+        "W/(mK)",
+        "W/mK",
+        "lambda",
+        "thermal_conductivity"
+      ],
+      "i18n": {
+        "de": "Watt pro Meter Kelvin",
+        "en": "Watt per metre Kelvin"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "dB",
+      "label": "Dezibel",
+      "description": "Einheit für Schall- und Akustikwerte.",
+      "active": true,
+      "sort_order": 700,
+      "symbol": "dB",
+      "quantity_kind": "sound_level",
+      "base_unit": "dB",
+      "conversion_factor_to_base": 1,
+      "precision": 1,
+      "tags": [
+        "acoustic",
+        "sound"
+      ],
+      "aliases": [
+        "decibel",
+        "dezibel"
+      ],
+      "i18n": {
+        "de": "Dezibel",
+        "en": "Decibel"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "l_min",
+      "label": "Liter pro Minute",
+      "description": "Volumenstrom, z. B. für Sanitärarmaturen.",
+      "active": true,
+      "sort_order": 800,
+      "symbol": "l/min",
+      "quantity_kind": "flow_rate",
+      "base_unit": "l_min",
+      "conversion_factor_to_base": 1,
+      "precision": 1,
+      "tags": [
+        "flow",
+        "sanitary",
+        "routing"
+      ],
+      "aliases": [
+        "L/min",
+        "l/min",
+        "liter_per_minute",
+        "litre_per_minute"
+      ],
+      "i18n": {
+        "de": "Liter pro Minute",
+        "en": "Litre per minute"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "piece",
+      "label": "Stück",
+      "description": "Zähleinheit Stück.",
+      "active": true,
+      "sort_order": 900,
+      "symbol": "Stk.",
+      "quantity_kind": "count",
+      "base_unit": "piece",
+      "conversion_factor_to_base": 1,
+      "precision": 0,
+      "tags": [
+        "count",
+        "quantity"
+      ],
+      "aliases": [
+        "pcs",
+        "piece",
+        "stück",
+        "stk"
+      ],
+      "i18n": {
+        "de": "Stück",
+        "en": "Piece"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "EUR",
+      "label": "Euro",
+      "description": "Währungseinheit Euro.",
+      "active": true,
+      "sort_order": 1000,
+      "symbol": "€",
+      "quantity_kind": "currency",
+      "base_unit": "EUR",
+      "conversion_factor_to_base": 1,
+      "precision": 2,
+      "tags": [
+        "currency",
+        "commercial",
+        "cost"
+      ],
+      "aliases": [
+        "euro",
+        "eur",
+        "€"
+      ],
+      "i18n": {
+        "de": "Euro",
+        "en": "Euro"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "EUR_piece",
+      "label": "Euro pro Stück",
+      "description": "Preis pro Stück.",
+      "active": true,
+      "sort_order": 1010,
+      "symbol": "€/Stk.",
+      "quantity_kind": "unit_price",
+      "base_unit": "EUR_piece",
+      "conversion_factor_to_base": 1,
+      "precision": 2,
+      "tags": [
+        "currency",
+        "commercial",
+        "cost",
+        "piece"
+      ],
+      "aliases": [
+        "EUR/piece",
+        "€/Stk.",
+        "euro_per_piece"
+      ],
+      "i18n": {
+        "de": "Euro pro Stück",
+        "en": "Euro per piece"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "EUR_m",
+      "label": "Euro pro Meter",
+      "description": "Preis pro laufendem Meter.",
+      "active": true,
+      "sort_order": 1020,
+      "symbol": "€/m",
+      "quantity_kind": "unit_price",
+      "base_unit": "EUR_m",
+      "conversion_factor_to_base": 1,
+      "precision": 2,
+      "tags": [
+        "currency",
+        "commercial",
+        "cost",
+        "length"
+      ],
+      "aliases": [
+        "EUR/m",
+        "€/m",
+        "euro_per_meter"
+      ],
+      "i18n": {
+        "de": "Euro pro Meter",
+        "en": "Euro per metre"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "EUR_m2",
+      "label": "Euro pro Quadratmeter",
+      "description": "Preis pro Quadratmeter.",
+      "active": true,
+      "sort_order": 1030,
+      "symbol": "€/m²",
+      "quantity_kind": "unit_price",
+      "base_unit": "EUR_m2",
+      "conversion_factor_to_base": 1,
+      "precision": 2,
+      "tags": [
+        "currency",
+        "commercial",
+        "cost",
+        "area"
+      ],
+      "aliases": [
+        "EUR/m2",
+        "EUR/m²",
+        "€/m²",
+        "euro_per_square_meter"
+      ],
+      "i18n": {
+        "de": "Euro pro Quadratmeter",
+        "en": "Euro per square metre"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "EUR_m3",
+      "label": "Euro pro Kubikmeter",
+      "description": "Preis pro Kubikmeter.",
+      "active": true,
+      "sort_order": 1040,
+      "symbol": "€/m³",
+      "quantity_kind": "unit_price",
+      "base_unit": "EUR_m3",
+      "conversion_factor_to_base": 1,
+      "precision": 2,
+      "tags": [
+        "currency",
+        "commercial",
+        "cost",
+        "volume"
+      ],
+      "aliases": [
+        "EUR/m3",
+        "EUR/m³",
+        "€/m³",
+        "euro_per_cubic_meter"
+      ],
+      "i18n": {
+        "de": "Euro pro Kubikmeter",
+        "en": "Euro per cubic metre"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    },
+    {
+      "id": "percent",
+      "label": "Prozent",
+      "description": "Prozentangabe.",
+      "active": true,
+      "sort_order": 1100,
+      "symbol": "%",
+      "quantity_kind": "ratio",
+      "base_unit": "ratio",
+      "conversion_factor_to_base": 0.01,
+      "precision": 2,
+      "tags": [
+        "ratio",
+        "percentage"
+      ],
+      "aliases": [
+        "%",
+        "percentage",
+        "prozent"
+      ],
+      "i18n": {
+        "de": "Prozent",
+        "en": "Percent"
+      },
+      "metadata": {
+        "core_unit": true
+      }
+    },
+    {
+      "id": "ratio",
+      "label": "Verhältnis",
+      "description": "Dimensionsloser Verhältniswert.",
+      "active": true,
+      "sort_order": 1110,
+      "symbol": "-",
+      "quantity_kind": "ratio",
+      "base_unit": "ratio",
+      "conversion_factor_to_base": 1,
+      "precision": 4,
+      "tags": [
+        "ratio",
+        "dimensionless"
+      ],
+      "aliases": [
+        "dimensionless",
+        "factor"
+      ],
+      "i18n": {
+        "de": "Verhältnis",
+        "en": "Ratio"
+      },
+      "metadata": {
+        "core_unit": true,
+        "base_unit": true
+      }
+    }
+  ]
+}

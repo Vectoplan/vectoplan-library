@@ -1,0 +1,1197 @@
+{# services/vectoplan-library/templates/library_admin/create/variants/_variant_workspace.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard · Variant Workspace
+
+  Zweck:
+  - Zentrale Workspace-Shell für den definition-managed Variantenbereich.
+  - Bindet Variantenliste und Variant-Editor/Drawer als eigene Subtemplates ein.
+  - Normalisiert defensiv Create-Options, Definitionsdaten, Draft und Varianten.
+  - Stellt stabile data-hooks für die Varianten-Runtime bereit.
+  - Hält den zentralen Hidden-State `definition_variants_json`.
+  - Hält den Default-Variant-State für Frontend und Backend.
+  - Bleibt frei von fachlich hart kodierten Variant-Feldern.
+  - Keine API-Aufrufe im Template.
+  - Keine Package-Erzeugung.
+  - Keine direkte Feldrendering-Logik.
+  - Keine Three.js-Logik.
+
+  Design-Ziel nach Frontend-Review:
+  - Workspace bleibt flach und platzsparend.
+  - Header enthält Titel, Status, Variantenzähler und "Variante hinzufügen".
+  - Kein eigener großer Statusblock mehr zwischen Header und Tabelle.
+  - Editor-State wird zentral über data-vp-variant-editor-state gesteuert.
+  - Table-Slot und Drawer-Slot bleiben getrennt, aber ohne zusätzliche Card-Hülle.
+  - CSS kann später bei Editor open die Tabelle ausblenden und den Drawer breit
+    anzeigen.
+  - Neue Clean-Shell wird bevorzugt geladen:
+      1. _variant_drawer_shell.html
+      2. _variant_drawer.html als Legacy-Fallback
+
+  Verantwortung dieser Datei:
+  - Workspace-Layout.
+  - Defensive Kontextnormalisierung.
+  - Stable DOM contracts.
+  - Includes für:
+      - create/variants/_variant_table.html
+      - create/variants/_variant_drawer_shell.html
+      - create/variants/_variant_drawer.html als Fallback
+      - create/variants/_variant_drawer_empty_state.html oder _variant_empty_state.html
+  - Minimaler defensiver JS-Bootstrap mit try/catch und DOM-Cache.
+
+  Nicht-Verantwortung:
+  - Variant Profile Resolution.
+  - Field Rendering.
+  - Optional Fields Rendering.
+  - Validierung.
+  - Summary-Erzeugung.
+  - Package-/VPLIB-Erzeugung.
+  - Persistenz.
+
+  Stabiler Frontend-Vertrag:
+  - data-vp-variant-workspace
+  - data-vp-variant-workspace-root="true"
+  - data-vp-variant-workspace-version
+  - data-vp-variant-editor-state="closed|open"
+  - data-vp-variant-table-slot
+  - data-vp-variant-drawer-slot
+  - data-vp-definition-variants-json
+  - data-vp-add-variant
+  - data-vp-variant-workspace-status
+  - data-vp-variant-workspace-context
+
+  Stabiler Backend-/Payload-Vertrag:
+  - definition_variants_json
+  - default_variant_id
+  - definition_variants_default_variant_id
+  - variants[i][is_default]
+  - variants[i][name]
+  - variants[i][slug]
+  - variants[i][kind]
+  - variants[i][description]
+  - variants[i][variant_profile_id]
+  - variants[i][definition_values_json]
+  - variants[i][definition_summary]
+  - variants[i][definition_managed]
+  - variants[i][additional_field_keys]
+
+  Event-Vertrag:
+  - dispatch: vectoplan:create:variant-workspace-ready
+  - dispatch: vectoplan:create:variant-workspace-editor-state-changed
+  - listen:   vectoplan:create:definitions-ready
+  - listen:   vectoplan:create:definitions-unavailable
+  - listen:   vectoplan:create:variant-state-changed
+  - listen:   vectoplan:create:variant-state-synced
+  - listen:   vectoplan:create:variant-added
+  - listen:   vectoplan:create:variant-updated
+  - listen:   vectoplan:create:variant-removed
+  - listen:   vectoplan:create:variant-editor-opened
+  - listen:   vectoplan:create:variant-editor-closed
+  - listen:   vectoplan:create:variant-drawer-opened
+  - listen:   vectoplan:create:variant-drawer-closed
+
+  Hinweis:
+  Diese Datei wird in `_object_variants.html` mit `with context` eingebunden.
+----------------------------------------------------------------------------- #}
+
+
+{# -----------------------------------------------------------------------------
+  1. Makros defensiv verfügbar machen
+----------------------------------------------------------------------------- #}
+
+{% if create_ui is not defined %}
+  {% import "library_admin/create/_macros.html" as create_ui %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  2. Options defensiv normalisieren
+
+  Unterstützte Formen:
+  - _vp_variant_options aus Parent-Template
+  - _options
+  - _options.data
+  - create_options
+  - create_options.data
+----------------------------------------------------------------------------- #}
+
+{% if _vp_variant_options is defined and _vp_variant_options is mapping %}
+  {% set _vp_variant_options = _vp_variant_options %}
+{% elif _options is defined and _options is mapping and 'data' in _options and _options['data'] is mapping %}
+  {% set _vp_variant_options = _options['data'] %}
+{% elif _options is defined and _options is mapping %}
+  {% set _vp_variant_options = _options %}
+{% elif create_options is defined and create_options is mapping and 'data' in create_options and create_options['data'] is mapping %}
+  {% set _vp_variant_options = create_options['data'] %}
+{% elif create_options is defined and create_options is mapping %}
+  {% set _vp_variant_options = create_options %}
+{% else %}
+  {% set _vp_variant_options = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  3. Definitions-Kontext defensiv normalisieren
+
+  Unterstützte Formen:
+  - _vp_variant_definitions aus Parent-Template
+  - _vp_variant_definitions_options aus Parent-Template
+  - _vp_variant_definition_catalogs aus Parent-Template
+  - options.definitions
+  - options.definitions_options
+  - options.definition_catalogs
+  - definitions.options
+  - definitions.definitions
+  - definitions direkt als Katalogstruktur
+----------------------------------------------------------------------------- #}
+
+{% if _vp_variant_definitions is defined and _vp_variant_definitions is mapping %}
+  {% set _vp_variant_definitions = _vp_variant_definitions %}
+{% elif _vp_variant_options is mapping and 'definitions' in _vp_variant_options and _vp_variant_options['definitions'] is mapping %}
+  {% set _vp_variant_definitions = _vp_variant_options['definitions'] %}
+{% elif definitions is defined and definitions is mapping %}
+  {% set _vp_variant_definitions = definitions %}
+{% else %}
+  {% set _vp_variant_definitions = {} %}
+{% endif %}
+
+{% if _vp_variant_definitions_options is defined and _vp_variant_definitions_options is mapping %}
+  {% set _vp_variant_definitions_options = _vp_variant_definitions_options %}
+{% elif _vp_variant_options is mapping and 'definitions_options' in _vp_variant_options and _vp_variant_options['definitions_options'] is mapping %}
+  {% set _vp_variant_definitions_options = _vp_variant_options['definitions_options'] %}
+{% elif _vp_variant_definitions is mapping and 'options' in _vp_variant_definitions and _vp_variant_definitions['options'] is mapping %}
+  {% set _vp_variant_definitions_options = _vp_variant_definitions['options'] %}
+{% elif definitions_options is defined and definitions_options is mapping %}
+  {% set _vp_variant_definitions_options = definitions_options %}
+{% else %}
+  {% set _vp_variant_definitions_options = {} %}
+{% endif %}
+
+{% if _vp_variant_definition_catalogs is defined and _vp_variant_definition_catalogs is mapping %}
+  {% set _vp_variant_definition_catalogs = _vp_variant_definition_catalogs %}
+{% elif _vp_variant_options is mapping and 'definition_catalogs' in _vp_variant_options and _vp_variant_options['definition_catalogs'] is mapping %}
+  {% set _vp_variant_definition_catalogs = _vp_variant_options['definition_catalogs'] %}
+{% elif _vp_variant_definitions is mapping and 'definitions' in _vp_variant_definitions and _vp_variant_definitions['definitions'] is mapping %}
+  {% set _vp_variant_definition_catalogs = _vp_variant_definitions['definitions'] %}
+{% elif definition_catalogs is defined and definition_catalogs is mapping %}
+  {% set _vp_variant_definition_catalogs = definition_catalogs %}
+{% elif _vp_variant_definitions is mapping %}
+  {% set _vp_variant_definition_catalogs = _vp_variant_definitions %}
+{% else %}
+  {% set _vp_variant_definition_catalogs = {} %}
+{% endif %}
+
+{% if _vp_variant_definitions_available is defined %}
+  {% set _vp_variant_definitions_available_value = _vp_variant_definitions_available %}
+{% elif _vp_variant_definitions is mapping and _vp_variant_definitions.get('ok') is sameas true %}
+  {% set _vp_variant_definitions_available_value = true %}
+{% elif _vp_variant_definitions is mapping and (_vp_variant_definitions.get('ok') | string | lower) in ['true', '1', 'yes', 'ja', 'ok', 'healthy'] %}
+  {% set _vp_variant_definitions_available_value = true %}
+{% elif _vp_variant_definition_catalogs is mapping and 'variant_profiles' in _vp_variant_definition_catalogs and _vp_variant_definition_catalogs['variant_profiles'] %}
+  {% set _vp_variant_definitions_available_value = true %}
+{% elif _vp_variant_definition_catalogs is mapping and 'variables' in _vp_variant_definition_catalogs and _vp_variant_definition_catalogs['variables'] %}
+  {% set _vp_variant_definitions_available_value = true %}
+{% else %}
+  {% set _vp_variant_definitions_available_value = false %}
+{% endif %}
+
+{% set _vp_variant_definitions_available = _vp_variant_definitions_available_value %}
+
+
+{# -----------------------------------------------------------------------------
+  4. Draft defensiv normalisieren
+
+  Unterstützte Formen:
+  - _vp_variant_draft aus Parent-Template
+  - create_initial_draft
+  - _initial_draft
+  - _draft
+  - draft
+  - vplib_draft
+----------------------------------------------------------------------------- #}
+
+{% if _vp_variant_draft is defined and _vp_variant_draft is mapping %}
+  {% set _vp_variant_draft = _vp_variant_draft %}
+{% elif create_initial_draft is defined and create_initial_draft is mapping %}
+  {% set _vp_variant_draft = create_initial_draft %}
+{% elif _initial_draft is defined and _initial_draft is mapping %}
+  {% set _vp_variant_draft = _initial_draft %}
+{% elif _draft is defined and _draft is mapping %}
+  {% set _vp_variant_draft = _draft %}
+{% elif draft is defined and draft is mapping %}
+  {% set _vp_variant_draft = draft %}
+{% elif vplib_draft is defined and vplib_draft is mapping %}
+  {% set _vp_variant_draft = vplib_draft %}
+{% else %}
+  {% set _vp_variant_draft = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  5. Taxonomie-/Objekt-Kontext defensiv lesen
+
+  Diese Werte werden vom Workspace nicht fachlich interpretiert.
+  Sie dienen nur als Kontext für spätere JS-Profile-Resolution.
+----------------------------------------------------------------------------- #}
+
+{% if _vp_variant_domain is defined and _vp_variant_domain %}
+  {% set _vp_variant_domain = _vp_variant_domain %}
+{% elif _vp_variant_draft is mapping and 'domain' in _vp_variant_draft and _vp_variant_draft['domain'] %}
+  {% set _vp_variant_domain = _vp_variant_draft['domain'] %}
+{% elif _vp_variant_draft is mapping and 'taxonomy' in _vp_variant_draft and _vp_variant_draft['taxonomy'] is mapping and 'domain' in _vp_variant_draft['taxonomy'] and _vp_variant_draft['taxonomy']['domain'] %}
+  {% set _vp_variant_domain = _vp_variant_draft['taxonomy']['domain'] %}
+{% elif _selected_domain is defined and _selected_domain %}
+  {% set _vp_variant_domain = _selected_domain %}
+{% else %}
+  {% set _vp_variant_domain = '' %}
+{% endif %}
+
+{% if _vp_variant_category is defined and _vp_variant_category %}
+  {% set _vp_variant_category = _vp_variant_category %}
+{% elif _vp_variant_draft is mapping and 'category' in _vp_variant_draft and _vp_variant_draft['category'] %}
+  {% set _vp_variant_category = _vp_variant_draft['category'] %}
+{% elif _vp_variant_draft is mapping and 'taxonomy' in _vp_variant_draft and _vp_variant_draft['taxonomy'] is mapping and 'category' in _vp_variant_draft['taxonomy'] and _vp_variant_draft['taxonomy']['category'] %}
+  {% set _vp_variant_category = _vp_variant_draft['taxonomy']['category'] %}
+{% elif _selected_category is defined and _selected_category %}
+  {% set _vp_variant_category = _selected_category %}
+{% else %}
+  {% set _vp_variant_category = '' %}
+{% endif %}
+
+{% if _vp_variant_subcategory is defined and _vp_variant_subcategory %}
+  {% set _vp_variant_subcategory = _vp_variant_subcategory %}
+{% elif _vp_variant_draft is mapping and 'subcategory' in _vp_variant_draft and _vp_variant_draft['subcategory'] %}
+  {% set _vp_variant_subcategory = _vp_variant_draft['subcategory'] %}
+{% elif _vp_variant_draft is mapping and 'taxonomy' in _vp_variant_draft and _vp_variant_draft['taxonomy'] is mapping and 'subcategory' in _vp_variant_draft['taxonomy'] and _vp_variant_draft['taxonomy']['subcategory'] %}
+  {% set _vp_variant_subcategory = _vp_variant_draft['taxonomy']['subcategory'] %}
+{% elif _selected_subcategory is defined and _selected_subcategory %}
+  {% set _vp_variant_subcategory = _selected_subcategory %}
+{% else %}
+  {% set _vp_variant_subcategory = '' %}
+{% endif %}
+
+{% if _vp_variant_object_kind is defined and _vp_variant_object_kind %}
+  {% set _vp_variant_object_kind = _vp_variant_object_kind %}
+{% elif _vp_variant_draft is mapping and 'object_kind' in _vp_variant_draft and _vp_variant_draft['object_kind'] %}
+  {% set _vp_variant_object_kind = _vp_variant_draft['object_kind'] %}
+{% elif _vp_variant_draft is mapping and 'object_class' in _vp_variant_draft and _vp_variant_draft['object_class'] %}
+  {% set _vp_variant_object_kind = _vp_variant_draft['object_class'] %}
+{% elif _vp_variant_draft is mapping and 'family' in _vp_variant_draft and _vp_variant_draft['family'] is mapping and 'object_kind' in _vp_variant_draft['family'] and _vp_variant_draft['family']['object_kind'] %}
+  {% set _vp_variant_object_kind = _vp_variant_draft['family']['object_kind'] %}
+{% elif _selected_object_kind is defined and _selected_object_kind %}
+  {% set _vp_variant_object_kind = _selected_object_kind %}
+{% else %}
+  {% set _vp_variant_object_kind = 'cell_block' %}
+{% endif %}
+
+{% if _vp_variant_object_kind_normalized is defined and _vp_variant_object_kind_normalized %}
+  {% set _vp_variant_object_kind_normalized = _vp_variant_object_kind_normalized %}
+{% else %}
+  {% set _vp_variant_object_kind_normalized = _vp_variant_object_kind | string | lower | replace('-', '_') | replace(' ', '_') %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  6. Profile-Kontext defensiv lesen
+
+  Wichtig:
+  Leere Werte bleiben leer. Sie werden nicht mit Fallbacks überschrieben,
+  damit die automatische Resolver-Logik nicht blockiert wird.
+----------------------------------------------------------------------------- #}
+
+{% if _vp_variant_family_profile_id is defined and _vp_variant_family_profile_id %}
+  {% set _vp_variant_family_profile_id = _vp_variant_family_profile_id %}
+{% elif _vp_variant_draft is mapping and 'family_profile_id' in _vp_variant_draft and _vp_variant_draft['family_profile_id'] %}
+  {% set _vp_variant_family_profile_id = _vp_variant_draft['family_profile_id'] %}
+{% elif _vp_variant_draft is mapping and 'family' in _vp_variant_draft and _vp_variant_draft['family'] is mapping and 'family_profile_id' in _vp_variant_draft['family'] and _vp_variant_draft['family']['family_profile_id'] %}
+  {% set _vp_variant_family_profile_id = _vp_variant_draft['family']['family_profile_id'] %}
+{% elif _selected_family_profile_id is defined and _selected_family_profile_id %}
+  {% set _vp_variant_family_profile_id = _selected_family_profile_id %}
+{% else %}
+  {% set _vp_variant_family_profile_id = '' %}
+{% endif %}
+
+{% if _vp_variant_profile_id is defined and _vp_variant_profile_id %}
+  {% set _vp_variant_profile_id = _vp_variant_profile_id %}
+{% elif _vp_variant_draft is mapping and 'variant_profile_id' in _vp_variant_draft and _vp_variant_draft['variant_profile_id'] %}
+  {% set _vp_variant_profile_id = _vp_variant_draft['variant_profile_id'] %}
+{% elif _vp_variant_draft is mapping and 'family' in _vp_variant_draft and _vp_variant_draft['family'] is mapping and 'variant_profile_id' in _vp_variant_draft['family'] and _vp_variant_draft['family']['variant_profile_id'] %}
+  {% set _vp_variant_profile_id = _vp_variant_draft['family']['variant_profile_id'] %}
+{% elif _selected_variant_profile_id is defined and _selected_variant_profile_id %}
+  {% set _vp_variant_profile_id = _selected_variant_profile_id %}
+{% else %}
+  {% set _vp_variant_profile_id = '' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  7. Varianten defensiv lesen
+
+  Varianten können aus `definition_variants_json` oder aus älteren `variants`-
+  Strukturen kommen. Das eigentliche Parsing übernimmt JS/Backend.
+----------------------------------------------------------------------------- #}
+
+{% if _vp_variant_definition_variants_json is defined and _vp_variant_definition_variants_json %}
+  {% set _vp_variant_definition_variants_json = _vp_variant_definition_variants_json %}
+{% elif _vp_variant_draft is mapping and 'definition_variants_json' in _vp_variant_draft and _vp_variant_draft['definition_variants_json'] %}
+  {% set _vp_variant_definition_variants_json = _vp_variant_draft['definition_variants_json'] %}
+{% elif definition_variants_json is defined and definition_variants_json %}
+  {% set _vp_variant_definition_variants_json = definition_variants_json %}
+{% else %}
+  {% set _vp_variant_definition_variants_json = '' %}
+{% endif %}
+
+{% if _vp_variant_draft_variants is defined and _vp_variant_draft_variants is iterable and _vp_variant_draft_variants is not string %}
+  {% set _vp_variant_draft_variants = _vp_variant_draft_variants %}
+{% elif _vp_variant_draft is mapping and 'variants' in _vp_variant_draft and _vp_variant_draft['variants'] is mapping %}
+  {% set _vp_variant_draft_variants = [] %}
+{% elif _vp_variant_draft is mapping and 'variants' in _vp_variant_draft and _vp_variant_draft['variants'] is iterable and _vp_variant_draft['variants'] is not string %}
+  {% set _vp_variant_draft_variants = _vp_variant_draft['variants'] %}
+{% elif _vp_variant_draft is mapping and 'family' in _vp_variant_draft and _vp_variant_draft['family'] is mapping and 'variants' in _vp_variant_draft['family'] and _vp_variant_draft['family']['variants'] is mapping %}
+  {% set _vp_variant_draft_variants = [] %}
+{% elif _vp_variant_draft is mapping and 'family' in _vp_variant_draft and _vp_variant_draft['family'] is mapping and 'variants' in _vp_variant_draft['family'] and _vp_variant_draft['family']['variants'] is iterable and _vp_variant_draft['family']['variants'] is not string %}
+  {% set _vp_variant_draft_variants = _vp_variant_draft['family']['variants'] %}
+{% else %}
+  {% set _vp_variant_draft_variants = [] %}
+{% endif %}
+
+{% if _vp_variant_default_variant_id is defined and _vp_variant_default_variant_id %}
+  {% set _vp_variant_default_variant_id = _vp_variant_default_variant_id %}
+{% elif _vp_variant_draft is mapping and 'default_variant_id' in _vp_variant_draft and _vp_variant_draft['default_variant_id'] %}
+  {% set _vp_variant_default_variant_id = _vp_variant_draft['default_variant_id'] %}
+{% elif _vp_variant_draft is mapping and 'default_variant' in _vp_variant_draft and _vp_variant_draft['default_variant'] %}
+  {% set _vp_variant_default_variant_id = _vp_variant_draft['default_variant'] %}
+{% elif _vp_variant_draft is mapping and 'variants' in _vp_variant_draft and _vp_variant_draft['variants'] is mapping and 'default' in _vp_variant_draft['variants'] %}
+  {% set _vp_variant_default_variant_id = 'default' %}
+{% else %}
+  {% set _vp_variant_default_variant_id = 'default' %}
+{% endif %}
+
+{% if _vp_variant_draft_variants and (_vp_variant_draft_variants | length > 0) %}
+  {% set _vp_variant_initial_count = _vp_variant_draft_variants | length %}
+{% else %}
+  {% set _vp_variant_initial_count = 1 %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  8. Workspace IDs und Statuswerte
+----------------------------------------------------------------------------- #}
+
+{% if vp_variant_workspace_id is defined and vp_variant_workspace_id %}
+  {% set _vp_variant_workspace_id = vp_variant_workspace_id %}
+{% else %}
+  {% set _vp_variant_workspace_id = 'vp-create-variant-workspace' %}
+{% endif %}
+
+{% set _vp_variant_table_slot_id = _vp_variant_workspace_id ~ '-table-slot' %}
+{% set _vp_variant_drawer_slot_id = _vp_variant_workspace_id ~ '-drawer-slot' %}
+{% set _vp_variant_status_id = _vp_variant_workspace_id ~ '-status' %}
+{% set _vp_variant_context_id = _vp_variant_workspace_id ~ '-context' %}
+
+{% if _vp_variant_definitions_available %}
+  {% set _vp_variant_workspace_status = 'ready' %}
+{% else %}
+  {% set _vp_variant_workspace_status = 'definitions_unavailable' %}
+{% endif %}
+
+{% if _vp_variant_definition_variants_json %}
+  {% set _vp_variant_initial_json = _vp_variant_definition_variants_json %}
+{% else %}
+  {% set _vp_variant_initial_json = _vp_variant_draft_variants | tojson %}
+{% endif %}
+
+
+<section
+  id="{{ _vp_variant_workspace_id }}"
+  class="vp-create-variant-workspace"
+  data-vp-variant-workspace="true"
+  data-vp-variant-workspace-root="true"
+  data-vp-variant-workspace-version="0.3.0"
+  data-vp-variant-editor-state="closed"
+  data-vp-definition-managed-variants="true"
+  data-vp-definitions-available="{% if _vp_variant_definitions_available %}true{% else %}false{% endif %}"
+  data-vp-variant-workspace-status="{{ _vp_variant_workspace_status }}"
+  data-vp-variant-count="{{ _vp_variant_initial_count }}"
+  data-vp-current-domain="{{ _vp_variant_domain }}"
+  data-vp-current-category="{{ _vp_variant_category }}"
+  data-vp-current-subcategory="{{ _vp_variant_subcategory }}"
+  data-vp-current-object-kind="{{ _vp_variant_object_kind_normalized }}"
+  data-vp-current-family-profile-id="{{ _vp_variant_family_profile_id }}"
+  data-vp-current-variant-profile-id="{{ _vp_variant_profile_id }}"
+  data-vp-default-variant-id="{{ _vp_variant_default_variant_id }}"
+  data-vp-table-slot-id="{{ _vp_variant_table_slot_id }}"
+  data-vp-drawer-slot-id="{{ _vp_variant_drawer_slot_id }}"
+  data-vp-status-id="{{ _vp_variant_status_id }}"
+  data-vp-context-id="{{ _vp_variant_context_id }}"
+  aria-labelledby="{{ _vp_variant_workspace_id }}-title"
+>
+  <header class="vp-create-variant-workspace__header">
+    <div class="vp-create-variant-workspace__title-wrap">
+      <h3
+        id="{{ _vp_variant_workspace_id }}-title"
+        class="vp-create-variant-workspace__title"
+      >
+        Varianten
+      </h3>
+
+      <p class="vp-create-variant-workspace__description">
+        Die erste Variante bleibt die stabile Default-Variante. Weitere Varianten beschreiben konkrete Ausführungen, Herstellerprodukte oder technische Kennwerte.
+      </p>
+    </div>
+
+    <div class="vp-create-variant-workspace__tools">
+      <span
+        id="{{ _vp_variant_status_id }}"
+        class="vp-create-variant-workspace__status-pill{% if _vp_variant_definitions_available %} vp-create-variant-workspace__status-pill--ready{% else %} vp-create-variant-workspace__status-pill--warning{% endif %}"
+        data-vp-variant-workspace-status-node="true"
+        data-vp-variant-workspace-status-pill="true"
+        aria-live="polite"
+      >
+        {% if _vp_variant_definitions_available %}
+          Definitionsdaten bereit
+        {% else %}
+          Definitionsdaten fehlen
+        {% endif %}
+      </span>
+
+      <span
+        class="vp-create-variant-workspace__count"
+        data-vp-variant-count-label="true"
+        aria-live="polite"
+      >
+        {% if _vp_variant_initial_count == 1 %}
+          1 Variante
+        {% else %}
+          {{ _vp_variant_initial_count }} Varianten
+        {% endif %}
+      </span>
+
+      <button
+        class="vp-create-button vp-create-button--secondary vp-create-variant-workspace__add"
+        type="button"
+        data-create-add-variant="true"
+        data-vp-add-variant="true"
+        data-vp-definitions-drawer-trigger="true"
+        data-vp-variant-action="add"
+        {% if not _vp_variant_definitions_available %}
+          data-vp-action-disabled-reason="definitions_unavailable"
+        {% endif %}
+      >
+        Variante hinzufügen
+      </button>
+    </div>
+  </header>
+
+  {% if not _vp_variant_definitions_available %}
+    <p
+      class="vp-create-variant-workspace__status-text"
+      data-vp-variant-workspace-status-text="true"
+      role="status"
+    >
+      Varianten können erst vollständig erstellt werden, wenn die Backend-Definitionsdaten geladen sind.
+    </p>
+  {% endif %}
+
+  <div
+    id="{{ _vp_variant_context_id }}"
+    class="vp-create-variant-workspace__context"
+    data-vp-variant-workspace-context="true"
+    hidden
+  >
+    <input
+      type="hidden"
+      name="definition_variants_json"
+      value="{{ _vp_variant_initial_json | e }}"
+      data-vp-definition-variants-json="true"
+      data-create-field="definition_variants_json"
+    />
+
+    <input
+      type="hidden"
+      name="definition_variants_state_version"
+      value="1"
+      data-vp-definition-variants-state-version="true"
+    />
+
+    <input
+      type="hidden"
+      name="definition_variants_default_variant_id"
+      value="{{ _vp_variant_default_variant_id }}"
+      data-vp-definition-variants-default-id="true"
+    />
+
+    <input
+      type="hidden"
+      name="default_variant_id"
+      value="{{ _vp_variant_default_variant_id }}"
+      data-vp-default-variant-id-field="true"
+      data-create-field="default_variant_id"
+    />
+  </div>
+
+  <div
+    id="{{ _vp_variant_table_slot_id }}"
+    class="vp-create-variant-workspace__table-slot"
+    data-vp-variant-table-slot="true"
+    data-vp-variant-editor-state-target="true"
+  >
+    {% include "library_admin/create/variants/_variant_table.html" ignore missing with context %}
+  </div>
+
+  <div
+    id="{{ _vp_variant_drawer_slot_id }}"
+    class="vp-create-variant-workspace__drawer-slot"
+    data-vp-variant-drawer-slot="true"
+    data-vp-variant-editor-state-target="true"
+  >
+    {% include [
+      "library_admin/create/variants/_variant_drawer_shell.html",
+      "library_admin/create/variants/_variant_drawer.html"
+    ] ignore missing with context %}
+
+    {% if not _vp_variant_definitions_available %}
+      {% include [
+        "library_admin/create/variants/_variant_drawer_empty_state.html",
+        "library_admin/create/variants/_variant_empty_state.html"
+      ] ignore missing with context %}
+    {% endif %}
+  </div>
+
+  <template data-vp-variant-workspace-fallback-message-template="true">
+    <div class="vp-create-variant-workspace__fallback" data-vp-variant-workspace-fallback="true">
+      <strong>Variantenkomponente nicht vollständig geladen.</strong>
+      <span>Bitte prüfen, ob Variant Table, Variant Editor und die zugehörigen JavaScript-Module eingebunden sind.</span>
+    </div>
+  </template>
+</section>
+
+<script>
+  (function () {
+    "use strict";
+
+    var WORKSPACE_SELECTOR = "[data-vp-variant-workspace-root='true']";
+    var READY_ATTR = "data-vp-variant-workspace-ready";
+    var EVENTS_BOUND_ATTR = "data-vp-variant-workspace-events-bound";
+    var COMPONENT_NAME = "VECTOPLAN Variant Workspace";
+    var COMPONENT_VERSION = "0.3.0";
+
+    function warn(message, error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+
+    function info(message, payload) {
+      try {
+        if (window.console && typeof window.console.info === "function") {
+          window.console.info("[" + COMPONENT_NAME + "] " + message, payload || "");
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+
+    function toArray(value) {
+      try {
+        return Array.prototype.slice.call(value || []);
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function normalizeEditorState(value) {
+      try {
+        var normalized = String(value || "").trim().toLowerCase();
+
+        if (normalized === "open" || normalized === "opened" || normalized === "editing" || normalized === "edit") {
+          return "open";
+        }
+
+        return "closed";
+      } catch (error) {
+        return "closed";
+      }
+    }
+
+    function readBoolAttr(node, name) {
+      try {
+        return String(node.getAttribute(name) || "").toLowerCase() === "true";
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function dispatch(node, eventName, detail) {
+      try {
+        if (!node || !eventName) {
+          return null;
+        }
+
+        var event = new CustomEvent(eventName, {
+          bubbles: true,
+          cancelable: false,
+          detail: detail || {}
+        });
+
+        node.dispatchEvent(event);
+        return event;
+      } catch (error) {
+        warn("Could not dispatch event: " + eventName, error);
+        return null;
+      }
+    }
+
+    function getWorkspaceId(root, index) {
+      try {
+        return root.getAttribute("id") || "vp-create-variant-workspace-" + String(index || 0);
+      } catch (error) {
+        return "vp-create-variant-workspace-" + String(index || 0);
+      }
+    }
+
+    function readContext(root) {
+      try {
+        if (!root) {
+          return {};
+        }
+
+        return {
+          id: root.getAttribute("id") || "",
+          version: root.getAttribute("data-vp-variant-workspace-version") || COMPONENT_VERSION,
+          status: root.getAttribute("data-vp-variant-workspace-status") || "",
+          editorState: normalizeEditorState(root.getAttribute("data-vp-variant-editor-state") || "closed"),
+          definitionsAvailable: readBoolAttr(root, "data-vp-definitions-available"),
+          domain: root.getAttribute("data-vp-current-domain") || "",
+          category: root.getAttribute("data-vp-current-category") || "",
+          subcategory: root.getAttribute("data-vp-current-subcategory") || "",
+          objectKind: root.getAttribute("data-vp-current-object-kind") || "",
+          familyProfileId: root.getAttribute("data-vp-current-family-profile-id") || "",
+          variantProfileId: root.getAttribute("data-vp-current-variant-profile-id") || "",
+          defaultVariantId: root.getAttribute("data-vp-default-variant-id") || "default",
+          tableSlotId: root.getAttribute("data-vp-table-slot-id") || "",
+          drawerSlotId: root.getAttribute("data-vp-drawer-slot-id") || "",
+          statusId: root.getAttribute("data-vp-status-id") || "",
+          contextId: root.getAttribute("data-vp-context-id") || ""
+        };
+      } catch (error) {
+        warn("Could not read workspace context.", error);
+        return {};
+      }
+    }
+
+    function cacheNodes(root) {
+      try {
+        return {
+          root: root,
+          statusNode: root.querySelector("[data-vp-variant-workspace-status-node='true']"),
+          statusPill: root.querySelector("[data-vp-variant-workspace-status-pill='true']"),
+          statusText: root.querySelector("[data-vp-variant-workspace-status-text='true']"),
+          addButton: root.querySelector("[data-vp-add-variant='true']"),
+          countLabel: root.querySelector("[data-vp-variant-count-label='true']"),
+          contextNode: root.querySelector("[data-vp-variant-workspace-context='true']"),
+          definitionVariantsJson: root.querySelector("[data-vp-definition-variants-json='true']"),
+          stateVersion: root.querySelector("[data-vp-definition-variants-state-version='true']"),
+          defaultVariantId: root.querySelector("[data-vp-definition-variants-default-id='true']"),
+          defaultVariantIdField: root.querySelector("[data-vp-default-variant-id-field='true']"),
+          tableSlot: root.querySelector("[data-vp-variant-table-slot='true']"),
+          drawerSlot: root.querySelector("[data-vp-variant-drawer-slot='true']"),
+          drawerRoot: root.querySelector("[data-vp-variant-drawer-root='true']"),
+          fallbackTemplate: root.querySelector("[data-vp-variant-workspace-fallback-message-template='true']")
+        };
+      } catch (error) {
+        warn("Could not cache workspace nodes.", error);
+        return {
+          root: root
+        };
+      }
+    }
+
+    function getVariantStateCount() {
+      try {
+        if (
+          window.VectoplanCreateVariantState &&
+          typeof window.VectoplanCreateVariantState.getVariants === "function"
+        ) {
+          var variants = window.VectoplanCreateVariantState.getVariants();
+
+          if (variants && variants.length !== undefined) {
+            return variants.length;
+          }
+        }
+      } catch (error) {
+        /* no-op */
+      }
+
+      return null;
+    }
+
+    function getRows(cache) {
+      try {
+        if (!cache || !cache.root) {
+          return [];
+        }
+
+        return toArray(cache.root.querySelectorAll("[data-vp-variant-row], [data-create-variant-row='true']"));
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function updateCount(cache, explicitCount) {
+      try {
+        var count = null;
+
+        if (explicitCount !== undefined && explicitCount !== null && !isNaN(parseInt(explicitCount, 10))) {
+          count = parseInt(explicitCount, 10);
+        }
+
+        if (count === null) {
+          count = getVariantStateCount();
+        }
+
+        if (count === null) {
+          var rows = getRows(cache);
+          count = rows.length || parseInt(cache.root.getAttribute("data-vp-variant-count") || "1", 10) || 1;
+        }
+
+        if (count < 1) {
+          count = 1;
+        }
+
+        cache.root.setAttribute("data-vp-variant-count", String(count));
+
+        if (cache.countLabel) {
+          cache.countLabel.textContent = count === 1 ? "1 Variante" : String(count) + " Varianten";
+        }
+
+        return count;
+      } catch (error) {
+        warn("Could not update variant count.", error);
+        return 1;
+      }
+    }
+
+    function setStatus(cache, available, reason) {
+      try {
+        if (!cache || !cache.root) {
+          return;
+        }
+
+        cache.root.setAttribute("data-vp-definitions-available", available ? "true" : "false");
+        cache.root.setAttribute("data-vp-variant-workspace-status", available ? "ready" : "definitions_unavailable");
+
+        if (cache.addButton) {
+          if (available) {
+            cache.addButton.removeAttribute("data-vp-action-disabled-reason");
+          } else {
+            cache.addButton.setAttribute("data-vp-action-disabled-reason", reason || "definitions_unavailable");
+          }
+        }
+
+        if (cache.statusPill) {
+          cache.statusPill.textContent = available ? "Definitionsdaten bereit" : "Definitionsdaten fehlen";
+          cache.statusPill.classList.toggle("vp-create-variant-workspace__status-pill--ready", !!available);
+          cache.statusPill.classList.toggle("vp-create-variant-workspace__status-pill--warning", !available);
+        }
+
+        if (cache.statusText) {
+          cache.statusText.hidden = !!available;
+        }
+      } catch (error) {
+        warn("Could not set workspace status.", error);
+      }
+    }
+
+    function syncDefaultVariantId(cache, value) {
+      try {
+        var nextValue = value || "default";
+
+        cache.root.setAttribute("data-vp-default-variant-id", nextValue);
+
+        if (cache.defaultVariantId) {
+          cache.defaultVariantId.value = nextValue;
+        }
+
+        if (cache.defaultVariantIdField) {
+          cache.defaultVariantIdField.value = nextValue;
+        }
+      } catch (error) {
+        warn("Could not sync default variant id.", error);
+      }
+    }
+
+    function setEditorState(cache, nextState, options) {
+      try {
+        if (!cache || !cache.root) {
+          return false;
+        }
+
+        var state = normalizeEditorState(nextState);
+        var previousState = normalizeEditorState(cache.root.getAttribute("data-vp-variant-editor-state") || "closed");
+
+        cache.root.setAttribute("data-vp-variant-editor-state", state);
+
+        if (cache.tableSlot) {
+          cache.tableSlot.setAttribute("data-vp-variant-editor-state", state);
+        }
+
+        if (cache.drawerSlot) {
+          cache.drawerSlot.setAttribute("data-vp-variant-editor-state", state);
+        }
+
+        if (cache.drawerRoot) {
+          cache.drawerRoot.setAttribute("data-vp-variant-editor-state", state);
+
+          if (state === "open") {
+            cache.drawerRoot.hidden = false;
+            cache.drawerRoot.removeAttribute("hidden");
+            cache.drawerRoot.setAttribute("aria-hidden", "false");
+          }
+        }
+
+        if (cache.addButton) {
+          cache.addButton.setAttribute("data-vp-variant-editor-state", state);
+        }
+
+        if (!options || options.silent !== true) {
+          dispatch(cache.root, "vectoplan:create:variant-workspace-editor-state-changed", {
+            component: COMPONENT_NAME,
+            version: COMPONENT_VERSION,
+            state: state,
+            previousState: previousState,
+            reason: options && options.reason ? options.reason : "set_editor_state"
+          });
+        }
+
+        return true;
+      } catch (error) {
+        warn("Could not set editor state.", error);
+        return false;
+      }
+    }
+
+    function readCountFromEventDetail(detail) {
+      try {
+        if (detail && detail.state && detail.state.variants && detail.state.variants.length !== undefined) {
+          return detail.state.variants.length;
+        }
+
+        if (detail && detail.variants && detail.variants.length !== undefined) {
+          return detail.variants.length;
+        }
+
+        if (detail && detail.count !== undefined) {
+          return detail.count;
+        }
+      } catch (error) {
+        /* no-op */
+      }
+
+      return null;
+    }
+
+    function bindEvents(cache) {
+      try {
+        if (!cache || !cache.root || cache.root.getAttribute(EVENTS_BOUND_ATTR) === "true") {
+          return;
+        }
+
+        var countEvents = [
+          "vectoplan:create:variant-state-changed",
+          "vectoplan:create:variant-state-synced",
+          "vectoplan:create:variant-added",
+          "vectoplan:create:variant-updated",
+          "vectoplan:create:variant-removed"
+        ];
+
+        countEvents.forEach(function (eventName) {
+          document.addEventListener(eventName, function (event) {
+            try {
+              updateCount(cache, readCountFromEventDetail(event && event.detail ? event.detail : {}));
+            } catch (error) {
+              warn("Count event handling failed: " + eventName, error);
+            }
+          });
+        });
+
+        document.addEventListener("vectoplan:create:definitions-ready", function () {
+          setStatus(cache, true, "definitions_ready");
+        });
+
+        document.addEventListener("vectoplan:create:definitions-unavailable", function (event) {
+          setStatus(cache, false, event && event.detail && event.detail.reason ? event.detail.reason : "definitions_unavailable");
+        });
+
+        [
+          "vectoplan:create:variant-editor-opened",
+          "vectoplan:create:variant-drawer-opened",
+          "vectoplan:create:variant-edit-started"
+        ].forEach(function (eventName) {
+          document.addEventListener(eventName, function () {
+            setEditorState(cache, "open", {
+              reason: eventName
+            });
+          });
+        });
+
+        [
+          "vectoplan:create:variant-editor-closed",
+          "vectoplan:create:variant-drawer-closed",
+          "vectoplan:create:variant-edit-ended",
+          "vectoplan:create:variant-applied",
+          "vectoplan:create:variant-cancelled"
+        ].forEach(function (eventName) {
+          document.addEventListener(eventName, function () {
+            setEditorState(cache, "closed", {
+              reason: eventName
+            });
+          });
+        });
+
+        if (cache.addButton) {
+          cache.addButton.addEventListener("click", function () {
+            try {
+              cache.root.setAttribute("data-vp-variant-last-action", "add");
+            } catch (error) {
+              warn("Add action marker failed.", error);
+            }
+          });
+        }
+
+        cache.root.setAttribute(EVENTS_BOUND_ATTR, "true");
+      } catch (error) {
+        warn("Could not bind workspace events.", error);
+      }
+    }
+
+    function observeWorkspace(cache) {
+      try {
+        if (!window.MutationObserver || !cache || !cache.root) {
+          return;
+        }
+
+        var observer = new MutationObserver(function () {
+          try {
+            updateCount(cache);
+          } catch (error) {
+            warn("Mutation count update failed.", error);
+          }
+        });
+
+        if (cache.tableSlot) {
+          observer.observe(cache.tableSlot, {
+            childList: true,
+            subtree: true
+          });
+        }
+
+        cache.root.__vpVariantWorkspaceObserver = observer;
+      } catch (error) {
+        warn("Could not observe workspace.", error);
+      }
+    }
+
+    function dispatchReady(root, context, cache) {
+      try {
+        var detail = {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          context: context || {},
+          cache: {
+            hasRoot: !!(cache && cache.root),
+            hasTableSlot: !!(cache && cache.tableSlot),
+            hasDrawerSlot: !!(cache && cache.drawerSlot),
+            hasDrawerRoot: !!(cache && cache.drawerRoot),
+            hasJsonField: !!(cache && cache.definitionVariantsJson),
+            hasDefaultVariantField: !!(cache && cache.defaultVariantIdField),
+            hasAddButton: !!(cache && cache.addButton)
+          }
+        };
+
+        dispatch(document, "vectoplan:create:variant-workspace-ready", detail);
+        dispatch(root, "vectoplan:create:variant-workspace-ready", detail);
+      } catch (error) {
+        warn("Could not dispatch workspace ready event.", error);
+      }
+    }
+
+    function createPublicApi() {
+      try {
+        var previousApi = window.VectoplanCreateVariantWorkspace || {};
+
+        var api = Object.assign({}, previousApi, {
+          __version: COMPONENT_VERSION,
+          getRoots: function () {
+            try {
+              return toArray(document.querySelectorAll(WORKSPACE_SELECTOR));
+            } catch (error) {
+              return [];
+            }
+          },
+          getFirstRoot: function () {
+            try {
+              return document.querySelector(WORKSPACE_SELECTOR);
+            } catch (error) {
+              return null;
+            }
+          },
+          getContext: function (root) {
+            try {
+              return readContext(root || api.getFirstRoot());
+            } catch (error) {
+              return {};
+            }
+          },
+          getCache: function (root) {
+            try {
+              return cacheNodes(root || api.getFirstRoot());
+            } catch (error) {
+              return {};
+            }
+          },
+          setEditorState: function (state, options) {
+            try {
+              var roots = api.getRoots();
+
+              roots.forEach(function (root) {
+                setEditorState(cacheNodes(root), state, options || {});
+              });
+
+              return true;
+            } catch (error) {
+              warn("Public setEditorState failed.", error);
+              return false;
+            }
+          },
+          openEditor: function (options) {
+            return api.setEditorState("open", options || {
+              reason: "public_open_editor"
+            });
+          },
+          closeEditor: function (options) {
+            return api.setEditorState("closed", options || {
+              reason: "public_close_editor"
+            });
+          },
+          refreshCounts: function () {
+            try {
+              api.getRoots().forEach(function (root) {
+                updateCount(cacheNodes(root));
+              });
+
+              return true;
+            } catch (error) {
+              warn("Could not refresh counts.", error);
+              return false;
+            }
+          },
+          getSnapshot: function () {
+            try {
+              var root = api.getFirstRoot();
+              var cache = cacheNodes(root);
+              var context = readContext(root);
+
+              return {
+                ready: !!(root && root.getAttribute(READY_ATTR) === "true"),
+                version: COMPONENT_VERSION,
+                context: context,
+                count: root ? root.getAttribute("data-vp-variant-count") : "",
+                editorState: root ? root.getAttribute("data-vp-variant-editor-state") : "",
+                hasJsonField: !!(cache && cache.definitionVariantsJson),
+                hasTableSlot: !!(cache && cache.tableSlot),
+                hasDrawerSlot: !!(cache && cache.drawerSlot),
+                hasDrawerRoot: !!(cache && cache.drawerRoot)
+              };
+            } catch (error) {
+              return {
+                ready: false,
+                error: String(error && error.message ? error.message : error)
+              };
+            }
+          }
+        });
+
+        window.VectoplanCreateVariantWorkspace = api;
+        return api;
+      } catch (error) {
+        warn("Could not create public workspace API.", error);
+        return null;
+      }
+    }
+
+    function initializeWorkspace(root, index) {
+      try {
+        if (!root || root.getAttribute(READY_ATTR) === "true") {
+          return;
+        }
+
+        if (!root.getAttribute("id")) {
+          root.setAttribute("id", getWorkspaceId(root, index));
+        }
+
+        var context = readContext(root);
+        var cache = cacheNodes(root);
+
+        setStatus(cache, !!context.definitionsAvailable, context.definitionsAvailable ? "initial_ready" : "initial_unavailable");
+        setEditorState(cache, context.editorState || "closed", {
+          silent: true,
+          reason: "initial"
+        });
+        syncDefaultVariantId(cache, context.defaultVariantId || "default");
+        updateCount(cache);
+        bindEvents(cache);
+        observeWorkspace(cache);
+
+        root.setAttribute(READY_ATTR, "true");
+        root.setAttribute("data-vp-variant-workspace-js-version", COMPONENT_VERSION);
+
+        dispatchReady(root, readContext(root), cache);
+      } catch (error) {
+        warn("Workspace initialization failed.", error);
+
+        try {
+          if (root) {
+            root.setAttribute("data-vp-variant-workspace-status", "initialization_failed");
+            root.setAttribute("data-vp-variant-workspace-error", String(error && error.message ? error.message : error));
+          }
+        } catch (statusError) {
+          /* no-op */
+        }
+      }
+    }
+
+    function initializeAll() {
+      try {
+        createPublicApi();
+
+        var roots = toArray(document.querySelectorAll(WORKSPACE_SELECTOR));
+
+        roots.forEach(function (root, index) {
+          initializeWorkspace(root, index);
+        });
+
+        if (!roots.length) {
+          info("No variant workspace roots found.");
+        }
+      } catch (error) {
+        warn("Global workspace initialization failed.", error);
+      }
+    }
+
+    try {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializeAll, {
+          once: true
+        });
+      } else {
+        initializeAll();
+      }
+    } catch (error) {
+      warn("Bootstrap failed.", error);
+    }
+  })();
+</script>

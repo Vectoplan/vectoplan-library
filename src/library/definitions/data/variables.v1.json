@@ -1,0 +1,1835 @@
+{
+  "_file": "services/vectoplan-library/src/library/definitions/data/variables.v1.json",
+  "schema_version": "1.0",
+  "definitions_version": "v1",
+  "dataset": "variables",
+  "label": "VECTOPLAN Variable Definitions",
+  "description": "Kanonischer Variablenkatalog für Family-/Variant-Profile. Diese Datei definiert Feldnamen, Datentypen, Einheiten, UI-Widgets, Optionen und Validierungsregeln. Varianten speichern Werte über diese stabilen Keys.",
+  "items": [
+    {
+      "key": "variant.variant_id",
+      "label": "Varianten-ID",
+      "description": "Technische, stabile ID der Variante innerhalb einer Family. Sollte slug-artig, eindeutig und dauerhaft sein.",
+      "active": true,
+      "sort_order": 10,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": true,
+      "default_value": "default",
+      "group": "variant",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "pattern": "^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$",
+        "min_length": 1,
+        "max_length": 120
+      },
+      "metadata": {
+        "core_variable": true,
+        "stored_in": "variants/*.json"
+      }
+    },
+    {
+      "key": "variant.label",
+      "label": "Variantenname",
+      "description": "Lesbarer Name der Variante, z. B. Standard, Schlagmann T90 36,5 cm oder C30/37 Standard.",
+      "active": true,
+      "sort_order": 20,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": true,
+      "default_value": "Standard",
+      "group": "variant",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "min_length": 1,
+        "max_length": 180
+      },
+      "metadata": {
+        "core_variable": true,
+        "stored_in": "variants/*.json"
+      }
+    },
+    {
+      "key": "variant.description",
+      "label": "Beschreibung",
+      "description": "Optionale Beschreibung der Variante.",
+      "active": true,
+      "sort_order": 30,
+      "value_type": "text",
+      "widget": "textarea",
+      "required_default": false,
+      "default_value": "",
+      "group": "variant",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "max_length": 2000
+      },
+      "metadata": {
+        "core_variable": true,
+        "stored_in": "variants/*.json"
+      }
+    },
+    {
+      "key": "product.designation",
+      "label": "Produktbezeichnung",
+      "description": "Produkt- oder Typbezeichnung, z. B. T90, Modell X oder Herstellerartikelbezeichnung.",
+      "active": true,
+      "sort_order": 100,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "product",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "max_length": 240
+      },
+      "metadata": {
+        "future_overlay_ready": true
+      }
+    },
+    {
+      "key": "dimensions.width_mm",
+      "label": "Breite",
+      "description": "Reale Breite in Millimetern.",
+      "active": true,
+      "sort_order": 200,
+      "value_type": "number",
+      "unit": "mm",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "dimensions",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 1000000,
+        "step": 1
+      },
+      "metadata": {
+        "core_variable": true,
+        "quantity_kind": "length"
+      }
+    },
+    {
+      "key": "dimensions.height_mm",
+      "label": "Höhe",
+      "description": "Reale Höhe in Millimetern.",
+      "active": true,
+      "sort_order": 210,
+      "value_type": "number",
+      "unit": "mm",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "dimensions",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 1000000,
+        "step": 1
+      },
+      "metadata": {
+        "core_variable": true,
+        "quantity_kind": "length"
+      }
+    },
+    {
+      "key": "dimensions.depth_mm",
+      "label": "Tiefe",
+      "description": "Reale Tiefe in Millimetern.",
+      "active": true,
+      "sort_order": 220,
+      "value_type": "number",
+      "unit": "mm",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "dimensions",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 1000000,
+        "step": 1
+      },
+      "metadata": {
+        "core_variable": true,
+        "quantity_kind": "length"
+      }
+    },
+    {
+      "key": "dimensions.thickness_mm",
+      "label": "Dicke / Stärke",
+      "description": "Reale Bauteildicke oder Materialstärke in Millimetern.",
+      "active": true,
+      "sort_order": 230,
+      "value_type": "number",
+      "unit": "mm",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "dimensions",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1"
+      ],
+      "validation": {
+        "min": 1,
+        "max": 5000,
+        "step": 1
+      },
+      "metadata": {
+        "core_variable": true,
+        "quantity_kind": "length"
+      }
+    },
+    {
+      "key": "dimensions.length_mm",
+      "label": "Länge",
+      "description": "Reale Länge in Millimetern.",
+      "active": true,
+      "sort_order": 240,
+      "value_type": "number",
+      "unit": "mm",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "dimensions",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 100000000,
+        "step": 1
+      },
+      "metadata": {
+        "core_variable": true,
+        "quantity_kind": "length"
+      }
+    },
+    {
+      "key": "dimensions.reference_volume_m3",
+      "label": "Bezugsvolumen",
+      "description": "Optionales Referenzvolumen für Mengenlogik und Kalkulation.",
+      "active": true,
+      "sort_order": 250,
+      "value_type": "number",
+      "unit": "m3",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "dimensions",
+      "applies_to": [
+        "concrete_structural_part.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 100000000,
+        "step": 0.001
+      },
+      "metadata": {
+        "core_variable": true,
+        "quantity_kind": "volume"
+      }
+    },
+    {
+      "key": "material.type",
+      "label": "Material",
+      "description": "Kanonischer Materialtyp.",
+      "active": true,
+      "sort_order": 300,
+      "value_type": "enum",
+      "widget": "select",
+      "required_default": false,
+      "default_value": "generic",
+      "group": "material",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "options": [
+        {
+          "id": "generic",
+          "value": "generic",
+          "label": "Generisch"
+        },
+        {
+          "id": "brick",
+          "value": "brick",
+          "label": "Ziegel"
+        },
+        {
+          "id": "concrete",
+          "value": "concrete",
+          "label": "Beton"
+        },
+        {
+          "id": "reinforced_concrete",
+          "value": "reinforced_concrete",
+          "label": "Stahlbeton"
+        },
+        {
+          "id": "steel",
+          "value": "steel",
+          "label": "Stahl"
+        },
+        {
+          "id": "wood",
+          "value": "wood",
+          "label": "Holz"
+        },
+        {
+          "id": "glass",
+          "value": "glass",
+          "label": "Glas"
+        },
+        {
+          "id": "metal",
+          "value": "metal",
+          "label": "Metall"
+        },
+        {
+          "id": "ceramic",
+          "value": "ceramic",
+          "label": "Keramik"
+        },
+        {
+          "id": "plastic",
+          "value": "plastic",
+          "label": "Kunststoff"
+        },
+        {
+          "id": "composite",
+          "value": "composite",
+          "label": "Verbundmaterial"
+        },
+        {
+          "id": "asphalt",
+          "value": "asphalt",
+          "label": "Asphalt"
+        },
+        {
+          "id": "natural_stone",
+          "value": "natural_stone",
+          "label": "Naturstein"
+        }
+      ],
+      "metadata": {
+        "core_variable": true,
+        "references_dataset": "materials"
+      }
+    },
+    {
+      "key": "material.subtype",
+      "label": "Material-Untertyp",
+      "description": "Feinere Materialklassifikation, z. B. masonry_brick, lightweight_concrete oder stainless_steel.",
+      "active": true,
+      "sort_order": 310,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "material",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "max_length": 160
+      },
+      "metadata": {
+        "extension_variable": true
+      }
+    },
+    {
+      "key": "material.color_hint",
+      "label": "Farbhinweis",
+      "description": "Optionaler Farb- oder Vorschauhinweis für die UI.",
+      "active": true,
+      "sort_order": 320,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "material",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "max_length": 80
+      },
+      "metadata": {
+        "ui_hint": true
+      }
+    },
+    {
+      "key": "material.bulk_density",
+      "label": "Rohdichte",
+      "description": "Rohdichte des Materials.",
+      "active": true,
+      "sort_order": 330,
+      "value_type": "number",
+      "unit": "kg_m3",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "material",
+      "applies_to": [
+        "wall_masonry_product.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 10000,
+        "step": 1
+      },
+      "metadata": {
+        "core_variable": true,
+        "quantity_kind": "density"
+      }
+    },
+    {
+      "key": "wall_masonry.mortar_type",
+      "label": "Mörteltyp",
+      "description": "Mörtelart oder Mörtelgruppe für Mauerwerk.",
+      "active": true,
+      "sort_order": 400,
+      "value_type": "enum",
+      "widget": "select",
+      "required_default": false,
+      "default_value": "",
+      "group": "wall_masonry",
+      "applies_to": [
+        "wall_masonry_product.v1"
+      ],
+      "options": [
+        {
+          "id": "none",
+          "value": "",
+          "label": "Nicht angegeben"
+        },
+        {
+          "id": "normal_mortar",
+          "value": "normal_mortar",
+          "label": "Normalmörtel"
+        },
+        {
+          "id": "thin_bed_mortar",
+          "value": "thin_bed_mortar",
+          "label": "Dünnbettmörtel"
+        },
+        {
+          "id": "lightweight_mortar",
+          "value": "lightweight_mortar",
+          "label": "Leichtmörtel"
+        }
+      ],
+      "metadata": {
+        "extension_variable": true
+      }
+    },
+    {
+      "key": "manufacturer.name",
+      "label": "Hersteller",
+      "description": "Name des Herstellers. Aktuell als Referenz im Package, später als Product Overlay auslagerbar.",
+      "active": true,
+      "sort_order": 500,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "manufacturer",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "max_length": 240
+      },
+      "metadata": {
+        "future_overlay_ready": true
+      }
+    },
+    {
+      "key": "manufacturer.product_url",
+      "label": "Produkt-URL",
+      "description": "Optionale URL zur Hersteller- oder Produktseite.",
+      "active": true,
+      "sort_order": 510,
+      "value_type": "url",
+      "widget": "url",
+      "required_default": false,
+      "default_value": "",
+      "group": "manufacturer",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "max_length": 2000
+      },
+      "metadata": {
+        "future_overlay_ready": true
+      }
+    },
+    {
+      "key": "manufacturer.product_number",
+      "label": "Artikel- / Produktnummer",
+      "description": "Herstellerseitige Artikelnummer, Produktnummer oder Bestellnummer.",
+      "active": true,
+      "sort_order": 520,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "manufacturer",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "max_length": 160
+      },
+      "metadata": {
+        "future_overlay_ready": true
+      }
+    },
+    {
+      "key": "manufacturer.future_overlay_ready",
+      "label": "Für Hersteller-Overlay vorbereitet",
+      "description": "Markiert, ob diese Variante später in ein Product Overlay überführt werden kann.",
+      "active": true,
+      "sort_order": 530,
+      "value_type": "boolean",
+      "widget": "checkbox",
+      "required_default": false,
+      "default_value": true,
+      "group": "manufacturer",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "metadata": {
+        "future_overlay_ready": true,
+        "system_hint": true
+      }
+    },
+    {
+      "key": "thermal.u_value",
+      "label": "U-Wert",
+      "description": "Wärmedurchgangskoeffizient.",
+      "active": true,
+      "sort_order": 600,
+      "value_type": "number",
+      "unit": "W_m2K",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "thermal",
+      "applies_to": [
+        "wall_masonry_product.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 10,
+        "step": 0.001
+      },
+      "metadata": {
+        "core_variable": true,
+        "quantity_kind": "thermal_transmittance"
+      }
+    },
+    {
+      "key": "thermal.lambda_value",
+      "label": "Wärmeleitfähigkeit λ",
+      "description": "Wärmeleitfähigkeit des Materials.",
+      "active": true,
+      "sort_order": 610,
+      "value_type": "number",
+      "unit": "W_mK",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "thermal",
+      "applies_to": [
+        "wall_masonry_product.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 20,
+        "step": 0.001
+      },
+      "metadata": {
+        "core_variable": true,
+        "quantity_kind": "thermal_conductivity"
+      }
+    },
+    {
+      "key": "structural.compressive_strength",
+      "label": "Druckfestigkeit",
+      "description": "Druckfestigkeit des Materials oder Bauteils.",
+      "active": true,
+      "sort_order": 700,
+      "value_type": "number",
+      "unit": "N_mm2",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "structural",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 500,
+        "step": 0.1
+      },
+      "metadata": {
+        "core_variable": true,
+        "quantity_kind": "strength"
+      }
+    },
+    {
+      "key": "structural.load_bearing",
+      "label": "Tragend",
+      "description": "Gibt an, ob die Variante grundsätzlich tragend verwendet werden kann.",
+      "active": true,
+      "sort_order": 710,
+      "value_type": "boolean",
+      "widget": "checkbox",
+      "required_default": false,
+      "default_value": false,
+      "group": "structural",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1"
+      ],
+      "metadata": {
+        "core_variable": true
+      }
+    },
+    {
+      "key": "structural.design_note",
+      "label": "Tragwerksnotiz",
+      "description": "Freitextnotiz für Tragwerks- oder Bemessungshinweise.",
+      "active": true,
+      "sort_order": 720,
+      "value_type": "text",
+      "widget": "textarea",
+      "required_default": false,
+      "default_value": "",
+      "group": "structural",
+      "applies_to": [
+        "concrete_structural_part.v1"
+      ],
+      "validation": {
+        "max_length": 2000
+      },
+      "metadata": {
+        "extension_variable": true
+      }
+    },
+    {
+      "key": "fire.fire_resistance_class",
+      "label": "Feuerwiderstandsklasse",
+      "description": "Feuerwiderstandsklasse, z. B. F30, F60, F90, REI 90 oder T90.",
+      "active": true,
+      "sort_order": 800,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "fire",
+      "applies_to": [
+        "wall_masonry_product.v1"
+      ],
+      "validation": {
+        "max_length": 80
+      },
+      "metadata": {
+        "core_variable": true
+      }
+    },
+    {
+      "key": "acoustic.sound_reduction_db",
+      "label": "Schalldämmmaß",
+      "description": "Schalldämmmaß in Dezibel.",
+      "active": true,
+      "sort_order": 900,
+      "value_type": "number",
+      "unit": "dB",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "acoustic",
+      "applies_to": [
+        "wall_masonry_product.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 120,
+        "step": 0.1
+      },
+      "metadata": {
+        "core_variable": true
+      }
+    },
+    {
+      "key": "usage.load_bearing_allowed",
+      "label": "Tragende Verwendung erlaubt",
+      "description": "Ob diese Variante für tragende Bauteile verwendet werden darf.",
+      "active": true,
+      "sort_order": 1000,
+      "value_type": "boolean",
+      "widget": "checkbox",
+      "required_default": false,
+      "default_value": false,
+      "group": "usage",
+      "applies_to": [
+        "wall_masonry_product.v1"
+      ],
+      "metadata": {
+        "core_variable": true
+      }
+    },
+    {
+      "key": "usage.external_wall_allowed",
+      "label": "Außenwand erlaubt",
+      "description": "Ob diese Variante für Außenwände verwendet werden darf.",
+      "active": true,
+      "sort_order": 1010,
+      "value_type": "boolean",
+      "widget": "checkbox",
+      "required_default": false,
+      "default_value": false,
+      "group": "usage",
+      "applies_to": [
+        "wall_masonry_product.v1"
+      ],
+      "metadata": {
+        "core_variable": true
+      }
+    },
+    {
+      "key": "usage.internal_wall_allowed",
+      "label": "Innenwand erlaubt",
+      "description": "Ob diese Variante für Innenwände verwendet werden darf.",
+      "active": true,
+      "sort_order": 1020,
+      "value_type": "boolean",
+      "widget": "checkbox",
+      "required_default": false,
+      "default_value": true,
+      "group": "usage",
+      "applies_to": [
+        "wall_masonry_product.v1"
+      ],
+      "metadata": {
+        "core_variable": true
+      }
+    },
+    {
+      "key": "usage.fire_wall_allowed",
+      "label": "Brandwand erlaubt",
+      "description": "Ob diese Variante als Brandwand oder brandrelevantes Bauteil verwendet werden darf.",
+      "active": true,
+      "sort_order": 1030,
+      "value_type": "boolean",
+      "widget": "checkbox",
+      "required_default": false,
+      "default_value": false,
+      "group": "usage",
+      "applies_to": [
+        "wall_masonry_product.v1"
+      ],
+      "metadata": {
+        "core_variable": true
+      }
+    },
+    {
+      "key": "concrete.strength_class",
+      "label": "Betonfestigkeitsklasse",
+      "description": "Festigkeitsklasse des Betons, z. B. C25/30, C30/37 oder C35/45.",
+      "active": true,
+      "sort_order": 1100,
+      "value_type": "enum",
+      "widget": "select",
+      "required_default": false,
+      "default_value": "C30/37",
+      "group": "concrete",
+      "applies_to": [
+        "concrete_structural_part.v1",
+        "adaptive_system.v1"
+      ],
+      "options": [
+        {
+          "id": "C12_15",
+          "value": "C12/15",
+          "label": "C12/15"
+        },
+        {
+          "id": "C16_20",
+          "value": "C16/20",
+          "label": "C16/20"
+        },
+        {
+          "id": "C20_25",
+          "value": "C20/25",
+          "label": "C20/25"
+        },
+        {
+          "id": "C25_30",
+          "value": "C25/30",
+          "label": "C25/30"
+        },
+        {
+          "id": "C30_37",
+          "value": "C30/37",
+          "label": "C30/37"
+        },
+        {
+          "id": "C35_45",
+          "value": "C35/45",
+          "label": "C35/45"
+        },
+        {
+          "id": "C40_50",
+          "value": "C40/50",
+          "label": "C40/50"
+        },
+        {
+          "id": "C45_55",
+          "value": "C45/55",
+          "label": "C45/55"
+        },
+        {
+          "id": "C50_60",
+          "value": "C50/60",
+          "label": "C50/60"
+        }
+      ],
+      "metadata": {
+        "core_variable": true
+      }
+    },
+    {
+      "key": "concrete.consistency_class",
+      "label": "Konsistenzklasse",
+      "description": "Konsistenzklasse des Frischbetons.",
+      "active": true,
+      "sort_order": 1110,
+      "value_type": "enum",
+      "widget": "select",
+      "required_default": false,
+      "default_value": "",
+      "group": "concrete",
+      "applies_to": [
+        "concrete_structural_part.v1"
+      ],
+      "options": [
+        {
+          "id": "none",
+          "value": "",
+          "label": "Nicht angegeben"
+        },
+        {
+          "id": "F1",
+          "value": "F1",
+          "label": "F1"
+        },
+        {
+          "id": "F2",
+          "value": "F2",
+          "label": "F2"
+        },
+        {
+          "id": "F3",
+          "value": "F3",
+          "label": "F3"
+        },
+        {
+          "id": "F4",
+          "value": "F4",
+          "label": "F4"
+        },
+        {
+          "id": "F5",
+          "value": "F5",
+          "label": "F5"
+        },
+        {
+          "id": "F6",
+          "value": "F6",
+          "label": "F6"
+        }
+      ],
+      "metadata": {
+        "extension_variable": true
+      }
+    },
+    {
+      "key": "concrete.aggregate_size_mm",
+      "label": "Größtkorn",
+      "description": "Maximale Korngröße des Zuschlags.",
+      "active": true,
+      "sort_order": 1120,
+      "value_type": "number",
+      "unit": "mm",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "concrete",
+      "applies_to": [
+        "concrete_structural_part.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 128,
+        "step": 1
+      },
+      "metadata": {
+        "extension_variable": true
+      }
+    },
+    {
+      "key": "exposure.class",
+      "label": "Expositionsklasse",
+      "description": "Expositionsklasse des Betonbauteils.",
+      "active": true,
+      "sort_order": 1200,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "exposure",
+      "applies_to": [
+        "concrete_structural_part.v1"
+      ],
+      "validation": {
+        "max_length": 160
+      },
+      "metadata": {
+        "core_variable": true
+      }
+    },
+    {
+      "key": "reinforcement.required",
+      "label": "Bewehrung erforderlich",
+      "description": "Ob für diese Variante Bewehrung vorgesehen oder erforderlich ist.",
+      "active": true,
+      "sort_order": 1300,
+      "value_type": "boolean",
+      "widget": "checkbox",
+      "required_default": false,
+      "default_value": false,
+      "group": "reinforcement",
+      "applies_to": [
+        "concrete_structural_part.v1"
+      ],
+      "metadata": {
+        "core_variable": true
+      }
+    },
+    {
+      "key": "reinforcement.reference",
+      "label": "Bewehrungsreferenz",
+      "description": "Optionale Referenz auf Bewehrungslogik, Bewehrungsplan oder spätere Fachmodule.",
+      "active": true,
+      "sort_order": 1310,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "reinforcement",
+      "applies_to": [
+        "concrete_structural_part.v1"
+      ],
+      "validation": {
+        "max_length": 240
+      },
+      "metadata": {
+        "future_module_reference": "analysis.reinforcement"
+      }
+    },
+    {
+      "key": "context.host_type",
+      "label": "Kontexttyp",
+      "description": "Typ des Kontexts, auf dem ein adaptives System basiert.",
+      "active": true,
+      "sort_order": 1400,
+      "value_type": "enum",
+      "widget": "select",
+      "required_default": false,
+      "default_value": "project_context",
+      "group": "context",
+      "applies_to": [
+        "concrete_structural_part.v1",
+        "adaptive_system.v1"
+      ],
+      "options": [
+        {
+          "id": "project_context",
+          "value": "project_context",
+          "label": "Projektkontext"
+        },
+        {
+          "id": "bridge_deck",
+          "value": "bridge_deck",
+          "label": "Brückenüberbau"
+        },
+        {
+          "id": "bridge_abutment",
+          "value": "bridge_abutment",
+          "label": "Widerlager"
+        },
+        {
+          "id": "edge",
+          "value": "edge",
+          "label": "Kante / Rand"
+        },
+        {
+          "id": "axis",
+          "value": "axis",
+          "label": "Achse"
+        },
+        {
+          "id": "surface",
+          "value": "surface",
+          "label": "Fläche"
+        }
+      ],
+      "metadata": {
+        "dynamic_variable": true
+      }
+    },
+    {
+      "key": "context.reference_axis",
+      "label": "Referenzachse",
+      "description": "Optionale Referenzachse für adaptive Erzeugung.",
+      "active": true,
+      "sort_order": 1410,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "context",
+      "applies_to": [
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "max_length": 240
+      },
+      "metadata": {
+        "dynamic_variable": true
+      }
+    },
+    {
+      "key": "context.supporting_structure",
+      "label": "Tragender Kontext",
+      "description": "Beschreibung oder Referenz der tragenden Struktur.",
+      "active": true,
+      "sort_order": 1420,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "context",
+      "applies_to": [
+        "concrete_structural_part.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "max_length": 240
+      },
+      "metadata": {
+        "dynamic_variable": true
+      }
+    },
+    {
+      "key": "context.boundary_conditions",
+      "label": "Randbedingungen",
+      "description": "Freitext oder strukturierter Hinweis zu Randbedingungen.",
+      "active": true,
+      "sort_order": 1430,
+      "value_type": "text",
+      "widget": "textarea",
+      "required_default": false,
+      "default_value": "",
+      "group": "context",
+      "applies_to": [
+        "concrete_structural_part.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "max_length": 2000
+      },
+      "metadata": {
+        "dynamic_variable": true
+      }
+    },
+    {
+      "key": "dynamic.generator_mode",
+      "label": "Generator-Modus",
+      "description": "Modus der späteren deklarativen Generatorlogik.",
+      "active": true,
+      "sort_order": 1500,
+      "value_type": "enum",
+      "widget": "select",
+      "required_default": false,
+      "default_value": "declarative",
+      "group": "dynamic",
+      "applies_to": [
+        "adaptive_system.v1"
+      ],
+      "options": [
+        {
+          "id": "declarative",
+          "value": "declarative",
+          "label": "Deklarativ"
+        },
+        {
+          "id": "context_derived",
+          "value": "context_derived",
+          "label": "Aus Kontext abgeleitet"
+        },
+        {
+          "id": "parameterized",
+          "value": "parameterized",
+          "label": "Parametrisch"
+        }
+      ],
+      "metadata": {
+        "dynamic_variable": true
+      }
+    },
+    {
+      "key": "module.cell_count_x",
+      "label": "Zellen X",
+      "description": "Anzahl der Editor-Zellen in X-Richtung.",
+      "active": true,
+      "sort_order": 1600,
+      "value_type": "integer",
+      "widget": "number",
+      "required_default": false,
+      "default_value": 1,
+      "group": "module",
+      "applies_to": [
+        "multi_cell_module.v1"
+      ],
+      "validation": {
+        "min": 1,
+        "max": 1000,
+        "step": 1
+      },
+      "metadata": {
+        "editor_variable": true
+      }
+    },
+    {
+      "key": "module.cell_count_y",
+      "label": "Zellen Y",
+      "description": "Anzahl der Editor-Zellen in Y-Richtung.",
+      "active": true,
+      "sort_order": 1610,
+      "value_type": "integer",
+      "widget": "number",
+      "required_default": false,
+      "default_value": 1,
+      "group": "module",
+      "applies_to": [
+        "multi_cell_module.v1"
+      ],
+      "validation": {
+        "min": 1,
+        "max": 1000,
+        "step": 1
+      },
+      "metadata": {
+        "editor_variable": true
+      }
+    },
+    {
+      "key": "module.cell_count_z",
+      "label": "Zellen Z",
+      "description": "Anzahl der Editor-Zellen in Z-Richtung.",
+      "active": true,
+      "sort_order": 1620,
+      "value_type": "integer",
+      "widget": "number",
+      "required_default": false,
+      "default_value": 1,
+      "group": "module",
+      "applies_to": [
+        "multi_cell_module.v1"
+      ],
+      "validation": {
+        "min": 1,
+        "max": 1000,
+        "step": 1
+      },
+      "metadata": {
+        "editor_variable": true
+      }
+    },
+    {
+      "key": "module.connection_logic",
+      "label": "Verbindungslogik",
+      "description": "Optionale Beschreibung, wie die Zellen oder Teilmodule verbunden sind.",
+      "active": true,
+      "sort_order": 1630,
+      "value_type": "text",
+      "widget": "textarea",
+      "required_default": false,
+      "default_value": "",
+      "group": "module",
+      "applies_to": [
+        "multi_cell_module.v1"
+      ],
+      "validation": {
+        "max_length": 2000
+      },
+      "metadata": {
+        "editor_variable": true
+      }
+    },
+    {
+      "key": "road.layer_type",
+      "label": "Schichttyp",
+      "description": "Typ der Straßen- oder Belagsschicht.",
+      "active": true,
+      "sort_order": 1700,
+      "value_type": "enum",
+      "widget": "select",
+      "required_default": false,
+      "default_value": "",
+      "group": "road",
+      "applies_to": [
+        "road_pavement_block.v1"
+      ],
+      "options": [
+        {
+          "id": "none",
+          "value": "",
+          "label": "Nicht angegeben"
+        },
+        {
+          "id": "surface_course",
+          "value": "surface_course",
+          "label": "Deckschicht"
+        },
+        {
+          "id": "binder_course",
+          "value": "binder_course",
+          "label": "Binderschicht"
+        },
+        {
+          "id": "base_course",
+          "value": "base_course",
+          "label": "Tragschicht"
+        },
+        {
+          "id": "subbase",
+          "value": "subbase",
+          "label": "Frostschutz- / Unterbauschicht"
+        },
+        {
+          "id": "pavement",
+          "value": "pavement",
+          "label": "Pflaster / Belag"
+        }
+      ],
+      "metadata": {
+        "extension_variable": true
+      }
+    },
+    {
+      "key": "road.load_class",
+      "label": "Belastungsklasse",
+      "description": "Belastungsklasse oder Belastungsangabe für Straßen- oder Belagsbauteile.",
+      "active": true,
+      "sort_order": 1710,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "road",
+      "applies_to": [
+        "road_pavement_block.v1"
+      ],
+      "validation": {
+        "max_length": 120
+      },
+      "metadata": {
+        "extension_variable": true
+      }
+    },
+    {
+      "key": "road.frost_resistant",
+      "label": "Frostbeständig",
+      "description": "Ob die Variante als frostbeständig gekennzeichnet ist.",
+      "active": true,
+      "sort_order": 1720,
+      "value_type": "boolean",
+      "widget": "checkbox",
+      "required_default": false,
+      "default_value": true,
+      "group": "road",
+      "applies_to": [
+        "road_pavement_block.v1"
+      ],
+      "metadata": {
+        "extension_variable": true
+      }
+    },
+    {
+      "key": "surface.finish",
+      "label": "Oberfläche",
+      "description": "Sichtbare Oberfläche oder Oberflächenfinish.",
+      "active": true,
+      "sort_order": 1800,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "surface",
+      "applies_to": [
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "max_length": 160
+      },
+      "metadata": {
+        "ui_hint": true
+      }
+    },
+    {
+      "key": "connection.type",
+      "label": "Anschlussart",
+      "description": "Art des Anschlusses oder der Verbindung.",
+      "active": true,
+      "sort_order": 1900,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "connection",
+      "applies_to": [
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "max_length": 160
+      },
+      "metadata": {
+        "routing_variable": true
+      }
+    },
+    {
+      "key": "connection.nominal_size",
+      "label": "Nennweite / Anschlussgröße",
+      "description": "Nennweite, Anschlussgröße oder Gewindeangabe.",
+      "active": true,
+      "sort_order": 1910,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "connection",
+      "applies_to": [
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "max_length": 80
+      },
+      "metadata": {
+        "routing_variable": true
+      }
+    },
+    {
+      "key": "flow.rate_l_min",
+      "label": "Durchfluss",
+      "description": "Durchflussrate in Liter pro Minute.",
+      "active": true,
+      "sort_order": 2000,
+      "value_type": "number",
+      "unit": "l_min",
+      "widget": "number",
+      "required_default": false,
+      "default_value": null,
+      "group": "flow",
+      "applies_to": [
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 1000,
+        "step": 0.1
+      },
+      "metadata": {
+        "routing_variable": true
+      }
+    },
+    {
+      "key": "sanitary.mounting_type",
+      "label": "Montageart",
+      "description": "Montageart der Sanitärarmatur.",
+      "active": true,
+      "sort_order": 2010,
+      "value_type": "enum",
+      "widget": "select",
+      "required_default": false,
+      "default_value": "",
+      "group": "sanitary",
+      "applies_to": [
+        "sanitary_faucet_catalog.v1"
+      ],
+      "options": [
+        {
+          "id": "none",
+          "value": "",
+          "label": "Nicht angegeben"
+        },
+        {
+          "id": "deck_mounted",
+          "value": "deck_mounted",
+          "label": "Standmontage"
+        },
+        {
+          "id": "wall_mounted",
+          "value": "wall_mounted",
+          "label": "Wandmontage"
+        },
+        {
+          "id": "concealed",
+          "value": "concealed",
+          "label": "Unterputz"
+        },
+        {
+          "id": "exposed",
+          "value": "exposed",
+          "label": "Aufputz"
+        }
+      ],
+      "metadata": {
+        "extension_variable": true
+      }
+    },
+    {
+      "key": "render.reference",
+      "label": "Render-Referenz",
+      "description": "Optionale Referenz auf Mesh, Renderprofil oder Platzhalter.",
+      "active": true,
+      "sort_order": 2100,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "render",
+      "applies_to": [
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "max_length": 500
+      },
+      "metadata": {
+        "render_variable": true
+      }
+    },
+    {
+      "key": "commercial.lv_text",
+      "label": "LV-Text",
+      "description": "Ausschreibungstext oder Leistungsbeschreibung für diese Variante.",
+      "active": true,
+      "sort_order": 2200,
+      "value_type": "text",
+      "widget": "textarea",
+      "required_default": false,
+      "default_value": "",
+      "group": "commercial",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "max_length": 10000
+      },
+      "metadata": {
+        "commercial_variable": true
+      }
+    },
+    {
+      "key": "commercial.price_per_piece",
+      "label": "Preis pro Stück",
+      "description": "Preis pro Stück.",
+      "active": true,
+      "sort_order": 2210,
+      "value_type": "money",
+      "unit": "EUR_piece",
+      "widget": "money",
+      "required_default": false,
+      "default_value": null,
+      "group": "commercial",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 1000000000,
+        "step": 0.01
+      },
+      "metadata": {
+        "commercial_variable": true
+      }
+    },
+    {
+      "key": "commercial.price_per_m2",
+      "label": "Preis pro m²",
+      "description": "Preis pro Quadratmeter.",
+      "active": true,
+      "sort_order": 2220,
+      "value_type": "money",
+      "unit": "EUR_m2",
+      "widget": "money",
+      "required_default": false,
+      "default_value": null,
+      "group": "commercial",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "road_pavement_block.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 1000000000,
+        "step": 0.01
+      },
+      "metadata": {
+        "commercial_variable": true
+      }
+    },
+    {
+      "key": "commercial.price_per_m3",
+      "label": "Preis pro m³",
+      "description": "Preis pro Kubikmeter.",
+      "active": true,
+      "sort_order": 2230,
+      "value_type": "money",
+      "unit": "EUR_m3",
+      "widget": "money",
+      "required_default": false,
+      "default_value": null,
+      "group": "commercial",
+      "applies_to": [
+        "concrete_structural_part.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 1000000000,
+        "step": 0.01
+      },
+      "metadata": {
+        "commercial_variable": true
+      }
+    },
+    {
+      "key": "commercial.price_per_m",
+      "label": "Preis pro m",
+      "description": "Preis pro laufendem Meter.",
+      "active": true,
+      "sort_order": 2240,
+      "value_type": "money",
+      "unit": "EUR_m",
+      "widget": "money",
+      "required_default": false,
+      "default_value": null,
+      "group": "commercial",
+      "applies_to": [
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "min": 0,
+        "max": 1000000000,
+        "step": 0.01
+      },
+      "metadata": {
+        "commercial_variable": true
+      }
+    },
+    {
+      "key": "commercial.price_source",
+      "label": "Preisquelle",
+      "description": "Quelle, Stand oder Herkunft der Preisangabe.",
+      "active": true,
+      "sort_order": 2250,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "",
+      "group": "commercial",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "validation": {
+        "max_length": 240
+      },
+      "metadata": {
+        "commercial_variable": true
+      }
+    },
+    {
+      "key": "commercial.price_valid_from",
+      "label": "Preis gültig ab",
+      "description": "Datum, ab dem die Preisangabe gilt.",
+      "active": true,
+      "sort_order": 2260,
+      "value_type": "date",
+      "widget": "date",
+      "required_default": false,
+      "default_value": "",
+      "group": "commercial",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1"
+      ],
+      "metadata": {
+        "commercial_variable": true
+      }
+    },
+    {
+      "key": "documents.datasheets",
+      "label": "Datenblätter",
+      "description": "Liste referenzierter Datenblätter.",
+      "active": true,
+      "sort_order": 2300,
+      "value_type": "document_list",
+      "widget": "document_list",
+      "required_default": false,
+      "default_value": [],
+      "group": "documents",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "metadata": {
+        "document_type": "datasheet"
+      }
+    },
+    {
+      "key": "documents.test_reports",
+      "label": "Prüfberichte",
+      "description": "Liste referenzierter Prüfberichte.",
+      "active": true,
+      "sort_order": 2310,
+      "value_type": "document_list",
+      "widget": "document_list",
+      "required_default": false,
+      "default_value": [],
+      "group": "documents",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "adaptive_system.v1"
+      ],
+      "metadata": {
+        "document_type": "test_report"
+      }
+    },
+    {
+      "key": "documents.certificates",
+      "label": "Zertifikate",
+      "description": "Liste referenzierter Zertifikate.",
+      "active": true,
+      "sort_order": 2320,
+      "value_type": "document_list",
+      "widget": "document_list",
+      "required_default": false,
+      "default_value": [],
+      "group": "documents",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "metadata": {
+        "document_type": "certificate"
+      }
+    },
+    {
+      "key": "documents.approvals",
+      "label": "Zulassungen",
+      "description": "Liste referenzierter Zulassungen.",
+      "active": true,
+      "sort_order": 2330,
+      "value_type": "document_list",
+      "widget": "document_list",
+      "required_default": false,
+      "default_value": [],
+      "group": "documents",
+      "applies_to": [
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "adaptive_system.v1"
+      ],
+      "metadata": {
+        "document_type": "approval"
+      }
+    },
+    {
+      "key": "documents.declarations_of_performance",
+      "label": "Leistungserklärungen",
+      "description": "Liste referenzierter Leistungserklärungen.",
+      "active": true,
+      "sort_order": 2340,
+      "value_type": "document_list",
+      "widget": "document_list",
+      "required_default": false,
+      "default_value": [],
+      "group": "documents",
+      "applies_to": [
+        "wall_masonry_product.v1"
+      ],
+      "metadata": {
+        "document_type": "declaration_of_performance"
+      }
+    },
+    {
+      "key": "documents.technical_drawings",
+      "label": "Technische Zeichnungen",
+      "description": "Liste referenzierter technischer Zeichnungen.",
+      "active": true,
+      "sort_order": 2350,
+      "value_type": "document_list",
+      "widget": "document_list",
+      "required_default": false,
+      "default_value": [],
+      "group": "documents",
+      "applies_to": [
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "metadata": {
+        "document_type": "technical_drawing"
+      }
+    },
+    {
+      "key": "documents.installation_manuals",
+      "label": "Montageanleitungen",
+      "description": "Liste referenzierter Montageanleitungen.",
+      "active": true,
+      "sort_order": 2360,
+      "value_type": "document_list",
+      "widget": "document_list",
+      "required_default": false,
+      "default_value": [],
+      "group": "documents",
+      "applies_to": [
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "metadata": {
+        "document_type": "installation_manual"
+      }
+    }
+  ]
+}

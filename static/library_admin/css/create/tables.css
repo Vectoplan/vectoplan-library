@@ -1,0 +1,960 @@
+/* services/vectoplan-library/static/library_admin/css/create/tables.css */
+
+/* -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard · Table / Row Styles
+
+  Zweck:
+  - Kompakte Varianten- und Kennwert-Reihen für den /create-Wizard.
+  - Desktop: tabellarische Grid-Zeilen.
+  - Tablet/Mobile: kartenartige Zeilen.
+  - Optimiert für eine 100%-Viewport-Wizard-Oberfläche.
+  - Unterstützt die definition-managed Variant Runtime.
+  - Unterstützt den neuen Clean Variant Editor:
+      - Variantenübersicht sichtbar, solange Editor geschlossen ist.
+      - Variantenübersicht ausgeblendet, sobald Editor geöffnet ist.
+      - Drawer/Editor übernimmt dann die volle Breite.
+  - Keine Hero-Styles.
+  - Keine Alert-Section-Styles.
+  - Keine Help-Section-Styles.
+  - Keine Result-Section-Styles.
+  - Keine Backend-Annahmen.
+  - Keine Preview-Komponenten.
+  - Keine Action-Card-Styles.
+
+  Betroffene Bereiche:
+  - templates/library_admin/create/sections/_object_variants.html
+  - templates/library_admin/create/variants/_variant_workspace.html
+  - templates/library_admin/create/variants/_variant_table.html
+  - templates/library_admin/create/sections/_technical.html
+
+  Wichtige Hooks:
+  - data-create-variant-table="true"
+  - data-create-variant-row="true"
+  - data-vp-variant-table-root="true"
+  - data-vp-variant-table-body="true"
+  - data-vp-variant-row="true"
+  - data-vp-variant-editor-state="open|closed"
+  - data-create-variable-table="true"
+  - data-create-variable-row="true"
+  - data-create-remove-row="true"
+  - data-create-clear-variable="true"
+
+  Robustheitsprinzip:
+  - CSS hat kein try/catch.
+  - Robustheit entsteht durch:
+    - stabile data-create-* Hooks
+    - zusätzliche data-vp-* Hooks
+    - defensive Fallback-Variablen
+    - min-width: 0 auf allen Grid-Kindern
+    - kontrollierte Overflow-Bereiche bei vielen dynamischen Zeilen
+    - Editor-State-kompatible Sichtbarkeit
+----------------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+  1. Shared Table Shells
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-table,
+.vp-create-variable-table,
+[data-vp-variant-table-root="true"],
+[data-vp-variant-table="true"],
+[data-create-variant-table="true"],
+[data-create-variable-table="true"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--vp-create-space-2, 0.5rem);
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+}
+
+.vp-create-variant-table[data-vp-variant-table],
+.vp-create-variable-table[data-vp-variable-table],
+[data-vp-variant-table-root="true"],
+[data-vp-variant-table="true"] {
+  position: relative;
+}
+
+.vp-create-variant-table[hidden],
+.vp-create-variable-table[hidden],
+[data-vp-variant-table-root="true"][hidden],
+[data-vp-variant-table="true"][hidden],
+[data-create-variant-table="true"][hidden],
+[data-create-variable-table="true"][hidden] {
+  display: none !important;
+}
+
+.vp-create-variant-table__body,
+.vp-create-variable-table__body,
+[data-vp-variant-table-body="true"],
+[data-vp-variable-table-body="true"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--vp-create-space-2, 0.5rem);
+  min-width: 0;
+}
+
+.vp-create-variant-table__head,
+.vp-create-variable-table__head,
+.vp-create-variant-row,
+.vp-create-variable-row,
+[data-vp-variant-row="true"],
+[data-create-variant-row="true"],
+[data-create-variable-row="true"] {
+  display: grid;
+  align-items: start;
+  gap: var(--vp-create-space-2, 0.5rem);
+  min-width: 0;
+}
+
+.vp-create-variant-table__head > *,
+.vp-create-variable-table__head > *,
+.vp-create-variant-row > *,
+.vp-create-variable-row > *,
+[data-vp-variant-row="true"] > *,
+[data-create-variant-row="true"] > *,
+[data-create-variable-row="true"] > * {
+  min-width: 0;
+}
+
+
+/* -----------------------------------------------------------------------------
+  2. Editor-State Visibility
+
+  Die Tabelle ist Übersicht. Sobald der Variant Editor geöffnet ist, soll der
+  Editor die volle Breite bekommen.
+----------------------------------------------------------------------------- */
+
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] .vp-create-variant-table,
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] [data-vp-variant-table-root="true"],
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] [data-vp-variant-table="true"],
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] [data-create-variant-table="true"],
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] .vp-create-variant-table,
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] [data-vp-variant-table-root="true"],
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] [data-vp-variant-table="true"],
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] [data-create-variant-table="true"],
+[data-vp-variant-table-slot="true"][data-vp-variant-editor-state="open"],
+.vp-create-variant-workspace__table-slot[data-vp-variant-editor-state="open"] {
+  display: none !important;
+}
+
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="closed"] [data-vp-variant-table-slot="true"],
+.vp-create-variant-workspace[data-vp-variant-editor-state="closed"] [data-vp-variant-table-slot="true"],
+[data-vp-variant-table-slot="true"][data-vp-variant-editor-state="closed"],
+.vp-create-variant-workspace__table-slot[data-vp-variant-editor-state="closed"] {
+  display: block;
+}
+
+
+/* -----------------------------------------------------------------------------
+  3. Desktop Column Layouts
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-table__head,
+.vp-create-variant-row,
+[data-vp-variant-row="true"],
+[data-create-variant-row="true"] {
+  grid-template-columns:
+    minmax(72px, 0.48fr)
+    minmax(150px, 0.95fr)
+    minmax(150px, 0.95fr)
+    minmax(220px, 1.45fr)
+    minmax(112px, 0.62fr);
+}
+
+.vp-create-variable-table__head,
+.vp-create-variable-row,
+[data-create-variable-row="true"] {
+  grid-template-columns:
+    minmax(150px, 1.15fr)
+    minmax(110px, 0.72fr)
+    minmax(88px, 0.58fr)
+    minmax(180px, 1.15fr)
+    minmax(96px, 0.58fr);
+}
+
+
+/* -----------------------------------------------------------------------------
+  4. Header Rows
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-table__head,
+.vp-create-variable-table__head {
+  padding: 0 var(--vp-create-space-1, 0.25rem);
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: var(--vp-create-text-xs, 0.78rem);
+  font-weight: var(--vp-create-weight-bold, 740);
+  letter-spacing: var(--vp-create-letter-wide, 0.08em);
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.vp-create-variant-table__head span,
+.vp-create-variable-table__head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* -----------------------------------------------------------------------------
+  5. Data Rows
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-row,
+.vp-create-variable-row,
+[data-vp-variant-row="true"],
+[data-create-variant-row="true"],
+[data-create-variable-row="true"] {
+  position: relative;
+  padding: var(--vp-create-space-3, 0.75rem);
+  border: 1px solid var(--vp-create-border-soft, rgba(15, 23, 42, 0.08));
+  border-radius: var(--vp-create-radius-md, 0.875rem);
+  background: var(--vp-create-muted-soft, rgba(148, 163, 184, 0.08));
+  transition:
+    border-color var(--vp-create-duration-fast, 160ms) var(--vp-create-ease-soft, ease),
+    background-color var(--vp-create-duration-fast, 160ms) var(--vp-create-ease-soft, ease),
+    box-shadow var(--vp-create-duration-fast, 160ms) var(--vp-create-ease-soft, ease),
+    transform var(--vp-create-duration-fast, 160ms) var(--vp-create-ease-soft, ease);
+}
+
+.vp-create-variant-row:hover,
+.vp-create-variable-row:hover,
+[data-vp-variant-row="true"]:hover,
+[data-create-variant-row="true"]:hover,
+[data-create-variable-row="true"]:hover {
+  border-color: var(--vp-create-border-muted, rgba(15, 23, 42, 0.16));
+  background: var(--vp-create-bg-card-hover, rgba(255, 255, 255, 0.92));
+}
+
+.vp-create-variant-row:focus-within,
+.vp-create-variable-row:focus-within,
+[data-vp-variant-row="true"]:focus-within,
+[data-create-variant-row="true"]:focus-within,
+[data-create-variable-row="true"]:focus-within {
+  border-color: var(--vp-create-border-focus, rgba(37, 99, 235, 0.52));
+  box-shadow: var(--vp-create-shadow-focus, 0 0 0 3px rgba(37, 99, 235, 0.22));
+}
+
+.vp-create-variant-row::before,
+.vp-create-variable-row::before,
+[data-vp-variant-row="true"]::before,
+[data-create-variant-row="true"]::before,
+[data-create-variable-row="true"]::before {
+  content: "";
+  position: absolute;
+  inset: var(--vp-create-space-3, 0.75rem) auto var(--vp-create-space-3, 0.75rem) 0;
+  width: 3px;
+  border-radius: var(--vp-create-radius-full, 999px);
+  background: transparent;
+}
+
+.vp-create-variant-row::before,
+[data-vp-variant-row="true"]::before,
+[data-create-variant-row="true"]::before {
+  background: var(--vp-create-primary, #2563eb);
+}
+
+.vp-create-variable-row::before,
+[data-create-variable-row="true"]::before {
+  background: var(--vp-create-muted, #94a3b8);
+}
+
+.vp-create-variant-row[data-row-index="0"]::before,
+[data-vp-variant-row="true"][data-row-index="0"]::before,
+[data-create-variant-row="true"][data-row-index="0"]::before,
+.vp-create-variant-row[data-vp-is-default="true"]::before,
+[data-vp-variant-row="true"][data-vp-is-default="true"]::before {
+  background: var(--vp-create-warning, #f59e0b);
+}
+
+
+/* -----------------------------------------------------------------------------
+  6. Definition-Managed Row Cells
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-row__cell {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+}
+
+.vp-create-variant-row__cell--default {
+  align-content: center;
+}
+
+.vp-create-variant-row__cell--actions {
+  align-content: center;
+}
+
+.vp-create-variant-row__title-wrap {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--vp-create-space-2, 0.5rem);
+}
+
+.vp-create-variant-row__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vp-create-text-strong, #f8fafc);
+  font-size: 0.95rem;
+  font-weight: var(--vp-create-weight-bold, 740);
+  line-height: 1.24;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-variant-row__description {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-definition-summary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vp-create-text-soft, #cbd5e1);
+  font-size: 0.86rem;
+  font-weight: var(--vp-create-weight-medium, 540);
+  line-height: 1.36;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-definition-summary__additional-count {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0.22rem 0.52rem;
+  border: 1px solid var(--vp-create-primary-border, rgba(37, 99, 235, 0.28));
+  border-radius: var(--vp-create-radius-full, 999px);
+  background: var(--vp-create-primary-soft, rgba(37, 99, 235, 0.1));
+  color: var(--vp-create-primary, #2563eb);
+  font-size: 0.72rem;
+  font-weight: var(--vp-create-weight-bold, 740);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.vp-create-variant-row__hidden,
+.vp-create-variant-row__hidden[hidden] {
+  display: none !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+  7. Pills / Row Badges
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-default-pill,
+.vp-create-definition-profile-pill,
+.vp-create-variant-managed-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  max-width: 100%;
+  min-height: 1.65rem;
+  padding: 0.26rem 0.58rem;
+  border: 1px solid var(--vp-create-border-soft, rgba(15, 23, 42, 0.08));
+  border-radius: var(--vp-create-radius-full, 999px);
+  background: var(--vp-create-bg-card, rgba(255, 255, 255, 0.92));
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: 0.74rem;
+  font-weight: var(--vp-create-weight-bold, 740);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vp-create-variant-default-pill--active {
+  border-color: var(--vp-create-warning-border, rgba(245, 158, 11, 0.32));
+  background: var(--vp-create-warning-soft, rgba(245, 158, 11, 0.1));
+  color: var(--vp-create-warning-text, #92400e);
+}
+
+.vp-create-definition-profile-pill {
+  border-color: var(--vp-create-primary-border, rgba(37, 99, 235, 0.28));
+  background: var(--vp-create-primary-soft, rgba(37, 99, 235, 0.1));
+  color: var(--vp-create-primary, #2563eb);
+}
+
+.vp-create-variant-managed-pill {
+  border-color: var(--vp-create-success-border, rgba(22, 163, 74, 0.28));
+  background: var(--vp-create-success-soft, rgba(22, 163, 74, 0.1));
+  color: var(--vp-create-success, #16a34a);
+}
+
+
+/* -----------------------------------------------------------------------------
+  8. Legacy Row Cells
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-row .vp-create-field,
+.vp-create-variable-row .vp-create-field {
+  min-width: 0;
+}
+
+.vp-create-variant-row .vp-create-input,
+.vp-create-variant-row .vp-create-select,
+.vp-create-variable-row .vp-create-input,
+.vp-create-variable-row .vp-create-select {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--vp-create-control-height-compact, 40px);
+}
+
+.vp-create-variant-row .vp-create-input,
+.vp-create-variable-row .vp-create-input {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vp-create-row-action {
+  display: flex;
+  align-items: start;
+  justify-content: flex-end;
+  gap: var(--vp-create-space-2, 0.5rem);
+  min-width: 0;
+}
+
+.vp-create-row-action .vp-create-button {
+  width: auto;
+  min-width: 0;
+  min-height: var(--vp-create-control-height-compact, 40px);
+  padding-inline: var(--vp-create-space-3, 0.75rem);
+  font-size: var(--vp-create-text-xs, 0.78rem);
+  white-space: nowrap;
+}
+
+.vp-create-row-action--definition {
+  justify-content: flex-end;
+}
+
+
+/* -----------------------------------------------------------------------------
+  9. Default / Fixed Variant Row
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-row[data-row-index="0"],
+[data-vp-variant-row="true"][data-row-index="0"],
+[data-create-variant-row="true"][data-row-index="0"],
+.vp-create-variant-row[data-vp-is-default="true"],
+[data-vp-variant-row="true"][data-vp-is-default="true"] {
+  border-color: color-mix(
+    in srgb,
+    var(--vp-create-warning-border, rgba(245, 158, 11, 0.32)) 72%,
+    var(--vp-create-border-soft, rgba(15, 23, 42, 0.08))
+  );
+  background:
+    linear-gradient(90deg, var(--vp-create-warning-soft, rgba(245, 158, 11, 0.10)), transparent 38%),
+    var(--vp-create-muted-soft, rgba(148, 163, 184, 0.08));
+}
+
+.vp-create-variant-row[data-row-index="0"] .vp-create-check-cell,
+[data-vp-variant-row="true"][data-row-index="0"] .vp-create-check-cell,
+.vp-create-variant-row[data-vp-is-default="true"] .vp-create-check-cell {
+  color: var(--vp-create-warning-text, #92400e);
+}
+
+.vp-create-variant-row[data-row-index="0"] .vp-create-check-cell input,
+[data-vp-variant-row="true"][data-row-index="0"] .vp-create-check-cell input,
+.vp-create-variant-row[data-vp-is-default="true"] .vp-create-check-cell input {
+  accent-color: var(--vp-create-warning, #f59e0b);
+}
+
+
+/* -----------------------------------------------------------------------------
+  10. Check Cell
+----------------------------------------------------------------------------- */
+
+.vp-create-check-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vp-create-space-2, 0.5rem);
+  min-width: 0;
+  min-height: var(--vp-create-control-height-compact, 40px);
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: var(--vp-create-text-xs, 0.78rem);
+  font-weight: var(--vp-create-weight-semibold, 650);
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.vp-create-check-cell input {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--vp-create-primary, #2563eb);
+}
+
+.vp-create-check-cell input[readonly],
+.vp-create-check-cell input[aria-readonly="true"],
+.vp-create-check-cell input[data-create-default-locked="true"] {
+  cursor: default;
+}
+
+.vp-create-check-cell span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* -----------------------------------------------------------------------------
+  11. Compact Editor Containers
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-editor,
+.vp-create-variable-editor {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-variant-editor .vp-create-alert,
+.vp-create-variable-editor .vp-create-alert {
+  margin-bottom: var(--vp-create-space-3, 0.75rem);
+}
+
+.vp-create-variant-editor--compact .vp-create-variant-table,
+.vp-create-variable-editor--compact .vp-create-variable-table {
+  max-height: min(38vh, 420px);
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.vp-create-variant-editor--compact .vp-create-variant-table::-webkit-scrollbar,
+.vp-create-variable-editor--compact .vp-create-variable-table::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.vp-create-variant-editor--compact .vp-create-variant-table::-webkit-scrollbar-thumb,
+.vp-create-variable-editor--compact .vp-create-variable-table::-webkit-scrollbar-thumb {
+  border-radius: var(--vp-create-radius-full, 999px);
+  background: var(--vp-create-border-muted, rgba(15, 23, 42, 0.16));
+}
+
+
+/* -----------------------------------------------------------------------------
+  12. Empty State
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-table__empty,
+.vp-create-variable-table__empty,
+[data-vp-variant-table-empty="true"],
+[data-vp-variable-table-empty="true"] {
+  display: grid;
+  place-items: center;
+  min-height: 7rem;
+  padding: var(--vp-create-space-4, 1rem);
+  border: 1px dashed var(--vp-create-border-soft, rgba(15, 23, 42, 0.08));
+  border-radius: var(--vp-create-radius-md, 0.875rem);
+  background: var(--vp-create-muted-soft, rgba(148, 163, 184, 0.08));
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: var(--vp-create-text-sm, 0.875rem);
+  line-height: 1.4;
+  text-align: center;
+}
+
+.vp-create-variant-table__empty[hidden],
+.vp-create-variable-table__empty[hidden],
+[data-vp-variant-table-empty="true"][hidden],
+[data-vp-variable-table-empty="true"][hidden] {
+  display: none !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+  13. Row Metadata / Future Labels
+----------------------------------------------------------------------------- */
+
+.vp-create-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vp-create-space-2, 0.5rem);
+  min-width: 0;
+  margin-top: var(--vp-create-space-2, 0.5rem);
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: var(--vp-create-text-xs, 0.78rem);
+}
+
+.vp-create-row-meta code {
+  font-size: 0.82em;
+}
+
+
+/* -----------------------------------------------------------------------------
+  14. Mobile Transformation: Rows Become Cards
+----------------------------------------------------------------------------- */
+
+@media (max-width: 980px) {
+  .vp-create-variant-table__head,
+  .vp-create-variable-table__head {
+    display: none;
+  }
+
+  .vp-create-variant-row,
+  .vp-create-variable-row,
+  [data-vp-variant-row="true"],
+  [data-create-variant-row="true"],
+  [data-create-variable-row="true"] {
+    grid-template-columns: 1fr;
+    gap: var(--vp-create-space-3, 0.75rem);
+    padding: var(--vp-create-space-3, 0.75rem);
+  }
+
+  .vp-create-variant-row .vp-create-field,
+  .vp-create-variable-row .vp-create-field {
+    display: grid;
+    gap: var(--vp-create-space-1, 0.25rem);
+  }
+
+  .vp-create-row-action,
+  .vp-create-row-action--definition {
+    justify-content: stretch;
+  }
+
+  .vp-create-row-action .vp-create-button {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  .vp-create-variant-row__cell--actions {
+    align-content: stretch;
+  }
+
+  .vp-create-variant-row__title,
+  .vp-create-variant-row__description,
+  .vp-create-definition-summary {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .vp-create-variant-editor--compact .vp-create-variant-table,
+  .vp-create-variable-editor--compact .vp-create-variable-table {
+    max-height: min(30vh, 320px);
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  15. Mobile Visual Labels
+
+  Die eigentlichen SR-only Labels bleiben im Markup. Diese visuellen Labels werden
+  nur über bekannte Feld-Hooks ergänzt.
+----------------------------------------------------------------------------- */
+
+@media (max-width: 980px) {
+  .vp-create-variant-row [data-create-field="variant_is_default"] + span::before {
+    content: "Standard: ";
+    color: var(--vp-create-text-muted, #64748b);
+    font-weight: var(--vp-create-weight-semibold, 650);
+  }
+
+  .vp-create-variant-row .vp-create-field:has([data-create-field="variant_kind"])::before,
+  .vp-create-variant-row .vp-create-field:has([data-create-field="variant_name"])::before,
+  .vp-create-variant-row .vp-create-field:has([data-create-field="variant_description"])::before,
+  .vp-create-variable-row .vp-create-field:has([data-create-field="variable_key"])::before,
+  .vp-create-variable-row .vp-create-field:has([data-create-field="variable_value"])::before,
+  .vp-create-variable-row .vp-create-field:has([data-create-field="variable_unit"])::before,
+  .vp-create-variable-row .vp-create-field:has([data-create-field="variable_description"])::before {
+    color: var(--vp-create-text-muted, #64748b);
+    font-size: var(--vp-create-text-2xs, 0.7rem);
+    font-weight: var(--vp-create-weight-bold, 740);
+    letter-spacing: var(--vp-create-letter-wide, 0.08em);
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .vp-create-variant-row .vp-create-field:has([data-create-field="variant_kind"])::before {
+    content: "Unterschied";
+  }
+
+  .vp-create-variant-row .vp-create-field:has([data-create-field="variant_name"])::before {
+    content: "Name / Wert";
+  }
+
+  .vp-create-variant-row .vp-create-field:has([data-create-field="variant_description"])::before {
+    content: "Beschreibung";
+  }
+
+  .vp-create-variable-row .vp-create-field:has([data-create-field="variable_key"])::before {
+    content: "Key";
+  }
+
+  .vp-create-variable-row .vp-create-field:has([data-create-field="variable_value"])::before {
+    content: "Wert";
+  }
+
+  .vp-create-variable-row .vp-create-field:has([data-create-field="variable_unit"])::before {
+    content: "Einheit";
+  }
+
+  .vp-create-variable-row .vp-create-field:has([data-create-field="variable_description"])::before {
+    content: "Beschreibung";
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  16. Fallback For Browsers Without :has
+
+  Markup bleibt nutzbar, weil SR-Labels vorhanden sind.
+----------------------------------------------------------------------------- */
+
+@supports not selector(:has(*)) {
+  @media (max-width: 980px) {
+    .vp-create-variant-row .vp-create-field,
+    .vp-create-variable-row .vp-create-field {
+      padding-top: 0;
+    }
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  17. Small Screens
+----------------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .vp-create-variant-table,
+  .vp-create-variable-table,
+  [data-vp-variant-table-root="true"],
+  [data-vp-variant-table="true"] {
+    gap: var(--vp-create-space-3, 0.75rem);
+  }
+
+  .vp-create-variant-row,
+  .vp-create-variable-row,
+  [data-vp-variant-row="true"],
+  [data-create-variant-row="true"],
+  [data-create-variable-row="true"] {
+    padding: var(--vp-create-space-3, 0.75rem);
+    border-radius: var(--vp-create-radius-md, 0.875rem);
+  }
+
+  .vp-create-variant-row::before,
+  .vp-create-variable-row::before,
+  [data-vp-variant-row="true"]::before,
+  [data-create-variant-row="true"]::before,
+  [data-create-variable-row="true"]::before {
+    inset: var(--vp-create-space-3, 0.75rem) auto var(--vp-create-space-3, 0.75rem) 0;
+  }
+
+  .vp-create-check-cell {
+    width: 100%;
+    min-height: var(--vp-create-touch-target, 44px);
+  }
+
+  .vp-create-row-action {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .vp-create-row-action .vp-create-button {
+    width: 100%;
+    min-height: var(--vp-create-touch-target, 44px);
+  }
+
+  .vp-create-variant-default-pill,
+  .vp-create-definition-profile-pill,
+  .vp-create-variant-managed-pill,
+  .vp-create-definition-summary__additional-count {
+    max-width: 100%;
+  }
+
+  .vp-create-variant-editor--compact .vp-create-variant-table,
+  .vp-create-variable-editor--compact .vp-create-variable-table {
+    max-height: min(28vh, 280px);
+  }
+}
+
+@media (max-width: 420px) {
+  .vp-create-variant-row,
+  .vp-create-variable-row,
+  [data-vp-variant-row="true"],
+  [data-create-variant-row="true"],
+  [data-create-variable-row="true"] {
+    padding: var(--vp-create-space-3, 0.75rem);
+  }
+
+  .vp-create-row-action .vp-create-button {
+    min-height: var(--vp-create-touch-target, 44px);
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  18. Drag / Drop Future-Proof State
+
+  Noch keine Drag-Funktion. Klassen sind harmlos und später verwendbar.
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-row.is-dragging,
+.vp-create-variable-row.is-dragging,
+[data-vp-variant-row="true"].is-dragging,
+[data-create-variant-row="true"].is-dragging,
+[data-create-variable-row="true"].is-dragging {
+  opacity: 0.72;
+  transform: scale(0.995);
+}
+
+.vp-create-variant-row.is-drop-target,
+.vp-create-variable-row.is-drop-target,
+[data-vp-variant-row="true"].is-drop-target,
+[data-create-variant-row="true"].is-drop-target,
+[data-create-variable-row="true"].is-drop-target {
+  border-color: var(--vp-create-border-focus, rgba(37, 99, 235, 0.52));
+  box-shadow: var(--vp-create-shadow-focus, 0 0 0 3px rgba(37, 99, 235, 0.22));
+}
+
+
+/* -----------------------------------------------------------------------------
+  19. Dark Theme Fallbacks
+----------------------------------------------------------------------------- */
+
+[data-theme="dark"] .vp-create-variant-row,
+[data-theme="dark"] .vp-create-variable-row,
+[data-theme="dark"] [data-vp-variant-row="true"],
+[data-theme="dark"] [data-create-variant-row="true"],
+[data-theme="dark"] [data-create-variable-row="true"],
+.vp-create-app[data-theme="dark"] .vp-create-variant-row,
+.vp-create-app[data-theme="dark"] .vp-create-variable-row,
+.dark .vp-create-variant-row,
+.dark .vp-create-variable-row,
+.dark [data-vp-variant-row="true"] {
+  background: rgba(15, 23, 42, 0.68);
+}
+
+[data-theme="dark"] .vp-create-variant-row:hover,
+[data-theme="dark"] .vp-create-variable-row:hover,
+[data-theme="dark"] [data-vp-variant-row="true"]:hover,
+[data-theme="dark"] [data-create-variant-row="true"]:hover,
+[data-theme="dark"] [data-create-variable-row="true"]:hover,
+.vp-create-app[data-theme="dark"] .vp-create-variant-row:hover,
+.vp-create-app[data-theme="dark"] .vp-create-variable-row:hover,
+.dark .vp-create-variant-row:hover,
+.dark .vp-create-variable-row:hover,
+.dark [data-vp-variant-row="true"]:hover {
+  background: rgba(30, 41, 59, 0.78);
+}
+
+[data-theme="dark"] .vp-create-variant-row[data-row-index="0"],
+[data-theme="dark"] [data-vp-variant-row="true"][data-row-index="0"],
+[data-theme="dark"] [data-vp-variant-row="true"][data-vp-is-default="true"],
+.vp-create-app[data-theme="dark"] .vp-create-variant-row[data-row-index="0"],
+.dark .vp-create-variant-row[data-row-index="0"],
+.dark [data-vp-variant-row="true"][data-row-index="0"] {
+  background:
+    linear-gradient(90deg, rgba(245, 158, 11, 0.14), transparent 42%),
+    rgba(15, 23, 42, 0.68);
+}
+
+
+/* -----------------------------------------------------------------------------
+  20. Reduced Motion
+----------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .vp-create-variant-row,
+  .vp-create-variable-row,
+  [data-vp-variant-row="true"],
+  [data-create-variant-row="true"],
+  [data-create-variable-row="true"] {
+    transition: none;
+  }
+
+  .vp-create-variant-row.is-dragging,
+  .vp-create-variable-row.is-dragging,
+  [data-vp-variant-row="true"].is-dragging,
+  [data-create-variant-row="true"].is-dragging,
+  [data-create-variable-row="true"].is-dragging {
+    transform: none;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  21. Forced Colors
+----------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  .vp-create-variant-row,
+  .vp-create-variable-row,
+  [data-vp-variant-row="true"],
+  [data-create-variant-row="true"],
+  [data-create-variable-row="true"] {
+    border-color: CanvasText;
+    color: CanvasText;
+    background: Canvas;
+  }
+
+  .vp-create-variant-row::before,
+  .vp-create-variable-row::before,
+  [data-vp-variant-row="true"]::before,
+  [data-create-variant-row="true"]::before,
+  [data-create-variable-row="true"]::before {
+    background: CanvasText;
+  }
+
+  .vp-create-check-cell,
+  .vp-create-variant-table__head,
+  .vp-create-variable-table__head,
+  .vp-create-variant-default-pill,
+  .vp-create-definition-profile-pill,
+  .vp-create-variant-managed-pill,
+  .vp-create-definition-summary__additional-count {
+    border-color: CanvasText;
+    color: CanvasText;
+    background: Canvas;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  22. Print
+----------------------------------------------------------------------------- */
+
+@media print {
+  .vp-create-variant-table,
+  .vp-create-variable-table,
+  [data-vp-variant-table-root="true"],
+  [data-vp-variant-table="true"] {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .vp-create-variant-table__head,
+  .vp-create-variable-table__head {
+    display: grid;
+  }
+
+  .vp-create-variant-row,
+  .vp-create-variable-row,
+  [data-vp-variant-row="true"],
+  [data-create-variant-row="true"],
+  [data-create-variable-row="true"] {
+    break-inside: avoid;
+    border-color: #d1d5db;
+    background: #ffffff;
+    box-shadow: none;
+  }
+
+  .vp-create-row-action,
+  .vp-create-variant-row__cell--actions {
+    display: none;
+  }
+}

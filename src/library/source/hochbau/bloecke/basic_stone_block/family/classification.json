@@ -1,0 +1,45 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/family/classification.json",
+  "schema_version": "vplib.family.classification.v1",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "object_kind": "cell_block",
+  "domain": "hochbau",
+  "category": "bloecke",
+  "subcategory": "basis",
+  "classification_path": "hochbau/bloecke/basis",
+  "classification": {
+    "domain": "hochbau",
+    "category": "bloecke",
+    "subcategory": "basis",
+    "path": "hochbau/bloecke/basis"
+  },
+  "inventory_group": {
+    "group_id": "hochbau.bloecke",
+    "label": "Blöcke",
+    "sort_order": 10
+  },
+  "editor_category": {
+    "category_id": "basic_blocks",
+    "label": "Basisblöcke",
+    "sort_order": 10
+  },
+  "usage": {
+    "primary_use": "test_block",
+    "intended_for": [
+      "library_scan",
+      "block_selection",
+      "placement_test"
+    ],
+    "not_intended_for": [
+      "production_quantity_takeoff",
+      "manufacturer_binding"
+    ]
+  },
+  "tags": [
+    "hochbau",
+    "bloecke",
+    "basis",
+    "stone",
+    "test"
+  ]
+}

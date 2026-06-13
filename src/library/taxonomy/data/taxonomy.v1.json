@@ -1,0 +1,2978 @@
+{
+  "_file": "services/vectoplan-library/src/library/taxonomy/data/taxonomy.v1.json",
+  "schema_version": "1.0",
+  "taxonomy_version": "v1",
+  "label": "VECTOPLAN Library Taxonomie",
+  "description": "Kanonische Reiter-, Kategorie- und Subkategorie-Registry für VPLIB-Family-Packages, Create-Wizard, Scanner, Creative Library und spätere Editor-/Inventar-Integration.",
+  "constraints": {
+    "require_domain": true,
+    "require_category": true,
+    "require_subcategory": true,
+    "canonical_source_depth": 4,
+    "allow_legacy_source_depth": true,
+    "allow_deprecated_selection": false,
+    "allow_experimental_selection": true,
+    "enforce_object_kind_constraints": true,
+    "source_root_name": "source",
+    "family_id_prefix": "vp",
+    "package_id_prefix": "vplib.vp"
+  },
+  "defaults": {
+    "domain": "",
+    "category": "",
+    "subcategory": "",
+    "object_kind": "",
+    "primitive_shape": "",
+    "material_class": ""
+  },
+  "metadata": {
+    "language": "de",
+    "canonical_source_path_pattern": "src/library/source/{domain}/{category}/{subcategory}/{family_slug}",
+    "family_id_pattern": "vp.{domain}.{category}.{subcategory}.{family_slug}",
+    "package_id_pattern": "vplib.vp.{domain}.{category}.{subcategory}.{family_slug}",
+    "selection_required": [
+      "domain",
+      "category",
+      "subcategory"
+    ],
+    "design_note": "Gebäudetypen wie wohnungsbau, krankenhausbau, schulbau oder industriebau sind bewusst Tags/Use-Contexts und keine primären Source-Pfad-Ebenen.",
+    "object_kinds": [
+      "cell_block",
+      "multi_cell_module",
+      "catalog_object",
+      "adaptive_system"
+    ]
+  },
+  "domains": [
+    {
+      "id": "hochbau",
+      "label": "Hochbau",
+      "description": "Gebäude, Innenräume, Ausbau, Gebäudehülle, Tragwerk und technische Gebäudeausrüstung.",
+      "sort_order": 100,
+      "tags": [
+        "building",
+        "architecture"
+      ],
+      "categories": [
+        {
+          "id": "waende",
+          "label": "Wände",
+          "description": "Tragende und nichttragende Wandbauteile, Wandaufbauten und wandartige Systeme.",
+          "sort_order": 100,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "shell",
+            "structure"
+          ],
+          "recommended_modules": [
+            "physical",
+            "material",
+            "calculation"
+          ],
+          "subcategories": [
+            {
+              "id": "aussenwaende",
+              "label": "Außenwände",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "innenwaende",
+              "label": "Innenwände",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "tragende_waende",
+              "label": "Tragende Wände",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "nichttragende_waende",
+              "label": "Nichttragende Wände",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "brandwaende",
+              "label": "Brandwände",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "schachtwaende",
+              "label": "Schachtwände",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "glaswaende",
+              "label": "Glaswände",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "vorsatzschalen",
+              "label": "Vorsatzschalen",
+              "sort_order": 170,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "trennwaende",
+              "label": "Trennwände",
+              "sort_order": 180,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "mauerwerkswaende",
+              "label": "Mauerwerkswände",
+              "sort_order": 190,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "decken",
+          "label": "Decken",
+          "description": "Geschossdecken, Unterdecken, Platten und horizontale Bauteile.",
+          "sort_order": 110,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "shell",
+            "structure"
+          ],
+          "subcategories": [
+            {
+              "id": "geschossdecken",
+              "label": "Geschossdecken",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "massivdecken",
+              "label": "Massivdecken",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "holzdecken",
+              "label": "Holzdecken",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "stahlverbunddecken",
+              "label": "Stahlverbunddecken",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "abhaengdecken",
+              "label": "Abhängdecken",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "unterdecken",
+              "label": "Unterdecken",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "deckenoeffnungen",
+              "label": "Deckenöffnungen",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "deckenraster",
+              "label": "Deckenraster",
+              "sort_order": 170,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "boeden",
+          "label": "Böden",
+          "description": "Bodenplatten, Bodenaufbauten, Beläge und bodennahe Schichten.",
+          "sort_order": 120,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "finish",
+            "shell"
+          ],
+          "subcategories": [
+            {
+              "id": "bodenplatten",
+              "label": "Bodenplatten",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "estrich",
+              "label": "Estrich",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "bodenbelaege",
+              "label": "Bodenbeläge",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "doppelboeden",
+              "label": "Doppelböden",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "industrieboden",
+              "label": "Industrieboden",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "sockel",
+              "label": "Sockel",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "schwellen",
+              "label": "Schwellen",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "daecher",
+          "label": "Dächer",
+          "description": "Dachformen, Dachaufbauten und Dachsysteme.",
+          "sort_order": 130,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "roof",
+            "building_envelope"
+          ],
+          "subcategories": [
+            {
+              "id": "flachdaecher",
+              "label": "Flachdächer",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "satteldaecher",
+              "label": "Satteldächer",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "pultdaecher",
+              "label": "Pultdächer",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "walmdach",
+              "label": "Walmdächer",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "gruendach",
+              "label": "Gründächer",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "dachaufbauten",
+              "label": "Dachaufbauten",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "dachfenster",
+              "label": "Dachfenster",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "dachentwaesserung",
+              "label": "Dachentwässerung",
+              "sort_order": 170,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "oeffnungen",
+          "label": "Öffnungen",
+          "description": "Türen, Fenster, Tore und Öffnungselemente.",
+          "sort_order": 140,
+          "tags": [
+            "openings"
+          ],
+          "subcategories": [
+            {
+              "id": "fenster",
+              "label": "Fenster",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "aussentueren",
+              "label": "Außentüren",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "innentueren",
+              "label": "Innentüren",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "tore",
+              "label": "Tore",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "luken",
+              "label": "Luken",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "lichtkuppeln",
+              "label": "Lichtkuppeln",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "fassadenoefnungen",
+              "label": "Fassadenöffnungen",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "treppen_rampen",
+          "label": "Treppen und Rampen",
+          "description": "Vertikale Erschließung, Stufen, Rampen und Aufzüge.",
+          "sort_order": 150,
+          "tags": [
+            "circulation"
+          ],
+          "subcategories": [
+            {
+              "id": "treppenlaeufe",
+              "label": "Treppenläufe",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "podeste",
+              "label": "Podeste",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "rampen",
+              "label": "Rampen",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "stufen",
+              "label": "Stufen",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "leitern",
+              "label": "Leitern",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "aufzuege",
+              "label": "Aufzüge",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "fahrtreppen",
+              "label": "Fahrtreppen",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "fassade",
+          "label": "Fassade",
+          "description": "Fassadenschichten, Fassadensysteme und äußere Gebäudehülle.",
+          "sort_order": 160,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "facade",
+            "building_envelope"
+          ],
+          "subcategories": [
+            {
+              "id": "putzfassaden",
+              "label": "Putzfassaden",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "klinkerfassaden",
+              "label": "Klinkerfassaden",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "vorhangfassaden",
+              "label": "Vorhangfassaden",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "pfosten_riegel",
+              "label": "Pfosten-Riegel",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "sonnenschutz",
+              "label": "Sonnenschutz",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "attika",
+              "label": "Attika",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "fassadenprofile",
+              "label": "Fassadenprofile",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tragwerk",
+          "label": "Tragwerk",
+          "description": "Primäre und sekundäre tragende Gebäudestrukturen.",
+          "sort_order": 170,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "structure"
+          ],
+          "subcategories": [
+            {
+              "id": "stuetzen",
+              "label": "Stützen",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "traeger",
+              "label": "Träger",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "unterzuege",
+              "label": "Unterzüge",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "rahmen",
+              "label": "Rahmen",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "aussteifung",
+              "label": "Aussteifung",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "fundamente",
+              "label": "Fundamente",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "deckenauflager",
+              "label": "Deckenauflager",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "ausbau",
+          "label": "Ausbau",
+          "description": "Innenausbau, Bekleidungen, Ausbaukonstruktionen und raumbildende Elemente.",
+          "sort_order": 180,
+          "tags": [
+            "fitout"
+          ],
+          "subcategories": [
+            {
+              "id": "trockenbau",
+              "label": "Trockenbau",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "wandbelaege",
+              "label": "Wandbeläge",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "deckenbelaege",
+              "label": "Deckenbeläge",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "einbauten",
+              "label": "Einbauten",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "sanitaertrennwaende",
+              "label": "Sanitärtrennwände",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "akustikelemente",
+              "label": "Akustikelemente",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "gebaeudetechnik",
+          "label": "Gebäudetechnik",
+          "description": "Technische Gebäudeausrüstung als übergeordnete Systemgruppe.",
+          "sort_order": 190,
+          "tags": [
+            "mep"
+          ],
+          "subcategories": [
+            {
+              "id": "elektro",
+              "label": "Elektro",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "heizung",
+              "label": "Heizung",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "lueftung",
+              "label": "Lüftung",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "sanitaer",
+              "label": "Sanitär",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "sprinkler",
+              "label": "Sprinkler",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "kuehlung",
+              "label": "Kühlung",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "mess_steuer_regelung",
+              "label": "MSR",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "pv_module",
+              "label": "PV-Module",
+              "sort_order": 170,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "sanitaer",
+          "label": "Sanitär",
+          "description": "Sanitärobjekte, Armaturen und Installationsbauteile.",
+          "sort_order": 200,
+          "tags": [
+            "sanitary"
+          ],
+          "subcategories": [
+            {
+              "id": "waschbecken",
+              "label": "Waschbecken",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "wc",
+              "label": "WC",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "duschen",
+              "label": "Duschen",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "badewannen",
+              "label": "Badewannen",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "armaturen",
+              "label": "Armaturen",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "ablaufe",
+              "label": "Abläufe",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "installationswaende",
+              "label": "Installationswände",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "elektro",
+          "label": "Elektro",
+          "description": "Elektrische Bauteile, Anschlüsse, Verteilungen und Leuchten.",
+          "sort_order": 210,
+          "tags": [
+            "electrical"
+          ],
+          "subcategories": [
+            {
+              "id": "steckdosen",
+              "label": "Steckdosen",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "schalter",
+              "label": "Schalter",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "leuchten",
+              "label": "Leuchten",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "verteiler",
+              "label": "Verteiler",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "kabeltrassen",
+              "label": "Kabeltrassen",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "sensoren",
+              "label": "Sensoren",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "datenanschluesse",
+              "label": "Datenanschlüsse",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "heizung_lueftung_klima",
+          "label": "Heizung, Lüftung, Klima",
+          "description": "HLK-Komponenten, Geräte und Luft-/Wärmeverteilung.",
+          "sort_order": 220,
+          "tags": [
+            "mep",
+            "hvac"
+          ],
+          "subcategories": [
+            {
+              "id": "heizkoerper",
+              "label": "Heizkörper",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "fussbodenheizung",
+              "label": "Fußbodenheizung",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "lueftungsauslaesse",
+              "label": "Lüftungsauslässe",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "kanaele",
+              "label": "Kanäle",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "geraete",
+              "label": "Geräte",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "waermepumpen",
+              "label": "Wärmepumpen",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "klimageraete",
+              "label": "Klimageräte",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "moebel_ausstattung",
+          "label": "Möbel und Ausstattung",
+          "description": "Bewegliche und feste Ausstattung für Räume und Nutzungen.",
+          "sort_order": 230,
+          "allowed_object_kinds": [
+            "catalog_object",
+            "multi_cell_module"
+          ],
+          "tags": [
+            "equipment"
+          ],
+          "subcategories": [
+            {
+              "id": "wohnen",
+              "label": "Wohnen",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "buero",
+              "label": "Büro",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "schule",
+              "label": "Schule",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "krankenhaus",
+              "label": "Krankenhaus",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "labor",
+              "label": "Labor",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "kueche",
+              "label": "Küche",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "bad",
+              "label": "Bad",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "lager",
+              "label": "Lager",
+              "sort_order": 170,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "technikraum",
+              "label": "Technikraum",
+              "sort_order": 180,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "sicherheit_barrierefreiheit",
+          "label": "Sicherheit und Barrierefreiheit",
+          "description": "Schutz-, Sicherheits- und Zugänglichkeitselemente.",
+          "sort_order": 240,
+          "tags": [
+            "safety",
+            "accessibility"
+          ],
+          "subcategories": [
+            {
+              "id": "gelaender",
+              "label": "Geländer",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "handlaeufe",
+              "label": "Handläufe",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "brandschutz",
+              "label": "Brandschutz",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "fluchtweg",
+              "label": "Fluchtweg",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "rampsysteme",
+              "label": "Rampsysteme",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "tuertechnik",
+              "label": "Türtechnik",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "notbeleuchtung",
+              "label": "Notbeleuchtung",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "aussenanlagen_gebaeude",
+          "label": "Außenanlagen Gebäude",
+          "description": "Direkt gebäudebezogene Außenbauteile und Ausstattung.",
+          "sort_order": 250,
+          "tags": [
+            "outdoor"
+          ],
+          "subcategories": [
+            {
+              "id": "terrassen",
+              "label": "Terrassen",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "balkone",
+              "label": "Balkone",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "vordaecher",
+              "label": "Vordächer",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "treppen_aussen",
+              "label": "Außentreppen",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "lichtschaechte",
+              "label": "Lichtschächte",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "muellplaetze",
+              "label": "Müllplätze",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tiefbau",
+      "label": "Tiefbau",
+      "description": "Verkehrsflächen, Leitungen, Schächte, Erdbau, Außenanlagen und Infrastruktur.",
+      "sort_order": 200,
+      "tags": [
+        "civil",
+        "infrastructure"
+      ],
+      "categories": [
+        {
+          "id": "strassen_wege",
+          "label": "Straßen und Wege",
+          "description": "Verkehrsflächen, Beläge, Ränder und Wegebauteile.",
+          "sort_order": 100,
+          "tags": [
+            "traffic",
+            "surface"
+          ],
+          "subcategories": [
+            {
+              "id": "fahrbahnen",
+              "label": "Fahrbahnen",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "gehwege",
+              "label": "Gehwege",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "radwege",
+              "label": "Radwege",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "bordsteine",
+              "label": "Bordsteine",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "rinnen",
+              "label": "Rinnen",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "pflaster",
+              "label": "Pflaster",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "asphalt",
+              "label": "Asphalt",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "markierungen",
+              "label": "Markierungen",
+              "sort_order": 170,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "cell_block"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "leitungen",
+          "label": "Leitungen",
+          "description": "Unterirdische und oberirdische Leitungsinfrastruktur.",
+          "sort_order": 110,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "utility",
+            "routing"
+          ],
+          "subcategories": [
+            {
+              "id": "wasserleitungen",
+              "label": "Wasserleitungen",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "abwasserleitungen",
+              "label": "Abwasserleitungen",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "gasleitungen",
+              "label": "Gasleitungen",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "stromleitungen",
+              "label": "Stromleitungen",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "datenleitungen",
+              "label": "Datenleitungen",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "fernwaerme",
+              "label": "Fernwärme",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "schutzrohre",
+              "label": "Schutzrohre",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "kanaele_entwaesserung",
+          "label": "Kanäle und Entwässerung",
+          "description": "Kanalisation, Drainage, Regenwasser und Rückhaltung.",
+          "sort_order": 120,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "drainage"
+          ],
+          "subcategories": [
+            {
+              "id": "regenwasser",
+              "label": "Regenwasser",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "schmutzwasser",
+              "label": "Schmutzwasser",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "mischwasser",
+              "label": "Mischwasser",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "drainage",
+              "label": "Drainage",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "rigolen",
+              "label": "Rigolen",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "ablaufe",
+              "label": "Abläufe",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "rueckhaltung",
+              "label": "Rückhaltung",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "schaechte",
+          "label": "Schächte",
+          "description": "Schachtbauwerke für Versorgung, Entsorgung und Kontrolle.",
+          "sort_order": 130,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "shaft"
+          ],
+          "subcategories": [
+            {
+              "id": "revisionsschaechte",
+              "label": "Revisionsschächte",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "kanalschaechte",
+              "label": "Kanalschächte",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "kabelschaechte",
+              "label": "Kabelschächte",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "pumpenschaechte",
+              "label": "Pumpenschächte",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "einlaufschaechte",
+              "label": "Einlaufschächte",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "erdbau",
+          "label": "Erdbau",
+          "description": "Gelände-, Boden- und Erdbewegungsobjekte.",
+          "sort_order": 140,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "earthworks"
+          ],
+          "subcategories": [
+            {
+              "id": "baugruben",
+              "label": "Baugruben",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "boeschungen",
+              "label": "Böschungen",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "planum",
+              "label": "Planum",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "aufschuettung",
+              "label": "Aufschüttung",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "abtrag",
+              "label": "Abtrag",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "verdichtung",
+              "label": "Verdichtung",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "bodenklassen",
+              "label": "Bodenklassen",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "gruendung_tiefbau",
+          "label": "Gründung Tiefbau",
+          "description": "Gründungs- und Unterbaukomponenten im Tiefbau.",
+          "sort_order": 150,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "foundation"
+          ],
+          "subcategories": [
+            {
+              "id": "streifenfundamente",
+              "label": "Streifenfundamente",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "punktfundamente",
+              "label": "Punktfundamente",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "pfahlgruendung",
+              "label": "Pfahlgründung",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "bodenverbesserung",
+              "label": "Bodenverbesserung",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "sauberkeitsschichten",
+              "label": "Sauberkeitsschichten",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "verkehrsinfrastruktur",
+          "label": "Verkehrsinfrastruktur",
+          "description": "Ausstattung und Sicherheitselemente im Verkehrsraum.",
+          "sort_order": 160,
+          "tags": [
+            "traffic"
+          ],
+          "subcategories": [
+            {
+              "id": "signalanlagen",
+              "label": "Signalanlagen",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "schilder",
+              "label": "Schilder",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "leitplanken",
+              "label": "Leitplanken",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "poller",
+              "label": "Poller",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "barrieren",
+              "label": "Barrieren",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "haltestellen",
+              "label": "Haltestellen",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "verkehrsinseln",
+              "label": "Verkehrsinseln",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "aussenanlagen",
+          "label": "Außenanlagen",
+          "description": "Landschafts-, Grün- und Freiraumelemente.",
+          "sort_order": 170,
+          "tags": [
+            "landscape"
+          ],
+          "subcategories": [
+            {
+              "id": "gruenzonen",
+              "label": "Grünzonen",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "baeume",
+              "label": "Bäume",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "beete",
+              "label": "Beete",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "zaeune",
+              "label": "Zäune",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "mauern",
+              "label": "Mauern",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "spielplatz",
+              "label": "Spielplatz",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "moeblierung_aussen",
+              "label": "Außenmöblierung",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "bahninfrastruktur",
+          "label": "Bahninfrastruktur",
+          "description": "Gleis-, Bahnsteig- und bahntechnische Bauteile.",
+          "sort_order": 180,
+          "tags": [
+            "rail"
+          ],
+          "subcategories": [
+            {
+              "id": "gleise",
+              "label": "Gleise",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "schwellen",
+              "label": "Schwellen",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "bahnsteige",
+              "label": "Bahnsteige",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "oberleitung",
+              "label": "Oberleitung",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "signale",
+              "label": "Signale",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "kabelkanaele",
+              "label": "Kabelkanäle",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "versorgung_entsorgung",
+          "label": "Versorgung und Entsorgung",
+          "description": "Infrastrukturkomponenten für technische Versorgung und Entsorgung.",
+          "sort_order": 190,
+          "tags": [
+            "utility"
+          ],
+          "subcategories": [
+            {
+              "id": "trafostationen",
+              "label": "Trafostationen",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "pumpstationen",
+              "label": "Pumpstationen",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "speicher",
+              "label": "Speicher",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "hydranten",
+              "label": "Hydranten",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "container",
+              "label": "Container",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            },
+            {
+              "id": "technikgehaeuse",
+              "label": "Technikgehäuse",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ingenieurbau",
+      "label": "Ingenieurbau",
+      "description": "Brücken, Tunnel, Stützbauwerke, Wasserbau, Spezialtiefbau und Sondertragwerke.",
+      "sort_order": 300,
+      "tags": [
+        "engineering",
+        "structures"
+      ],
+      "categories": [
+        {
+          "id": "bruecken",
+          "label": "Brücken",
+          "description": "Brückenbauwerke, Bauteilgruppen und Brückenausstattung.",
+          "sort_order": 100,
+          "tags": [
+            "bridge"
+          ],
+          "subcategories": [
+            {
+              "id": "ueberbau",
+              "label": "Überbau",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "unterbau",
+              "label": "Unterbau",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "widerlager",
+              "label": "Widerlager",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "pfeiler",
+              "label": "Pfeiler",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "kappen_randbalken",
+              "label": "Kappen und Randbalken",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "lager",
+              "label": "Lager",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "fahrbahnuebergaenge",
+              "label": "Fahrbahnübergänge",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "gelaender",
+              "label": "Geländer",
+              "sort_order": 170,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "entwaesserung",
+              "label": "Entwässerung",
+              "sort_order": 180,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "belag",
+              "label": "Belag",
+              "sort_order": 190,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "schutzeinrichtungen",
+              "label": "Schutzeinrichtungen",
+              "sort_order": 200,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "brueckentragwerk",
+          "label": "Brückentragwerk",
+          "description": "Tragwerksfamilien und Tragglieder im Brückenbau.",
+          "sort_order": 110,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "bridge",
+            "structure"
+          ],
+          "subcategories": [
+            {
+              "id": "traeger",
+              "label": "Träger",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "platten",
+              "label": "Platten",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "hohlkaesten",
+              "label": "Hohlkästen",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "boegen",
+              "label": "Bögen",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "seile",
+              "label": "Seile",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "fachwerk",
+              "label": "Fachwerk",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "quertraeger",
+              "label": "Querträger",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "auflagerbereiche",
+              "label": "Auflagerbereiche",
+              "sort_order": 170,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tunnel",
+          "label": "Tunnel",
+          "description": "Tunnelbauwerke, Tunnelschalen und technische Tunnelkomponenten.",
+          "sort_order": 120,
+          "tags": [
+            "tunnel"
+          ],
+          "subcategories": [
+            {
+              "id": "tunnelschalen",
+              "label": "Tunnelschalen",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "portale",
+              "label": "Portale",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "innenausbau",
+              "label": "Innenausbau",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "notwege",
+              "label": "Notwege",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "entwaesserung",
+              "label": "Entwässerung",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "lueftung",
+              "label": "Lüftung",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "techniknischen",
+              "label": "Techniknischen",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "stuetzbauwerke",
+          "label": "Stützbauwerke",
+          "description": "Stütz-, Sicherungs- und Geländesprungbauwerke.",
+          "sort_order": 130,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "retaining"
+          ],
+          "subcategories": [
+            {
+              "id": "stuetzwaende",
+              "label": "Stützwände",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "spundwaende",
+              "label": "Spundwände",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "gabionen",
+              "label": "Gabionen",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "anker",
+              "label": "Anker",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "bewehrte_erde",
+              "label": "Bewehrte Erde",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "kopfbalken",
+              "label": "Kopfbalken",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "wasserbau",
+          "label": "Wasserbau",
+          "description": "Bauwerke und Komponenten für Wasserführung, Schutz und Regulierung.",
+          "sort_order": 140,
+          "tags": [
+            "water"
+          ],
+          "subcategories": [
+            {
+              "id": "uferwaende",
+              "label": "Uferwände",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "wehre",
+              "label": "Wehre",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "schleusen",
+              "label": "Schleusen",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "durchlaesse",
+              "label": "Durchlässe",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "kanaele",
+              "label": "Kanäle",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "rueckhaltebecken",
+              "label": "Rückhaltebecken",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "hochwasserschutz",
+              "label": "Hochwasserschutz",
+              "sort_order": 160,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "spezialtiefbau",
+          "label": "Spezialtiefbau",
+          "description": "Spezialgründung, Baugrubensicherung und geotechnische Systeme.",
+          "sort_order": 150,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "geotechnics"
+          ],
+          "subcategories": [
+            {
+              "id": "pfahlwaende",
+              "label": "Pfahlwände",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "schlitzwaende",
+              "label": "Schlitzwände",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "injektionen",
+              "label": "Injektionen",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "ankerlagen",
+              "label": "Ankerlagen",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "baugrubensicherung",
+              "label": "Baugrubensicherung",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "industrie_tragwerke",
+          "label": "Industrie-Tragwerke",
+          "description": "Sondertragwerke, Podeste und industrielle Tragstrukturen.",
+          "sort_order": 160,
+          "allowed_object_kinds": [
+            "cell_block",
+            "multi_cell_module",
+            "adaptive_system"
+          ],
+          "tags": [
+            "industrial",
+            "structure"
+          ],
+          "subcategories": [
+            {
+              "id": "hallenrahmen",
+              "label": "Hallenrahmen",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "podeste",
+              "label": "Podeste",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "fundamentbloecke",
+              "label": "Fundamentblöcke",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "maschinenfundamente",
+              "label": "Maschinenfundamente",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            },
+            {
+              "id": "rohrbruecken",
+              "label": "Rohrbrücken",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "bewehrung_spannung",
+          "label": "Bewehrung und Spannung",
+          "description": "Bewehrungs- und Spannsysteme für Betonbau.",
+          "sort_order": 170,
+          "tags": [
+            "reinforcement"
+          ],
+          "subcategories": [
+            {
+              "id": "bewehrungskoerbe",
+              "label": "Bewehrungskörbe",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "matten",
+              "label": "Matten",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "stabstahl",
+              "label": "Stabstahl",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "spannglieder",
+              "label": "Spannglieder",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "huellrohre",
+              "label": "Hüllrohre",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "cell_block",
+                "multi_cell_module",
+                "adaptive_system",
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "ankerkoepfe",
+              "label": "Ankerköpfe",
+              "sort_order": 150,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "pruefung_monitoring",
+          "label": "Prüfung und Monitoring",
+          "description": "Sensorik, Messstellen und Inspektionskomponenten.",
+          "sort_order": 180,
+          "tags": [
+            "monitoring"
+          ],
+          "subcategories": [
+            {
+              "id": "sensoren",
+              "label": "Sensoren",
+              "sort_order": 100,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "messpunkte",
+              "label": "Messpunkte",
+              "sort_order": 110,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "cell_block"
+              ]
+            },
+            {
+              "id": "lagerueberwachung",
+              "label": "Lagerüberwachung",
+              "sort_order": 120,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "dehnungsmessung",
+              "label": "Dehnungsmessung",
+              "sort_order": 130,
+              "allowed_object_kinds": [
+                "catalog_object"
+              ]
+            },
+            {
+              "id": "inspektionsbauteile",
+              "label": "Inspektionsbauteile",
+              "sort_order": 140,
+              "allowed_object_kinds": [
+                "catalog_object",
+                "multi_cell_module",
+                "cell_block",
+                "adaptive_system"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

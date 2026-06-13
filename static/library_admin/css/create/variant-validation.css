@@ -1,0 +1,1121 @@
+/* static/library_admin/css/create/variant-validation.css */
+/* -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard · Variant Validation
+
+  Zweck:
+  - Darstellung von Validierungszuständen im definition-managed Varianten-Flow.
+  - Ergänzt:
+      - Variant Drawer
+      - Variant Fields
+      - Variant Table
+      - Variant Footer
+      - Section Navigation
+  - Behandelt lokale und Backend-Validierung einheitlich.
+  - Keine fachlich hart kodierten Felder.
+  - Keine profil- oder objektartspezifischen Sonderfälle.
+  - Diese Datei gestaltet nur Zustände:
+      - idle
+      - stale
+      - running
+      - valid
+      - warning
+      - invalid
+      - error
+
+  Architektur:
+  - Validation-Logik liegt in create_variant_validation.js.
+  - Field Rendering liegt in create_variant_field_renderer.js.
+  - Diese CSS-Datei ist rein visuell.
+  - Validierungsdaten werden über data-Attribute und Klassen transportiert.
+
+  Erwartete Haupt-Hooks:
+  - [data-vp-variant-drawer-validation="true"]
+  - [data-vp-variant-drawer-validation-state]
+  - [data-vp-validation-item="true"]
+  - [data-vp-field-validation-state]
+  - .vp-create-variant-field--invalid
+  - .vp-create-variant-field--warning
+  - .vp-create-variant-field--valid
+  - [data-vp-section-validation-state]
+  - [data-vp-row-validation-state]
+----------------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+  1. Validation Tokens
+----------------------------------------------------------------------------- */
+
+:root {
+  --vp-variant-validation-bg: var(--vp-create-surface, #ffffff);
+  --vp-variant-validation-bg-soft: var(--vp-create-surface-soft, #f8fafc);
+  --vp-variant-validation-bg-muted: var(--vp-create-surface-muted, #f1f5f9);
+
+  --vp-variant-validation-border: var(--vp-create-border, rgba(15, 23, 42, 0.12));
+  --vp-variant-validation-border-strong: var(--vp-create-border-strong, rgba(15, 23, 42, 0.22));
+
+  --vp-variant-validation-text: var(--vp-create-text, #0f172a);
+  --vp-variant-validation-text-muted: var(--vp-create-text-muted, #64748b);
+  --vp-variant-validation-text-soft: var(--vp-create-text-soft, #94a3b8);
+
+  --vp-variant-validation-accent: var(--vp-create-accent, #2563eb);
+  --vp-variant-validation-accent-soft: var(--vp-create-accent-soft, rgba(37, 99, 235, 0.1));
+
+  --vp-variant-validation-info: var(--vp-create-info, #0284c7);
+  --vp-variant-validation-info-soft: var(--vp-create-info-soft, rgba(2, 132, 199, 0.1));
+
+  --vp-variant-validation-success: var(--vp-create-success, #16a34a);
+  --vp-variant-validation-success-soft: var(--vp-create-success-soft, rgba(22, 163, 74, 0.1));
+
+  --vp-variant-validation-warning: var(--vp-create-warning, #d97706);
+  --vp-variant-validation-warning-soft: var(--vp-create-warning-soft, rgba(217, 119, 6, 0.12));
+
+  --vp-variant-validation-danger: var(--vp-create-danger, #dc2626);
+  --vp-variant-validation-danger-soft: var(--vp-create-danger-soft, rgba(220, 38, 38, 0.1));
+
+  --vp-variant-validation-radius: var(--vp-create-radius, 12px);
+  --vp-variant-validation-radius-sm: var(--vp-create-radius-sm, 8px);
+  --vp-variant-validation-radius-lg: var(--vp-create-radius-lg, 18px);
+
+  --vp-variant-validation-shadow-danger:
+    0 0 0 3px color-mix(in srgb, var(--vp-variant-validation-danger) 14%, transparent);
+
+  --vp-variant-validation-shadow-warning:
+    0 0 0 3px color-mix(in srgb, var(--vp-variant-validation-warning) 14%, transparent);
+
+  --vp-variant-validation-shadow-success:
+    0 0 0 3px color-mix(in srgb, var(--vp-variant-validation-success) 12%, transparent);
+
+  --vp-variant-validation-shadow-info:
+    0 0 0 3px color-mix(in srgb, var(--vp-variant-validation-info) 12%, transparent);
+
+  --vp-variant-validation-transition: 150ms ease;
+}
+
+
+/* -----------------------------------------------------------------------------
+  2. Theme Compatibility
+----------------------------------------------------------------------------- */
+
+[data-theme="dark"] {
+  --vp-variant-validation-bg: var(--vp-create-surface, #111827);
+  --vp-variant-validation-bg-soft: var(--vp-create-surface-soft, #0f172a);
+  --vp-variant-validation-bg-muted: var(--vp-create-surface-muted, #1f2937);
+
+  --vp-variant-validation-border: var(--vp-create-border, rgba(148, 163, 184, 0.18));
+  --vp-variant-validation-border-strong: var(--vp-create-border-strong, rgba(148, 163, 184, 0.32));
+
+  --vp-variant-validation-text: var(--vp-create-text, #f8fafc);
+  --vp-variant-validation-text-muted: var(--vp-create-text-muted, #cbd5e1);
+  --vp-variant-validation-text-soft: var(--vp-create-text-soft, #94a3b8);
+
+  --vp-variant-validation-accent-soft: var(--vp-create-accent-soft, rgba(96, 165, 250, 0.14));
+  --vp-variant-validation-info-soft: var(--vp-create-info-soft, rgba(56, 189, 248, 0.14));
+  --vp-variant-validation-success-soft: var(--vp-create-success-soft, rgba(34, 197, 94, 0.14));
+  --vp-variant-validation-warning-soft: var(--vp-create-warning-soft, rgba(245, 158, 11, 0.16));
+  --vp-variant-validation-danger-soft: var(--vp-create-danger-soft, rgba(248, 113, 113, 0.14));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --vp-variant-validation-bg: var(--vp-create-surface, #111827);
+    --vp-variant-validation-bg-soft: var(--vp-create-surface-soft, #0f172a);
+    --vp-variant-validation-bg-muted: var(--vp-create-surface-muted, #1f2937);
+
+    --vp-variant-validation-border: var(--vp-create-border, rgba(148, 163, 184, 0.18));
+    --vp-variant-validation-border-strong: var(--vp-create-border-strong, rgba(148, 163, 184, 0.32));
+
+    --vp-variant-validation-text: var(--vp-create-text, #f8fafc);
+    --vp-variant-validation-text-muted: var(--vp-create-text-muted, #cbd5e1);
+    --vp-variant-validation-text-soft: var(--vp-create-text-soft, #94a3b8);
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  3. Drawer Validation Box
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-drawer__validation,
+[data-vp-variant-drawer-validation="true"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.85rem var(--vp-variant-drawer-padding, 1rem);
+  color: var(--vp-variant-validation-text);
+  background: var(--vp-variant-validation-bg-soft);
+  border-bottom: 1px solid var(--vp-variant-validation-border);
+}
+
+.vp-create-variant-drawer__validation[hidden],
+[data-vp-variant-drawer-validation="true"][hidden] {
+  display: none !important;
+}
+
+.vp-create-variant-drawer__validation[data-vp-variant-drawer-validation-state="idle"] {
+  display: none;
+}
+
+.vp-create-variant-drawer__validation[data-vp-variant-drawer-validation-state="running"] {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-validation-info-soft),
+      transparent 60%
+    ),
+    var(--vp-variant-validation-bg-soft);
+  border-bottom-color: color-mix(in srgb, var(--vp-variant-validation-info) 24%, var(--vp-variant-validation-border));
+}
+
+.vp-create-variant-drawer__validation[data-vp-variant-drawer-validation-state="valid"] {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-validation-success-soft),
+      transparent 60%
+    ),
+    var(--vp-variant-validation-bg-soft);
+  border-bottom-color: color-mix(in srgb, var(--vp-variant-validation-success) 24%, var(--vp-variant-validation-border));
+}
+
+.vp-create-variant-drawer__validation[data-vp-variant-drawer-validation-state="warning"],
+.vp-create-variant-drawer__validation[data-vp-variant-drawer-validation-state="stale"] {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-validation-warning-soft),
+      transparent 60%
+    ),
+    var(--vp-variant-validation-bg-soft);
+  border-bottom-color: color-mix(in srgb, var(--vp-variant-validation-warning) 24%, var(--vp-variant-validation-border));
+}
+
+.vp-create-variant-drawer__validation[data-vp-variant-drawer-validation-state="invalid"],
+.vp-create-variant-drawer__validation[data-vp-variant-drawer-validation-state="error"] {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-validation-danger-soft),
+      transparent 60%
+    ),
+    var(--vp-variant-validation-bg-soft);
+  border-bottom-color: color-mix(in srgb, var(--vp-variant-validation-danger) 30%, var(--vp-variant-validation-border));
+}
+
+
+/* -----------------------------------------------------------------------------
+  4. Validation Header
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-drawer__validation-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.vp-create-variant-drawer__validation-header strong,
+[data-vp-variant-drawer-validation-title="true"] {
+  color: var(--vp-variant-validation-text);
+  font-size: 0.9rem;
+  font-weight: 780;
+  line-height: 1.25;
+}
+
+[data-vp-variant-drawer-validation-count="true"] {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.55rem;
+  padding: 0.25rem 0.55rem;
+  color: var(--vp-variant-validation-text-muted);
+  font-size: 0.72rem;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--vp-variant-validation-bg);
+  border: 1px solid var(--vp-variant-validation-border);
+  border-radius: 999px;
+}
+
+[data-vp-variant-drawer-validation-state="valid"] [data-vp-variant-drawer-validation-count="true"] {
+  color: var(--vp-variant-validation-success);
+  background: var(--vp-variant-validation-success-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-success) 24%, transparent);
+}
+
+[data-vp-variant-drawer-validation-state="warning"],
+[data-vp-variant-drawer-validation-state="stale"] {
+  --vp-current-validation-color: var(--vp-variant-validation-warning);
+}
+
+[data-vp-variant-drawer-validation-state="warning"] [data-vp-variant-drawer-validation-count="true"],
+[data-vp-variant-drawer-validation-state="stale"] [data-vp-variant-drawer-validation-count="true"] {
+  color: var(--vp-variant-validation-warning);
+  background: var(--vp-variant-validation-warning-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-warning) 24%, transparent);
+}
+
+[data-vp-variant-drawer-validation-state="invalid"] [data-vp-variant-drawer-validation-count="true"],
+[data-vp-variant-drawer-validation-state="error"] [data-vp-variant-drawer-validation-count="true"] {
+  color: var(--vp-variant-validation-danger);
+  background: var(--vp-variant-validation-danger-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-danger) 24%, transparent);
+}
+
+
+/* -----------------------------------------------------------------------------
+  5. Validation List
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-drawer__validation-list,
+[data-vp-variant-drawer-validation-list="true"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.vp-create-variant-drawer__validation-list:empty,
+[data-vp-variant-drawer-validation-list="true"]:empty {
+  display: none;
+}
+
+.vp-create-variant-drawer__validation-item,
+[data-vp-validation-item="true"] {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.32fr) minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+  min-width: 0;
+  padding: 0.62rem 0.75rem;
+  color: var(--vp-variant-validation-text);
+  background: var(--vp-variant-validation-bg);
+  border: 1px solid var(--vp-variant-validation-border);
+  border-radius: var(--vp-variant-validation-radius);
+}
+
+.vp-create-variant-drawer__validation-item::before,
+[data-vp-validation-item="true"]::before {
+  content: "";
+  position: relative;
+  top: 0.34rem;
+  width: 0.48rem;
+  height: 0.48rem;
+  display: none;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.vp-create-variant-drawer__validation-item strong,
+[data-vp-validation-label="true"] {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vp-variant-validation-text);
+  font-size: 0.8rem;
+  font-weight: 780;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.vp-create-variant-drawer__validation-item span,
+[data-vp-validation-message="true"] {
+  min-width: 0;
+  color: var(--vp-variant-validation-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.vp-create-variant-drawer__validation-item--error,
+[data-vp-validation-item][data-vp-validation-level="error"] {
+  color: var(--vp-variant-validation-danger);
+  background: var(--vp-variant-validation-danger-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-danger) 28%, transparent);
+}
+
+.vp-create-variant-drawer__validation-item--warning,
+[data-vp-validation-item][data-vp-validation-level="warning"] {
+  color: var(--vp-variant-validation-warning);
+  background: var(--vp-variant-validation-warning-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-warning) 28%, transparent);
+}
+
+.vp-create-variant-drawer__validation-item--info,
+[data-vp-validation-item][data-vp-validation-level="info"] {
+  color: var(--vp-variant-validation-info);
+  background: var(--vp-variant-validation-info-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-info) 28%, transparent);
+}
+
+.vp-create-variant-drawer__validation-item--success,
+[data-vp-validation-item][data-vp-validation-level="success"] {
+  color: var(--vp-variant-validation-success);
+  background: var(--vp-variant-validation-success-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-success) 28%, transparent);
+}
+
+
+/* -----------------------------------------------------------------------------
+  6. Field-Level Validation
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-field[data-vp-field-validation-state],
+.vp-create-variant-field--invalid,
+.vp-create-variant-field--warning,
+.vp-create-variant-field--valid {
+  transition:
+    background-color var(--vp-variant-validation-transition),
+    border-color var(--vp-variant-validation-transition),
+    box-shadow var(--vp-variant-validation-transition);
+}
+
+.vp-create-variant-field[data-vp-field-validation-state="invalid"],
+.vp-create-variant-field--invalid {
+  padding: 0.65rem;
+  background:
+    linear-gradient(
+      180deg,
+      var(--vp-variant-validation-danger-soft),
+      transparent 58%
+    );
+  border: 1px solid color-mix(in srgb, var(--vp-variant-validation-danger) 28%, transparent);
+  border-radius: var(--vp-variant-validation-radius);
+}
+
+.vp-create-variant-field[data-vp-field-validation-state="warning"],
+.vp-create-variant-field--warning {
+  padding: 0.65rem;
+  background:
+    linear-gradient(
+      180deg,
+      var(--vp-variant-validation-warning-soft),
+      transparent 58%
+    );
+  border: 1px solid color-mix(in srgb, var(--vp-variant-validation-warning) 28%, transparent);
+  border-radius: var(--vp-variant-validation-radius);
+}
+
+.vp-create-variant-field[data-vp-field-validation-state="valid"],
+.vp-create-variant-field--valid {
+  border-radius: var(--vp-variant-validation-radius);
+}
+
+.vp-create-variant-field[data-vp-field-validation-state="invalid"] input:not([type="hidden"]),
+.vp-create-variant-field[data-vp-field-validation-state="invalid"] select,
+.vp-create-variant-field[data-vp-field-validation-state="invalid"] textarea,
+.vp-create-variant-field--invalid input:not([type="hidden"]),
+.vp-create-variant-field--invalid select,
+.vp-create-variant-field--invalid textarea,
+.vp-create-variant-field--invalid .vp-create-variant-field__checkbox {
+  border-color: var(--vp-variant-validation-danger);
+  box-shadow: var(--vp-variant-validation-shadow-danger);
+}
+
+.vp-create-variant-field[data-vp-field-validation-state="warning"] input:not([type="hidden"]),
+.vp-create-variant-field[data-vp-field-validation-state="warning"] select,
+.vp-create-variant-field[data-vp-field-validation-state="warning"] textarea,
+.vp-create-variant-field--warning input:not([type="hidden"]),
+.vp-create-variant-field--warning select,
+.vp-create-variant-field--warning textarea,
+.vp-create-variant-field--warning .vp-create-variant-field__checkbox {
+  border-color: var(--vp-variant-validation-warning);
+  box-shadow: var(--vp-variant-validation-shadow-warning);
+}
+
+.vp-create-variant-field[data-vp-field-validation-state="valid"] input:not([type="hidden"]),
+.vp-create-variant-field[data-vp-field-validation-state="valid"] select,
+.vp-create-variant-field[data-vp-field-validation-state="valid"] textarea,
+.vp-create-variant-field--valid input:not([type="hidden"]),
+.vp-create-variant-field--valid select,
+.vp-create-variant-field--valid textarea,
+.vp-create-variant-field--valid .vp-create-variant-field__checkbox {
+  border-color: color-mix(in srgb, var(--vp-variant-validation-success) 48%, var(--vp-variant-validation-border));
+}
+
+.vp-create-variant-field[data-vp-field-validation-state="valid"] input:not([type="hidden"]):focus,
+.vp-create-variant-field[data-vp-field-validation-state="valid"] select:focus,
+.vp-create-variant-field[data-vp-field-validation-state="valid"] textarea:focus,
+.vp-create-variant-field--valid input:not([type="hidden"]):focus,
+.vp-create-variant-field--valid select:focus,
+.vp-create-variant-field--valid textarea:focus {
+  box-shadow: var(--vp-variant-validation-shadow-success);
+}
+
+
+/* -----------------------------------------------------------------------------
+  7. Field Error Text
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-field__error,
+[data-vp-field-error="true"] {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.vp-create-variant-field__error[hidden],
+[data-vp-field-error="true"][hidden] {
+  display: none !important;
+}
+
+.vp-create-variant-field__error:not([hidden]),
+[data-vp-field-error="true"]:not([hidden]) {
+  display: block;
+  color: var(--vp-variant-validation-danger);
+}
+
+.vp-create-variant-field[data-vp-field-validation-state="warning"] .vp-create-variant-field__error:not([hidden]),
+.vp-create-variant-field--warning .vp-create-variant-field__error:not([hidden]),
+.vp-create-variant-field[data-vp-field-validation-state="warning"] [data-vp-field-error="true"]:not([hidden]),
+.vp-create-variant-field--warning [data-vp-field-error="true"]:not([hidden]) {
+  color: var(--vp-variant-validation-warning);
+}
+
+.vp-create-variant-field[data-vp-field-validation-state="valid"] .vp-create-variant-field__error,
+.vp-create-variant-field--valid .vp-create-variant-field__error,
+.vp-create-variant-field[data-vp-field-validation-state="valid"] [data-vp-field-error="true"],
+.vp-create-variant-field--valid [data-vp-field-error="true"] {
+  display: none !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+  8. Required Field Marker
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-field--required .vp-create-variant-field__label::after,
+.vp-create-variant-field[data-vp-field-required="true"] .vp-create-variant-field__label::after {
+  content: "";
+  width: 0.42rem;
+  height: 0.42rem;
+  display: inline-block;
+  margin-left: 0.25rem;
+  border-radius: 999px;
+  background: var(--vp-variant-validation-danger);
+  opacity: 0.72;
+}
+
+.vp-create-variant-field--required[data-vp-field-validation-state="valid"] .vp-create-variant-field__label::after,
+.vp-create-variant-field[data-vp-field-required="true"][data-vp-field-validation-state="valid"] .vp-create-variant-field__label::after {
+  background: var(--vp-variant-validation-success);
+}
+
+.vp-create-variant-field--required[data-vp-field-validation-state="warning"] .vp-create-variant-field__label::after,
+.vp-create-variant-field[data-vp-field-required="true"][data-vp-field-validation-state="warning"] .vp-create-variant-field__label::after {
+  background: var(--vp-variant-validation-warning);
+}
+
+
+/* -----------------------------------------------------------------------------
+  9. Section-Level Validation
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-drawer__section[data-vp-section-validation-state] {
+  transition:
+    background-color var(--vp-variant-validation-transition),
+    border-color var(--vp-variant-validation-transition),
+    box-shadow var(--vp-variant-validation-transition);
+}
+
+.vp-create-variant-drawer__section[data-vp-section-validation-state="valid"] {
+  border-color: color-mix(in srgb, var(--vp-variant-validation-success) 30%, var(--vp-variant-validation-border));
+}
+
+.vp-create-variant-drawer__section[data-vp-section-validation-state="warning"] {
+  border-color: color-mix(in srgb, var(--vp-variant-validation-warning) 42%, var(--vp-variant-validation-border));
+  background:
+    linear-gradient(
+      180deg,
+      var(--vp-variant-validation-warning-soft),
+      transparent 46%
+    ),
+    var(--vp-variant-drawer-bg-soft, var(--vp-variant-validation-bg-soft));
+}
+
+.vp-create-variant-drawer__section[data-vp-section-validation-state="invalid"] {
+  border-color: color-mix(in srgb, var(--vp-variant-validation-danger) 46%, var(--vp-variant-validation-border));
+  background:
+    linear-gradient(
+      180deg,
+      var(--vp-variant-validation-danger-soft),
+      transparent 46%
+    ),
+    var(--vp-variant-drawer-bg-soft, var(--vp-variant-validation-bg-soft));
+}
+
+.vp-create-variant-drawer__section[data-vp-section-validation-state="running"] {
+  border-color: color-mix(in srgb, var(--vp-variant-validation-info) 34%, var(--vp-variant-validation-border));
+  background:
+    linear-gradient(
+      180deg,
+      var(--vp-variant-validation-info-soft),
+      transparent 46%
+    ),
+    var(--vp-variant-drawer-bg-soft, var(--vp-variant-validation-bg-soft));
+}
+
+
+/* -----------------------------------------------------------------------------
+  10. Section Navigation Validation Dots
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="valid"] {
+  color: var(--vp-variant-validation-success);
+  background: var(--vp-variant-validation-success-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-success) 24%, transparent);
+}
+
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="warning"] {
+  color: var(--vp-variant-validation-warning);
+  background: var(--vp-variant-validation-warning-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-warning) 24%, transparent);
+}
+
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="invalid"] {
+  color: var(--vp-variant-validation-danger);
+  background: var(--vp-variant-validation-danger-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-danger) 24%, transparent);
+}
+
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="running"] {
+  color: var(--vp-variant-validation-info);
+  background: var(--vp-variant-validation-info-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-info) 24%, transparent);
+}
+
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="valid"] [data-vp-section-nav-state="true"],
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="valid"] .vp-create-variant-drawer__section-nav-state {
+  background: var(--vp-variant-validation-success);
+}
+
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="warning"] [data-vp-section-nav-state="true"],
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="warning"] .vp-create-variant-drawer__section-nav-state {
+  background: var(--vp-variant-validation-warning);
+}
+
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="invalid"] [data-vp-section-nav-state="true"],
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="invalid"] .vp-create-variant-drawer__section-nav-state {
+  background: var(--vp-variant-validation-danger);
+}
+
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="running"] [data-vp-section-nav-state="true"],
+.vp-create-variant-drawer__section-nav-item[data-vp-section-validation-state="running"] .vp-create-variant-drawer__section-nav-state {
+  background: var(--vp-variant-validation-info);
+  animation: vpVariantValidationPulse 1s ease-in-out infinite;
+}
+
+
+/* -----------------------------------------------------------------------------
+  11. Footer Validation States
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-drawer-footer[data-vp-validation-state="running"],
+.vp-create-variant-drawer__footer[data-vp-validation-state="running"] {
+  border-top-color: color-mix(in srgb, var(--vp-variant-validation-info) 28%, var(--vp-variant-validation-border));
+}
+
+.vp-create-variant-drawer-footer[data-vp-validation-state="valid"],
+.vp-create-variant-drawer__footer[data-vp-validation-state="valid"] {
+  border-top-color: color-mix(in srgb, var(--vp-variant-validation-success) 28%, var(--vp-variant-validation-border));
+}
+
+.vp-create-variant-drawer-footer[data-vp-validation-state="warning"],
+.vp-create-variant-drawer__footer[data-vp-validation-state="warning"] {
+  border-top-color: color-mix(in srgb, var(--vp-variant-validation-warning) 32%, var(--vp-variant-validation-border));
+}
+
+.vp-create-variant-drawer-footer[data-vp-validation-state="invalid"],
+.vp-create-variant-drawer-footer[data-vp-validation-state="error"],
+.vp-create-variant-drawer__footer[data-vp-validation-state="invalid"],
+.vp-create-variant-drawer__footer[data-vp-validation-state="error"] {
+  border-top-color: color-mix(in srgb, var(--vp-variant-validation-danger) 36%, var(--vp-variant-validation-border));
+}
+
+.vp-create-variant-drawer-footer__validation-state[data-vp-validation-state="running"] {
+  color: var(--vp-variant-validation-info);
+  background: var(--vp-variant-validation-info-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-info) 24%, transparent);
+}
+
+.vp-create-variant-drawer-footer__validation-state[data-vp-validation-state="valid"] {
+  color: var(--vp-variant-validation-success);
+  background: var(--vp-variant-validation-success-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-success) 24%, transparent);
+}
+
+.vp-create-variant-drawer-footer__validation-state[data-vp-validation-state="warning"] {
+  color: var(--vp-variant-validation-warning);
+  background: var(--vp-variant-validation-warning-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-warning) 24%, transparent);
+}
+
+.vp-create-variant-drawer-footer__validation-state[data-vp-validation-state="invalid"],
+.vp-create-variant-drawer-footer__validation-state[data-vp-validation-state="error"] {
+  color: var(--vp-variant-validation-danger);
+  background: var(--vp-variant-validation-danger-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-danger) 24%, transparent);
+}
+
+
+/* -----------------------------------------------------------------------------
+  12. Table Row Validation States
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-row[data-vp-row-validation-state] {
+  transition:
+    background-color var(--vp-variant-validation-transition),
+    border-color var(--vp-variant-validation-transition),
+    box-shadow var(--vp-variant-validation-transition);
+}
+
+.vp-create-variant-row[data-vp-row-validation-state="valid"] {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-validation-success-soft),
+      transparent 44%
+    ),
+    var(--vp-variant-table-bg, var(--vp-variant-validation-bg));
+}
+
+.vp-create-variant-row[data-vp-row-validation-state="warning"] {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-validation-warning-soft),
+      transparent 48%
+    ),
+    var(--vp-variant-table-bg, var(--vp-variant-validation-bg));
+}
+
+.vp-create-variant-row[data-vp-row-validation-state="invalid"],
+.vp-create-variant-row[data-vp-row-validation-state="error"] {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-validation-danger-soft),
+      transparent 48%
+    ),
+    var(--vp-variant-table-bg, var(--vp-variant-validation-bg));
+}
+
+.vp-create-variant-row[data-vp-row-validation-state="running"] {
+  background:
+    linear-gradient(
+      90deg,
+      var(--vp-variant-validation-info-soft),
+      transparent 48%
+    ),
+    var(--vp-variant-table-bg, var(--vp-variant-validation-bg));
+}
+
+.vp-create-variant-row[data-vp-row-validation-state]::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: inherit;
+  background: transparent;
+}
+
+.vp-create-variant-row[data-vp-row-validation-state="valid"]::after {
+  background: var(--vp-variant-validation-success);
+}
+
+.vp-create-variant-row[data-vp-row-validation-state="warning"]::after {
+  background: var(--vp-variant-validation-warning);
+}
+
+.vp-create-variant-row[data-vp-row-validation-state="invalid"]::after,
+.vp-create-variant-row[data-vp-row-validation-state="error"]::after {
+  background: var(--vp-variant-validation-danger);
+}
+
+.vp-create-variant-row[data-vp-row-validation-state="running"]::after {
+  background: var(--vp-variant-validation-info);
+  animation: vpVariantValidationPulse 1s ease-in-out infinite;
+}
+
+
+/* -----------------------------------------------------------------------------
+  13. Status Pills Compatibility
+----------------------------------------------------------------------------- */
+
+[data-vp-validation-state="idle"] {
+  --vp-validation-current-color: var(--vp-variant-validation-text-muted);
+}
+
+[data-vp-validation-state="stale"] {
+  --vp-validation-current-color: var(--vp-variant-validation-warning);
+}
+
+[data-vp-validation-state="running"] {
+  --vp-validation-current-color: var(--vp-variant-validation-info);
+}
+
+[data-vp-validation-state="valid"] {
+  --vp-validation-current-color: var(--vp-variant-validation-success);
+}
+
+[data-vp-validation-state="warning"] {
+  --vp-validation-current-color: var(--vp-variant-validation-warning);
+}
+
+[data-vp-validation-state="invalid"],
+[data-vp-validation-state="error"] {
+  --vp-validation-current-color: var(--vp-variant-validation-danger);
+}
+
+.vp-create-variant-drawer__status-pill--valid,
+.vp-create-variant-drawer__status-pill[data-vp-validation-state="valid"] {
+  color: var(--vp-variant-validation-success);
+  background: var(--vp-variant-validation-success-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-success) 24%, transparent);
+}
+
+.vp-create-variant-drawer__status-pill--invalid,
+.vp-create-variant-drawer__status-pill--error,
+.vp-create-variant-drawer__status-pill[data-vp-validation-state="invalid"],
+.vp-create-variant-drawer__status-pill[data-vp-validation-state="error"] {
+  color: var(--vp-variant-validation-danger);
+  background: var(--vp-variant-validation-danger-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-danger) 24%, transparent);
+}
+
+.vp-create-variant-drawer__status-pill--warning,
+.vp-create-variant-drawer__status-pill[data-vp-validation-state="warning"],
+.vp-create-variant-drawer__status-pill[data-vp-validation-state="stale"] {
+  color: var(--vp-variant-validation-warning);
+  background: var(--vp-variant-validation-warning-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-warning) 24%, transparent);
+}
+
+.vp-create-variant-drawer__status-pill--running,
+.vp-create-variant-drawer__status-pill[data-vp-validation-state="running"] {
+  color: var(--vp-variant-validation-info);
+  background: var(--vp-variant-validation-info-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-info) 24%, transparent);
+}
+
+
+/* -----------------------------------------------------------------------------
+  14. Backend / Source Indicators
+----------------------------------------------------------------------------- */
+
+[data-vp-validation-source="backend"],
+[data-vp-validation-source="local+backend"] {
+  --vp-validation-source-color: var(--vp-variant-validation-accent);
+}
+
+[data-vp-validation-source="local"] {
+  --vp-validation-source-color: var(--vp-variant-validation-info);
+}
+
+[data-vp-validation-source="backend_failed_soft"],
+[data-vp-validation-source="local+backend_soft"] {
+  --vp-validation-source-color: var(--vp-variant-validation-warning);
+}
+
+.vp-create-variant-drawer__validation[data-vp-validation-source]::after {
+  content: attr(data-vp-validation-source);
+  justify-self: end;
+  width: max-content;
+  max-width: 100%;
+  padding: 0.18rem 0.48rem;
+  overflow: hidden;
+  color: var(--vp-validation-source-color, var(--vp-variant-validation-text-soft));
+  font-size: 0.66rem;
+  font-weight: 760;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--vp-variant-validation-bg);
+  border: 1px solid color-mix(in srgb, var(--vp-validation-source-color, var(--vp-variant-validation-border)) 24%, transparent);
+  border-radius: 999px;
+}
+
+
+/* -----------------------------------------------------------------------------
+  15. Inline / Compact Validation Messages
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-validation-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.5rem;
+  padding: 0.25rem 0.5rem;
+  color: var(--vp-variant-validation-text-muted);
+  font-size: 0.74rem;
+  font-weight: 680;
+  line-height: 1.2;
+  background: var(--vp-variant-validation-bg-soft);
+  border: 1px solid var(--vp-variant-validation-border);
+  border-radius: 999px;
+}
+
+.vp-create-variant-validation-inline::before {
+  content: "";
+  width: 0.44rem;
+  height: 0.44rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.vp-create-variant-validation-inline--valid {
+  color: var(--vp-variant-validation-success);
+  background: var(--vp-variant-validation-success-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-success) 24%, transparent);
+}
+
+.vp-create-variant-validation-inline--warning {
+  color: var(--vp-variant-validation-warning);
+  background: var(--vp-variant-validation-warning-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-warning) 24%, transparent);
+}
+
+.vp-create-variant-validation-inline--invalid,
+.vp-create-variant-validation-inline--error {
+  color: var(--vp-variant-validation-danger);
+  background: var(--vp-variant-validation-danger-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-danger) 24%, transparent);
+}
+
+.vp-create-variant-validation-inline--running {
+  color: var(--vp-variant-validation-info);
+  background: var(--vp-variant-validation-info-soft);
+  border-color: color-mix(in srgb, var(--vp-variant-validation-info) 24%, transparent);
+}
+
+
+/* -----------------------------------------------------------------------------
+  16. Focus / Scroll Target
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-field[data-vp-field-validation-state="invalid"],
+.vp-create-variant-field--invalid,
+.vp-create-variant-drawer__section[data-vp-section-validation-state="invalid"] {
+  scroll-margin-top: 1rem;
+}
+
+.vp-create-variant-field[data-vp-field-validation-state="invalid"]:focus-within,
+.vp-create-variant-field--invalid:focus-within {
+  box-shadow:
+    var(--vp-variant-validation-shadow-danger),
+    inset 3px 0 0 var(--vp-variant-validation-danger);
+}
+
+.vp-create-variant-field[data-vp-field-validation-state="warning"]:focus-within,
+.vp-create-variant-field--warning:focus-within {
+  box-shadow:
+    var(--vp-variant-validation-shadow-warning),
+    inset 3px 0 0 var(--vp-variant-validation-warning);
+}
+
+
+/* -----------------------------------------------------------------------------
+  17. Running / Busy Indicators
+----------------------------------------------------------------------------- */
+
+[data-vp-variant-drawer-validation-state="running"] [data-vp-variant-drawer-validation-count="true"]::before,
+.vp-create-variant-drawer-footer__validation-state[data-vp-validation-state="running"]::before {
+  content: "";
+  width: 0.46rem;
+  height: 0.46rem;
+  margin-right: 0.35rem;
+  border-radius: 999px;
+  background: currentColor;
+  animation: vpVariantValidationPulse 1s ease-in-out infinite;
+}
+
+.vp-create-variant-drawer[data-vp-variant-validation-busy="true"] .vp-create-variant-drawer__panel,
+.vp-create-variant-drawer[data-vp-variant-drawer-busy="true"] .vp-create-variant-drawer__validation {
+  cursor: progress;
+}
+
+
+/* -----------------------------------------------------------------------------
+  18. Responsive
+----------------------------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  .vp-create-variant-drawer__validation,
+  [data-vp-variant-drawer-validation="true"] {
+    padding-inline: var(--vp-variant-drawer-padding-sm, 0.75rem);
+  }
+
+  .vp-create-variant-drawer__validation-item,
+  [data-vp-validation-item="true"] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.28rem;
+  }
+
+  .vp-create-variant-drawer__validation-item strong,
+  [data-vp-validation-label="true"] {
+    white-space: normal;
+  }
+
+  .vp-create-variant-field[data-vp-field-validation-state="invalid"],
+  .vp-create-variant-field[data-vp-field-validation-state="warning"],
+  .vp-create-variant-field--invalid,
+  .vp-create-variant-field--warning {
+    padding: 0.55rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .vp-create-variant-drawer__validation-header {
+    align-items: flex-start;
+  }
+
+  [data-vp-variant-drawer-validation-count="true"] {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .vp-create-variant-drawer__validation-item,
+  [data-vp-validation-item="true"] {
+    padding: 0.55rem;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  19. Accessibility
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-drawer__validation button:focus-visible,
+[data-vp-variant-drawer-validation="true"] button:focus-visible,
+[data-vp-validation-item="true"]:focus-visible,
+.vp-create-variant-field[data-vp-field-validation-state] input:focus-visible,
+.vp-create-variant-field[data-vp-field-validation-state] select:focus-visible,
+.vp-create-variant-field[data-vp-field-validation-state] textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--vp-variant-validation-accent) 68%, white);
+  outline-offset: 2px;
+}
+
+[data-vp-validation-item="true"][tabindex] {
+  cursor: pointer;
+}
+
+[data-vp-validation-item="true"][tabindex]:hover {
+  filter: brightness(0.99);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vp-create-variant-drawer__validation,
+  .vp-create-variant-drawer__validation *,
+  .vp-create-variant-field,
+  .vp-create-variant-field *,
+  .vp-create-variant-row,
+  .vp-create-variant-row *,
+  .vp-create-variant-drawer__section-nav-item,
+  .vp-create-variant-drawer__section-nav-item * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  20. Forced Colors / High Contrast
+----------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  .vp-create-variant-drawer__validation,
+  [data-vp-variant-drawer-validation="true"],
+  .vp-create-variant-drawer__validation-item,
+  [data-vp-validation-item="true"],
+  .vp-create-variant-field[data-vp-field-validation-state],
+  .vp-create-variant-drawer__section[data-vp-section-validation-state],
+  .vp-create-variant-row[data-vp-row-validation-state] {
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+
+  [data-vp-variant-drawer-validation-count="true"],
+  .vp-create-variant-validation-inline,
+  .vp-create-variant-drawer-footer__validation-state {
+    border: 1px solid CanvasText;
+    color: CanvasText;
+    background: Canvas;
+  }
+
+  .vp-create-variant-field[data-vp-field-validation-state="invalid"],
+  .vp-create-variant-field--invalid,
+  .vp-create-variant-drawer__section[data-vp-section-validation-state="invalid"],
+  .vp-create-variant-row[data-vp-row-validation-state="invalid"] {
+    border: 2px solid Mark;
+  }
+
+  .vp-create-variant-field__error,
+  [data-vp-field-error="true"]:not([hidden]) {
+    color: Mark;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  21. Print
+----------------------------------------------------------------------------- */
+
+@media print {
+  .vp-create-variant-drawer__validation,
+  [data-vp-variant-drawer-validation="true"] {
+    color: #000;
+    background: transparent;
+    border: 1px solid #000;
+  }
+
+  .vp-create-variant-drawer__validation-item,
+  [data-vp-validation-item="true"] {
+    color: #000;
+    background: transparent;
+    border: 1px solid #000;
+  }
+
+  .vp-create-variant-field[data-vp-field-validation-state],
+  .vp-create-variant-field--invalid,
+  .vp-create-variant-field--warning {
+    background: transparent;
+    border: 1px solid #000;
+    box-shadow: none;
+  }
+
+  .vp-create-variant-field__error,
+  [data-vp-field-error="true"]:not([hidden]) {
+    color: #000;
+  }
+
+  .vp-create-variant-drawer-footer__validation-state,
+  .vp-create-variant-validation-inline {
+    color: #000;
+    background: transparent;
+    border: 1px solid #000;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  22. Animations
+----------------------------------------------------------------------------- */
+
+@keyframes vpVariantValidationPulse {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.92);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}

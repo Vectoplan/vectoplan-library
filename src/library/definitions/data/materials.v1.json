@@ -1,0 +1,913 @@
+{
+  "_file": "services/vectoplan-library/src/library/definitions/data/materials.v1.json",
+  "schema_version": "1.0",
+  "definitions_version": "v1",
+  "dataset": "materials",
+  "label": "VECTOPLAN Material Definitions",
+  "description": "Kanonischer Materialkatalog für VECTOPLAN Library Definitions. Diese Datei definiert stabile Material-IDs, Labels, Kompatibilitäten, Defaultwerte und technische Basishinweise. Konkrete Herstellerprodukte bleiben später Product Overlays.",
+  "items": [
+    {
+      "id": "generic",
+      "label": "Generisch",
+      "description": "Generischer Materialplatzhalter, wenn noch kein konkretes Material festgelegt wurde.",
+      "active": true,
+      "sort_order": 10,
+      "tags": [
+        "generic",
+        "fallback",
+        "placeholder"
+      ],
+      "aliases": [
+        "unknown",
+        "unspecified",
+        "not_set",
+        "allgemein"
+      ],
+      "i18n": {
+        "de": "Generisch",
+        "en": "Generic"
+      },
+      "parent_material_id": null,
+      "compatible_family_profiles": [
+        "simple_cell_block",
+        "generic_catalog_object",
+        "furniture_catalog_object",
+        "equipment_catalog_object",
+        "multi_cell_generic"
+      ],
+      "compatible_variant_profiles": [
+        "simple_cell_block.v1",
+        "catalog_object.v1",
+        "multi_cell_module.v1"
+      ],
+      "default_values": {
+        "material.type": "generic",
+        "material.subtype": "",
+        "material.color_hint": ""
+      },
+      "properties": {
+        "technical_depth": "low",
+        "requires_strength_values": false,
+        "requires_density_values": false,
+        "supports_render_preview": true
+      },
+      "metadata": {
+        "core_material": true,
+        "fallback": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "brick",
+      "label": "Ziegel",
+      "description": "Gebrannter keramischer Mauerwerksziegel. Geeignet für Mauerwerkswände und produktartige Wandvarianten.",
+      "active": true,
+      "sort_order": 100,
+      "tags": [
+        "brick",
+        "masonry",
+        "wall",
+        "ceramic"
+      ],
+      "aliases": [
+        "ziegel",
+        "mauerziegel",
+        "brick",
+        "masonry_brick"
+      ],
+      "i18n": {
+        "de": "Ziegel",
+        "en": "Brick"
+      },
+      "parent_material_id": "ceramic",
+      "compatible_family_profiles": [
+        "wall_masonry"
+      ],
+      "compatible_variant_profiles": [
+        "wall_masonry_product.v1"
+      ],
+      "default_values": {
+        "material.type": "brick",
+        "material.subtype": "masonry_brick",
+        "wall_masonry.mortar_type": "thin_bed_mortar"
+      },
+      "properties": {
+        "technical_depth": "high",
+        "requires_strength_values": true,
+        "requires_density_values": true,
+        "supports_thermal_values": true,
+        "supports_fire_values": true,
+        "supports_acoustic_values": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "m2"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "masonry_brick",
+      "label": "Mauerziegel",
+      "description": "Spezialisierter Ziegeltyp für Mauerwerksbauteile.",
+      "active": true,
+      "sort_order": 110,
+      "tags": [
+        "brick",
+        "masonry",
+        "wall"
+      ],
+      "aliases": [
+        "mauerziegel",
+        "wall_brick"
+      ],
+      "i18n": {
+        "de": "Mauerziegel",
+        "en": "Masonry brick"
+      },
+      "parent_material_id": "brick",
+      "compatible_family_profiles": [
+        "wall_masonry"
+      ],
+      "compatible_variant_profiles": [
+        "wall_masonry_product.v1"
+      ],
+      "default_values": {
+        "material.type": "brick",
+        "material.subtype": "masonry_brick"
+      },
+      "properties": {
+        "technical_depth": "high",
+        "requires_strength_values": true,
+        "requires_density_values": true,
+        "supports_thermal_values": true,
+        "supports_product_overlay": true
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "concrete",
+      "label": "Beton",
+      "description": "Beton als konstruktiver oder nicht konstruktiver Baustoff. Geeignet für Betonbauteile, Widerlager, Decken, Wände, Fundamente und Tiefbaubauteile.",
+      "active": true,
+      "sort_order": 200,
+      "tags": [
+        "concrete",
+        "structural",
+        "building",
+        "civil"
+      ],
+      "aliases": [
+        "beton",
+        "normalbeton",
+        "concrete"
+      ],
+      "i18n": {
+        "de": "Beton",
+        "en": "Concrete"
+      },
+      "parent_material_id": null,
+      "compatible_family_profiles": [
+        "wall_concrete",
+        "slab_concrete",
+        "foundation_module",
+        "bridge_abutment_concrete",
+        "adaptive_bridge_component",
+        "bridge_cap",
+        "edge_beam_system",
+        "road_pavement_block",
+        "shaft_module"
+      ],
+      "compatible_variant_profiles": [
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "adaptive_system.v1"
+      ],
+      "default_values": {
+        "material.type": "concrete",
+        "concrete.strength_class": "C30/37",
+        "structural.load_bearing": true
+      },
+      "properties": {
+        "technical_depth": "high",
+        "requires_strength_values": true,
+        "requires_density_values": false,
+        "supports_exposure_class": true,
+        "supports_reinforcement": true,
+        "supports_volume_quantities": true,
+        "typical_quantity_unit": "m3"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "reinforced_concrete",
+      "label": "Stahlbeton",
+      "description": "Bewehrter Beton für tragende konstruktive Bauteile.",
+      "active": true,
+      "sort_order": 210,
+      "tags": [
+        "concrete",
+        "reinforced",
+        "structural",
+        "steel"
+      ],
+      "aliases": [
+        "stahlbeton",
+        "reinforced_concrete",
+        "rc"
+      ],
+      "i18n": {
+        "de": "Stahlbeton",
+        "en": "Reinforced concrete"
+      },
+      "parent_material_id": "concrete",
+      "compatible_family_profiles": [
+        "wall_concrete",
+        "slab_concrete",
+        "foundation_module",
+        "bridge_abutment_concrete",
+        "adaptive_bridge_component",
+        "bridge_cap",
+        "edge_beam_system",
+        "shaft_module"
+      ],
+      "compatible_variant_profiles": [
+        "concrete_structural_part.v1",
+        "adaptive_system.v1"
+      ],
+      "default_values": {
+        "material.type": "reinforced_concrete",
+        "concrete.strength_class": "C30/37",
+        "reinforcement.required": true,
+        "structural.load_bearing": true
+      },
+      "properties": {
+        "technical_depth": "high",
+        "requires_strength_values": true,
+        "supports_exposure_class": true,
+        "requires_reinforcement": true,
+        "supports_volume_quantities": true,
+        "typical_quantity_unit": "m3"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "lightweight_concrete",
+      "label": "Leichtbeton",
+      "description": "Leichtbeton für Bauteile mit reduzierter Rohdichte.",
+      "active": true,
+      "sort_order": 220,
+      "tags": [
+        "concrete",
+        "lightweight",
+        "building"
+      ],
+      "aliases": [
+        "leichtbeton",
+        "lightweight_concrete"
+      ],
+      "i18n": {
+        "de": "Leichtbeton",
+        "en": "Lightweight concrete"
+      },
+      "parent_material_id": "concrete",
+      "compatible_family_profiles": [
+        "wall_concrete",
+        "slab_concrete",
+        "foundation_module"
+      ],
+      "compatible_variant_profiles": [
+        "concrete_structural_part.v1"
+      ],
+      "default_values": {
+        "material.type": "concrete",
+        "material.subtype": "lightweight_concrete",
+        "concrete.strength_class": "C25/30"
+      },
+      "properties": {
+        "technical_depth": "high",
+        "requires_strength_values": true,
+        "supports_density_values": true,
+        "supports_thermal_values": true,
+        "typical_quantity_unit": "m3"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "steel",
+      "label": "Stahl",
+      "description": "Stahl als konstruktiver oder objektbezogener Werkstoff.",
+      "active": true,
+      "sort_order": 300,
+      "tags": [
+        "steel",
+        "metal",
+        "structural"
+      ],
+      "aliases": [
+        "stahl",
+        "steel"
+      ],
+      "i18n": {
+        "de": "Stahl",
+        "en": "Steel"
+      },
+      "parent_material_id": "metal",
+      "compatible_family_profiles": [
+        "generic_catalog_object",
+        "equipment_catalog_object",
+        "railing_system",
+        "adaptive_bridge_component"
+      ],
+      "compatible_variant_profiles": [
+        "catalog_object.v1",
+        "adaptive_system.v1"
+      ],
+      "default_values": {
+        "material.type": "steel",
+        "material.subtype": ""
+      },
+      "properties": {
+        "technical_depth": "medium",
+        "requires_strength_values": false,
+        "supports_structural_values": true,
+        "supports_surface_finish": true,
+        "typical_quantity_unit": "kg"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "stainless_steel",
+      "label": "Edelstahl",
+      "description": "Korrosionsbeständiger Stahl, häufig für Armaturen, Geländer und sichtbare Bauteile.",
+      "active": true,
+      "sort_order": 310,
+      "tags": [
+        "steel",
+        "metal",
+        "stainless",
+        "surface"
+      ],
+      "aliases": [
+        "edelstahl",
+        "stainless_steel",
+        "inox"
+      ],
+      "i18n": {
+        "de": "Edelstahl",
+        "en": "Stainless steel"
+      },
+      "parent_material_id": "steel",
+      "compatible_family_profiles": [
+        "sanitary_faucet",
+        "generic_catalog_object",
+        "equipment_catalog_object",
+        "railing_system"
+      ],
+      "compatible_variant_profiles": [
+        "sanitary_faucet_catalog.v1",
+        "catalog_object.v1",
+        "adaptive_system.v1"
+      ],
+      "default_values": {
+        "material.type": "steel",
+        "material.subtype": "stainless_steel",
+        "surface.finish": "brushed"
+      },
+      "properties": {
+        "technical_depth": "medium",
+        "supports_surface_finish": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "piece"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "metal",
+      "label": "Metall",
+      "description": "Generischer Metallwerkstoff.",
+      "active": true,
+      "sort_order": 320,
+      "tags": [
+        "metal",
+        "generic"
+      ],
+      "aliases": [
+        "metall",
+        "metal"
+      ],
+      "i18n": {
+        "de": "Metall",
+        "en": "Metal"
+      },
+      "parent_material_id": null,
+      "compatible_family_profiles": [
+        "sanitary_faucet",
+        "generic_catalog_object",
+        "equipment_catalog_object",
+        "furniture_catalog_object",
+        "railing_system"
+      ],
+      "compatible_variant_profiles": [
+        "sanitary_faucet_catalog.v1",
+        "catalog_object.v1",
+        "adaptive_system.v1"
+      ],
+      "default_values": {
+        "material.type": "metal",
+        "material.subtype": ""
+      },
+      "properties": {
+        "technical_depth": "medium",
+        "supports_surface_finish": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "piece"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "aluminium",
+      "label": "Aluminium",
+      "description": "Aluminiumwerkstoff für leichte Metallbauteile, Fassaden-, Ausstattungs- oder Objektteile.",
+      "active": true,
+      "sort_order": 330,
+      "tags": [
+        "metal",
+        "aluminium",
+        "lightweight"
+      ],
+      "aliases": [
+        "aluminium",
+        "aluminum",
+        "alu"
+      ],
+      "i18n": {
+        "de": "Aluminium",
+        "en": "Aluminium"
+      },
+      "parent_material_id": "metal",
+      "compatible_family_profiles": [
+        "generic_catalog_object",
+        "equipment_catalog_object",
+        "railing_system"
+      ],
+      "compatible_variant_profiles": [
+        "catalog_object.v1",
+        "adaptive_system.v1"
+      ],
+      "default_values": {
+        "material.type": "metal",
+        "material.subtype": "aluminium"
+      },
+      "properties": {
+        "technical_depth": "medium",
+        "supports_surface_finish": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "piece"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "wood",
+      "label": "Holz",
+      "description": "Holz als natürlicher Werkstoff für Möbel, Ausstattung oder leichte Bauteile.",
+      "active": true,
+      "sort_order": 400,
+      "tags": [
+        "wood",
+        "furniture",
+        "natural"
+      ],
+      "aliases": [
+        "holz",
+        "wood",
+        "timber"
+      ],
+      "i18n": {
+        "de": "Holz",
+        "en": "Wood"
+      },
+      "parent_material_id": null,
+      "compatible_family_profiles": [
+        "furniture_catalog_object",
+        "generic_catalog_object"
+      ],
+      "compatible_variant_profiles": [
+        "catalog_object.v1"
+      ],
+      "default_values": {
+        "material.type": "wood",
+        "material.subtype": ""
+      },
+      "properties": {
+        "technical_depth": "low",
+        "supports_surface_finish": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "piece"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "engineered_wood",
+      "label": "Holzwerkstoff",
+      "description": "Verarbeiteter Holzwerkstoff, z. B. Platte, Schichtholz oder Verbundholz.",
+      "active": true,
+      "sort_order": 410,
+      "tags": [
+        "wood",
+        "engineered",
+        "furniture"
+      ],
+      "aliases": [
+        "holzwerkstoff",
+        "engineered_wood",
+        "wood_panel"
+      ],
+      "i18n": {
+        "de": "Holzwerkstoff",
+        "en": "Engineered wood"
+      },
+      "parent_material_id": "wood",
+      "compatible_family_profiles": [
+        "furniture_catalog_object",
+        "generic_catalog_object"
+      ],
+      "compatible_variant_profiles": [
+        "catalog_object.v1"
+      ],
+      "default_values": {
+        "material.type": "wood",
+        "material.subtype": "engineered_wood"
+      },
+      "properties": {
+        "technical_depth": "low",
+        "supports_surface_finish": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "piece"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "glass",
+      "label": "Glas",
+      "description": "Glas als transparenter oder transluzenter Werkstoff.",
+      "active": true,
+      "sort_order": 500,
+      "tags": [
+        "glass",
+        "transparent",
+        "catalog"
+      ],
+      "aliases": [
+        "glas",
+        "glass"
+      ],
+      "i18n": {
+        "de": "Glas",
+        "en": "Glass"
+      },
+      "parent_material_id": null,
+      "compatible_family_profiles": [
+        "generic_catalog_object",
+        "equipment_catalog_object",
+        "furniture_catalog_object"
+      ],
+      "compatible_variant_profiles": [
+        "catalog_object.v1"
+      ],
+      "default_values": {
+        "material.type": "glass",
+        "material.subtype": ""
+      },
+      "properties": {
+        "technical_depth": "medium",
+        "supports_surface_finish": true,
+        "supports_render_preview": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "m2"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "ceramic",
+      "label": "Keramik",
+      "description": "Keramischer Werkstoff. Obermaterial für Sanitär, Fliesen oder Ziegel-Unterkategorien.",
+      "active": true,
+      "sort_order": 600,
+      "tags": [
+        "ceramic",
+        "sanitary",
+        "brick"
+      ],
+      "aliases": [
+        "keramik",
+        "ceramic"
+      ],
+      "i18n": {
+        "de": "Keramik",
+        "en": "Ceramic"
+      },
+      "parent_material_id": null,
+      "compatible_family_profiles": [
+        "sanitary_faucet",
+        "generic_catalog_object",
+        "wall_masonry"
+      ],
+      "compatible_variant_profiles": [
+        "sanitary_faucet_catalog.v1",
+        "catalog_object.v1",
+        "wall_masonry_product.v1"
+      ],
+      "default_values": {
+        "material.type": "ceramic",
+        "material.subtype": ""
+      },
+      "properties": {
+        "technical_depth": "medium",
+        "supports_surface_finish": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "piece"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "plastic",
+      "label": "Kunststoff",
+      "description": "Kunststoffwerkstoff für Objekte, Ausstattung, technische Komponenten oder Beschichtungen.",
+      "active": true,
+      "sort_order": 700,
+      "tags": [
+        "plastic",
+        "polymer",
+        "catalog"
+      ],
+      "aliases": [
+        "kunststoff",
+        "plastic",
+        "polymer"
+      ],
+      "i18n": {
+        "de": "Kunststoff",
+        "en": "Plastic"
+      },
+      "parent_material_id": null,
+      "compatible_family_profiles": [
+        "generic_catalog_object",
+        "equipment_catalog_object",
+        "sanitary_faucet"
+      ],
+      "compatible_variant_profiles": [
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1"
+      ],
+      "default_values": {
+        "material.type": "plastic",
+        "material.subtype": ""
+      },
+      "properties": {
+        "technical_depth": "low",
+        "supports_surface_finish": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "piece"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "composite",
+      "label": "Verbundmaterial",
+      "description": "Generisches Verbundmaterial oder mehrschichtiger Materialverbund.",
+      "active": true,
+      "sort_order": 800,
+      "tags": [
+        "composite",
+        "multi-layer",
+        "material"
+      ],
+      "aliases": [
+        "verbundmaterial",
+        "composite"
+      ],
+      "i18n": {
+        "de": "Verbundmaterial",
+        "en": "Composite"
+      },
+      "parent_material_id": null,
+      "compatible_family_profiles": [
+        "generic_catalog_object",
+        "equipment_catalog_object",
+        "wall_masonry",
+        "adaptive_bridge_component"
+      ],
+      "compatible_variant_profiles": [
+        "catalog_object.v1",
+        "wall_masonry_product.v1",
+        "adaptive_system.v1"
+      ],
+      "default_values": {
+        "material.type": "composite",
+        "material.subtype": ""
+      },
+      "properties": {
+        "technical_depth": "medium",
+        "supports_layer_values": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "m2"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "asphalt",
+      "label": "Asphalt",
+      "description": "Asphalt für Straßen-, Wege- und Belagsbauteile.",
+      "active": true,
+      "sort_order": 900,
+      "tags": [
+        "asphalt",
+        "road",
+        "pavement",
+        "civil"
+      ],
+      "aliases": [
+        "asphalt",
+        "asphaltbeton"
+      ],
+      "i18n": {
+        "de": "Asphalt",
+        "en": "Asphalt"
+      },
+      "parent_material_id": null,
+      "compatible_family_profiles": [
+        "road_pavement_block"
+      ],
+      "compatible_variant_profiles": [
+        "road_pavement_block.v1"
+      ],
+      "default_values": {
+        "material.type": "asphalt",
+        "road.layer_type": "surface_course"
+      },
+      "properties": {
+        "technical_depth": "medium",
+        "supports_layer_values": true,
+        "supports_area_quantities": true,
+        "typical_quantity_unit": "m2"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "natural_stone",
+      "label": "Naturstein",
+      "description": "Naturstein für Beläge, Ausstattung oder massive Bauteile.",
+      "active": true,
+      "sort_order": 1000,
+      "tags": [
+        "stone",
+        "natural",
+        "pavement",
+        "catalog"
+      ],
+      "aliases": [
+        "naturstein",
+        "natural_stone",
+        "stone"
+      ],
+      "i18n": {
+        "de": "Naturstein",
+        "en": "Natural stone"
+      },
+      "parent_material_id": null,
+      "compatible_family_profiles": [
+        "road_pavement_block",
+        "generic_catalog_object",
+        "furniture_catalog_object"
+      ],
+      "compatible_variant_profiles": [
+        "road_pavement_block.v1",
+        "catalog_object.v1"
+      ],
+      "default_values": {
+        "material.type": "natural_stone",
+        "material.subtype": ""
+      },
+      "properties": {
+        "technical_depth": "medium",
+        "supports_surface_finish": true,
+        "supports_area_quantities": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "m2"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "gypsum",
+      "label": "Gips",
+      "description": "Gipsbasierter Werkstoff, z. B. für Ausbau- oder Plattenbauteile.",
+      "active": true,
+      "sort_order": 1100,
+      "tags": [
+        "gypsum",
+        "drywall",
+        "building"
+      ],
+      "aliases": [
+        "gips",
+        "gypsum",
+        "drywall"
+      ],
+      "i18n": {
+        "de": "Gips",
+        "en": "Gypsum"
+      },
+      "parent_material_id": null,
+      "compatible_family_profiles": [
+        "generic_catalog_object",
+        "wall_masonry"
+      ],
+      "compatible_variant_profiles": [
+        "catalog_object.v1",
+        "wall_masonry_product.v1"
+      ],
+      "default_values": {
+        "material.type": "gypsum",
+        "material.subtype": ""
+      },
+      "properties": {
+        "technical_depth": "medium",
+        "supports_fire_values": true,
+        "supports_acoustic_values": true,
+        "supports_product_overlay": true,
+        "typical_quantity_unit": "m2"
+      },
+      "metadata": {
+        "core_material": true,
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    }
+  ]
+}

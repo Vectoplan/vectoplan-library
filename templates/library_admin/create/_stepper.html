@@ -1,0 +1,487 @@
+<!-- services/vectoplan-library/templates/library_admin/create/_stepper.html -->
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard Stepper
+
+  Zweck:
+  - Kopf-Komponente für den 1–6 Create-Wizard auf /create.
+  - Rendert ausschließlich Wizard-Navigation, Fortschritt und Status.
+  - Unterstützt ein breites Header-Layout über die komplette verfügbare Breite.
+  - Bleibt defensiv: funktioniert mit oder ohne expliziten Backend-Kontext.
+  - Bewahrt die bestehenden DOM-Verträge für create_wizard.js / create.js.
+
+  Zentrale DOM-Verträge:
+  - Wrapper:        [data-vp-create-stepper]
+  - Step List:      [data-vp-step-list]
+  - Step Items:     [data-vp-step-item]
+  - Step Buttons:   [data-vp-step-button]
+  - Progress Fill:  [data-vp-step-progress-fill]
+  - Current Label:  [data-vp-current-step-label]
+  - Total Label:    [data-vp-total-step-label]
+  - Live Region:    [data-vp-step-live-region]
+
+  Design-Ziel:
+  - Stepper oben nicht mehr eingequetscht.
+  - Sechs Schritte können als gleichmäßig verteilte Spalten laufen.
+  - Titel, Progressbar und Step-Liste bilden eine saubere Header-Komponente.
+  - CSS kann später über wizard.css/layout.css die volle Breite aktivieren.
+
+  Wichtig:
+  - Keine Formularfelder.
+  - Keine Backend-Aktionen.
+  - Keine Includes auf entfernte oder optionale Hilfstemplates.
+  - Inline-JS setzt nur defensiven Initial-/Sync-Zustand und übernimmt keine
+    fachliche Wizard-Navigation.
+----------------------------------------------------------------------------- #}
+
+{% set vp_default_create_steps = [
+  {
+    "index": 1,
+    "key": "identity",
+    "label": "Grunddaten",
+    "short_label": "Grunddaten",
+    "description": "Name und Beschreibung",
+    "target": "identity"
+  },
+  {
+    "index": 2,
+    "key": "taxonomy",
+    "label": "Taxonomie",
+    "short_label": "Taxonomie",
+    "description": "Domain, Kategorie und Subkategorie",
+    "target": "taxonomy"
+  },
+  {
+    "index": 3,
+    "key": "object",
+    "label": "Objekt",
+    "short_label": "Objekt",
+    "description": "Objektart und Varianten",
+    "target": "object-variants"
+  },
+  {
+    "index": 4,
+    "key": "geometry",
+    "label": "Geometrie",
+    "short_label": "Geometrie",
+    "description": "Form, Maße und Raster",
+    "target": "geometry"
+  },
+  {
+    "index": 5,
+    "key": "technical",
+    "label": "Technik",
+    "short_label": "Technik",
+    "description": "Material und Kennwerte",
+    "target": "technical"
+  },
+  {
+    "index": 6,
+    "key": "create",
+    "label": "Erzeugen",
+    "short_label": "Erzeugen",
+    "description": "Prüfen, herunterladen oder speichern",
+    "target": "actions"
+  }
+] %}
+
+{% set vp_create_steps = create_steps if create_steps is defined and create_steps else vp_default_create_steps %}
+{% set vp_create_step_count = vp_create_steps | length %}
+{% set vp_initial_step_raw = create_initial_step if create_initial_step is defined and create_initial_step else 1 %}
+{% set vp_initial_step = vp_initial_step_raw | int %}
+
+{% if vp_create_step_count < 1 %}
+  {% set vp_create_steps = vp_default_create_steps %}
+  {% set vp_create_step_count = vp_create_steps | length %}
+{% endif %}
+
+{% if vp_initial_step < 1 %}
+  {% set vp_initial_step = 1 %}
+{% endif %}
+
+{% if vp_initial_step > vp_create_step_count %}
+  {% set vp_initial_step = vp_create_step_count %}
+{% endif %}
+
+{% set vp_stepper_component_id = create_stepper_id if create_stepper_id is defined and create_stepper_id else "vplib-create-stepper" %}
+{% set vp_stepper_label_id = vp_stepper_component_id ~ "-label" %}
+{% set vp_stepper_live_id = vp_stepper_component_id ~ "-live" %}
+{% set vp_progress_width = ((vp_initial_step - 1) / (vp_create_step_count - 1) * 100) if vp_create_step_count > 1 else 100 %}
+
+<nav
+  id="{{ vp_stepper_component_id }}"
+  class="vplib-create-stepper"
+  data-vp-create-stepper
+  data-vp-stepper-layout="wide"
+  data-vp-step-count="{{ vp_create_step_count }}"
+  data-vp-current-step="{{ vp_initial_step }}"
+  data-vp-max-reached-step="{{ vp_initial_step }}"
+  aria-labelledby="{{ vp_stepper_label_id }}"
+  style="--vp-create-step-count: {{ vp_create_step_count }}; --vp-create-current-step: {{ vp_initial_step }};"
+>
+  <div class="vplib-create-stepper__inner">
+    <div class="vplib-create-stepper__header">
+      <div class="vplib-create-stepper__title-wrap">
+        <p
+          id="{{ vp_stepper_label_id }}"
+          class="vplib-create-stepper__eyebrow"
+        >
+          VPLIB erstellen
+        </p>
+
+        <div class="vplib-create-stepper__title-row">
+          <h1 class="vplib-create-stepper__title">
+            Neuer Library-Baustein
+          </h1>
+
+          <span
+            class="vplib-create-stepper__counter"
+            aria-label="Aktueller Wizard-Schritt"
+          >
+            <span class="vplib-create-stepper__counter-label">Schritt</span>
+            <strong data-vp-current-step-label>{{ vp_initial_step }}</strong>
+            <span aria-hidden="true">/</span>
+            <span data-vp-total-step-label>{{ vp_create_step_count }}</span>
+          </span>
+        </div>
+      </div>
+
+      <p
+        id="{{ vp_stepper_live_id }}"
+        class="vplib-create-stepper__live"
+        data-vp-step-live-region
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {% for step in vp_create_steps %}
+          {% set step_index = step.index | default(loop.index) | int %}
+          {% if step_index == vp_initial_step %}
+            Schritt {{ step_index }} von {{ vp_create_step_count }}: {{ step.label | default('Schritt ' ~ step_index) }}.
+          {% endif %}
+        {% endfor %}
+      </p>
+    </div>
+
+    <div
+      class="vplib-create-stepper__progress"
+      aria-hidden="true"
+    >
+      <span class="vplib-create-stepper__progress-track">
+        <span
+          class="vplib-create-stepper__progress-fill"
+          data-vp-step-progress-fill
+          style="width: {{ vp_progress_width }}%;"
+        ></span>
+      </span>
+    </div>
+
+    <ol
+      class="vplib-create-stepper__list"
+      data-vp-step-list
+      role="list"
+    >
+      {% for step in vp_create_steps %}
+        {% set step_index = step.index | default(loop.index) | int %}
+        {% if step_index < 1 %}
+          {% set step_index = loop.index %}
+        {% endif %}
+
+        {% set step_key = step.key | default('step-' ~ step_index) %}
+        {% set step_label = step.label | default('Schritt ' ~ step_index) %}
+        {% set step_short_label = step.short_label | default(step_label) %}
+        {% set step_description = step.description | default('') %}
+        {% set step_target = step.target | default(step_key) %}
+        {% set is_active = step_index == vp_initial_step %}
+        {% set is_done = step_index < vp_initial_step %}
+        {% set is_locked = step_index > vp_initial_step %}
+
+        <li
+          class="vplib-create-stepper__item{% if is_active %} is-active{% endif %}{% if is_done %} is-complete{% endif %}{% if is_locked %} is-locked{% endif %}"
+          data-vp-step-item
+          data-vp-step-index="{{ step_index }}"
+          data-vp-step-key="{{ step_key }}"
+          data-vp-step-state="{% if is_active %}active{% elif is_done %}complete{% elif is_locked %}locked{% else %}idle{% endif %}"
+          style="--vp-create-step-index: {{ step_index }};"
+        >
+          <button
+            type="button"
+            class="vplib-create-stepper__button"
+            data-vp-step-button
+            data-vp-step-target="{{ step_index }}"
+            data-vp-step-key="{{ step_key }}"
+            data-vp-step-section="{{ step_target }}"
+            aria-label="Schritt {{ step_index }}: {{ step_label }}"
+            aria-controls="vplib-create-step-{{ step_index }}"
+            {% if is_active %}aria-current="step"{% endif %}
+            {% if is_locked %}aria-disabled="true"{% else %}aria-disabled="false"{% endif %}
+          >
+            <span class="vplib-create-stepper__marker" aria-hidden="true">
+              <span class="vplib-create-stepper__number">
+                {{ step_index }}
+              </span>
+
+              <span class="vplib-create-stepper__check">
+                ✓
+              </span>
+            </span>
+
+            <span class="vplib-create-stepper__text">
+              <span class="vplib-create-stepper__label">
+                {{ step_label }}
+              </span>
+
+              <span class="vplib-create-stepper__short-label">
+                {{ step_short_label }}
+              </span>
+
+              {% if step_description %}
+                <span class="vplib-create-stepper__description">
+                  {{ step_description }}
+                </span>
+              {% endif %}
+            </span>
+          </button>
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+
+  <noscript>
+    <div class="vplib-create-stepper__noscript" role="status">
+      JavaScript ist deaktiviert. Der Create-Wizard benötigt JavaScript, damit Schritte, Vorschau und Backend-Aktionen gesteuert werden können.
+    </div>
+  </noscript>
+</nav>
+
+<script>
+  (function () {
+    "use strict";
+
+    try {
+      var componentId = {{ vp_stepper_component_id | tojson }};
+      var root = document.getElementById(componentId);
+
+      if (!root) {
+        return;
+      }
+
+      var state = {
+        root: root,
+        stepCount: parseInteger(root.getAttribute("data-vp-step-count"), 6),
+        currentStep: parseInteger(root.getAttribute("data-vp-current-step"), 1),
+        maxReachedStep: parseInteger(root.getAttribute("data-vp-max-reached-step"), 1),
+        progressFill: root.querySelector("[data-vp-step-progress-fill]"),
+        currentStepLabel: root.querySelector("[data-vp-current-step-label]"),
+        totalStepLabel: root.querySelector("[data-vp-total-step-label]"),
+        liveRegion: root.querySelector("[data-vp-step-live-region]"),
+        list: root.querySelector("[data-vp-step-list]"),
+        buttons: root.querySelectorAll("[data-vp-step-button]"),
+        items: root.querySelectorAll("[data-vp-step-item]")
+      };
+
+      state.stepCount = clampInteger(state.stepCount, 1, 99);
+      state.currentStep = clampInteger(state.currentStep, 1, state.stepCount);
+      state.maxReachedStep = clampInteger(state.maxReachedStep, state.currentStep, state.stepCount);
+
+      syncStepperState(state.currentStep, {
+        silent: true,
+        maxReachedStep: state.maxReachedStep
+      });
+
+      exposeApi();
+
+      root.setAttribute("data-vp-stepper-ready", "true");
+
+      function parseInteger(value, fallback) {
+        var parsed = parseInt(value, 10);
+
+        if (!Number.isFinite(parsed)) {
+          return fallback;
+        }
+
+        return parsed;
+      }
+
+      function clampInteger(value, min, max) {
+        var parsed = parseInteger(value, min);
+
+        if (parsed < min) {
+          return min;
+        }
+
+        if (parsed > max) {
+          return max;
+        }
+
+        return parsed;
+      }
+
+      function getStepLabel(stepNumber) {
+        var button = root.querySelector("[data-vp-step-button][data-vp-step-target='" + stepNumber + "']");
+
+        if (!button) {
+          return "Schritt " + stepNumber;
+        }
+
+        var label = button.querySelector(".vplib-create-stepper__label");
+
+        if (label && label.textContent.trim()) {
+          return label.textContent.trim();
+        }
+
+        return button.getAttribute("aria-label") || ("Schritt " + stepNumber);
+      }
+
+      function getProgressPercent(stepNumber) {
+        if (state.stepCount <= 1) {
+          return 100;
+        }
+
+        return ((stepNumber - 1) / (state.stepCount - 1)) * 100;
+      }
+
+      function syncStepperState(nextStep, options) {
+        try {
+          var syncOptions = options || {};
+          var safeNextStep = clampInteger(nextStep, 1, state.stepCount);
+          var nextMaxReached = syncOptions.maxReachedStep
+            ? clampInteger(syncOptions.maxReachedStep, safeNextStep, state.stepCount)
+            : Math.max(state.maxReachedStep, safeNextStep);
+
+          state.currentStep = safeNextStep;
+          state.maxReachedStep = nextMaxReached;
+
+          root.setAttribute("data-vp-current-step", String(state.currentStep));
+          root.setAttribute("data-vp-max-reached-step", String(state.maxReachedStep));
+          root.style.setProperty("--vp-create-step-count", String(state.stepCount));
+          root.style.setProperty("--vp-create-current-step", String(state.currentStep));
+
+          if (state.currentStepLabel) {
+            state.currentStepLabel.textContent = String(state.currentStep);
+          }
+
+          if (state.totalStepLabel) {
+            state.totalStepLabel.textContent = String(state.stepCount);
+          }
+
+          if (state.progressFill) {
+            var progress = Math.max(0, Math.min(100, getProgressPercent(state.currentStep)));
+            state.progressFill.style.width = progress + "%";
+          }
+
+          state.items.forEach(function (item) {
+            try {
+              var itemStep = parseInteger(item.getAttribute("data-vp-step-index"), 0);
+              var itemIsActive = itemStep === state.currentStep;
+              var itemIsComplete = itemStep > 0 && itemStep < state.currentStep;
+              var itemIsLocked = itemStep > state.maxReachedStep;
+
+              item.classList.toggle("is-active", itemIsActive);
+              item.classList.toggle("is-complete", itemIsComplete);
+              item.classList.toggle("is-locked", itemIsLocked);
+
+              item.setAttribute(
+                "data-vp-step-state",
+                itemIsActive
+                  ? "active"
+                  : itemIsComplete
+                    ? "complete"
+                    : itemIsLocked
+                      ? "locked"
+                      : "idle"
+              );
+            } catch (itemError) {
+              warn("Step item sync skipped.", itemError);
+            }
+          });
+
+          state.buttons.forEach(function (button) {
+            try {
+              var buttonStep = parseInteger(button.getAttribute("data-vp-step-target"), 0);
+              var buttonIsActive = buttonStep === state.currentStep;
+              var buttonIsLocked = buttonStep > state.maxReachedStep;
+
+              if (buttonIsActive) {
+                button.setAttribute("aria-current", "step");
+              } else {
+                button.removeAttribute("aria-current");
+              }
+
+              button.setAttribute("aria-disabled", buttonIsLocked ? "true" : "false");
+            } catch (buttonError) {
+              warn("Step button sync skipped.", buttonError);
+            }
+          });
+
+          if (state.liveRegion && !syncOptions.silent) {
+            state.liveRegion.textContent = "Schritt "
+              + state.currentStep
+              + " von "
+              + state.stepCount
+              + ": "
+              + getStepLabel(state.currentStep)
+              + ".";
+          }
+
+          return true;
+        } catch (syncError) {
+          warn("Stepper state sync failed.", syncError);
+          return false;
+        }
+      }
+
+      function exposeApi() {
+        try {
+          var previousApi = window.VectoplanCreateStepper || {};
+
+          window.VectoplanCreateStepper = Object.assign({}, previousApi, {
+            root: root,
+            sync: function (step, options) {
+              return syncStepperState(step, options || {});
+            },
+            setCurrentStep: function (step, options) {
+              return syncStepperState(step, options || {});
+            },
+            getCurrentStep: function () {
+              return state.currentStep;
+            },
+            getStepCount: function () {
+              return state.stepCount;
+            },
+            getMaxReachedStep: function () {
+              return state.maxReachedStep;
+            },
+            getSnapshot: function () {
+              return {
+                ready: root.getAttribute("data-vp-stepper-ready") === "true",
+                currentStep: state.currentStep,
+                maxReachedStep: state.maxReachedStep,
+                stepCount: state.stepCount,
+                layout: root.getAttribute("data-vp-stepper-layout") || "wide"
+              };
+            }
+          });
+        } catch (apiError) {
+          warn("Stepper API exposure failed.", apiError);
+        }
+      }
+
+      function warn(message, error) {
+        try {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Stepper] " + message, error);
+          }
+        } catch (consoleError) {
+          /* no-op */
+        }
+      }
+    } catch (error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Stepper] Defensive initialization failed.", error);
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+  })();
+</script>

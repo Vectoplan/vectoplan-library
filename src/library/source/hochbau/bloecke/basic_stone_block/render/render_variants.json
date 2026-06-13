@@ -1,0 +1,70 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/render/render_variants.json",
+  "schema_version": "vplib.render.variants.v1",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "package_id": "vplib.vp.hochbau.bloecke.basic_stone_block",
+  "default_render_variant_id": "stone_default",
+  "render_variants": [
+    {
+      "render_variant_id": "stone_default",
+      "variant_id": "default",
+      "label": "Stone Default",
+      "enabled": true,
+      "kind": "procedural_placeholder",
+      "geometry": {
+        "type": "box",
+        "unit": "m",
+        "width": 1.0,
+        "height": 1.0,
+        "depth": 1.0
+      },
+      "appearance": {
+        "material_id": "vp.material.stone.basic",
+        "material_label": "Basic Stone",
+        "color_hint": "#8A8A8A",
+        "roughness": 0.9,
+        "metallic": 0.0,
+        "opacity": 1.0
+      },
+      "assets": {
+        "mesh_ref": null,
+        "texture_ref": null,
+        "normal_ref": null,
+        "preview_ref": null,
+        "icon_ref": null
+      }
+    }
+  ],
+  "default": {
+    "render_variant_id": "stone_default",
+    "mesh_ref": null,
+    "texture_ref": null,
+    "preview_ref": null,
+    "icon_ref": null
+  },
+  "bounds": {
+    "type": "aabb",
+    "unit": "m",
+    "min": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    },
+    "max": {
+      "x": 1.0,
+      "y": 1.0,
+      "z": 1.0
+    }
+  },
+  "lod": {
+    "strategy": "single_placeholder",
+    "levels": [
+      {
+        "lod": 0,
+        "distance_min": 0,
+        "distance_max": null,
+        "render_variant_id": "stone_default"
+      }
+    ]
+  }
+}

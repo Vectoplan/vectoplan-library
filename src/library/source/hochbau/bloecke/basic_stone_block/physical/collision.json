@@ -1,0 +1,66 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/physical/collision.json",
+  "schema_version": "vplib.physical.collision.v1",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "package_id": "vplib.vp.hochbau.bloecke.basic_stone_block",
+  "variant_id": "default",
+  "collision_profile_id": "vp.collision.basic_stone_block.default",
+  "enabled": true,
+  "collision_enabled": true,
+  "profile": "full_block",
+  "kind": "aabb",
+  "unit": "m",
+  "solid": true,
+  "blocks_movement": true,
+  "blocks_selection_ray": true,
+  "blocks_placement": true,
+  "allows_overlap": false,
+  "shape": {
+    "type": "box",
+    "bounds": {
+      "min": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "max": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 1.0
+      }
+    }
+  },
+  "grid_collision": {
+    "occupies_cells": {
+      "x": 1,
+      "y": 1,
+      "z": 1
+    },
+    "cell_mask": [
+      {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      }
+    ]
+  },
+  "selection": {
+    "enabled": true,
+    "shape": "same_as_collision",
+    "outline": "aabb",
+    "priority": 100
+  },
+  "placement": {
+    "prevents_other_objects": true,
+    "can_support_other_blocks": true,
+    "requires_support": false,
+    "support_surface": {
+      "top": true,
+      "bottom": true,
+      "left": true,
+      "right": true,
+      "front": true,
+      "back": true
+    }
+  }
+}

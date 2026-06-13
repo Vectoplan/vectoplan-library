@@ -1,0 +1,61 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/vplib.manifest.json",
+  "schema_version": "vplib.manifest.v1",
+  "vplib_schema_version": "1.0.0",
+  "package_id": "vplib.vp.hochbau.bloecke.basic_stone_block",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "family_name": "Basic Stone Block",
+  "object_kind": "cell_block",
+  "package_kind": "directory_package",
+  "package_format": "vplib",
+  "package_version": "0.1.0",
+  "lifecycle_status": "development",
+  "enabled": true,
+  "description": "Minimaler testbarer Creative-Library-Block für den dateibasierten Library-Scan.",
+  "classification": {
+    "domain": "hochbau",
+    "category": "bloecke",
+    "subcategory": "basis",
+    "path": "hochbau/bloecke/basis"
+  },
+  "authoring": {
+    "source": "manual",
+    "created_by": "vectoplan-dev",
+    "intended_for": [
+      "library_scan",
+      "block_list",
+      "block_detail",
+      "variant_test"
+    ]
+  },
+  "compatibility": {
+    "requires_vplib_core": true,
+    "requires_database": false,
+    "requires_assets": false,
+    "requires_runtime_generation": false
+  },
+  "entrypoints": {
+    "modules": "vplib.modules.json",
+    "identity": "family/identity.json",
+    "classification": "family/classification.json",
+    "variant_index": "variants/index.json",
+    "default_variant": "variants/default.json",
+    "inventory": "editor/inventory.json",
+    "placement": "editor/placement.json",
+    "render_variants": "render/render_variants.json",
+    "physical_base": "physical/base.json",
+    "dimensions": "physical/dimensions.json",
+    "collision": "physical/collision.json",
+    "manufacturer_contract": "manufacturer/contract.json"
+  },
+  "tags": [
+    "test",
+    "block",
+    "stone",
+    "creative_library",
+    "cell_block"
+  ],
+  "created_at": "2026-05-20T00:00:00+00:00",
+  "updated_at": "2026-05-20T00:00:00+00:00",
+  "vplib_uid": "2cd32d24-0758-4663-be1b-63f39b9b44af"
+}

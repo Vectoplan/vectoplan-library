@@ -1,0 +1,80 @@
+# services/vectoplan-library/requirements.txt
+# -----------------------------------------------------------------------------
+# VECTOPLAN Library - Python-Abhängigkeiten
+#
+# Ziel:
+# - Flask-Microservice starten
+# - VPLIB-Library-API ausliefern
+# - /create-Flow ausliefern
+# - Creative-Library-Scanner ausführen
+# - .vplib-Packages erzeugen und validieren
+# - PostgreSQL über SQLAlchemy anbinden
+# - Flask-Migrate/Alembic für DB-Migrationen bereitstellen
+# - `flask db init`, `flask db migrate` und `flask db upgrade` im Entrypoint ermöglichen
+#
+# Grundsatz:
+# - bewusst kleine Dependency-Oberfläche
+# - robuste Versionsgrenzen
+# - keine Editor-Abhängigkeiten
+# - keine Frontend-Build-Abhängigkeiten
+# - keine optionalen schweren Pakete ohne konkreten Nutzen
+# -----------------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# Runtime / Web Application
+# -----------------------------------------------------------------------------
+
+# Flask ist das Web-Framework für App-Factory, Routing, Templates, Static Files
+# und die Flask-CLI, über die Flask-Migrate seine `flask db ...` Befehle
+# bereitstellt.
+Flask>=3.1,<4.0
+
+# Gunicorn ist der WSGI-Server für lokalen/staging/produktiven Betrieb.
+gunicorn>=22.0,<26.0
+
+# Lädt optionale Umgebungsvariablen aus einer .env-Datei.
+# Wird von app.py/wsgi.py genutzt, damit lokale und Docker-Konfigurationen
+# denselben Mechanismus verwenden können.
+python-dotenv>=1.0,<2.0
+
+
+# -----------------------------------------------------------------------------
+# Database / PostgreSQL / SQLAlchemy / Migrations
+# -----------------------------------------------------------------------------
+
+# Flask-SQLAlchemy bindet SQLAlchemy sauber an die Flask-App.
+# Wird in services/vectoplan-library/extensions.py als `db = SQLAlchemy()`
+# verwendet.
+Flask-SQLAlchemy>=3.1,<4.0
+
+# SQLAlchemy 2.x ist die ORM-/Core-Basis für die Creative-Library-Modelle.
+# Die Major-Version wird begrenzt, damit spätere SQLAlchemy-3-Breaking-Changes
+# nicht unkontrolliert in den Service kommen.
+SQLAlchemy>=2.0,<3.0
+
+# Flask-Migrate integriert Alembic in Flask-Apps und stellt die CLI bereit:
+#   flask db init
+#   flask db migrate
+#   flask db upgrade
+Flask-Migrate>=4.0,<5.0
+
+# Alembic ist das eigentliche Migration-Tool unter Flask-Migrate.
+Alembic>=1.13,<2.0
+
+# PostgreSQL-Treiber für SQLAlchemy.
+#
+# Erwartete URI:
+#   postgresql+psycopg://user:password@host:5432/dbname
+#
+# `binary` reduziert Systemabhängigkeiten im Container und ist für unseren
+# Docker-Runtime-Use-Case pragmatisch.
+psycopg[binary]>=3.2,<4.0
+
+
+# -----------------------------------------------------------------------------
+# Testing
+# -----------------------------------------------------------------------------
+
+# pytest für Service-, Route-, Scanner-, Create-, DB-Modell- und Migrations-Tests.
+pytest>=9.0,<10.0

@@ -1,0 +1,1965 @@
+{
+  "_file": "services/vectoplan-library/src/library/definitions/data/family_profiles.v1.json",
+  "schema_version": "1.0",
+  "definitions_version": "v1",
+  "dataset": "family_profiles",
+  "label": "VECTOPLAN Family Profile Definitions",
+  "description": "Backend-owned fachliche Family-Profile. Ein Family Profile beschreibt, was eine Family fachlich ist. Es ist feiner als object_kind und bestimmt zusammen mit Taxonomie und object_kind das passende Variant Profile.",
+  "items": [
+    {
+      "id": "simple_cell_block",
+      "label": "Einfacher Rasterblock",
+      "description": "Generisches Profil für einfache blockartige Rasterbauteile ohne tiefe technische Auswertung. Dieses Profil hält den bestehenden basic_stone_block stabil und dient als robuster Einstieg für einfache Blöcke.",
+      "active": true,
+      "sort_order": 10,
+      "tags": [
+        "block",
+        "simple",
+        "grid",
+        "starter"
+      ],
+      "aliases": [
+        "basic_block",
+        "generic_cell_block",
+        "einfacher_block",
+        "basisblock"
+      ],
+      "i18n": {
+        "de": "Einfacher Rasterblock",
+        "en": "Simple cell block"
+      },
+      "object_kinds": [
+        "cell_block"
+      ],
+      "taxonomy_domains": [
+        "hochbau",
+        "tiefbau",
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "bloecke"
+      ],
+      "taxonomy_subcategories": [
+        "basis"
+      ],
+      "allowed_variant_profiles": [
+        "simple_cell_block.v1"
+      ],
+      "default_variant_profile_id": "simple_cell_block.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "material",
+        "calculation",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": false,
+        "manufacturer": true,
+        "analysis": false,
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": true,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "dimensions.width_mm",
+          "dimensions.height_mm",
+          "dimensions.depth_mm",
+          "material.type"
+        ],
+        "badges": [
+          "einfach",
+          "Raster",
+          "Block"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "migration_role": "keeps_existing_basic_stone_block_green",
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "wall_masonry",
+      "label": "Mauerwerkswand",
+      "description": "Fachliches Profil für Mauerwerkswände und Ziegelwände. Varianten beschreiben konkrete Wanddicken, Materialien, Produkte, technische Kennwerte, LV-Texte, Preise und Dokumente.",
+      "active": true,
+      "sort_order": 20,
+      "tags": [
+        "wall",
+        "masonry",
+        "brick",
+        "building",
+        "technical"
+      ],
+      "aliases": [
+        "ziegelwand",
+        "mauerwerk",
+        "masonry_wall",
+        "brick_wall"
+      ],
+      "i18n": {
+        "de": "Mauerwerkswand",
+        "en": "Masonry wall"
+      },
+      "object_kinds": [
+        "cell_block"
+      ],
+      "taxonomy_domains": [
+        "hochbau"
+      ],
+      "taxonomy_categories": [
+        "waende",
+        "bloecke"
+      ],
+      "taxonomy_subcategories": [
+        "ziegel",
+        "mauerwerk",
+        "basis"
+      ],
+      "allowed_variant_profiles": [
+        "wall_masonry_product.v1"
+      ],
+      "default_variant_profile_id": "wall_masonry_product.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "material",
+        "calculation",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "analysis.energy",
+        "analysis.acoustics",
+        "analysis.statics",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": false,
+          "energy": true,
+          "acoustics": false,
+          "routing": false,
+          "reinforcement": false
+        },
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": true,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "product.designation",
+          "dimensions.thickness_mm",
+          "material.type",
+          "manufacturer.name",
+          "thermal.u_value"
+        ],
+        "badges": [
+          "Wand",
+          "Mauerwerk",
+          "technisch"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "supports_product_like_variants": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "wall_concrete",
+      "label": "Betonwand",
+      "description": "Fachliches Profil für Betonwände, Stahlbetonwände und massive konstruktive Wandbauteile. Varianten beschreiben Betonklasse, Wanddicke, Exposition, technische Kennwerte und Mengenlogik.",
+      "active": true,
+      "sort_order": 30,
+      "tags": [
+        "wall",
+        "concrete",
+        "structural",
+        "building"
+      ],
+      "aliases": [
+        "betonwand",
+        "reinforced_concrete_wall",
+        "concrete_wall"
+      ],
+      "i18n": {
+        "de": "Betonwand",
+        "en": "Concrete wall"
+      },
+      "object_kinds": [
+        "cell_block"
+      ],
+      "taxonomy_domains": [
+        "hochbau",
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "waende",
+        "tragwerk"
+      ],
+      "taxonomy_subcategories": [
+        "beton",
+        "stahlbeton"
+      ],
+      "allowed_variant_profiles": [
+        "concrete_structural_part.v1"
+      ],
+      "default_variant_profile_id": "concrete_structural_part.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "material",
+        "calculation",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "analysis.statics",
+        "analysis.reinforcement",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": true,
+          "energy": false,
+          "acoustics": false,
+          "routing": false,
+          "reinforcement": true
+        },
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "concrete.strength_class",
+          "dimensions.thickness_mm",
+          "structural.compressive_strength",
+          "exposure.class"
+        ],
+        "badges": [
+          "Beton",
+          "Wand",
+          "tragend"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "slab_concrete",
+      "label": "Betondecke / Massivdecke",
+      "description": "Fachliches Profil für massive Beton- oder Stahlbetondecken. Varianten beschreiben Dicke, Betonklasse, technische Kennwerte, Mengenlogik und optionale Bewehrungsbezüge.",
+      "active": true,
+      "sort_order": 40,
+      "tags": [
+        "slab",
+        "concrete",
+        "structural",
+        "building"
+      ],
+      "aliases": [
+        "massivdecke",
+        "betondecke",
+        "concrete_slab"
+      ],
+      "i18n": {
+        "de": "Betondecke / Massivdecke",
+        "en": "Concrete slab"
+      },
+      "object_kinds": [
+        "cell_block"
+      ],
+      "taxonomy_domains": [
+        "hochbau",
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "decken",
+        "tragwerk"
+      ],
+      "taxonomy_subcategories": [
+        "beton",
+        "stahlbeton",
+        "massivdecke"
+      ],
+      "allowed_variant_profiles": [
+        "concrete_structural_part.v1"
+      ],
+      "default_variant_profile_id": "concrete_structural_part.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "material",
+        "calculation",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "analysis.statics",
+        "analysis.energy",
+        "analysis.reinforcement",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": true,
+          "energy": true,
+          "acoustics": false,
+          "routing": false,
+          "reinforcement": true
+        },
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "concrete.strength_class",
+          "dimensions.thickness_mm",
+          "structural.compressive_strength"
+        ],
+        "badges": [
+          "Decke",
+          "Beton",
+          "tragend"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "road_pavement_block",
+      "label": "Straßen- / Belagsblock",
+      "description": "Fachliches Profil für einfache raster- oder blockartige Tiefbau- und Straßenbauelemente, z. B. Fahrbahnbausteine, Pflaster, Rand- oder Belagselemente.",
+      "active": true,
+      "sort_order": 50,
+      "tags": [
+        "road",
+        "civil",
+        "pavement",
+        "block"
+      ],
+      "aliases": [
+        "strassenblock",
+        "belagsblock",
+        "pavement_block"
+      ],
+      "i18n": {
+        "de": "Straßen- / Belagsblock",
+        "en": "Road / pavement block"
+      },
+      "object_kinds": [
+        "cell_block"
+      ],
+      "taxonomy_domains": [
+        "tiefbau"
+      ],
+      "taxonomy_categories": [
+        "strassen",
+        "oberflaechen",
+        "bloecke"
+      ],
+      "taxonomy_subcategories": [
+        "fahrbahn",
+        "belag",
+        "pflaster",
+        "basis"
+      ],
+      "allowed_variant_profiles": [
+        "simple_cell_block.v1",
+        "road_pavement_block.v1"
+      ],
+      "default_variant_profile_id": "road_pavement_block.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "material",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "calculation",
+        "analysis.routing",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": false,
+          "energy": false,
+          "acoustics": false,
+          "routing": true,
+          "reinforcement": false
+        },
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "dimensions.thickness_mm",
+          "material.type",
+          "commercial.price_per_m2"
+        ],
+        "badges": [
+          "Tiefbau",
+          "Belag",
+          "Raster"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "multi_cell_generic",
+      "label": "Generisches Mehrblockmodul",
+      "description": "Generisches Profil für zusammengesetzte Module mit mehreren Rasterzellen. Geeignet als Basismodell für Treppenkerne, Schächte, Fundament- oder Installationsmodule.",
+      "active": true,
+      "sort_order": 60,
+      "tags": [
+        "module",
+        "multi-cell",
+        "generic"
+      ],
+      "aliases": [
+        "mehrblockmodul",
+        "generic_module",
+        "compound_module"
+      ],
+      "i18n": {
+        "de": "Generisches Mehrblockmodul",
+        "en": "Generic multi-cell module"
+      },
+      "object_kinds": [
+        "multi_cell_module"
+      ],
+      "taxonomy_domains": [
+        "hochbau",
+        "tiefbau",
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "module",
+        "bloecke",
+        "technik",
+        "tragwerk"
+      ],
+      "taxonomy_subcategories": [
+        "basis",
+        "schacht",
+        "treppe",
+        "fundament"
+      ],
+      "allowed_variant_profiles": [
+        "multi_cell_module.v1"
+      ],
+      "default_variant_profile_id": "multi_cell_module.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "material",
+        "calculation",
+        "analysis",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": false,
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "module.cell_count_x",
+          "module.cell_count_y",
+          "module.cell_count_z",
+          "material.type"
+        ],
+        "badges": [
+          "Modul",
+          "mehrzellig",
+          "generisch"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "stair_core_module",
+      "label": "Treppenkern / Treppenmodul",
+      "description": "Fachliches Profil für Treppenkerne oder Treppenmodule, die mehrere Zellen oder Geschosse betreffen können.",
+      "active": true,
+      "sort_order": 70,
+      "tags": [
+        "stair",
+        "module",
+        "building"
+      ],
+      "aliases": [
+        "treppenkern",
+        "treppenmodul",
+        "stair_module"
+      ],
+      "i18n": {
+        "de": "Treppenkern / Treppenmodul",
+        "en": "Stair core / stair module"
+      },
+      "object_kinds": [
+        "multi_cell_module"
+      ],
+      "taxonomy_domains": [
+        "hochbau"
+      ],
+      "taxonomy_categories": [
+        "treppen",
+        "erschliessung",
+        "module"
+      ],
+      "taxonomy_subcategories": [
+        "treppenkern",
+        "treppenlauf",
+        "basis"
+      ],
+      "allowed_variant_profiles": [
+        "multi_cell_module.v1"
+      ],
+      "default_variant_profile_id": "multi_cell_module.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "calculation",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "material",
+        "analysis.statics",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": false,
+          "energy": false,
+          "acoustics": false,
+          "routing": false,
+          "reinforcement": false
+        },
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "module.cell_count_x",
+          "module.cell_count_y",
+          "dimensions.height_mm"
+        ],
+        "badges": [
+          "Treppe",
+          "Kern",
+          "Modul"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": false,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "shaft_module",
+      "label": "Schachtmodul",
+      "description": "Fachliches Profil für Schächte, Installationsschächte, Revisionsschächte und modulare vertikale Bauteile.",
+      "active": true,
+      "sort_order": 80,
+      "tags": [
+        "shaft",
+        "module",
+        "civil",
+        "building"
+      ],
+      "aliases": [
+        "schacht",
+        "installationsschacht",
+        "revisionsschacht",
+        "shaft"
+      ],
+      "i18n": {
+        "de": "Schachtmodul",
+        "en": "Shaft module"
+      },
+      "object_kinds": [
+        "multi_cell_module"
+      ],
+      "taxonomy_domains": [
+        "hochbau",
+        "tiefbau"
+      ],
+      "taxonomy_categories": [
+        "schaechte",
+        "technik",
+        "module"
+      ],
+      "taxonomy_subcategories": [
+        "revisionsschacht",
+        "installationsschacht",
+        "basis"
+      ],
+      "allowed_variant_profiles": [
+        "multi_cell_module.v1",
+        "concrete_structural_part.v1"
+      ],
+      "default_variant_profile_id": "multi_cell_module.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "material",
+        "calculation",
+        "analysis.routing",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": false,
+          "energy": false,
+          "acoustics": false,
+          "routing": true,
+          "reinforcement": false
+        },
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "module.cell_count_x",
+          "module.cell_count_y",
+          "material.type"
+        ],
+        "badges": [
+          "Schacht",
+          "Modul",
+          "Routing"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "foundation_module",
+      "label": "Fundamentmodul",
+      "description": "Fachliches Profil für modulare Fundamente, Fundamentblöcke und Gründungsmodule.",
+      "active": true,
+      "sort_order": 90,
+      "tags": [
+        "foundation",
+        "module",
+        "structural",
+        "concrete"
+      ],
+      "aliases": [
+        "fundament",
+        "fundamentmodul",
+        "foundation"
+      ],
+      "i18n": {
+        "de": "Fundamentmodul",
+        "en": "Foundation module"
+      },
+      "object_kinds": [
+        "multi_cell_module"
+      ],
+      "taxonomy_domains": [
+        "hochbau",
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "fundamente",
+        "tragwerk",
+        "module"
+      ],
+      "taxonomy_subcategories": [
+        "basis",
+        "beton",
+        "gruendung"
+      ],
+      "allowed_variant_profiles": [
+        "multi_cell_module.v1",
+        "concrete_structural_part.v1"
+      ],
+      "default_variant_profile_id": "concrete_structural_part.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "material",
+        "calculation",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "analysis.statics",
+        "analysis.reinforcement",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": true,
+          "energy": false,
+          "acoustics": false,
+          "routing": false,
+          "reinforcement": true
+        },
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "concrete.strength_class",
+          "dimensions.width_mm",
+          "dimensions.depth_mm"
+        ],
+        "badges": [
+          "Fundament",
+          "Beton",
+          "tragend"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "installation_module",
+      "label": "Installationsmodul",
+      "description": "Fachliches Profil für modulare technische Installationen, Versorgungseinheiten oder Routing-nahe Modulobjekte.",
+      "active": true,
+      "sort_order": 100,
+      "tags": [
+        "installation",
+        "module",
+        "technical",
+        "routing"
+      ],
+      "aliases": [
+        "technikmodul",
+        "installationsmodul",
+        "technical_module"
+      ],
+      "i18n": {
+        "de": "Installationsmodul",
+        "en": "Installation module"
+      },
+      "object_kinds": [
+        "multi_cell_module"
+      ],
+      "taxonomy_domains": [
+        "hochbau",
+        "tiefbau"
+      ],
+      "taxonomy_categories": [
+        "technik",
+        "leitungen",
+        "module"
+      ],
+      "taxonomy_subcategories": [
+        "installation",
+        "versorgung",
+        "basis"
+      ],
+      "allowed_variant_profiles": [
+        "multi_cell_module.v1"
+      ],
+      "default_variant_profile_id": "multi_cell_module.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "material",
+        "calculation",
+        "analysis.routing",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": false,
+          "energy": false,
+          "acoustics": false,
+          "routing": true,
+          "reinforcement": false
+        },
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "module.connection_logic",
+          "material.type",
+          "manufacturer.name"
+        ],
+        "badges": [
+          "Installation",
+          "Routing",
+          "Modul"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "generic_catalog_object",
+      "label": "Generisches Katalogobjekt",
+      "description": "Generisches Profil für frei platzierbare Katalogobjekte ohne tiefe technische Auswertung. Geeignet für einfache Möbel, Ausstattung oder sonstige 3D-Objekte.",
+      "active": true,
+      "sort_order": 110,
+      "tags": [
+        "catalog",
+        "object",
+        "generic"
+      ],
+      "aliases": [
+        "katalogobjekt",
+        "free_object",
+        "generic_object"
+      ],
+      "i18n": {
+        "de": "Generisches Katalogobjekt",
+        "en": "Generic catalog object"
+      },
+      "object_kinds": [
+        "catalog_object"
+      ],
+      "taxonomy_domains": [
+        "hochbau",
+        "tiefbau",
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "moebel",
+        "technik",
+        "ausstattung",
+        "objekte"
+      ],
+      "taxonomy_subcategories": [
+        "basis",
+        "allgemein"
+      ],
+      "allowed_variant_profiles": [
+        "catalog_object.v1"
+      ],
+      "default_variant_profile_id": "catalog_object.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "render",
+        "physical",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "material",
+        "calculation",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": false,
+        "manufacturer": true,
+        "analysis": false,
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": true,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "manufacturer.name",
+          "product.designation",
+          "material.type"
+        ],
+        "badges": [
+          "Katalog",
+          "Objekt",
+          "einfach"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "sanitary_faucet",
+      "label": "Wasserhahn / Armatur",
+      "description": "Fachliches Profil für Wasserhähne, Armaturen und sanitäre Katalogobjekte. Varianten beschreiben Hersteller, Produktbezeichnung, Anschlussart, Oberfläche, Durchfluss und Dokumente.",
+      "active": true,
+      "sort_order": 120,
+      "tags": [
+        "sanitary",
+        "faucet",
+        "catalog",
+        "equipment"
+      ],
+      "aliases": [
+        "wasserhahn",
+        "armatur",
+        "faucet",
+        "tap"
+      ],
+      "i18n": {
+        "de": "Wasserhahn / Armatur",
+        "en": "Faucet / sanitary fitting"
+      },
+      "object_kinds": [
+        "catalog_object"
+      ],
+      "taxonomy_domains": [
+        "hochbau"
+      ],
+      "taxonomy_categories": [
+        "technik",
+        "sanitaer",
+        "ausstattung"
+      ],
+      "taxonomy_subcategories": [
+        "wasserhahn",
+        "armatur",
+        "sanitaer"
+      ],
+      "allowed_variant_profiles": [
+        "sanitary_faucet_catalog.v1"
+      ],
+      "default_variant_profile_id": "sanitary_faucet_catalog.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "render",
+        "physical",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "material",
+        "calculation",
+        "analysis.routing",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": false,
+        "manufacturer": true,
+        "analysis": {
+          "statics": false,
+          "energy": false,
+          "acoustics": false,
+          "routing": true,
+          "reinforcement": false
+        },
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": true,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "manufacturer.name",
+          "product.designation",
+          "surface.finish",
+          "connection.type"
+        ],
+        "badges": [
+          "Sanitär",
+          "Armatur",
+          "Katalog"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "supports_product_like_variants": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "furniture_catalog_object",
+      "label": "Möbelobjekt",
+      "description": "Fachliches Profil für Möbel und einfache Ausstattungsobjekte wie Schulbänke, Stühle, Tische, Regale oder ähnliche Katalogobjekte.",
+      "active": true,
+      "sort_order": 130,
+      "tags": [
+        "furniture",
+        "catalog",
+        "equipment"
+      ],
+      "aliases": [
+        "moebel",
+        "möbel",
+        "furniture",
+        "schulbank"
+      ],
+      "i18n": {
+        "de": "Möbelobjekt",
+        "en": "Furniture object"
+      },
+      "object_kinds": [
+        "catalog_object"
+      ],
+      "taxonomy_domains": [
+        "hochbau"
+      ],
+      "taxonomy_categories": [
+        "moebel",
+        "ausstattung"
+      ],
+      "taxonomy_subcategories": [
+        "tisch",
+        "stuhl",
+        "schulbank",
+        "regal",
+        "basis"
+      ],
+      "allowed_variant_profiles": [
+        "catalog_object.v1"
+      ],
+      "default_variant_profile_id": "catalog_object.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "render",
+        "physical",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "material",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": false,
+        "manufacturer": true,
+        "analysis": false,
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": true,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "manufacturer.name",
+          "product.designation",
+          "material.type"
+        ],
+        "badges": [
+          "Möbel",
+          "Katalog",
+          "leicht"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "equipment_catalog_object",
+      "label": "Technisches Gerät / Ausstattung",
+      "description": "Fachliches Profil für technische Geräte, Anlagenkomponenten oder Ausstattungsobjekte, die als Katalogobjekt platziert werden.",
+      "active": true,
+      "sort_order": 140,
+      "tags": [
+        "equipment",
+        "technical",
+        "catalog"
+      ],
+      "aliases": [
+        "geraet",
+        "gerät",
+        "equipment",
+        "technical_equipment"
+      ],
+      "i18n": {
+        "de": "Technisches Gerät / Ausstattung",
+        "en": "Technical equipment"
+      },
+      "object_kinds": [
+        "catalog_object"
+      ],
+      "taxonomy_domains": [
+        "hochbau",
+        "tiefbau",
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "technik",
+        "ausstattung",
+        "objekte"
+      ],
+      "taxonomy_subcategories": [
+        "geraet",
+        "anlage",
+        "basis"
+      ],
+      "allowed_variant_profiles": [
+        "catalog_object.v1"
+      ],
+      "default_variant_profile_id": "catalog_object.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "render",
+        "physical",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "material",
+        "calculation",
+        "analysis.routing",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": false,
+        "manufacturer": true,
+        "analysis": {
+          "statics": false,
+          "energy": false,
+          "acoustics": false,
+          "routing": true,
+          "reinforcement": false
+        },
+        "dynamic": false,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "manufacturer.name",
+          "product.designation",
+          "connection.type"
+        ],
+        "badges": [
+          "Technik",
+          "Gerät",
+          "Katalog"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "adaptive_bridge_component",
+      "label": "Adaptives Brückenbauteil",
+      "description": "Generisches Profil für kontextabhängige Brücken- und Ingenieurbaukomponenten. Varianten beschreiben Material, technische Parameter und Kontextbindung; die konkrete Geometrie wird aus Kontextregeln abgeleitet.",
+      "active": true,
+      "sort_order": 150,
+      "tags": [
+        "adaptive",
+        "bridge",
+        "civil",
+        "engineering"
+      ],
+      "aliases": [
+        "adaptives_brueckenbauteil",
+        "adaptive_bridge",
+        "bridge_component"
+      ],
+      "i18n": {
+        "de": "Adaptives Brückenbauteil",
+        "en": "Adaptive bridge component"
+      },
+      "object_kinds": [
+        "adaptive_system"
+      ],
+      "taxonomy_domains": [
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "bruecken",
+        "tragwerk",
+        "ingenieurbau"
+      ],
+      "taxonomy_subcategories": [
+        "basis",
+        "sonderform",
+        "adaptiv"
+      ],
+      "allowed_variant_profiles": [
+        "adaptive_system.v1",
+        "concrete_structural_part.v1"
+      ],
+      "default_variant_profile_id": "adaptive_system.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "calculation",
+        "dynamic",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "material",
+        "analysis.statics",
+        "analysis.reinforcement",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": true,
+          "energy": false,
+          "acoustics": false,
+          "routing": false,
+          "reinforcement": true
+        },
+        "dynamic": true,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "requires_dynamic_step_later": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "context.host_type",
+          "material.type",
+          "structural.compressive_strength"
+        ],
+        "badges": [
+          "Brücke",
+          "adaptiv",
+          "Ingenieurbau"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "bridge_cap",
+      "label": "Brückenkappe",
+      "description": "Fachliches Profil für adaptive Brückenkappen. Die Family beschreibt die semantische Kappe; Varianten beschreiben technische Ausprägungen, Material und Kontextparameter.",
+      "active": true,
+      "sort_order": 160,
+      "tags": [
+        "bridge",
+        "cap",
+        "adaptive",
+        "concrete"
+      ],
+      "aliases": [
+        "brueckenkappe",
+        "brückenkappe",
+        "bridge_cap"
+      ],
+      "i18n": {
+        "de": "Brückenkappe",
+        "en": "Bridge cap"
+      },
+      "object_kinds": [
+        "adaptive_system"
+      ],
+      "taxonomy_domains": [
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "bruecken"
+      ],
+      "taxonomy_subcategories": [
+        "brueckenkappe",
+        "randbalken",
+        "adaptiv"
+      ],
+      "allowed_variant_profiles": [
+        "adaptive_system.v1",
+        "concrete_structural_part.v1"
+      ],
+      "default_variant_profile_id": "adaptive_system.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "calculation",
+        "dynamic",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "material",
+        "analysis.statics",
+        "analysis.reinforcement",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": true,
+          "energy": false,
+          "acoustics": false,
+          "routing": false,
+          "reinforcement": true
+        },
+        "dynamic": true,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "requires_dynamic_step_later": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "context.host_type",
+          "concrete.strength_class",
+          "dimensions.width_mm"
+        ],
+        "badges": [
+          "Brückenkappe",
+          "adaptiv",
+          "Beton"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "bridge_abutment_concrete",
+      "label": "Beton-Widerlager",
+      "description": "Fachliches Profil für Brückenwiderlager und massive Betonbauteile im Ingenieurbau. Varianten beschreiben vor allem Betonklasse, Druckfestigkeit, Expositionsklasse, Mengenlogik und Dokumente.",
+      "active": true,
+      "sort_order": 170,
+      "tags": [
+        "bridge",
+        "abutment",
+        "concrete",
+        "structural"
+      ],
+      "aliases": [
+        "widerlager",
+        "brueckenwiderlager",
+        "brückenwiderlager",
+        "bridge_abutment"
+      ],
+      "i18n": {
+        "de": "Beton-Widerlager",
+        "en": "Concrete bridge abutment"
+      },
+      "object_kinds": [
+        "adaptive_system",
+        "multi_cell_module"
+      ],
+      "taxonomy_domains": [
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "bruecken",
+        "tragwerk"
+      ],
+      "taxonomy_subcategories": [
+        "widerlager",
+        "beton",
+        "fundament"
+      ],
+      "allowed_variant_profiles": [
+        "concrete_structural_part.v1",
+        "adaptive_system.v1"
+      ],
+      "default_variant_profile_id": "concrete_structural_part.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "material",
+        "calculation",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "dynamic",
+        "analysis.statics",
+        "analysis.reinforcement",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": true,
+          "energy": false,
+          "acoustics": false,
+          "routing": false,
+          "reinforcement": true
+        },
+        "dynamic": true,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": true,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "requires_dynamic_step_later": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "concrete.strength_class",
+          "structural.compressive_strength",
+          "exposure.class"
+        ],
+        "badges": [
+          "Widerlager",
+          "Beton",
+          "Ingenieurbau"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "supports_product_like_variants": false,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "railing_system",
+      "label": "Geländersystem",
+      "description": "Fachliches Profil für Geländer, Schutzsysteme und kontextabhängige Linien- oder Randbauteile.",
+      "active": true,
+      "sort_order": 180,
+      "tags": [
+        "railing",
+        "adaptive",
+        "system"
+      ],
+      "aliases": [
+        "gelaender",
+        "geländer",
+        "railing"
+      ],
+      "i18n": {
+        "de": "Geländersystem",
+        "en": "Railing system"
+      },
+      "object_kinds": [
+        "adaptive_system"
+      ],
+      "taxonomy_domains": [
+        "hochbau",
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "bruecken",
+        "ausstattung",
+        "sicherheit"
+      ],
+      "taxonomy_subcategories": [
+        "gelaender",
+        "rand",
+        "schutzsystem"
+      ],
+      "allowed_variant_profiles": [
+        "adaptive_system.v1",
+        "catalog_object.v1"
+      ],
+      "default_variant_profile_id": "adaptive_system.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "dynamic",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "material",
+        "calculation",
+        "analysis.statics",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": true,
+          "energy": false,
+          "acoustics": false,
+          "routing": false,
+          "reinforcement": false
+        },
+        "dynamic": true,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "requires_dynamic_step_later": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "material.type",
+          "dimensions.height_mm",
+          "manufacturer.name"
+        ],
+        "badges": [
+          "Geländer",
+          "System",
+          "adaptiv"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "edge_beam_system",
+      "label": "Randbalken-System",
+      "description": "Fachliches Profil für Randbalken, Kappenränder und linienartige adaptive Betonbauteile.",
+      "active": true,
+      "sort_order": 190,
+      "tags": [
+        "edge_beam",
+        "bridge",
+        "adaptive",
+        "concrete"
+      ],
+      "aliases": [
+        "randbalken",
+        "edge_beam"
+      ],
+      "i18n": {
+        "de": "Randbalken-System",
+        "en": "Edge beam system"
+      },
+      "object_kinds": [
+        "adaptive_system"
+      ],
+      "taxonomy_domains": [
+        "ingenieurbau"
+      ],
+      "taxonomy_categories": [
+        "bruecken",
+        "tragwerk"
+      ],
+      "taxonomy_subcategories": [
+        "randbalken",
+        "brueckenkappe",
+        "beton"
+      ],
+      "allowed_variant_profiles": [
+        "adaptive_system.v1",
+        "concrete_structural_part.v1"
+      ],
+      "default_variant_profile_id": "adaptive_system.v1",
+      "required_modules": [
+        "family",
+        "variants",
+        "editor",
+        "physical",
+        "material",
+        "calculation",
+        "dynamic",
+        "manufacturer"
+      ],
+      "optional_modules": [
+        "render",
+        "analysis.statics",
+        "analysis.reinforcement",
+        "docs",
+        "tests"
+      ],
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": {
+          "statics": true,
+          "energy": false,
+          "acoustics": false,
+          "routing": false,
+          "reinforcement": true
+        },
+        "dynamic": true,
+        "docs": true,
+        "tests": true
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "requires_dynamic_step_later": true,
+          "hide_technical_step": true
+        },
+        "summary_fields": [
+          "variant.label",
+          "concrete.strength_class",
+          "dimensions.width_mm",
+          "dimensions.height_mm"
+        ],
+        "badges": [
+          "Randbalken",
+          "Beton",
+          "adaptiv"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    }
+  ]
+}

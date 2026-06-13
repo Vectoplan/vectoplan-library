@@ -1,0 +1,62 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/manufacturer/contract.json",
+  "schema_version": "vplib.manufacturer.contract.v1",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "package_id": "vplib.vp.hochbau.bloecke.basic_stone_block",
+  "variant_id": "default",
+  "contract_id": "vp.contract.basic_stone_block.test",
+  "enabled": true,
+  "manufacturer_ready": false,
+  "binding_mode": "none",
+  "purpose": "test_placeholder",
+  "description": "Platzhalter-Vertrag für den ersten Creative-Library-Testblock. Noch keine echte Herstellerbindung.",
+  "manufacturer": {
+    "manufacturer_id": null,
+    "name": null,
+    "product_id": null,
+    "product_name": null,
+    "product_url": null
+  },
+  "commercial": {
+    "orderable": false,
+    "requires_supplier_selection": false,
+    "requires_price_lookup": false,
+    "currency": null,
+    "unit_price": null,
+    "price_unit": null
+  },
+  "quantity_takeoff": {
+    "enabled": false,
+    "quantity_unit": "piece",
+    "default_quantity_formula": "count",
+    "count_per_instance": 1,
+    "volume_based": false,
+    "area_based": false,
+    "length_based": false
+  },
+  "technical_requirements": {
+    "requires_exact_dimensions": false,
+    "requires_material_certificate": false,
+    "requires_fire_rating": false,
+    "requires_structural_verification": false,
+    "requires_manufacturer_datasheet": false
+  },
+  "mapping": {
+    "vplib_family_id": "vp.hochbau.bloecke.basic_stone_block",
+    "vplib_variant_id": "default",
+    "external_reference": null,
+    "external_system": null,
+    "external_id": null
+  },
+  "lifecycle": {
+    "status": "development",
+    "can_be_used_for_testing": true,
+    "can_be_used_for_real_ordering": false,
+    "can_be_used_for_cost_estimation": false
+  },
+  "notes": [
+    "Dieser Contract ist absichtlich ein Platzhalter.",
+    "Er beweist nur, dass das manufacturer-Modul gelesen werden kann.",
+    "Echte Hersteller-, Preis- und Bestelldaten werden später ergänzt."
+  ]
+}

@@ -1,0 +1,1677 @@
+{
+  "_file": "services/vectoplan-library/src/library/definitions/data/variant_profiles.v1.json",
+  "schema_version": "1.0",
+  "definitions_version": "v1",
+  "dataset": "variant_profiles",
+  "label": "VECTOPLAN Variant Profile Definitions",
+  "description": "Backend-owned Feldprofile für Varianten. Diese Datei definiert, welche Abschnitte und Variablen im Variant Drawer erscheinen. Das Frontend rendert nur diese Profile und entscheidet nicht selbst, welche technischen Felder existieren.",
+  "items": [
+    {
+      "id": "simple_cell_block.v1",
+      "label": "Einfacher Rasterblock",
+      "description": "Ein kompaktes Variantenprofil für einfache Rasterblöcke ohne tiefe technische Auswertung. Dient als stabiler Einstieg und hält den bestehenden basic_stone_block kompatibel.",
+      "active": true,
+      "sort_order": 10,
+      "tags": [
+        "block",
+        "simple",
+        "grid",
+        "starter"
+      ],
+      "aliases": [
+        "simple_block",
+        "basic_block",
+        "basisblock"
+      ],
+      "i18n": {
+        "de": "Einfacher Rasterblock",
+        "en": "Simple cell block"
+      },
+      "family_profiles": [
+        "simple_cell_block"
+      ],
+      "object_kinds": [
+        "cell_block"
+      ],
+      "sections": [
+        {
+          "id": "identity",
+          "label": "Variante",
+          "description": "Grunddaten dieser Variante.",
+          "sort_order": 10,
+          "required": true,
+          "fields": [
+            "variant.variant_id",
+            "variant.label",
+            "variant.description"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "tag"
+          }
+        },
+        {
+          "id": "geometry",
+          "label": "Geometrie",
+          "description": "Einfache reale Abmessungen des Blocks.",
+          "sort_order": 20,
+          "required": true,
+          "fields": [
+            "dimensions.width_mm",
+            "dimensions.height_mm",
+            "dimensions.depth_mm"
+          ],
+          "ui": {
+            "columns": 3,
+            "icon": "box"
+          }
+        },
+        {
+          "id": "material",
+          "label": "Material",
+          "description": "Optionales Basismaterial für Vorschau und spätere Auswertung.",
+          "sort_order": 30,
+          "required": false,
+          "fields": [
+            "material.type",
+            "material.subtype",
+            "material.color_hint"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "layers"
+          }
+        },
+        {
+          "id": "commercial",
+          "label": "Kalkulation",
+          "description": "Optionale einfache Kosten- und LV-Daten.",
+          "sort_order": 40,
+          "required": false,
+          "fields": [
+            "commercial.lv_text",
+            "commercial.price_per_piece"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "receipt"
+          }
+        }
+      ],
+      "required_fields": [
+        "variant.variant_id",
+        "variant.label",
+        "dimensions.width_mm",
+        "dimensions.height_mm",
+        "dimensions.depth_mm"
+      ],
+      "optional_fields": [
+        "variant.description",
+        "material.type",
+        "material.subtype",
+        "material.color_hint",
+        "commercial.lv_text",
+        "commercial.price_per_piece"
+      ],
+      "summary_fields": [
+        "variant.label",
+        "dimensions.width_mm",
+        "dimensions.height_mm",
+        "dimensions.depth_mm",
+        "material.type"
+      ],
+      "default_values": {
+        "variant.variant_id": "default",
+        "variant.label": "Standard",
+        "dimensions.width_mm": 1000,
+        "dimensions.height_mm": 1000,
+        "dimensions.depth_mm": 1000,
+        "material.type": "generic"
+      },
+      "document_types": [
+        "datasheet",
+        "technical_drawing"
+      ],
+      "manufacturer_mode": "optional",
+      "ui": {
+        "drawer": {
+          "title": "Variante für einfachen Rasterblock",
+          "subtitle": "Definiert Abmessungen, Material und einfache Kalkulationsdaten.",
+          "size": "wide",
+          "preview_mode": "block"
+        },
+        "cards": {
+          "title_field": "variant.label",
+          "subtitle_fields": [
+            "dimensions.width_mm",
+            "dimensions.height_mm",
+            "dimensions.depth_mm"
+          ],
+          "badge_fields": [
+            "material.type"
+          ]
+        }
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "stability": "stable",
+        "migration_role": "basic_stone_block_compatibility"
+      }
+    },
+    {
+      "id": "wall_masonry_product.v1",
+      "label": "Mauerwerks- / Ziegelprodukt",
+      "description": "Variantenprofil für Mauerwerkswände, Ziegelwände und produktartige Wandvarianten. Eine Variante kann z. B. Schlagmann T90 36,5 cm sein und trägt Dicke, Material, Herstellerreferenz, U-Wert, Druckfestigkeit, LV-Text, Preis und Dokumente.",
+      "active": true,
+      "sort_order": 20,
+      "tags": [
+        "wall",
+        "masonry",
+        "brick",
+        "product",
+        "technical"
+      ],
+      "aliases": [
+        "ziegelprodukt",
+        "mauerwerksprodukt",
+        "brick_wall_product",
+        "masonry_product"
+      ],
+      "i18n": {
+        "de": "Mauerwerks- / Ziegelprodukt",
+        "en": "Masonry / brick product"
+      },
+      "family_profiles": [
+        "wall_masonry"
+      ],
+      "object_kinds": [
+        "cell_block"
+      ],
+      "sections": [
+        {
+          "id": "identity",
+          "label": "Variante",
+          "description": "Grunddaten der Wandvariante.",
+          "sort_order": 10,
+          "required": true,
+          "fields": [
+            "variant.variant_id",
+            "variant.label",
+            "variant.description",
+            "product.designation"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "tag"
+          }
+        },
+        {
+          "id": "dimensions",
+          "label": "Maße",
+          "description": "Wanddicke und relevante reale Abmessungen.",
+          "sort_order": 20,
+          "required": true,
+          "fields": [
+            "dimensions.thickness_mm",
+            "dimensions.height_mm",
+            "dimensions.length_mm"
+          ],
+          "ui": {
+            "columns": 3,
+            "icon": "ruler"
+          }
+        },
+        {
+          "id": "material",
+          "label": "Material",
+          "description": "Material- und Mauerwerksdaten.",
+          "sort_order": 30,
+          "required": true,
+          "fields": [
+            "material.type",
+            "material.subtype",
+            "material.bulk_density",
+            "wall_masonry.mortar_type"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "layers"
+          }
+        },
+        {
+          "id": "manufacturer",
+          "label": "Herstellerreferenz",
+          "description": "Aktuelle Hersteller-/Produktreferenz. Diese Daten sind vorbereitet für spätere Product Overlays.",
+          "sort_order": 40,
+          "required": false,
+          "fields": [
+            "manufacturer.name",
+            "manufacturer.product_url",
+            "manufacturer.product_number",
+            "manufacturer.future_overlay_ready"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "factory"
+          }
+        },
+        {
+          "id": "performance",
+          "label": "Technische Kennwerte",
+          "description": "Bauphysikalische, statische und brandschutzbezogene Kennwerte.",
+          "sort_order": 50,
+          "required": false,
+          "fields": [
+            "thermal.u_value",
+            "thermal.lambda_value",
+            "structural.compressive_strength",
+            "structural.load_bearing",
+            "fire.fire_resistance_class",
+            "acoustic.sound_reduction_db"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "activity"
+          }
+        },
+        {
+          "id": "usage",
+          "label": "Einsatzbereich",
+          "description": "Fachliche Einordnung der Nutzung.",
+          "sort_order": 60,
+          "required": false,
+          "fields": [
+            "usage.load_bearing_allowed",
+            "usage.external_wall_allowed",
+            "usage.internal_wall_allowed",
+            "usage.fire_wall_allowed"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "check-circle"
+          }
+        },
+        {
+          "id": "commercial",
+          "label": "Kalkulation / LV",
+          "description": "Ausschreibungs- und Preisangaben.",
+          "sort_order": 70,
+          "required": false,
+          "fields": [
+            "commercial.lv_text",
+            "commercial.price_per_m2",
+            "commercial.price_source",
+            "commercial.price_valid_from"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "receipt"
+          }
+        },
+        {
+          "id": "documents",
+          "label": "Dokumente",
+          "description": "Datenblätter, Prüfungen, Zulassungen und Nachweise.",
+          "sort_order": 80,
+          "required": false,
+          "fields": [
+            "documents.datasheets",
+            "documents.test_reports",
+            "documents.certificates",
+            "documents.approvals",
+            "documents.declarations_of_performance"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "file-text"
+          }
+        }
+      ],
+      "required_fields": [
+        "variant.variant_id",
+        "variant.label",
+        "dimensions.thickness_mm",
+        "material.type"
+      ],
+      "optional_fields": [
+        "variant.description",
+        "product.designation",
+        "dimensions.height_mm",
+        "dimensions.length_mm",
+        "material.subtype",
+        "material.bulk_density",
+        "wall_masonry.mortar_type",
+        "manufacturer.name",
+        "manufacturer.product_url",
+        "manufacturer.product_number",
+        "manufacturer.future_overlay_ready",
+        "thermal.u_value",
+        "thermal.lambda_value",
+        "structural.compressive_strength",
+        "structural.load_bearing",
+        "fire.fire_resistance_class",
+        "acoustic.sound_reduction_db",
+        "usage.load_bearing_allowed",
+        "usage.external_wall_allowed",
+        "usage.internal_wall_allowed",
+        "usage.fire_wall_allowed",
+        "commercial.lv_text",
+        "commercial.price_per_m2",
+        "commercial.price_source",
+        "commercial.price_valid_from",
+        "documents.datasheets",
+        "documents.test_reports",
+        "documents.certificates",
+        "documents.approvals",
+        "documents.declarations_of_performance"
+      ],
+      "summary_fields": [
+        "variant.label",
+        "product.designation",
+        "dimensions.thickness_mm",
+        "material.type",
+        "manufacturer.name",
+        "thermal.u_value",
+        "structural.compressive_strength"
+      ],
+      "default_values": {
+        "variant.variant_id": "default",
+        "variant.label": "Standard",
+        "dimensions.thickness_mm": 365,
+        "material.type": "brick",
+        "material.subtype": "masonry_brick",
+        "manufacturer.future_overlay_ready": true,
+        "usage.load_bearing_allowed": true,
+        "usage.external_wall_allowed": true,
+        "usage.internal_wall_allowed": true
+      },
+      "document_types": [
+        "datasheet",
+        "test_report",
+        "approval",
+        "certificate",
+        "declaration_of_performance",
+        "technical_drawing"
+      ],
+      "manufacturer_mode": "optional",
+      "ui": {
+        "drawer": {
+          "title": "Mauerwerksvariante definieren",
+          "subtitle": "Erfasst Dicke, Material, Produkt-/Herstellerdaten, technische Kennwerte, LV-Daten und Dokumente.",
+          "size": "fullscreen",
+          "preview_mode": "wall"
+        },
+        "cards": {
+          "title_field": "variant.label",
+          "subtitle_fields": [
+            "product.designation",
+            "manufacturer.name"
+          ],
+          "badge_fields": [
+            "dimensions.thickness_mm",
+            "material.type",
+            "thermal.u_value"
+          ]
+        }
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "supports_product_like_variants": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "concrete_structural_part.v1",
+      "label": "Konstruktives Betonbauteil",
+      "description": "Variantenprofil für Betonbauteile wie Widerlager, Betonwände, Decken, Fundamente oder andere konstruktive Bauteile. Der Fokus liegt auf Betonklasse, Druckfestigkeit, Exposition, Mengenlogik und Dokumentation.",
+      "active": true,
+      "sort_order": 30,
+      "tags": [
+        "concrete",
+        "structural",
+        "engineering",
+        "bridge",
+        "building"
+      ],
+      "aliases": [
+        "betonbauteil",
+        "concrete_part",
+        "structural_concrete",
+        "widerlager"
+      ],
+      "i18n": {
+        "de": "Konstruktives Betonbauteil",
+        "en": "Structural concrete part"
+      },
+      "family_profiles": [
+        "wall_concrete",
+        "slab_concrete",
+        "foundation_module",
+        "bridge_abutment_concrete",
+        "adaptive_bridge_component",
+        "bridge_cap",
+        "edge_beam_system",
+        "shaft_module"
+      ],
+      "object_kinds": [
+        "cell_block",
+        "multi_cell_module",
+        "adaptive_system"
+      ],
+      "sections": [
+        {
+          "id": "identity",
+          "label": "Variante",
+          "description": "Grunddaten der Betonvariante.",
+          "sort_order": 10,
+          "required": true,
+          "fields": [
+            "variant.variant_id",
+            "variant.label",
+            "variant.description"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "tag"
+          }
+        },
+        {
+          "id": "geometry",
+          "label": "Geometrie / Bezug",
+          "description": "Relevante Abmessungen oder Mengenbezüge.",
+          "sort_order": 20,
+          "required": false,
+          "fields": [
+            "dimensions.thickness_mm",
+            "dimensions.width_mm",
+            "dimensions.height_mm",
+            "dimensions.length_mm",
+            "dimensions.reference_volume_m3"
+          ],
+          "ui": {
+            "columns": 3,
+            "icon": "ruler"
+          }
+        },
+        {
+          "id": "concrete",
+          "label": "Beton",
+          "description": "Betonklasse, Druckfestigkeit und Exposition.",
+          "sort_order": 30,
+          "required": true,
+          "fields": [
+            "material.type",
+            "concrete.strength_class",
+            "structural.compressive_strength",
+            "exposure.class",
+            "concrete.consistency_class",
+            "concrete.aggregate_size_mm"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "layers"
+          }
+        },
+        {
+          "id": "reinforcement",
+          "label": "Bewehrung / Tragwerk",
+          "description": "Optionale Bewehrungs- und Tragwerksbezüge.",
+          "sort_order": 40,
+          "required": false,
+          "fields": [
+            "reinforcement.required",
+            "reinforcement.reference",
+            "structural.load_bearing",
+            "structural.design_note"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "activity"
+          }
+        },
+        {
+          "id": "context",
+          "label": "Kontext",
+          "description": "Optionaler Kontextbezug, insbesondere für Brücken- oder adaptive Bauteile.",
+          "sort_order": 50,
+          "required": false,
+          "fields": [
+            "context.host_type",
+            "context.supporting_structure",
+            "context.boundary_conditions"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "network"
+          }
+        },
+        {
+          "id": "commercial",
+          "label": "Kalkulation / LV",
+          "description": "Ausschreibungs- und Preisangaben.",
+          "sort_order": 60,
+          "required": false,
+          "fields": [
+            "commercial.lv_text",
+            "commercial.price_per_m3",
+            "commercial.price_source",
+            "commercial.price_valid_from"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "receipt"
+          }
+        },
+        {
+          "id": "documents",
+          "label": "Dokumente",
+          "description": "Prüfberichte, Nachweise, Zulassungen und technische Zeichnungen.",
+          "sort_order": 70,
+          "required": false,
+          "fields": [
+            "documents.datasheets",
+            "documents.test_reports",
+            "documents.certificates",
+            "documents.approvals",
+            "documents.technical_drawings"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "file-text"
+          }
+        }
+      ],
+      "required_fields": [
+        "variant.variant_id",
+        "variant.label",
+        "material.type",
+        "concrete.strength_class",
+        "structural.compressive_strength"
+      ],
+      "optional_fields": [
+        "variant.description",
+        "dimensions.thickness_mm",
+        "dimensions.width_mm",
+        "dimensions.height_mm",
+        "dimensions.length_mm",
+        "dimensions.reference_volume_m3",
+        "exposure.class",
+        "concrete.consistency_class",
+        "concrete.aggregate_size_mm",
+        "reinforcement.required",
+        "reinforcement.reference",
+        "structural.load_bearing",
+        "structural.design_note",
+        "context.host_type",
+        "context.supporting_structure",
+        "context.boundary_conditions",
+        "commercial.lv_text",
+        "commercial.price_per_m3",
+        "commercial.price_source",
+        "commercial.price_valid_from",
+        "documents.datasheets",
+        "documents.test_reports",
+        "documents.certificates",
+        "documents.approvals",
+        "documents.technical_drawings"
+      ],
+      "summary_fields": [
+        "variant.label",
+        "concrete.strength_class",
+        "structural.compressive_strength",
+        "exposure.class",
+        "dimensions.reference_volume_m3"
+      ],
+      "default_values": {
+        "variant.variant_id": "default",
+        "variant.label": "Standard",
+        "material.type": "concrete",
+        "concrete.strength_class": "C30/37",
+        "reinforcement.required": false,
+        "structural.load_bearing": true
+      },
+      "document_types": [
+        "datasheet",
+        "test_report",
+        "approval",
+        "certificate",
+        "technical_drawing",
+        "declaration_of_performance"
+      ],
+      "manufacturer_mode": "optional",
+      "ui": {
+        "drawer": {
+          "title": "Betonvariante definieren",
+          "subtitle": "Erfasst Betonklasse, Druckfestigkeit, Exposition, Mengenlogik, LV-Daten und Nachweise.",
+          "size": "fullscreen",
+          "preview_mode": "concrete_part"
+        },
+        "cards": {
+          "title_field": "variant.label",
+          "subtitle_fields": [
+            "concrete.strength_class",
+            "exposure.class"
+          ],
+          "badge_fields": [
+            "structural.compressive_strength",
+            "dimensions.thickness_mm"
+          ]
+        }
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "supports_product_like_variants": false,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "road_pavement_block.v1",
+      "label": "Straßen- / Belagsblock",
+      "description": "Variantenprofil für Tiefbau-, Straßen- und Belagselemente. Varianten beschreiben Dicke, Material, Schichtbezug, Belastungsklasse, LV-Text und Preis pro Fläche.",
+      "active": true,
+      "sort_order": 40,
+      "tags": [
+        "road",
+        "pavement",
+        "civil",
+        "block"
+      ],
+      "aliases": [
+        "belagsblock",
+        "strassenblock",
+        "road_block",
+        "pavement_block"
+      ],
+      "i18n": {
+        "de": "Straßen- / Belagsblock",
+        "en": "Road / pavement block"
+      },
+      "family_profiles": [
+        "road_pavement_block"
+      ],
+      "object_kinds": [
+        "cell_block"
+      ],
+      "sections": [
+        {
+          "id": "identity",
+          "label": "Variante",
+          "description": "Grunddaten der Belagsvariante.",
+          "sort_order": 10,
+          "required": true,
+          "fields": [
+            "variant.variant_id",
+            "variant.label",
+            "variant.description"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "tag"
+          }
+        },
+        {
+          "id": "geometry",
+          "label": "Maße / Schicht",
+          "description": "Dicke und Schichtdaten.",
+          "sort_order": 20,
+          "required": true,
+          "fields": [
+            "dimensions.thickness_mm",
+            "dimensions.width_mm",
+            "dimensions.length_mm",
+            "road.layer_type"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "ruler"
+          }
+        },
+        {
+          "id": "material",
+          "label": "Material",
+          "description": "Material und technische Belagseigenschaften.",
+          "sort_order": 30,
+          "required": true,
+          "fields": [
+            "material.type",
+            "material.subtype",
+            "road.load_class",
+            "road.frost_resistant"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "layers"
+          }
+        },
+        {
+          "id": "commercial",
+          "label": "Kalkulation / LV",
+          "description": "Ausschreibungs- und Preisangaben.",
+          "sort_order": 40,
+          "required": false,
+          "fields": [
+            "commercial.lv_text",
+            "commercial.price_per_m2",
+            "commercial.price_source"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "receipt"
+          }
+        },
+        {
+          "id": "documents",
+          "label": "Dokumente",
+          "description": "Technische Datenblätter und Nachweise.",
+          "sort_order": 50,
+          "required": false,
+          "fields": [
+            "documents.datasheets",
+            "documents.test_reports",
+            "documents.technical_drawings"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "file-text"
+          }
+        }
+      ],
+      "required_fields": [
+        "variant.variant_id",
+        "variant.label",
+        "dimensions.thickness_mm",
+        "material.type"
+      ],
+      "optional_fields": [
+        "variant.description",
+        "dimensions.width_mm",
+        "dimensions.length_mm",
+        "road.layer_type",
+        "material.subtype",
+        "road.load_class",
+        "road.frost_resistant",
+        "commercial.lv_text",
+        "commercial.price_per_m2",
+        "commercial.price_source",
+        "documents.datasheets",
+        "documents.test_reports",
+        "documents.technical_drawings"
+      ],
+      "summary_fields": [
+        "variant.label",
+        "road.layer_type",
+        "dimensions.thickness_mm",
+        "material.type",
+        "road.load_class"
+      ],
+      "default_values": {
+        "variant.variant_id": "default",
+        "variant.label": "Standard",
+        "material.type": "concrete",
+        "road.frost_resistant": true
+      },
+      "document_types": [
+        "datasheet",
+        "test_report",
+        "technical_drawing",
+        "certificate"
+      ],
+      "manufacturer_mode": "optional",
+      "ui": {
+        "drawer": {
+          "title": "Belagsvariante definieren",
+          "subtitle": "Erfasst Schicht, Material, Dicke, Belastungsklasse und LV-Daten.",
+          "size": "wide",
+          "preview_mode": "road_block"
+        },
+        "cards": {
+          "title_field": "variant.label",
+          "subtitle_fields": [
+            "road.layer_type",
+            "material.type"
+          ],
+          "badge_fields": [
+            "dimensions.thickness_mm",
+            "road.load_class"
+          ]
+        }
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "multi_cell_module.v1",
+      "label": "Mehrblockmodul",
+      "description": "Variantenprofil für mehrzellige Module wie Schächte, Treppenkerne, Fundamentmodule oder Installationsmodule.",
+      "active": true,
+      "sort_order": 50,
+      "tags": [
+        "module",
+        "multi-cell",
+        "compound"
+      ],
+      "aliases": [
+        "mehrblockmodul",
+        "compound_module",
+        "multi_cell"
+      ],
+      "i18n": {
+        "de": "Mehrblockmodul",
+        "en": "Multi-cell module"
+      },
+      "family_profiles": [
+        "multi_cell_generic",
+        "stair_core_module",
+        "shaft_module",
+        "foundation_module",
+        "installation_module"
+      ],
+      "object_kinds": [
+        "multi_cell_module"
+      ],
+      "sections": [
+        {
+          "id": "identity",
+          "label": "Variante",
+          "description": "Grunddaten der Modulvariante.",
+          "sort_order": 10,
+          "required": true,
+          "fields": [
+            "variant.variant_id",
+            "variant.label",
+            "variant.description"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "tag"
+          }
+        },
+        {
+          "id": "module",
+          "label": "Modulraster",
+          "description": "Zellanzahl und grundlegende Modulstruktur.",
+          "sort_order": 20,
+          "required": true,
+          "fields": [
+            "module.cell_count_x",
+            "module.cell_count_y",
+            "module.cell_count_z",
+            "module.connection_logic"
+          ],
+          "ui": {
+            "columns": 3,
+            "icon": "grid"
+          }
+        },
+        {
+          "id": "geometry",
+          "label": "Reale Maße",
+          "description": "Reale Abmessungen des Moduls.",
+          "sort_order": 30,
+          "required": false,
+          "fields": [
+            "dimensions.width_mm",
+            "dimensions.height_mm",
+            "dimensions.depth_mm"
+          ],
+          "ui": {
+            "columns": 3,
+            "icon": "ruler"
+          }
+        },
+        {
+          "id": "material",
+          "label": "Material",
+          "description": "Optionale Materialdaten.",
+          "sort_order": 40,
+          "required": false,
+          "fields": [
+            "material.type",
+            "material.subtype"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "layers"
+          }
+        },
+        {
+          "id": "commercial",
+          "label": "Kalkulation / LV",
+          "description": "Optionale LV- und Preisangaben.",
+          "sort_order": 50,
+          "required": false,
+          "fields": [
+            "commercial.lv_text",
+            "commercial.price_per_piece"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "receipt"
+          }
+        },
+        {
+          "id": "documents",
+          "label": "Dokumente",
+          "description": "Optionale technische Unterlagen.",
+          "sort_order": 60,
+          "required": false,
+          "fields": [
+            "documents.datasheets",
+            "documents.technical_drawings"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "file-text"
+          }
+        }
+      ],
+      "required_fields": [
+        "variant.variant_id",
+        "variant.label",
+        "module.cell_count_x",
+        "module.cell_count_y",
+        "module.cell_count_z"
+      ],
+      "optional_fields": [
+        "variant.description",
+        "module.connection_logic",
+        "dimensions.width_mm",
+        "dimensions.height_mm",
+        "dimensions.depth_mm",
+        "material.type",
+        "material.subtype",
+        "commercial.lv_text",
+        "commercial.price_per_piece",
+        "documents.datasheets",
+        "documents.technical_drawings"
+      ],
+      "summary_fields": [
+        "variant.label",
+        "module.cell_count_x",
+        "module.cell_count_y",
+        "module.cell_count_z",
+        "material.type"
+      ],
+      "default_values": {
+        "variant.variant_id": "default",
+        "variant.label": "Standard",
+        "module.cell_count_x": 2,
+        "module.cell_count_y": 2,
+        "module.cell_count_z": 1
+      },
+      "document_types": [
+        "datasheet",
+        "technical_drawing",
+        "installation_manual"
+      ],
+      "manufacturer_mode": "optional",
+      "ui": {
+        "drawer": {
+          "title": "Modulvariante definieren",
+          "subtitle": "Erfasst Zellanzahl, Modulstruktur, reale Maße und optionale Materialdaten.",
+          "size": "wide",
+          "preview_mode": "module"
+        },
+        "cards": {
+          "title_field": "variant.label",
+          "subtitle_fields": [
+            "module.cell_count_x",
+            "module.cell_count_y",
+            "module.cell_count_z"
+          ],
+          "badge_fields": [
+            "material.type"
+          ]
+        }
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "catalog_object.v1",
+      "label": "Generisches Katalogobjekt",
+      "description": "Variantenprofil für frei platzierbare Katalogobjekte wie Möbel, Ausstattung oder technische Geräte mit reduzierter technischer Tiefe.",
+      "active": true,
+      "sort_order": 60,
+      "tags": [
+        "catalog",
+        "object",
+        "asset"
+      ],
+      "aliases": [
+        "katalogobjekt",
+        "catalog_item",
+        "generic_object"
+      ],
+      "i18n": {
+        "de": "Generisches Katalogobjekt",
+        "en": "Generic catalog object"
+      },
+      "family_profiles": [
+        "generic_catalog_object",
+        "furniture_catalog_object",
+        "equipment_catalog_object",
+        "railing_system"
+      ],
+      "object_kinds": [
+        "catalog_object",
+        "adaptive_system"
+      ],
+      "sections": [
+        {
+          "id": "identity",
+          "label": "Variante",
+          "description": "Grunddaten der Objektvariante.",
+          "sort_order": 10,
+          "required": true,
+          "fields": [
+            "variant.variant_id",
+            "variant.label",
+            "variant.description",
+            "product.designation"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "tag"
+          }
+        },
+        {
+          "id": "manufacturer",
+          "label": "Hersteller",
+          "description": "Optionale Hersteller- und Produktdaten.",
+          "sort_order": 20,
+          "required": false,
+          "fields": [
+            "manufacturer.name",
+            "manufacturer.product_number",
+            "manufacturer.product_url",
+            "manufacturer.future_overlay_ready"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "factory"
+          }
+        },
+        {
+          "id": "geometry",
+          "label": "Abmessungen / Bounding",
+          "description": "Optionale Abmessungen oder Bounding-Box-Angaben.",
+          "sort_order": 30,
+          "required": false,
+          "fields": [
+            "dimensions.width_mm",
+            "dimensions.height_mm",
+            "dimensions.depth_mm",
+            "render.reference"
+          ],
+          "ui": {
+            "columns": 3,
+            "icon": "box"
+          }
+        },
+        {
+          "id": "material",
+          "label": "Material / Oberfläche",
+          "description": "Material und sichtbare Oberfläche.",
+          "sort_order": 40,
+          "required": false,
+          "fields": [
+            "material.type",
+            "material.subtype",
+            "surface.finish",
+            "material.color_hint"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "palette"
+          }
+        },
+        {
+          "id": "commercial",
+          "label": "Kalkulation",
+          "description": "Optionale Preis- und LV-Daten.",
+          "sort_order": 50,
+          "required": false,
+          "fields": [
+            "commercial.lv_text",
+            "commercial.price_per_piece",
+            "commercial.price_source"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "receipt"
+          }
+        },
+        {
+          "id": "documents",
+          "label": "Dokumente",
+          "description": "Datenblätter, Montageanleitungen und Zeichnungen.",
+          "sort_order": 60,
+          "required": false,
+          "fields": [
+            "documents.datasheets",
+            "documents.installation_manuals",
+            "documents.technical_drawings"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "file-text"
+          }
+        }
+      ],
+      "required_fields": [
+        "variant.variant_id",
+        "variant.label"
+      ],
+      "optional_fields": [
+        "variant.description",
+        "product.designation",
+        "manufacturer.name",
+        "manufacturer.product_number",
+        "manufacturer.product_url",
+        "manufacturer.future_overlay_ready",
+        "dimensions.width_mm",
+        "dimensions.height_mm",
+        "dimensions.depth_mm",
+        "render.reference",
+        "material.type",
+        "material.subtype",
+        "surface.finish",
+        "material.color_hint",
+        "commercial.lv_text",
+        "commercial.price_per_piece",
+        "commercial.price_source",
+        "documents.datasheets",
+        "documents.installation_manuals",
+        "documents.technical_drawings"
+      ],
+      "summary_fields": [
+        "variant.label",
+        "manufacturer.name",
+        "product.designation",
+        "material.type",
+        "surface.finish"
+      ],
+      "default_values": {
+        "variant.variant_id": "default",
+        "variant.label": "Standard",
+        "manufacturer.future_overlay_ready": true
+      },
+      "document_types": [
+        "datasheet",
+        "installation_manual",
+        "technical_drawing",
+        "product_sheet"
+      ],
+      "manufacturer_mode": "optional",
+      "ui": {
+        "drawer": {
+          "title": "Katalogobjekt-Variante definieren",
+          "subtitle": "Erfasst Produktdaten, Hersteller, Material, Oberfläche, Renderreferenz und Dokumente.",
+          "size": "wide",
+          "preview_mode": "catalog_object"
+        },
+        "cards": {
+          "title_field": "variant.label",
+          "subtitle_fields": [
+            "manufacturer.name",
+            "product.designation"
+          ],
+          "badge_fields": [
+            "material.type",
+            "surface.finish"
+          ]
+        }
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "supports_product_like_variants": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "sanitary_faucet_catalog.v1",
+      "label": "Wasserhahn / Armatur",
+      "description": "Variantenprofil für Wasserhähne und Armaturen. Eine Variante beschreibt typischerweise Hersteller, Modell, Anschlussart, Oberfläche, Durchfluss und Dokumente.",
+      "active": true,
+      "sort_order": 70,
+      "tags": [
+        "sanitary",
+        "faucet",
+        "catalog",
+        "product"
+      ],
+      "aliases": [
+        "wasserhahn",
+        "armatur",
+        "faucet",
+        "tap"
+      ],
+      "i18n": {
+        "de": "Wasserhahn / Armatur",
+        "en": "Faucet / sanitary fitting"
+      },
+      "family_profiles": [
+        "sanitary_faucet"
+      ],
+      "object_kinds": [
+        "catalog_object"
+      ],
+      "sections": [
+        {
+          "id": "identity",
+          "label": "Variante",
+          "description": "Grunddaten der Armaturvariante.",
+          "sort_order": 10,
+          "required": true,
+          "fields": [
+            "variant.variant_id",
+            "variant.label",
+            "variant.description",
+            "product.designation"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "tag"
+          }
+        },
+        {
+          "id": "manufacturer",
+          "label": "Hersteller / Produkt",
+          "description": "Hersteller- und Produktreferenz.",
+          "sort_order": 20,
+          "required": true,
+          "fields": [
+            "manufacturer.name",
+            "manufacturer.product_number",
+            "manufacturer.product_url",
+            "manufacturer.future_overlay_ready"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "factory"
+          }
+        },
+        {
+          "id": "sanitary",
+          "label": "Sanitärdaten",
+          "description": "Anschluss, Durchfluss und Einbauinformationen.",
+          "sort_order": 30,
+          "required": false,
+          "fields": [
+            "connection.type",
+            "connection.nominal_size",
+            "flow.rate_l_min",
+            "sanitary.mounting_type"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "droplet"
+          }
+        },
+        {
+          "id": "material",
+          "label": "Material / Oberfläche",
+          "description": "Material- und Oberflächendaten.",
+          "sort_order": 40,
+          "required": false,
+          "fields": [
+            "material.type",
+            "material.subtype",
+            "surface.finish",
+            "material.color_hint"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "palette"
+          }
+        },
+        {
+          "id": "geometry",
+          "label": "Abmessungen / Render",
+          "description": "Optionale reale Abmessungen und Renderreferenzen.",
+          "sort_order": 50,
+          "required": false,
+          "fields": [
+            "dimensions.width_mm",
+            "dimensions.height_mm",
+            "dimensions.depth_mm",
+            "render.reference"
+          ],
+          "ui": {
+            "columns": 3,
+            "icon": "box"
+          }
+        },
+        {
+          "id": "commercial",
+          "label": "Kalkulation / LV",
+          "description": "Preis- und Ausschreibungstext.",
+          "sort_order": 60,
+          "required": false,
+          "fields": [
+            "commercial.lv_text",
+            "commercial.price_per_piece",
+            "commercial.price_source"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "receipt"
+          }
+        },
+        {
+          "id": "documents",
+          "label": "Dokumente",
+          "description": "Datenblatt, Montageanleitung und technische Unterlagen.",
+          "sort_order": 70,
+          "required": false,
+          "fields": [
+            "documents.datasheets",
+            "documents.installation_manuals",
+            "documents.certificates",
+            "documents.technical_drawings"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "file-text"
+          }
+        }
+      ],
+      "required_fields": [
+        "variant.variant_id",
+        "variant.label",
+        "manufacturer.name",
+        "product.designation"
+      ],
+      "optional_fields": [
+        "variant.description",
+        "manufacturer.product_number",
+        "manufacturer.product_url",
+        "manufacturer.future_overlay_ready",
+        "connection.type",
+        "connection.nominal_size",
+        "flow.rate_l_min",
+        "sanitary.mounting_type",
+        "material.type",
+        "material.subtype",
+        "surface.finish",
+        "material.color_hint",
+        "dimensions.width_mm",
+        "dimensions.height_mm",
+        "dimensions.depth_mm",
+        "render.reference",
+        "commercial.lv_text",
+        "commercial.price_per_piece",
+        "commercial.price_source",
+        "documents.datasheets",
+        "documents.installation_manuals",
+        "documents.certificates",
+        "documents.technical_drawings"
+      ],
+      "summary_fields": [
+        "variant.label",
+        "manufacturer.name",
+        "product.designation",
+        "connection.type",
+        "surface.finish"
+      ],
+      "default_values": {
+        "variant.variant_id": "default",
+        "variant.label": "Standard",
+        "material.type": "metal",
+        "surface.finish": "chrome",
+        "manufacturer.future_overlay_ready": true
+      },
+      "document_types": [
+        "datasheet",
+        "installation_manual",
+        "certificate",
+        "technical_drawing",
+        "product_sheet"
+      ],
+      "manufacturer_mode": "required",
+      "ui": {
+        "drawer": {
+          "title": "Armaturvariante definieren",
+          "subtitle": "Erfasst Hersteller, Modell, Anschluss, Oberfläche, Durchfluss, Preis und Dokumente.",
+          "size": "wide",
+          "preview_mode": "sanitary_faucet"
+        },
+        "cards": {
+          "title_field": "variant.label",
+          "subtitle_fields": [
+            "manufacturer.name",
+            "product.designation"
+          ],
+          "badge_fields": [
+            "connection.type",
+            "surface.finish"
+          ]
+        }
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "supports_product_like_variants": true,
+        "future_overlay_ready": true,
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "adaptive_system.v1",
+      "label": "Adaptives System",
+      "description": "Variantenprofil für adaptive und kontextabhängige Systeme. Varianten definieren technische Parameter, Material und Kontextanforderungen; die endgültige Form entsteht später über dynamic/context_rules.json, dynamic/bindings.json und dynamic/generator.json.",
+      "active": true,
+      "sort_order": 80,
+      "tags": [
+        "adaptive",
+        "dynamic",
+        "context",
+        "system"
+      ],
+      "aliases": [
+        "adaptives_system",
+        "adaptive_object",
+        "dynamic_system"
+      ],
+      "i18n": {
+        "de": "Adaptives System",
+        "en": "Adaptive system"
+      },
+      "family_profiles": [
+        "adaptive_bridge_component",
+        "bridge_cap",
+        "railing_system",
+        "edge_beam_system",
+        "bridge_abutment_concrete"
+      ],
+      "object_kinds": [
+        "adaptive_system"
+      ],
+      "sections": [
+        {
+          "id": "identity",
+          "label": "Variante",
+          "description": "Grunddaten der adaptiven Variante.",
+          "sort_order": 10,
+          "required": true,
+          "fields": [
+            "variant.variant_id",
+            "variant.label",
+            "variant.description"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "tag"
+          }
+        },
+        {
+          "id": "context",
+          "label": "Kontextbindung",
+          "description": "Kontext, auf dem das adaptive System erlaubt ist.",
+          "sort_order": 20,
+          "required": true,
+          "fields": [
+            "context.host_type",
+            "context.reference_axis",
+            "context.supporting_structure",
+            "context.boundary_conditions"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "network"
+          }
+        },
+        {
+          "id": "geometry",
+          "label": "Parameter / Maße",
+          "description": "Parametrische Ausgangswerte für die spätere adaptive Erzeugung.",
+          "sort_order": 30,
+          "required": false,
+          "fields": [
+            "dimensions.width_mm",
+            "dimensions.height_mm",
+            "dimensions.length_mm",
+            "dynamic.generator_mode"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "ruler"
+          }
+        },
+        {
+          "id": "material",
+          "label": "Material",
+          "description": "Material und technische Ausgangswerte.",
+          "sort_order": 40,
+          "required": false,
+          "fields": [
+            "material.type",
+            "material.subtype",
+            "concrete.strength_class",
+            "structural.compressive_strength"
+          ],
+          "ui": {
+            "columns": 2,
+            "icon": "layers"
+          }
+        },
+        {
+          "id": "commercial",
+          "label": "Kalkulation / LV",
+          "description": "Optionale Ausschreibungs- und Preisangaben.",
+          "sort_order": 50,
+          "required": false,
+          "fields": [
+            "commercial.lv_text",
+            "commercial.price_per_m",
+            "commercial.price_per_m3",
+            "commercial.price_source"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "receipt"
+          }
+        },
+        {
+          "id": "documents",
+          "label": "Dokumente",
+          "description": "Technische Nachweise und Zeichnungen.",
+          "sort_order": 60,
+          "required": false,
+          "fields": [
+            "documents.datasheets",
+            "documents.test_reports",
+            "documents.certificates",
+            "documents.technical_drawings"
+          ],
+          "ui": {
+            "columns": 1,
+            "icon": "file-text"
+          }
+        }
+      ],
+      "required_fields": [
+        "variant.variant_id",
+        "variant.label",
+        "context.host_type"
+      ],
+      "optional_fields": [
+        "variant.description",
+        "context.reference_axis",
+        "context.supporting_structure",
+        "context.boundary_conditions",
+        "dimensions.width_mm",
+        "dimensions.height_mm",
+        "dimensions.length_mm",
+        "dynamic.generator_mode",
+        "material.type",
+        "material.subtype",
+        "concrete.strength_class",
+        "structural.compressive_strength",
+        "commercial.lv_text",
+        "commercial.price_per_m",
+        "commercial.price_per_m3",
+        "commercial.price_source",
+        "documents.datasheets",
+        "documents.test_reports",
+        "documents.certificates",
+        "documents.technical_drawings"
+      ],
+      "summary_fields": [
+        "variant.label",
+        "context.host_type",
+        "material.type",
+        "concrete.strength_class",
+        "dimensions.width_mm"
+      ],
+      "default_values": {
+        "variant.variant_id": "default",
+        "variant.label": "Standard",
+        "context.host_type": "project_context",
+        "dynamic.generator_mode": "declarative"
+      },
+      "document_types": [
+        "datasheet",
+        "test_report",
+        "certificate",
+        "technical_drawing",
+        "approval"
+      ],
+      "manufacturer_mode": "optional",
+      "ui": {
+        "drawer": {
+          "title": "Adaptive Variante definieren",
+          "subtitle": "Erfasst Kontextbindung, Material, technische Parameter und Dokumente.",
+          "size": "fullscreen",
+          "preview_mode": "adaptive_system"
+        },
+        "cards": {
+          "title_field": "variant.label",
+          "subtitle_fields": [
+            "context.host_type",
+            "material.type"
+          ],
+          "badge_fields": [
+            "dynamic.generator_mode",
+            "concrete.strength_class"
+          ]
+        }
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "future_overlay_ready": true,
+        "requires_dynamic_modules": true,
+        "stability": "planned"
+      }
+    }
+  ]
+}

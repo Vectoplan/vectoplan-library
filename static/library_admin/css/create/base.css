@@ -1,0 +1,605 @@
+/* services/vectoplan-library/static/library_admin/css/create/base.css */
+
+/* -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard · Base Styles
+
+  Zweck:
+  - Grundlegende Browser-/Typografie-/Accessibility-Styles für /create.
+  - Robuste Basis für die Fullscreen-Wizard-Oberfläche.
+  - Baut auf tokens.css auf.
+  - Keine komplexen Komponenten.
+  - Keine Layout-Grids.
+  - Keine Formular-Komponenten im Detail.
+  - Keine Preview-Komponenten.
+  - Keine Tabellen-/Row-Details.
+  - Keine Backend-Annahmen.
+  - Keine API-Annahmen.
+  - Keine Abhängigkeit zu gelöschten Partials:
+    - _hero.html
+    - _alerts.html
+    - sections/_help.html
+    - sections/_result.html
+
+  Zielzustand:
+  - /create läuft als 100vw × 100dvh Wizard.
+  - Body scrollt im Create-Modus nicht.
+  - Interne Wizard-Bereiche kontrollieren ihren eigenen Platz.
+  - Stepper darf volle Breite nutzen.
+  - Variant Editor darf volle Breite nutzen.
+  - Typography ist nicht mehr zu klein.
+  - Basis bleibt kompatibel mit alten .vp-create-* Klassen und neuen
+    .vplib-create-* Wizard-Klassen.
+
+  Abhängigkeit:
+  - Muss direkt nach create/tokens.css geladen werden.
+
+  Gilt für:
+  - templates/library_admin/create.html
+  - templates/library_admin/create/*
+----------------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+  1. Box Model / Reset
+----------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--vp-create-bg-page, #0b1120);
+  color: var(--vp-create-text, #e5e7eb);
+  font-family: var(--vp-create-font, system-ui, sans-serif);
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+html[data-create-document="true"],
+html[data-vp-create-document="true"] {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+body.vp-create-page,
+body[data-create-page="true"],
+body[data-vp-create-page="true"] {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  color: var(--vp-create-text, #e5e7eb);
+  font-family: var(--vp-create-font, system-ui, sans-serif);
+  font-size: var(--vp-create-text-md, 0.95rem);
+  font-weight: var(--vp-create-weight-regular, 400);
+  line-height: var(--vp-create-line-normal, 1.5);
+  background: var(--vp-create-page-gradient, var(--vp-create-bg-page, #0b1120));
+}
+
+img,
+svg,
+video,
+canvas,
+audio,
+iframe,
+embed,
+object {
+  display: block;
+  max-width: 100%;
+}
+
+img,
+svg {
+  height: auto;
+}
+
+button,
+input,
+select,
+textarea {
+  margin: 0;
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled,
+button[aria-disabled="true"],
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
+textarea {
+  resize: vertical;
+}
+
+fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+legend {
+  padding: 0;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+template,
+[hidden] {
+  display: none !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+  2. Typography
+----------------------------------------------------------------------------- */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+blockquote,
+figure,
+dl,
+dd {
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--vp-create-text-strong, #f8fafc);
+  font-weight: var(--vp-create-weight-bold, 740);
+  line-height: var(--vp-create-line-snug, 1.24);
+}
+
+p {
+  color: var(--vp-create-text-soft, #cbd5e1);
+}
+
+strong,
+b {
+  color: var(--vp-create-text-strong, #f8fafc);
+  font-weight: var(--vp-create-weight-bold, 740);
+}
+
+small {
+  color: var(--vp-create-text-muted, #94a3b8);
+  font-size: var(--vp-create-text-xs, 0.78rem);
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--vp-create-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+}
+
+code {
+  display: inline;
+  padding: 0.08rem 0.32rem;
+  border: 1px solid var(--vp-create-code-border, rgba(148, 163, 184, 0.22));
+  border-radius: var(--vp-create-radius-xs, 6px);
+  color: var(--vp-create-code-text, #bfdbfe);
+  font-size: 0.88em;
+  background: var(--vp-create-code-bg, rgba(2, 6, 23, 0.55));
+}
+
+pre {
+  overflow: auto;
+  white-space: pre;
+  tab-size: 2;
+}
+
+a {
+  color: var(--vp-create-primary, #60a5fa);
+  text-decoration: none;
+  text-underline-offset: 0.18em;
+  transition: var(--vp-create-transition-fast, 120ms ease);
+}
+
+a:hover {
+  color: var(--vp-create-primary-hover, #93c5fd);
+  text-decoration: underline;
+}
+
+a:focus-visible {
+  outline: none;
+  box-shadow: var(--vp-create-shadow-focus, 0 0 0 4px rgba(96, 165, 250, 0.18));
+}
+
+body.vp-create-page::selection,
+body[data-create-page="true"]::selection,
+body[data-vp-create-page="true"]::selection {
+  color: var(--vp-create-text-inverted, #ffffff);
+  background: var(--vp-create-primary, #60a5fa);
+}
+
+
+/* -----------------------------------------------------------------------------
+  3. Focus / Accessibility
+----------------------------------------------------------------------------- */
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--vp-create-shadow-focus, 0 0 0 4px rgba(96, 165, 250, 0.18));
+}
+
+.vp-create-sr-only,
+.vp-create-sr-only:not(:focus):not(:active),
+.vp-create-visually-hidden,
+.vp-create-visually-hidden:not(:focus):not(:active),
+.is-visually-hidden,
+.is-visually-hidden:not(:focus):not(:active) {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.vp-create-skip-link {
+  position: fixed;
+  z-index: var(--vp-create-z-modal, 50);
+  top: var(--vp-create-space-3, 0.75rem);
+  left: var(--vp-create-space-3, 0.75rem);
+  transform: translateY(-140%);
+  padding: var(--vp-create-space-2, 0.5rem) var(--vp-create-space-3, 0.75rem);
+  border: 1px solid var(--vp-create-border-focus, rgba(96, 165, 250, 0.9));
+  border-radius: var(--vp-create-radius-sm, 10px);
+  color: var(--vp-create-text-inverted, #ffffff);
+  background: var(--vp-create-primary, #60a5fa);
+  box-shadow: var(--vp-create-shadow-md, 0 18px 48px rgba(0, 0, 0, 0.32));
+  transition: transform var(--vp-create-duration-fast, 120ms) var(--vp-create-ease-standard, ease);
+}
+
+.vp-create-skip-link:focus {
+  transform: translateY(0);
+}
+
+
+/* -----------------------------------------------------------------------------
+  4. Root Shell Compatibility
+----------------------------------------------------------------------------- */
+
+.vp-create-shell {
+  width: min(100%, var(--vp-create-page-max, 1640px));
+  min-width: 0;
+  min-height: 0;
+  margin: 0 auto;
+  padding: var(--vp-create-shell-padding, 28px);
+}
+
+.vplib-create-app {
+  min-width: 0;
+}
+
+.vplib-create-app,
+.vplib-create-app__shell,
+.vplib-create-app__form,
+.vplib-create-app__workspace,
+.vplib-create-app__main,
+.vplib-create-app__aside,
+.vplib-create-steps,
+.vplib-create-step,
+.vplib-create-step__panel,
+.vplib-create-step__body,
+.vp-create-section,
+.vp-create-section--object-variants,
+.vp-create-object-variants__body,
+.vp-create-object-variants__workspace,
+.vp-create-variant-workspace,
+[data-vp-variant-workspace-root="true"],
+.vp-create-variant-drawer,
+[data-vp-variant-drawer-root="true"] {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vplib-create-app__main,
+.vplib-create-app__aside,
+.vplib-create-steps,
+.vplib-create-step {
+  overflow: hidden;
+}
+
+
+/* -----------------------------------------------------------------------------
+  5. Generic Utility States
+----------------------------------------------------------------------------- */
+
+.is-hidden {
+  display: none !important;
+}
+
+.is-disabled {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.is-muted {
+  color: var(--vp-create-text-muted, #94a3b8);
+}
+
+.is-loading {
+  cursor: progress;
+}
+
+.is-dimmed {
+  opacity: 0.72;
+}
+
+.is-interactive {
+  cursor: pointer;
+}
+
+.is-updated {
+  will-change: transform, opacity, border-color, box-shadow;
+}
+
+.is-running {
+  cursor: progress;
+}
+
+
+/* -----------------------------------------------------------------------------
+  6. Data-State Helpers
+----------------------------------------------------------------------------- */
+
+[data-create-form-state="loading"] {
+  cursor: progress;
+}
+
+[data-create-form-state="loading"] button:not(:disabled),
+[data-create-form-state="loading"] input:not(:disabled),
+[data-create-form-state="loading"] select:not(:disabled),
+[data-create-form-state="loading"] textarea:not(:disabled) {
+  cursor: progress;
+}
+
+[data-create-section],
+[data-vp-create-section],
+[data-vp-create-step] {
+  scroll-margin-top: var(--vp-create-space-5, 1.25rem);
+}
+
+[data-vp-create-step][hidden],
+[data-vp-create-step].is-hidden {
+  display: none !important;
+}
+
+[data-vp-create-step].is-active {
+  min-width: 0;
+  min-height: 0;
+}
+
+
+/* -----------------------------------------------------------------------------
+  7. Clean Variant Editor Base Safety
+
+  Komponenten-CSS steuert das Layout. Diese Basis verhindert nur, dass alte
+  versteckte Debug-/Meta-Bereiche durch generische Regeln wieder sichtbar werden.
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__runtime-meta,
+.vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__runtime-status,
+.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__runtime-meta,
+.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__runtime-status,
+.vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__summary,
+.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__summary,
+.vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__section-nav,
+.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__section-nav {
+  display: none !important;
+}
+
+.vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__fields,
+.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__fields {
+  min-width: 0;
+}
+
+
+/* -----------------------------------------------------------------------------
+  8. Scrollbars
+
+  Body scroll remains disabled in the Create Wizard.
+  These rules apply to internal overflow areas, for example JSON output,
+  Variant-Editor-Fields and compact dynamic row lists.
+----------------------------------------------------------------------------- */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--vp-create-scrollbar-thumb, rgba(148, 163, 184, 0.42)) var(--vp-create-scrollbar-track, rgba(15, 23, 42, 0.8));
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--vp-create-scrollbar-track, rgba(15, 23, 42, 0.8));
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid var(--vp-create-scrollbar-track, rgba(15, 23, 42, 0.8));
+  border-radius: var(--vp-create-radius-full, 999px);
+  background: var(--vp-create-scrollbar-thumb, rgba(148, 163, 184, 0.42));
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--vp-create-scrollbar-thumb-hover, rgba(148, 163, 184, 0.62));
+}
+
+
+/* -----------------------------------------------------------------------------
+  9. Generic JSON / Monospace Blocks
+----------------------------------------------------------------------------- */
+
+.vp-create-output,
+.vp-create-json,
+.vp-create-mono-block,
+.vp-create-result-output {
+  font-family: var(--vp-create-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  font-size: var(--vp-create-text-xs, 0.78rem);
+  line-height: 1.46;
+  tab-size: 2;
+}
+
+
+/* -----------------------------------------------------------------------------
+  10. Defensive Legacy Neutralization
+
+  Die alte lange Seite nutzte diese Strukturen. Falls altes Markup versehentlich
+  noch gerendert wird, soll es den Wizard nicht wieder verlängern.
+----------------------------------------------------------------------------- */
+
+.vp-create-hero,
+.vp-create-alert-stack,
+.vp-create-status-grid,
+[data-create-help-card="true"],
+[data-create-result-card="true"] {
+  display: none !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+  11. Reduced Motion
+----------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  12. Forced Colors
+----------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  body.vp-create-page,
+  body[data-create-page="true"],
+  body[data-vp-create-page="true"] {
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  a {
+    color: LinkText;
+  }
+
+  code {
+    border-color: CanvasText;
+    color: CanvasText;
+    background: Canvas;
+  }
+
+  :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  13. Print Baseline
+----------------------------------------------------------------------------- */
+
+@media print {
+  html,
+  html[data-create-document="true"],
+  html[data-vp-create-document="true"] {
+    width: auto;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    background: #ffffff;
+    color: #111827;
+  }
+
+  body.vp-create-page,
+  body[data-create-page="true"],
+  body[data-vp-create-page="true"] {
+    width: auto;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    color: #111827;
+    background: #ffffff;
+  }
+
+  .vp-create-shell {
+    width: 100%;
+    max-width: none;
+    padding: 0;
+  }
+
+  a {
+    color: #111827;
+    text-decoration: underline;
+  }
+
+  code {
+    color: #111827;
+    background: #f1f5f9;
+  }
+
+  button,
+  .vp-create-theme-toggle,
+  .vp-create-action-stack,
+  .vp-create-action-links,
+  .vplib-create-stepper,
+  .vplib-create-wizard-nav {
+    display: none !important;
+  }
+}

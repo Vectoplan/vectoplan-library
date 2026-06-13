@@ -1,0 +1,2025 @@
+{# services/vectoplan-library/templates/library_admin/create/variants/_variant_drawer_shell.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard · Variant Drawer Shell
+
+  Zweck:
+  - Flache, editorartige Shell für definition-managed Varianten.
+  - Dient zum Erstellen und Bearbeiten einer Variante.
+  - Entfernt sichtbare Debug-/Meta-Bereiche:
+      - "Noch kein Profil geladen."
+      - "Profil: ..."
+      - "Objektart: ..."
+      - "Taxonomie: ..."
+      - "ID: ..."
+      - "Bereit / Variante bereit."
+  - Behält technische Hooks intern bei, damit bestehende JS-Module weiter
+    arbeiten können.
+  - Rendert keine fachlich hart kodierten Variant-Felder.
+  - Stellt Slots für dynamisch gerenderte Backend-Definitionsfelder bereit.
+  - Stellt einen sichtbaren Bereich für "Weitere technische Angaben" bereit.
+  - Positioniert Profilfelder und Zusatzvariablen in einem gemeinsamen
+    Content-Grid, damit "Weitere technische Angaben" oben auf gleicher Höhe
+    mit den Variant-Profilfeldern beginnt.
+  - Bereitet verfügbare Variablen als Listenlayout vor:
+      Bezeichnung | Beschreibung | Art
+  - Bereitet gewählte Zusatzfelder als Zeilenlayout vor:
+      Variable | Eingabefeld | Entfernen
+  - Keine Suche/Gruppe/Filter im Template.
+  - Keine API-Aufrufe im Template.
+  - Keine Package-Erzeugung.
+  - Keine Three.js-Logik.
+
+  Verantwortung dieser Datei:
+  - Drawer-/Editor-DOM-Struktur.
+  - Stabile data-hooks.
+  - Hidden State für aktuellen Drawer-Kontext.
+  - Full-width Field-Area ohne linke leere Profilspalte.
+  - Kompakter Header.
+  - Gemeinsames Layout für Profilfelder und optionale Backend-Variablen.
+  - Immer vorhandener Footer mit:
+      Abbrechen | Prüfen | Variante speichern
+  - Templates für Section-, Field-, Optional-, Validation- und Summary-Runtime.
+  - Defensiver JS-Fallback mit try/catch und DOM-Cache.
+
+  Nicht-Verantwortung:
+  - Variant Profile auflösen.
+  - Felder aus `variables.v1.json` rendern.
+  - Werte fachlich validieren.
+  - Summary fachlich berechnen.
+  - Varianten in Tabellenzeilen schreiben.
+  - `definition_variants_json` synchronisieren.
+
+  Wichtige Layout-Hooks:
+  - data-vp-variant-drawer-content-grid="true"
+  - data-vp-variant-drawer-profile-column="true"
+  - data-vp-variant-drawer-optional-column="true"
+
+  Stabile Runtime-Hooks:
+  - data-vp-variant-drawer="true"
+  - data-vp-variant-drawer-root="true"
+  - data-vp-variant-drawer-panel="true"
+  - data-vp-variant-drawer-form="true"
+  - data-vp-variant-drawer-section-nav="true"
+  - data-vp-variant-drawer-fields="true"
+  - data-vp-variant-drawer-sections="true"
+  - data-vp-variant-drawer-additional-fields="true"
+  - data-vp-variant-optional-fields-root="true"
+  - data-vp-variant-drawer-summary="true"
+  - data-vp-variant-drawer-validation="true"
+  - data-vp-variant-drawer-status="true"
+  - data-vp-variant-drawer-close="true"
+  - data-vp-variant-drawer-cancel="true"
+  - data-vp-variant-drawer-validate="true"
+  - data-vp-variant-drawer-apply="true"
+  - data-vp-variant-drawer-footer="true"
+
+  Runtime:
+  - create_variant_drawer.js steuert regulär Open/Close/Apply.
+  - create_variant_profiles.js resolved Profile.
+  - create_variant_field_renderer.js rendert Profilfelder.
+  - create_variant_optional_fields.js rendert optionale Backend-Variablen.
+  - create_variant_validation.js schreibt Fehler/Hinweise.
+  - create_variant_summary.js kann versteckte Summary-Hooks weiterverwenden.
+
+  Robustheit:
+  - Buttons dispatchen Requests auch dann, wenn die Primary Runtime geladen ist.
+  - Fallback-Aktionen greifen nur, wenn keine Primary Runtime verfügbar ist.
+  - Der Footer bleibt DOM-strukturell außerhalb der scrollenden Field-Area.
+  - Apply-Button ist fachlich eindeutig als "Variante speichern" benannt.
+  - Der Optional-Fields-Root bleibt im DOM vorhanden. Dadurch mountet
+    create_variant_optional_fields.js ihn nicht mehr automatisch unter die
+    Profilfelder.
+----------------------------------------------------------------------------- #}
+
+
+{# -----------------------------------------------------------------------------
+  1. Makros defensiv verfügbar machen
+----------------------------------------------------------------------------- #}
+
+{% if create_ui is not defined %}
+  {% import "library_admin/create/_macros.html" as create_ui %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  2. Workspace-/Drawer-Kontext defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if _vp_variant_workspace_id is defined and _vp_variant_workspace_id %}
+  {% set _drawer_workspace_id = _vp_variant_workspace_id %}
+{% elif vp_variant_workspace_id is defined and vp_variant_workspace_id %}
+  {% set _drawer_workspace_id = vp_variant_workspace_id %}
+{% else %}
+  {% set _drawer_workspace_id = 'vp-create-variant-workspace' %}
+{% endif %}
+
+{% if vp_variant_drawer_id is defined and vp_variant_drawer_id %}
+  {% set _vp_variant_drawer_id = vp_variant_drawer_id %}
+{% else %}
+  {% set _vp_variant_drawer_id = _drawer_workspace_id ~ '-drawer' %}
+{% endif %}
+
+{% if _vp_variant_definitions_available is defined %}
+  {% set _drawer_definitions_available = _vp_variant_definitions_available %}
+{% elif _definitions_available is defined %}
+  {% set _drawer_definitions_available = _definitions_available %}
+{% else %}
+  {% set _drawer_definitions_available = false %}
+{% endif %}
+
+{% if _vp_variant_domain is defined and _vp_variant_domain %}
+  {% set _drawer_domain = _vp_variant_domain %}
+{% elif _selected_domain is defined and _selected_domain %}
+  {% set _drawer_domain = _selected_domain %}
+{% else %}
+  {% set _drawer_domain = '' %}
+{% endif %}
+
+{% if _vp_variant_category is defined and _vp_variant_category %}
+  {% set _drawer_category = _vp_variant_category %}
+{% elif _selected_category is defined and _selected_category %}
+  {% set _drawer_category = _selected_category %}
+{% else %}
+  {% set _drawer_category = '' %}
+{% endif %}
+
+{% if _vp_variant_subcategory is defined and _vp_variant_subcategory %}
+  {% set _drawer_subcategory = _vp_variant_subcategory %}
+{% elif _selected_subcategory is defined and _selected_subcategory %}
+  {% set _drawer_subcategory = _selected_subcategory %}
+{% else %}
+  {% set _drawer_subcategory = '' %}
+{% endif %}
+
+{% if _vp_variant_object_kind_normalized is defined and _vp_variant_object_kind_normalized %}
+  {% set _drawer_object_kind = _vp_variant_object_kind_normalized %}
+{% elif _vp_variant_object_kind is defined and _vp_variant_object_kind %}
+  {% set _drawer_object_kind = _vp_variant_object_kind | string | lower | replace('-', '_') | replace(' ', '_') %}
+{% elif _selected_object_kind is defined and _selected_object_kind %}
+  {% set _drawer_object_kind = _selected_object_kind | string | lower | replace('-', '_') | replace(' ', '_') %}
+{% else %}
+  {% set _drawer_object_kind = 'cell_block' %}
+{% endif %}
+
+{% if _vp_variant_family_profile_id is defined and _vp_variant_family_profile_id %}
+  {% set _drawer_family_profile_id = _vp_variant_family_profile_id %}
+{% elif _selected_family_profile_id is defined and _selected_family_profile_id %}
+  {% set _drawer_family_profile_id = _selected_family_profile_id %}
+{% else %}
+  {% set _drawer_family_profile_id = '' %}
+{% endif %}
+
+{% if _vp_variant_profile_id is defined and _vp_variant_profile_id %}
+  {% set _drawer_variant_profile_id = _vp_variant_profile_id %}
+{% elif _selected_variant_profile_id is defined and _selected_variant_profile_id %}
+  {% set _drawer_variant_profile_id = _selected_variant_profile_id %}
+{% else %}
+  {% set _drawer_variant_profile_id = '' %}
+{% endif %}
+
+{% if _vp_variant_default_variant_id is defined and _vp_variant_default_variant_id %}
+  {% set _drawer_default_variant_id = _vp_variant_default_variant_id %}
+{% else %}
+  {% set _drawer_default_variant_id = 'default' %}
+{% endif %}
+
+{% if _drawer_definitions_available %}
+  {% set _drawer_initial_status = 'ready' %}
+{% else %}
+  {% set _drawer_initial_status = 'definitions_unavailable' %}
+{% endif %}
+
+
+<aside
+  id="{{ _vp_variant_drawer_id }}"
+  class="vp-create-variant-drawer vp-create-variant-drawer--shell-clean"
+  data-vp-variant-drawer="true"
+  data-vp-variant-drawer-root="true"
+  data-vp-variant-drawer-shell="clean"
+  data-vp-variant-drawer-layout="embedded"
+  data-vp-variant-drawer-version="0.3.1"
+  data-vp-variant-drawer-state="closed"
+  data-vp-variant-drawer-mode="create"
+  data-vp-variant-drawer-status-state="{{ _drawer_initial_status }}"
+  data-vp-definitions-available="{% if _drawer_definitions_available %}true{% else %}false{% endif %}"
+  data-vp-current-domain="{{ _drawer_domain | string | e }}"
+  data-vp-current-category="{{ _drawer_category | string | e }}"
+  data-vp-current-subcategory="{{ _drawer_subcategory | string | e }}"
+  data-vp-current-object-kind="{{ _drawer_object_kind | string | e }}"
+  data-vp-current-family-profile-id="{{ _drawer_family_profile_id | string | e }}"
+  data-vp-current-variant-profile-id="{{ _drawer_variant_profile_id | string | e }}"
+  data-vp-default-variant-id="{{ _drawer_default_variant_id | string | e }}"
+  data-vp-workspace-id="{{ _drawer_workspace_id | string | e }}"
+  aria-hidden="true"
+  hidden
+>
+  <div
+    class="vp-create-variant-drawer__backdrop"
+    data-vp-variant-drawer-backdrop="true"
+    tabindex="-1"
+    aria-hidden="true"
+    hidden
+  ></div>
+
+  <section
+    class="vp-create-variant-drawer__panel"
+    data-vp-variant-drawer-panel="true"
+    role="region"
+    aria-labelledby="{{ _vp_variant_drawer_id }}-title"
+    aria-describedby="{{ _vp_variant_drawer_id }}-subtitle"
+    tabindex="-1"
+  >
+    <form
+      class="vp-create-variant-drawer__form"
+      data-vp-variant-drawer-form="true"
+      autocomplete="off"
+      novalidate
+    >
+      <input
+        type="hidden"
+        name="variant_drawer_mode"
+        value="create"
+        data-vp-variant-drawer-mode-field="true"
+      />
+
+      <input
+        type="hidden"
+        name="variant_drawer_row_index"
+        value=""
+        data-vp-variant-drawer-row-index-field="true"
+      />
+
+      <input
+        type="hidden"
+        name="variant_drawer_variant_id"
+        value=""
+        data-vp-variant-drawer-variant-id-field="true"
+      />
+
+      <input
+        type="hidden"
+        name="variant_drawer_variant_profile_id"
+        value="{{ _drawer_variant_profile_id | string | e }}"
+        data-vp-variant-drawer-profile-id-field="true"
+      />
+
+      <input
+        type="hidden"
+        name="variant_drawer_family_profile_id"
+        value="{{ _drawer_family_profile_id | string | e }}"
+        data-vp-variant-drawer-family-profile-id-field="true"
+      />
+
+      <input
+        type="hidden"
+        name="variant_drawer_values_json"
+        value=""
+        data-vp-variant-drawer-values-json-field="true"
+      />
+
+      <input
+        type="hidden"
+        name="variant_drawer_original_values_json"
+        value=""
+        data-vp-variant-drawer-original-values-json-field="true"
+      />
+
+      <input
+        type="hidden"
+        name="variant_drawer_additional_field_keys_json"
+        value="[]"
+        data-vp-variant-drawer-additional-field-keys-json-field="true"
+        data-vp-variant-drawer-additional-field-keys-json="true"
+      />
+
+      <input
+        type="hidden"
+        name="variant_drawer_original_additional_field_keys_json"
+        value="[]"
+        data-vp-variant-drawer-original-additional-field-keys-json-field="true"
+      />
+
+      <header
+        class="vp-create-variant-drawer__header"
+        data-vp-variant-drawer-header="true"
+      >
+        <div class="vp-create-variant-drawer__header-main">
+          <p
+            class="vp-create-variant-drawer__kicker"
+            data-vp-variant-drawer-kicker="true"
+          >
+            Bearbeitung
+          </p>
+
+          <h3
+            id="{{ _vp_variant_drawer_id }}-title"
+            class="vp-create-variant-drawer__title"
+            data-vp-variant-drawer-title="true"
+          >
+            Variante bearbeiten
+          </h3>
+
+          <p
+            id="{{ _vp_variant_drawer_id }}-subtitle"
+            class="vp-create-variant-drawer__subtitle"
+            data-vp-variant-drawer-subtitle="true"
+          >
+            Die Felder werden aus dem passenden Backend-Definitionsprofil aufgebaut.
+          </p>
+        </div>
+
+        <div class="vp-create-variant-drawer__header-actions">
+          <button
+            class="vp-create-button vp-create-button--ghost vp-create-variant-drawer__close"
+            type="button"
+            data-vp-variant-drawer-close="true"
+            data-vp-variant-footer-action="close"
+            aria-label="Variantenbearbeitung schließen"
+          >
+            Schließen
+          </button>
+        </div>
+      </header>
+
+      <div
+        class="vp-create-variant-drawer__meta vp-create-variant-drawer__runtime-meta"
+        data-vp-variant-drawer-meta="true"
+        aria-hidden="true"
+        hidden
+      >
+        <span
+          class="vp-create-variant-drawer__pill"
+          data-vp-variant-drawer-profile-pill="true"
+        >
+          Profil: {% if _drawer_variant_profile_id %}{{ _drawer_variant_profile_id }}{% else %}auto{% endif %}
+        </span>
+
+        <span
+          class="vp-create-variant-drawer__pill"
+          data-vp-variant-drawer-object-kind-pill="true"
+        >
+          Objektart: {{ _drawer_object_kind }}
+        </span>
+
+        <span
+          class="vp-create-variant-drawer__pill"
+          data-vp-variant-drawer-taxonomy-pill="true"
+        >
+          Taxonomie:
+          {% if _drawer_domain or _drawer_category or _drawer_subcategory %}
+            {{ _drawer_domain }} / {{ _drawer_category }} / {{ _drawer_subcategory }}
+          {% else %}
+            offen
+          {% endif %}
+        </span>
+
+        <span
+          class="vp-create-variant-drawer__pill vp-create-variant-drawer__pill--system"
+          data-vp-variant-drawer-variant-id-pill="true"
+        >
+          ID: <span data-vp-variant-drawer-variant-id-label="true"></span>
+        </span>
+      </div>
+
+      <div
+        class="vp-create-variant-drawer__status vp-create-variant-drawer__runtime-status"
+        data-vp-variant-drawer-status="true"
+        aria-live="polite"
+        hidden
+      >
+        <span
+          class="vp-create-variant-drawer__status-pill vp-create-variant-drawer__status-pill--idle"
+          data-vp-variant-drawer-status-pill="true"
+        >
+          Bereit
+        </span>
+
+        <span
+          class="vp-create-variant-drawer__status-text"
+          data-vp-variant-drawer-status-text="true"
+        >
+          Variante bereit.
+        </span>
+      </div>
+
+      <div
+        class="vp-create-variant-drawer__validation"
+        data-vp-variant-drawer-validation="true"
+        data-vp-variant-drawer-validation-state="idle"
+        aria-live="polite"
+        hidden
+      >
+        <div class="vp-create-variant-drawer__validation-header">
+          <strong data-vp-variant-drawer-validation-title="true">
+            Prüfung
+          </strong>
+
+          <span data-vp-variant-drawer-validation-count="true">
+            0 Hinweise
+          </span>
+        </div>
+
+        <ul
+          class="vp-create-variant-drawer__validation-list"
+          data-vp-variant-drawer-validation-list="true"
+        ></ul>
+      </div>
+
+      <div
+        class="vp-create-variant-drawer__body"
+        data-vp-variant-drawer-body="true"
+      >
+        <nav
+          class="vp-create-variant-drawer__section-nav"
+          data-vp-variant-drawer-section-nav="true"
+          aria-label="Variantenabschnitte"
+          hidden
+        >
+          <div
+            class="vp-create-variant-drawer__section-nav-empty"
+            data-vp-variant-drawer-section-nav-empty="true"
+            hidden
+          ></div>
+        </nav>
+
+        <main
+          class="vp-create-variant-drawer__fields"
+          data-vp-variant-drawer-fields="true"
+          data-vp-variant-drawer-fields-state="empty"
+        >
+          <header
+            class="vp-create-variant-drawer__fields-header vp-create-variant-drawer__fields-header--empty"
+            data-vp-variant-drawer-fields-header="true"
+            aria-hidden="true"
+            hidden
+          ></header>
+
+          <div
+            class="vp-create-variant-drawer__empty"
+            data-vp-variant-drawer-fields-empty="true"
+            hidden
+          >
+            <strong>Felder werden geladen.</strong>
+            <span>
+              Sobald ein Variant Profile aufgelöst wurde, rendert die Runtime hier die passenden Eingabefelder.
+            </span>
+          </div>
+
+          <div
+            class="vp-create-variant-drawer__content-grid"
+            data-vp-variant-drawer-content-grid="true"
+            data-vp-variant-drawer-content-layout="profile-and-optional"
+          >
+            <div
+              class="vp-create-variant-drawer__profile-column"
+              data-vp-variant-drawer-profile-column="true"
+            >
+              <div
+                class="vp-create-variant-drawer__sections"
+                data-vp-variant-drawer-sections="true"
+              ></div>
+            </div>
+
+            <section
+              class="vp-create-variant-drawer__additional-fields vp-create-variant-optional-fields"
+              data-vp-variant-drawer-additional-fields="true"
+              data-vp-variant-drawer-optional-fields="true"
+              data-vp-variant-optional-fields-root="true"
+              data-vp-variant-drawer-optional-column="true"
+              data-vp-variant-optional-placement="beside-profile-fields"
+              aria-labelledby="{{ _vp_variant_drawer_id }}-optional-fields-title"
+            >
+              <header class="vp-create-variant-optional-fields__header">
+                <div>
+                  <h4 id="{{ _vp_variant_drawer_id }}-optional-fields-title">
+                    Weitere technische Angaben
+                  </h4>
+
+                  <p>
+                    Zusätzliche Variablen aus dem Backend-Katalog auswählen, z. B. U-Wert, Brandschutz oder Rohdichte.
+                  </p>
+                </div>
+
+                <span
+                  class="vp-create-variant-optional-fields__status"
+                  data-vp-variant-optional-fields-status="true"
+                  data-vp-variant-optional-fields-count-label="true"
+                  aria-live="polite"
+                >
+                  Keine Zusatzfelder aktiv.
+                </span>
+              </header>
+
+              <div
+                class="vp-create-variant-optional-fields__available"
+                data-vp-variant-optional-fields-available="true"
+                data-vp-variant-optional-fields-catalog="true"
+              >
+                <div
+                  class="vp-create-variant-optional-fields__available-header"
+                  data-vp-variant-optional-fields-available-header="true"
+                >
+                  <strong data-vp-variant-optional-fields-available-title="true">
+                    Verfügbare Variablen
+                  </strong>
+
+                  <span data-vp-variant-optional-fields-available-count="true">
+                    Wird geladen.
+                  </span>
+                </div>
+
+                <div
+                  class="vp-create-variant-optional-fields__available-columns"
+                  data-vp-variant-optional-fields-available-columns="true"
+                  aria-hidden="true"
+                >
+                  <span>Bezeichnung</span>
+                  <span>Beschreibung</span>
+                  <span>Art</span>
+                </div>
+
+                <div
+                  class="vp-create-variant-optional-fields__available-list"
+                  data-vp-variant-optional-fields-available-list="true"
+                  role="listbox"
+                  aria-label="Verfügbare Backend-Variablen"
+                ></div>
+              </div>
+
+              <div
+                class="vp-create-variant-optional-fields__selected"
+                data-vp-variant-optional-fields-selected="true"
+              >
+                <div class="vp-create-variant-optional-fields__selected-header">
+                  <strong>Gewählte Zusatzfelder</strong>
+
+                  <span data-vp-variant-optional-fields-selected-count="true">
+                    0
+                  </span>
+                </div>
+
+                <div
+                  class="vp-create-variant-optional-fields__selected-empty"
+                  data-vp-variant-optional-fields-selected-empty="true"
+                >
+                  Noch keine zusätzlichen Variablen gewählt.
+                </div>
+
+                <div
+                  class="vp-create-variant-optional-fields__selected-rows"
+                  data-vp-variant-optional-fields-selected-rows="true"
+                  data-vp-variant-optional-fields-selected-list="true"
+                ></div>
+              </div>
+            </section>
+          </div>
+        </main>
+
+        <aside
+          class="vp-create-variant-drawer__summary"
+          data-vp-variant-drawer-summary="true"
+          aria-label="Varianten-Zusammenfassung"
+          hidden
+        >
+          <header class="vp-create-variant-drawer__summary-header">
+            <h4>Zusammenfassung</h4>
+            <p>Live-Überblick über die aktuelle Variante.</p>
+          </header>
+
+          <dl
+            class="vp-create-variant-drawer__summary-list"
+            data-vp-variant-drawer-summary-list="true"
+          >
+            <div class="vp-create-variant-drawer__summary-item">
+              <dt>Name</dt>
+              <dd data-vp-variant-drawer-summary-name="true">Noch nicht festgelegt</dd>
+            </div>
+
+            <div class="vp-create-variant-drawer__summary-item">
+              <dt>Variant-ID</dt>
+              <dd data-vp-variant-drawer-summary-id="true">wird automatisch vergeben</dd>
+            </div>
+
+            <div class="vp-create-variant-drawer__summary-item">
+              <dt>Profil</dt>
+              <dd data-vp-variant-drawer-summary-profile="true">
+                {% if _drawer_variant_profile_id %}{{ _drawer_variant_profile_id }}{% else %}auto{% endif %}
+              </dd>
+            </div>
+
+            <div class="vp-create-variant-drawer__summary-item">
+              <dt>Status</dt>
+              <dd data-vp-variant-drawer-summary-status="true">Entwurf</dd>
+            </div>
+          </dl>
+
+          <div
+            class="vp-create-variant-drawer__summary-values"
+            data-vp-variant-drawer-summary-values="true"
+          ></div>
+        </aside>
+      </div>
+
+      <footer
+        class="vp-create-variant-drawer__footer vp-create-variant-drawer-footer vp-create-variant-drawer-footer--compact"
+        data-vp-variant-drawer-footer="true"
+        data-vp-variant-drawer-footer-root="true"
+        data-vp-variant-drawer-footer-version="0.3.1"
+        data-vp-variant-drawer-footer-sticky="true"
+        data-vp-workspace-id="{{ _drawer_workspace_id | string | e }}"
+        data-vp-drawer-id="{{ _vp_variant_drawer_id | string | e }}"
+        data-vp-definitions-available="{% if _drawer_definitions_available %}true{% else %}false{% endif %}"
+        data-vp-family-profile-id="{{ _drawer_family_profile_id | string | e }}"
+        data-vp-variant-profile-id="{{ _drawer_variant_profile_id | string | e }}"
+        data-vp-profile-state="{% if _drawer_variant_profile_id %}resolved{% elif _drawer_definitions_available %}pending{% else %}unavailable{% endif %}"
+        data-vp-validation-state="idle"
+        data-vp-dirty="false"
+        data-vp-busy="false"
+        aria-label="Variantenaktionen"
+      >
+        <div class="vp-create-variant-drawer-footer__left">
+          <span
+            class="vp-create-variant-drawer-footer__dirty-state"
+            data-vp-variant-drawer-dirty-state="true"
+            data-vp-dirty="false"
+          >
+            Keine ungespeicherten Änderungen
+          </span>
+
+          <span
+            class="vp-create-variant-drawer-footer__validation-state"
+            data-vp-variant-drawer-footer-validation-state="true"
+            data-vp-validation-state="idle"
+            hidden
+          >
+            Nicht geprüft
+          </span>
+
+          <span
+            class="vp-create-variant-drawer-footer__profile-state"
+            data-vp-variant-drawer-footer-profile-state="true"
+            data-vp-profile-state="{% if _drawer_variant_profile_id %}resolved{% elif _drawer_definitions_available %}pending{% else %}unavailable{% endif %}"
+            hidden
+          >
+            {% if _drawer_variant_profile_id %}
+              Profil: {{ _drawer_variant_profile_id }}
+            {% elif _drawer_definitions_available %}
+              Profil: auto
+            {% else %}
+              Profil: nicht verfügbar
+            {% endif %}
+          </span>
+
+          <span
+            class="vp-create-variant-drawer-footer__status"
+            data-vp-variant-drawer-footer-status="true"
+            hidden
+          >
+            <span
+              class="vp-create-variant-drawer-footer__status-dot"
+              data-vp-variant-drawer-footer-status-dot="true"
+              aria-hidden="true"
+            ></span>
+
+            <span
+              class="vp-create-variant-drawer-footer__status-text"
+              data-vp-variant-drawer-footer-status-text="true"
+            >
+              Bereit.
+            </span>
+          </span>
+        </div>
+
+        <div class="vp-create-variant-drawer-footer__right">
+          <button
+            class="vp-create-button vp-create-button--ghost vp-create-variant-drawer-footer__button"
+            type="button"
+            data-vp-variant-drawer-cancel="true"
+            data-vp-variant-footer-action="cancel"
+            aria-label="Variantenbearbeitung abbrechen"
+          >
+            Abbrechen
+          </button>
+
+          <button
+            class="vp-create-button vp-create-button--secondary vp-create-variant-drawer-footer__button"
+            type="button"
+            data-vp-variant-drawer-validate="true"
+            data-vp-variant-footer-action="validate"
+            aria-label="Variante prüfen"
+            {% if not _drawer_definitions_available %}
+              data-vp-action-disabled-reason="definitions_unavailable"
+            {% endif %}
+          >
+            Prüfen
+          </button>
+
+          <button
+            class="vp-create-button vp-create-button--primary vp-create-variant-drawer-footer__button"
+            type="button"
+            data-vp-variant-drawer-apply="true"
+            data-vp-variant-footer-action="apply"
+            data-vp-action-label="Variante speichern"
+            aria-label="Variante speichern"
+            {% if not _drawer_definitions_available %}
+              data-vp-action-disabled-reason="definitions_unavailable"
+            {% endif %}
+          >
+            Variante speichern
+          </button>
+        </div>
+      </footer>
+
+      <template data-vp-variant-drawer-section-template="true">
+        <section
+          class="vp-create-variant-drawer__section"
+          data-vp-variant-drawer-section="true"
+          data-vp-section-id="__section_id__"
+        >
+          <header class="vp-create-variant-drawer__section-header">
+            <h4 data-vp-section-label="true">__section_label__</h4>
+            <p data-vp-section-description="true">__section_description__</p>
+          </header>
+
+          <div
+            class="vp-create-variant-drawer__section-grid"
+            data-vp-section-fields="true"
+          ></div>
+        </section>
+      </template>
+
+      <template data-vp-variant-drawer-section-nav-item-template="true">
+        <button
+          class="vp-create-variant-drawer__section-nav-item"
+          type="button"
+          data-vp-variant-drawer-section-nav-item="true"
+          data-vp-section-target="__section_id__"
+          data-vp-section-id="__section_id__"
+          aria-controls="__section_id__"
+        >
+          <span data-vp-section-nav-label="true">__section_label__</span>
+          <span
+            class="vp-create-variant-drawer__section-nav-state"
+            data-vp-section-nav-state="true"
+          ></span>
+        </button>
+      </template>
+
+      <template data-vp-variant-drawer-field-shell-template="true">
+        <div
+          class="vp-create-variant-field"
+          data-vp-variant-field="true"
+          data-vp-field-key="__field_key__"
+          data-vp-field-widget="__field_widget__"
+          data-vp-field-value-type="__field_value_type__"
+        >
+          <label class="vp-create-variant-field__label">
+            <span data-vp-field-label="true">__field_label__</span>
+            <span
+              class="vp-create-variant-field__required"
+              data-vp-field-required="true"
+              hidden
+            >
+              *
+            </span>
+          </label>
+
+          <div
+            class="vp-create-variant-field__control"
+            data-vp-field-control="true"
+          ></div>
+
+          <p
+            class="vp-create-variant-field__description"
+            data-vp-field-description="true"
+            hidden
+          ></p>
+
+          <p
+            class="vp-create-variant-field__error"
+            data-vp-field-error="true"
+            hidden
+          ></p>
+        </div>
+      </template>
+
+      <template data-vp-variant-drawer-optional-available-row-template="true">
+        <button
+          class="vp-create-variant-optional-fields__available-row"
+          type="button"
+          data-vp-variant-optional-add="__field_key__"
+          data-vp-variable-key="__field_key__"
+          role="option"
+        >
+          <span
+            class="vp-create-variant-optional-fields__available-name"
+            data-vp-optional-available-name="true"
+          >
+            __field_label__
+          </span>
+
+          <span
+            class="vp-create-variant-optional-fields__available-description"
+            data-vp-optional-available-description="true"
+          >
+            __field_description__
+          </span>
+
+          <span
+            class="vp-create-variant-optional-fields__available-type"
+            data-vp-optional-available-type="true"
+          >
+            __field_type__
+          </span>
+        </button>
+      </template>
+
+      <template data-vp-variant-drawer-optional-row-template="true">
+        <div
+          class="vp-create-variant-optional-fields__row"
+          data-vp-variant-optional-fields-row="true"
+          data-vp-field-key="__field_key__"
+        >
+          <div class="vp-create-variant-optional-fields__row-variable">
+            <strong data-vp-optional-row-label="true">__field_label__</strong>
+            <span data-vp-optional-row-meta="true">__field_key__</span>
+          </div>
+
+          <div
+            class="vp-create-variant-optional-fields__row-control"
+            data-vp-optional-row-control="true"
+          ></div>
+
+          <button
+            class="vp-create-button vp-create-button--ghost vp-create-variant-optional-fields__row-remove"
+            type="button"
+            data-vp-optional-row-remove="true"
+            data-vp-remove-additional-field="true"
+          >
+            Entfernen
+          </button>
+        </div>
+      </template>
+
+      <template data-vp-variant-drawer-validation-item-template="true">
+        <li
+          class="vp-create-variant-drawer__validation-item"
+          data-vp-validation-item="true"
+          data-vp-validation-field-key="__field_key__"
+        >
+          <strong data-vp-validation-label="true">__label__</strong>
+          <span data-vp-validation-message="true">__message__</span>
+        </li>
+      </template>
+
+      <template data-vp-variant-drawer-summary-chip-template="true">
+        <span
+          class="vp-create-variant-drawer__summary-chip"
+          data-vp-summary-chip="true"
+          data-vp-summary-field-key="__field_key__"
+        >
+          __label__
+        </span>
+      </template>
+    </form>
+  </section>
+</aside>
+
+<style data-vp-variant-drawer-shell-layout-style="true">
+  /* ---------------------------------------------------------------------------
+    Scoped fix:
+    - Profilfelder und "Weitere technische Angaben" starten in derselben Zeile.
+    - Der Optional-Fields-Root bleibt explizit im DOM und wird nicht mehr von
+      JS unterhalb der Profilfelder neu gemountet.
+    - Die dreispaltige Liste bleibt auch in der rechten Spalte scanbar.
+  --------------------------------------------------------------------------- */
+
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-drawer-fields="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-drawer-fields="true"] {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    align-content: start;
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-drawer-fields-header="true"][hidden],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-drawer-fields-header="true"][hidden],
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-drawer-fields-empty="true"][hidden],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-drawer-fields-empty="true"][hidden] {
+    display: none !important;
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-drawer-content-grid="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-drawer-content-grid="true"] {
+    display: grid;
+    grid-template-columns: minmax(0, 0.96fr) minmax(320px, 0.78fr);
+    gap: clamp(0.85rem, 1.1vw, 1.15rem);
+    align-items: start;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-drawer-profile-column="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-drawer-profile-column="true"] {
+    min-width: 0;
+    align-self: start;
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-drawer-sections="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-drawer-sections="true"] {
+    min-width: 0;
+    align-self: start;
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-drawer-optional-column="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-drawer-optional-column="true"],
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-optional-fields-root="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-optional-fields-root="true"] {
+    align-self: start;
+    margin-top: 0 !important;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-optional-fields-root="true"] {
+    padding: 0.82rem;
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-optional-fields-available="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-optional-fields-available="true"],
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-optional-fields-selected="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-optional-fields-selected="true"] {
+    padding: 0.68rem;
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-optional-fields-available-columns="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-optional-fields-available-columns="true"],
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-optional-add],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-optional-add] {
+    grid-template-columns: minmax(105px, 0.9fr) minmax(128px, 1.15fr) minmax(58px, 0.42fr) !important;
+    gap: 0.45rem !important;
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-optional-fields-available-columns="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-optional-fields-available-columns="true"] {
+    display: grid !important;
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-variant-optional-fields-available-list="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-optional-fields-available-list="true"] {
+    max-height: clamp(190px, 27vh, 320px);
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-optional-available-description="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-optional-available-description="true"] {
+    grid-column: auto !important;
+    white-space: nowrap;
+  }
+
+  .vp-create-variant-drawer--shell-clean [data-vp-optional-available-type="true"],
+  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-optional-available-type="true"] {
+    grid-column: auto !important;
+    grid-row: auto !important;
+    justify-self: start !important;
+  }
+
+  @media (max-width: 860px) {
+    .vp-create-variant-drawer--shell-clean [data-vp-variant-drawer-content-grid="true"],
+    .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-drawer-content-grid="true"] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .vp-create-variant-drawer--shell-clean [data-vp-variant-optional-fields-root="true"],
+    .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-optional-fields-root="true"] {
+      margin-top: 0.9rem !important;
+    }
+  }
+
+  @media (max-width: 620px) {
+    .vp-create-variant-drawer--shell-clean [data-vp-variant-optional-fields-available-columns="true"],
+    .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-optional-fields-available-columns="true"] {
+      display: none !important;
+    }
+
+    .vp-create-variant-drawer--shell-clean [data-vp-variant-optional-add],
+    .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-variant-optional-add] {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .vp-create-variant-drawer--shell-clean [data-vp-optional-available-description="true"],
+    .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-optional-available-description="true"] {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+  }
+</style>
+
+<script>
+  (function () {
+    "use strict";
+
+    var DRAWER_SELECTOR = "[data-vp-variant-drawer-root='true']";
+    var READY_ATTR = "data-vp-variant-drawer-shell-ready";
+    var EVENTS_BOUND_ATTR = "data-vp-variant-drawer-shell-events-bound";
+    var COMPONENT_NAME = "VECTOPLAN Variant Drawer Shell";
+    var COMPONENT_VERSION = "0.3.1";
+
+    function warn(message, error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+
+    function toArray(value) {
+      try {
+        return Array.prototype.slice.call(value || []);
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function dispatch(node, eventName, detail, cancelable) {
+      try {
+        if (!node || !eventName) {
+          return null;
+        }
+
+        var event = new CustomEvent(eventName, {
+          bubbles: true,
+          cancelable: !!cancelable,
+          detail: detail || {}
+        });
+
+        node.dispatchEvent(event);
+        return event;
+      } catch (error) {
+        warn("Could not dispatch event: " + eventName, error);
+        return null;
+      }
+    }
+
+    function hasPrimaryRuntime() {
+      try {
+        return !!(
+          window.VectoplanCreateVariantDrawer &&
+          (
+            typeof window.VectoplanCreateVariantDrawer.open === "function" ||
+            typeof window.VectoplanCreateVariantDrawer.close === "function" ||
+            typeof window.VectoplanCreateVariantDrawer.applyDrawer === "function"
+          )
+        );
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function safeSetText(node, value) {
+      try {
+        if (node) {
+          node.textContent = value === null || value === undefined ? "" : String(value);
+        }
+      } catch (error) {
+        warn("Could not set text.", error);
+      }
+    }
+
+    function safeSetValue(node, value) {
+      try {
+        if (node) {
+          node.value = value === null || value === undefined ? "" : String(value);
+        }
+      } catch (error) {
+        warn("Could not set value.", error);
+      }
+    }
+
+    function readBooleanAttr(node, name) {
+      try {
+        return String(node.getAttribute(name) || "").toLowerCase() === "true";
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function normalizeMode(value) {
+      try {
+        var mode = String(value || "").trim().toLowerCase();
+
+        if (mode === "edit" || mode === "update" || mode === "bearbeiten") {
+          return "edit";
+        }
+
+        return "create";
+      } catch (error) {
+        return "create";
+      }
+    }
+
+    function readContext(root) {
+      try {
+        return {
+          id: root.getAttribute("id") || "",
+          version: root.getAttribute("data-vp-variant-drawer-version") || COMPONENT_VERSION,
+          state: root.getAttribute("data-vp-variant-drawer-state") || "closed",
+          mode: root.getAttribute("data-vp-variant-drawer-mode") || "create",
+          definitionsAvailable: readBooleanAttr(root, "data-vp-definitions-available"),
+          domain: root.getAttribute("data-vp-current-domain") || "",
+          category: root.getAttribute("data-vp-current-category") || "",
+          subcategory: root.getAttribute("data-vp-current-subcategory") || "",
+          objectKind: root.getAttribute("data-vp-current-object-kind") || "",
+          familyProfileId: root.getAttribute("data-vp-current-family-profile-id") || "",
+          variantProfileId: root.getAttribute("data-vp-current-variant-profile-id") || "",
+          defaultVariantId: root.getAttribute("data-vp-default-variant-id") || "default",
+          workspaceId: root.getAttribute("data-vp-workspace-id") || ""
+        };
+      } catch (error) {
+        warn("Could not read drawer context.", error);
+        return {};
+      }
+    }
+
+    function cacheDrawer(root) {
+      try {
+        return {
+          root: root,
+          panel: root.querySelector("[data-vp-variant-drawer-panel='true']"),
+          form: root.querySelector("[data-vp-variant-drawer-form='true']"),
+          backdrop: root.querySelector("[data-vp-variant-drawer-backdrop='true']"),
+
+          closeButtons: toArray(root.querySelectorAll("[data-vp-variant-drawer-close='true']")),
+          cancelButton: root.querySelector("[data-vp-variant-drawer-cancel='true']"),
+          validateButton: root.querySelector("[data-vp-variant-drawer-validate='true']"),
+          applyButton: root.querySelector("[data-vp-variant-drawer-apply='true']"),
+
+          title: root.querySelector("[data-vp-variant-drawer-title='true']"),
+          subtitle: root.querySelector("[data-vp-variant-drawer-subtitle='true']"),
+          kicker: root.querySelector("[data-vp-variant-drawer-kicker='true']"),
+
+          status: root.querySelector("[data-vp-variant-drawer-status='true']"),
+          statusPill: root.querySelector("[data-vp-variant-drawer-status-pill='true']"),
+          statusText: root.querySelector("[data-vp-variant-drawer-status-text='true']"),
+
+          validation: root.querySelector("[data-vp-variant-drawer-validation='true']"),
+          validationCount: root.querySelector("[data-vp-variant-drawer-validation-count='true']"),
+          validationList: root.querySelector("[data-vp-variant-drawer-validation-list='true']"),
+
+          sectionNav: root.querySelector("[data-vp-variant-drawer-section-nav='true']"),
+          sectionNavEmpty: root.querySelector("[data-vp-variant-drawer-section-nav-empty='true']"),
+          fields: root.querySelector("[data-vp-variant-drawer-fields='true']"),
+          fieldsHeader: root.querySelector("[data-vp-variant-drawer-fields-header='true']"),
+          fieldsEmpty: root.querySelector("[data-vp-variant-drawer-fields-empty='true']"),
+          contentGrid: root.querySelector("[data-vp-variant-drawer-content-grid='true']"),
+          profileColumn: root.querySelector("[data-vp-variant-drawer-profile-column='true']"),
+          sections: root.querySelector("[data-vp-variant-drawer-sections='true']"),
+
+          optionalRoot: root.querySelector("[data-vp-variant-optional-fields-root='true']"),
+          optionalStatus: root.querySelector("[data-vp-variant-optional-fields-status='true']"),
+          optionalAvailable: root.querySelector("[data-vp-variant-optional-fields-available='true']"),
+          optionalAvailableColumns: root.querySelector("[data-vp-variant-optional-fields-available-columns='true']"),
+          optionalAvailableList: root.querySelector("[data-vp-variant-optional-fields-available-list='true']"),
+          optionalAvailableCount: root.querySelector("[data-vp-variant-optional-fields-available-count='true']"),
+          optionalSelected: root.querySelector("[data-vp-variant-optional-fields-selected='true']"),
+          optionalSelectedRows: root.querySelector("[data-vp-variant-optional-fields-selected-rows='true']"),
+          optionalSelectedEmpty: root.querySelector("[data-vp-variant-optional-fields-selected-empty='true']"),
+          optionalSelectedCount: root.querySelector("[data-vp-variant-optional-fields-selected-count='true']"),
+
+          summary: root.querySelector("[data-vp-variant-drawer-summary='true']"),
+          summaryName: root.querySelector("[data-vp-variant-drawer-summary-name='true']"),
+          summaryId: root.querySelector("[data-vp-variant-drawer-summary-id='true']"),
+          summaryProfile: root.querySelector("[data-vp-variant-drawer-summary-profile='true']"),
+          summaryStatus: root.querySelector("[data-vp-variant-drawer-summary-status='true']"),
+          summaryValues: root.querySelector("[data-vp-variant-drawer-summary-values='true']"),
+
+          footer: root.querySelector("[data-vp-variant-drawer-footer='true']"),
+          dirtyState: root.querySelector("[data-vp-variant-drawer-dirty-state='true']"),
+          footerStatus: root.querySelector("[data-vp-variant-drawer-footer-status='true']"),
+          footerStatusText: root.querySelector("[data-vp-variant-drawer-footer-status-text='true']"),
+          footerValidationState: root.querySelector("[data-vp-variant-drawer-footer-validation-state='true']"),
+          footerProfileState: root.querySelector("[data-vp-variant-drawer-footer-profile-state='true']"),
+
+          modeField: root.querySelector("[data-vp-variant-drawer-mode-field='true']"),
+          rowIndexField: root.querySelector("[data-vp-variant-drawer-row-index-field='true']"),
+          variantIdField: root.querySelector("[data-vp-variant-drawer-variant-id-field='true']"),
+          profileIdField: root.querySelector("[data-vp-variant-drawer-profile-id-field='true']"),
+          familyProfileIdField: root.querySelector("[data-vp-variant-drawer-family-profile-id-field='true']"),
+          valuesJsonField: root.querySelector("[data-vp-variant-drawer-values-json-field='true']"),
+          originalValuesJsonField: root.querySelector("[data-vp-variant-drawer-original-values-json-field='true']"),
+          additionalKeysField: root.querySelector("[data-vp-variant-drawer-additional-field-keys-json-field='true']"),
+          originalAdditionalKeysField: root.querySelector("[data-vp-variant-drawer-original-additional-field-keys-json-field='true']"),
+
+          sectionTemplate: root.querySelector("[data-vp-variant-drawer-section-template='true']"),
+          sectionNavItemTemplate: root.querySelector("[data-vp-variant-drawer-section-nav-item-template='true']"),
+          fieldShellTemplate: root.querySelector("[data-vp-variant-drawer-field-shell-template='true']"),
+          optionalAvailableRowTemplate: root.querySelector("[data-vp-variant-drawer-optional-available-row-template='true']"),
+          optionalRowTemplate: root.querySelector("[data-vp-variant-drawer-optional-row-template='true']"),
+          validationItemTemplate: root.querySelector("[data-vp-variant-drawer-validation-item-template='true']"),
+          summaryChipTemplate: root.querySelector("[data-vp-variant-drawer-summary-chip-template='true']")
+        };
+      } catch (error) {
+        warn("Could not cache drawer nodes.", error);
+        return {
+          root: root
+        };
+      }
+    }
+
+    function normalizePayload(payload) {
+      try {
+        var source = payload || {};
+        var mode = normalizeMode(source.mode || source.drawerMode || (source.row ? "edit" : "create"));
+        var variantId = source.variant_id || source.variantId || source.slug || "";
+        var label = source.label || source.name || source.variant_label || source.variantLabel || "";
+        var rowIndex = source.rowIndex;
+        var profileId = source.variant_profile_id || source.variantProfileId || source.profile_id || "";
+        var familyProfileId = source.family_profile_id || source.familyProfileId || "";
+        var valuesJson = source.definition_values_json || source.valuesJson || source.values_json || "";
+        var additionalKeysJson = source.additional_field_keys_json || source.additionalFieldKeysJson || "";
+
+        if (Array.isArray(source.additional_field_keys)) {
+          additionalKeysJson = JSON.stringify(source.additional_field_keys);
+        } else if (Array.isArray(source.additionalFieldKeys)) {
+          additionalKeysJson = JSON.stringify(source.additionalFieldKeys);
+        }
+
+        if (rowIndex === undefined || rowIndex === null || rowIndex === "") {
+          rowIndex = "";
+        }
+
+        return {
+          mode: mode,
+          rowIndex: rowIndex,
+          variantId: variantId,
+          label: label,
+          variantProfileId: profileId,
+          familyProfileId: familyProfileId,
+          valuesJson: valuesJson,
+          additionalKeysJson: additionalKeysJson || "[]",
+          raw: source
+        };
+      } catch (error) {
+        warn("Could not normalize drawer payload.", error);
+        return {
+          mode: "create",
+          rowIndex: "",
+          variantId: "",
+          label: "",
+          variantProfileId: "",
+          familyProfileId: "",
+          valuesJson: "",
+          additionalKeysJson: "[]",
+          raw: {}
+        };
+      }
+    }
+
+    function ensureLayout(cache) {
+      try {
+        if (!cache || !cache.root) {
+          return false;
+        }
+
+        cache.root.setAttribute("data-vp-variant-drawer-shell-ready-layout", "true");
+
+        if (cache.contentGrid) {
+          cache.contentGrid.setAttribute("data-vp-layout-managed-by", COMPONENT_NAME);
+        }
+
+        if (cache.optionalRoot) {
+          cache.optionalRoot.setAttribute("data-vp-variant-optional-placement", "beside-profile-fields");
+          cache.optionalRoot.setAttribute("data-vp-layout-managed-by", COMPONENT_NAME);
+        }
+
+        if (cache.sections) {
+          cache.sections.setAttribute("data-vp-layout-managed-by", COMPONENT_NAME);
+        }
+
+        return true;
+      } catch (error) {
+        warn("Could not ensure drawer shell layout.", error);
+        return false;
+      }
+    }
+
+    function setActionLabels(cache) {
+      try {
+        if (cache.cancelButton) {
+          cache.cancelButton.textContent = "Abbrechen";
+          cache.cancelButton.setAttribute("aria-label", "Variantenbearbeitung abbrechen");
+          cache.cancelButton.setAttribute("data-vp-action-label", "Abbrechen");
+        }
+
+        if (cache.validateButton) {
+          cache.validateButton.textContent = "Prüfen";
+          cache.validateButton.setAttribute("aria-label", "Variante prüfen");
+          cache.validateButton.setAttribute("data-vp-action-label", "Prüfen");
+        }
+
+        if (cache.applyButton) {
+          cache.applyButton.textContent = "Variante speichern";
+          cache.applyButton.setAttribute("aria-label", "Variante speichern");
+          cache.applyButton.setAttribute("data-vp-action-label", "Variante speichern");
+        }
+      } catch (error) {
+        warn("Could not set action labels.", error);
+      }
+    }
+
+    function setDirty(cache, dirty) {
+      try {
+        var isDirty = !!dirty;
+
+        cache.root.setAttribute("data-vp-variant-drawer-dirty", isDirty ? "true" : "false");
+
+        if (cache.footer) {
+          cache.footer.setAttribute("data-vp-dirty", isDirty ? "true" : "false");
+        }
+
+        if (cache.dirtyState) {
+          cache.dirtyState.setAttribute("data-vp-dirty", isDirty ? "true" : "false");
+          cache.dirtyState.textContent = isDirty ? "Ungespeicherte Änderungen" : "Keine ungespeicherten Änderungen";
+        }
+      } catch (error) {
+        warn("Could not set dirty state.", error);
+      }
+    }
+
+    function setFooterStatus(cache, state, text) {
+      try {
+        var normalized = String(state || "idle").toLowerCase();
+
+        if (cache.footer) {
+          cache.footer.setAttribute("data-vp-footer-status", normalized);
+        }
+
+        if (cache.footerStatus) {
+          cache.footerStatus.setAttribute("data-vp-footer-status", normalized);
+        }
+
+        if (cache.footerStatusText && text) {
+          cache.footerStatusText.textContent = text;
+        }
+      } catch (error) {
+        warn("Could not set footer status.", error);
+      }
+    }
+
+    function setBusy(cache, busy) {
+      try {
+        var isBusy = !!busy;
+
+        cache.root.setAttribute("data-vp-variant-drawer-busy", isBusy ? "true" : "false");
+
+        if (cache.footer) {
+          cache.footer.setAttribute("data-vp-busy", isBusy ? "true" : "false");
+        }
+      } catch (error) {
+        warn("Could not set busy state.", error);
+      }
+    }
+
+    function setValidation(cache, items, state) {
+      try {
+        var list = Array.isArray(items) ? items : [];
+        var validationState = state || (list.length ? "invalid" : "valid");
+
+        if (cache.validation) {
+          cache.validation.hidden = list.length === 0;
+          cache.validation.setAttribute("data-vp-variant-drawer-validation-state", validationState);
+        }
+
+        if (cache.footer) {
+          cache.footer.setAttribute("data-vp-validation-state", validationState);
+        }
+
+        if (cache.footerValidationState) {
+          cache.footerValidationState.setAttribute("data-vp-validation-state", validationState);
+          cache.footerValidationState.textContent = validationState === "valid"
+            ? "Gültig"
+            : validationState === "invalid"
+              ? (list.length === 1 ? "1 Fehler" : String(list.length) + " Fehler")
+              : "Nicht geprüft";
+        }
+
+        if (cache.validationCount) {
+          cache.validationCount.textContent = list.length === 1 ? "1 Hinweis" : String(list.length) + " Hinweise";
+        }
+
+        if (cache.validationList) {
+          cache.validationList.innerHTML = "";
+
+          list.forEach(function (item) {
+            try {
+              var li = document.createElement("li");
+              li.className = "vp-create-variant-drawer__validation-item";
+              li.setAttribute("data-vp-validation-item", "true");
+
+              if (item && item.field_key) {
+                li.setAttribute("data-vp-validation-field-key", String(item.field_key));
+              }
+
+              var strong = document.createElement("strong");
+              strong.textContent = item && item.label ? String(item.label) : "Feld";
+
+              var span = document.createElement("span");
+              span.textContent = item && item.message ? String(item.message) : "Ungültiger Wert.";
+
+              li.appendChild(strong);
+              li.appendChild(span);
+              cache.validationList.appendChild(li);
+            } catch (itemError) {
+              warn("Could not render validation item.", itemError);
+            }
+          });
+        }
+      } catch (error) {
+        warn("Could not set validation state.", error);
+      }
+    }
+
+    function applyPayloadToShell(cache, payload) {
+      try {
+        var context = readContext(cache.root);
+        var data = normalizePayload(payload);
+
+        var title = data.mode === "edit" ? "Variante bearbeiten" : "Neue Variante";
+        var kicker = data.mode === "edit" ? "Bearbeitung" : "Neue Variante";
+        var nameLabel = data.label || (data.mode === "edit" ? "Bestehende Variante" : "Neue Variante");
+        var variantId = data.variantId || "";
+        var variantProfileId = data.variantProfileId || context.variantProfileId || "";
+        var familyProfileId = data.familyProfileId || context.familyProfileId || "";
+
+        cache.root.setAttribute("data-vp-variant-drawer-mode", data.mode);
+
+        if (variantProfileId) {
+          cache.root.setAttribute("data-vp-current-variant-profile-id", variantProfileId);
+        }
+
+        if (familyProfileId) {
+          cache.root.setAttribute("data-vp-current-family-profile-id", familyProfileId);
+        }
+
+        safeSetText(cache.kicker, kicker);
+        safeSetText(cache.title, title);
+        safeSetText(cache.summaryName, nameLabel);
+        safeSetText(cache.summaryId, variantId || "wird automatisch vergeben");
+        safeSetText(cache.summaryProfile, variantProfileId || "auto");
+        safeSetText(cache.summaryStatus, data.mode === "edit" ? "Bearbeitung" : "Entwurf");
+
+        safeSetValue(cache.modeField, data.mode);
+        safeSetValue(cache.rowIndexField, data.rowIndex);
+        safeSetValue(cache.variantIdField, variantId);
+        safeSetValue(cache.profileIdField, variantProfileId);
+        safeSetValue(cache.familyProfileIdField, familyProfileId);
+        safeSetValue(cache.valuesJsonField, data.valuesJson);
+        safeSetValue(cache.originalValuesJsonField, data.valuesJson);
+        safeSetValue(cache.additionalKeysField, data.additionalKeysJson);
+        safeSetValue(cache.originalAdditionalKeysField, data.additionalKeysJson);
+
+        if (cache.footer) {
+          cache.footer.setAttribute("data-vp-profile-state", variantProfileId ? "resolved" : "pending");
+          cache.footer.setAttribute("data-vp-variant-profile-id", variantProfileId);
+          cache.footer.setAttribute("data-vp-family-profile-id", familyProfileId);
+        }
+
+        if (cache.footerProfileState) {
+          cache.footerProfileState.setAttribute("data-vp-profile-state", variantProfileId ? "resolved" : "pending");
+          cache.footerProfileState.textContent = variantProfileId ? "Profil: " + variantProfileId : "Profil: auto";
+        }
+
+        ensureLayout(cache);
+        setActionLabels(cache);
+        setValidation(cache, [], "idle");
+        setDirty(cache, false);
+        setBusy(cache, false);
+        setFooterStatus(cache, "idle", data.mode === "edit" ? "Variante zur Bearbeitung geladen." : "Neue Variante vorbereiten.");
+      } catch (error) {
+        warn("Could not apply payload to drawer shell.", error);
+      }
+    }
+
+    function focusDrawer(cache) {
+      try {
+        window.setTimeout(function () {
+          try {
+            var focusTarget = cache.panel || cache.root;
+
+            if (focusTarget && typeof focusTarget.focus === "function") {
+              focusTarget.focus();
+            }
+          } catch (error) {
+            warn("Could not focus drawer.", error);
+          }
+        }, 20);
+      } catch (error) {
+        warn("Could not schedule drawer focus.", error);
+      }
+    }
+
+    function openFallback(root, payload) {
+      try {
+        if (!root) {
+          return;
+        }
+
+        var cache = cacheDrawer(root);
+        var data = normalizePayload(payload);
+
+        applyPayloadToShell(cache, data);
+
+        root.hidden = false;
+        root.removeAttribute("hidden");
+        root.setAttribute("aria-hidden", "false");
+        root.setAttribute("data-vp-variant-drawer-state", "open");
+
+        dispatch(root, "vectoplan:create:variant-drawer-opened", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          payload: data
+        });
+
+        dispatch(document, "vectoplan:create:variant-drawer-opened", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          drawerId: root.getAttribute("id") || "",
+          payload: data
+        });
+
+        dispatch(document, "vectoplan:create:variant-editor-opened", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          drawerId: root.getAttribute("id") || "",
+          payload: data
+        });
+
+        focusDrawer(cache);
+      } catch (error) {
+        warn("Could not open drawer fallback.", error);
+      }
+    }
+
+    function closeFallback(root, reason) {
+      try {
+        if (!root) {
+          return;
+        }
+
+        var cache = cacheDrawer(root);
+
+        root.setAttribute("data-vp-variant-drawer-state", "closed");
+        root.setAttribute("aria-hidden", "true");
+        root.hidden = true;
+
+        setDirty(cache, false);
+        setBusy(cache, false);
+
+        dispatch(root, "vectoplan:create:variant-drawer-closed", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          reason: reason || "close"
+        });
+
+        dispatch(document, "vectoplan:create:variant-drawer-closed", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          drawerId: root.getAttribute("id") || "",
+          reason: reason || "close"
+        });
+
+        dispatch(document, "vectoplan:create:variant-editor-closed", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          drawerId: root.getAttribute("id") || "",
+          reason: reason || "close"
+        });
+      } catch (error) {
+        warn("Could not close drawer fallback.", error);
+      }
+    }
+
+    function getFirstDrawer() {
+      try {
+        return document.querySelector(DRAWER_SELECTOR);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function dispatchRequest(eventName, root, payload) {
+      try {
+        return dispatch(document, eventName, Object.assign({
+          drawerId: root ? root.getAttribute("id") || "" : "",
+          context: root ? readContext(root) : {},
+          source: COMPONENT_NAME
+        }, payload || {}));
+      } catch (error) {
+        warn("Could not dispatch request: " + eventName, error);
+        return null;
+      }
+    }
+
+    function bindDrawerEvents(root) {
+      try {
+        if (!root || root.getAttribute(EVENTS_BOUND_ATTR) === "true") {
+          return;
+        }
+
+        var cache = cacheDrawer(root);
+
+        ensureLayout(cache);
+        setActionLabels(cache);
+
+        toArray(cache.closeButtons).forEach(function (button) {
+          button.addEventListener("click", function () {
+            dispatchRequest("vectoplan:create:variant-drawer-cancel-requested", root, {
+              reason: "close_button"
+            });
+
+            if (!hasPrimaryRuntime()) {
+              closeFallback(root, "close_button");
+            }
+          });
+        });
+
+        if (cache.cancelButton) {
+          cache.cancelButton.addEventListener("click", function () {
+            dispatchRequest("vectoplan:create:variant-drawer-cancel-requested", root, {
+              reason: "cancel_button"
+            });
+
+            if (!hasPrimaryRuntime()) {
+              closeFallback(root, "cancel");
+            }
+          });
+        }
+
+        if (cache.validateButton) {
+          cache.validateButton.addEventListener("click", function () {
+            dispatchRequest("vectoplan:create:variant-drawer-validate-requested", root, {
+              reason: "validate_button"
+            });
+          });
+        }
+
+        if (cache.applyButton) {
+          cache.applyButton.addEventListener("click", function () {
+            setFooterStatus(cache, "running", "Variante wird gespeichert.");
+            dispatchRequest("vectoplan:create:variant-drawer-apply-requested", root, {
+              reason: "apply_button"
+            });
+          });
+        }
+
+        if (cache.form) {
+          cache.form.addEventListener("input", function () {
+            setDirty(cache, true);
+          });
+
+          cache.form.addEventListener("change", function () {
+            setDirty(cache, true);
+          });
+
+          cache.form.addEventListener("submit", function (event) {
+            event.preventDefault();
+
+            setFooterStatus(cache, "running", "Variante wird gespeichert.");
+            dispatchRequest("vectoplan:create:variant-drawer-apply-requested", root, {
+              reason: "form_submit"
+            });
+          });
+        }
+
+        root.setAttribute(EVENTS_BOUND_ATTR, "true");
+      } catch (error) {
+        warn("Could not bind drawer events.", error);
+      }
+    }
+
+    function bindGlobalEvents() {
+      try {
+        if (document.documentElement.getAttribute("data-vp-variant-drawer-shell-global-events-bound") === "true") {
+          return;
+        }
+
+        document.addEventListener("vectoplan:create:variant-edit-requested", function (event) {
+          try {
+            if (hasPrimaryRuntime()) {
+              return;
+            }
+
+            var drawer = getFirstDrawer();
+
+            if (!drawer) {
+              return;
+            }
+
+            openFallback(drawer, event && event.detail ? event.detail : {
+              mode: "edit"
+            });
+          } catch (error) {
+            warn("Edit request fallback failed.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:variant-add-requested", function (event) {
+          try {
+            if (hasPrimaryRuntime()) {
+              return;
+            }
+
+            var drawer = getFirstDrawer();
+
+            if (!drawer) {
+              return;
+            }
+
+            openFallback(drawer, event && event.detail ? event.detail : {
+              mode: "create"
+            });
+          } catch (error) {
+            warn("Add request fallback failed.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:variant-profile-resolved", function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+            var profileId = detail.variant_profile_id || detail.variantProfileId || "";
+            var familyProfileId = detail.family_profile_id || detail.familyProfileId || "";
+
+            toArray(document.querySelectorAll(DRAWER_SELECTOR)).forEach(function (root) {
+              try {
+                var cache = cacheDrawer(root);
+
+                ensureLayout(cache);
+
+                if (profileId) {
+                  root.setAttribute("data-vp-current-variant-profile-id", profileId);
+                  safeSetValue(cache.profileIdField, profileId);
+
+                  if (cache.footer) {
+                    cache.footer.setAttribute("data-vp-profile-state", "resolved");
+                    cache.footer.setAttribute("data-vp-variant-profile-id", profileId);
+                  }
+
+                  if (cache.footerProfileState) {
+                    cache.footerProfileState.setAttribute("data-vp-profile-state", "resolved");
+                    cache.footerProfileState.textContent = "Profil: " + profileId;
+                  }
+                }
+
+                if (familyProfileId) {
+                  root.setAttribute("data-vp-current-family-profile-id", familyProfileId);
+                  safeSetValue(cache.familyProfileIdField, familyProfileId);
+
+                  if (cache.footer) {
+                    cache.footer.setAttribute("data-vp-family-profile-id", familyProfileId);
+                  }
+                }
+
+                setActionLabels(cache);
+              } catch (innerError) {
+                warn("Profile resolved drawer update skipped.", innerError);
+              }
+            });
+          } catch (error) {
+            warn("Profile resolved listener failed.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:variant-drawer-apply-started", function () {
+          toArray(document.querySelectorAll(DRAWER_SELECTOR)).forEach(function (root) {
+            var cache = cacheDrawer(root);
+            setBusy(cache, true);
+            setFooterStatus(cache, "running", "Variante wird gespeichert.");
+          });
+        });
+
+        document.addEventListener("vectoplan:create:variant-drawer-apply-finished", function () {
+          toArray(document.querySelectorAll(DRAWER_SELECTOR)).forEach(function (root) {
+            var cache = cacheDrawer(root);
+            setBusy(cache, false);
+            setDirty(cache, false);
+            setFooterStatus(cache, "ok", "Variante wurde gespeichert.");
+          });
+        });
+
+        document.addEventListener("vectoplan:create:variant-drawer-apply-failed", function () {
+          toArray(document.querySelectorAll(DRAWER_SELECTOR)).forEach(function (root) {
+            var cache = cacheDrawer(root);
+            setBusy(cache, false);
+            setFooterStatus(cache, "error", "Variante konnte nicht gespeichert werden.");
+          });
+        });
+
+        document.addEventListener("vectoplan:create:variant-fields-rendered", function () {
+          try {
+            toArray(document.querySelectorAll(DRAWER_SELECTOR)).forEach(function (root) {
+              ensureLayout(cacheDrawer(root));
+            });
+          } catch (error) {
+            warn("Could not refresh shell layout after fields rendered.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:variant-optional-fields-rendered", function () {
+          try {
+            toArray(document.querySelectorAll(DRAWER_SELECTOR)).forEach(function (root) {
+              ensureLayout(cacheDrawer(root));
+            });
+          } catch (error) {
+            warn("Could not refresh shell layout after optional fields rendered.", error);
+          }
+        });
+
+        document.addEventListener("keydown", function (event) {
+          try {
+            if (!event || event.key !== "Escape") {
+              return;
+            }
+
+            var drawer = getFirstDrawer();
+
+            if (!drawer || drawer.getAttribute("data-vp-variant-drawer-state") !== "open") {
+              return;
+            }
+
+            dispatchRequest("vectoplan:create:variant-drawer-cancel-requested", drawer, {
+              reason: "escape"
+            });
+
+            if (!hasPrimaryRuntime()) {
+              closeFallback(drawer, "escape");
+            }
+          } catch (error) {
+            warn("Escape fallback failed.", error);
+          }
+        });
+
+        document.documentElement.setAttribute("data-vp-variant-drawer-shell-global-events-bound", "true");
+      } catch (error) {
+        warn("Could not bind global drawer shell events.", error);
+      }
+    }
+
+    function createPublicApi() {
+      try {
+        var previousApi = window.VectoplanCreateVariantDrawerShell || {};
+
+        var api = Object.assign({}, previousApi, {
+          __version: COMPONENT_VERSION,
+          getDrawers: function () {
+            try {
+              return toArray(document.querySelectorAll(DRAWER_SELECTOR));
+            } catch (error) {
+              return [];
+            }
+          },
+          getFirstDrawer: getFirstDrawer,
+          getContext: function (root) {
+            return readContext(root || getFirstDrawer());
+          },
+          getCache: function (root) {
+            return cacheDrawer(root || getFirstDrawer());
+          },
+          ensureLayout: function (root) {
+            return ensureLayout(cacheDrawer(root || getFirstDrawer()));
+          },
+          open: function (payload, root) {
+            openFallback(root || getFirstDrawer(), payload || {});
+          },
+          close: function (reason, root) {
+            closeFallback(root || getFirstDrawer(), reason || "api");
+          },
+          setBusy: function (busy, root) {
+            setBusy(cacheDrawer(root || getFirstDrawer()), busy);
+          },
+          setDirty: function (dirty, root) {
+            setDirty(cacheDrawer(root || getFirstDrawer()), dirty);
+          },
+          setValidation: function (items, state, root) {
+            setValidation(cacheDrawer(root || getFirstDrawer()), items || [], state || "");
+          },
+          setActionLabels: function (root) {
+            setActionLabels(cacheDrawer(root || getFirstDrawer()));
+          },
+          getSnapshot: function (root) {
+            try {
+              var node = root || getFirstDrawer();
+              var cache = cacheDrawer(node);
+
+              return {
+                ready: !!(node && node.getAttribute(READY_ATTR) === "true"),
+                version: COMPONENT_VERSION,
+                context: node ? readContext(node) : {},
+                hasPanel: !!(cache && cache.panel),
+                hasFields: !!(cache && cache.fields),
+                hasContentGrid: !!(cache && cache.contentGrid),
+                hasProfileColumn: !!(cache && cache.profileColumn),
+                hasSections: !!(cache && cache.sections),
+                hasOptionalRoot: !!(cache && cache.optionalRoot),
+                hasOptionalAvailableColumns: !!(cache && cache.optionalAvailableColumns),
+                hasFooter: !!(cache && cache.footer),
+                hasApplyButton: !!(cache && cache.applyButton)
+              };
+            } catch (error) {
+              return {
+                ready: false,
+                error: String(error && error.message ? error.message : error)
+              };
+            }
+          }
+        });
+
+        window.VectoplanCreateVariantDrawerShell = api;
+        return api;
+      } catch (error) {
+        warn("Could not create public drawer shell API.", error);
+        return null;
+      }
+    }
+
+    function dispatchReady(root, cache) {
+      try {
+        var detail = {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          context: readContext(root),
+          cache: {
+            hasPanel: !!(cache && cache.panel),
+            hasFields: !!(cache && cache.fields),
+            hasContentGrid: !!(cache && cache.contentGrid),
+            hasProfileColumn: !!(cache && cache.profileColumn),
+            hasSections: !!(cache && cache.sections),
+            hasOptionalRoot: !!(cache && cache.optionalRoot),
+            hasFooter: !!(cache && cache.footer),
+            hasApplyButton: !!(cache && cache.applyButton),
+            hasOptionalAvailableColumns: !!(cache && cache.optionalAvailableColumns)
+          }
+        };
+
+        dispatch(root, "vectoplan:create:variant-drawer-shell-ready", detail);
+        dispatch(document, "vectoplan:create:variant-drawer-shell-ready", detail);
+      } catch (error) {
+        warn("Could not dispatch drawer shell ready event.", error);
+      }
+    }
+
+    function initializeDrawer(root) {
+      try {
+        if (!root || root.getAttribute(READY_ATTR) === "true") {
+          return;
+        }
+
+        var cache = cacheDrawer(root);
+
+        ensureLayout(cache);
+        setActionLabels(cache);
+        bindDrawerEvents(root);
+
+        root.setAttribute(READY_ATTR, "true");
+        root.setAttribute("data-vp-variant-drawer-shell-js-version", COMPONENT_VERSION);
+
+        dispatchReady(root, cache);
+      } catch (error) {
+        warn("Drawer shell initialization failed.", error);
+
+        try {
+          if (root) {
+            root.setAttribute("data-vp-variant-drawer-status", "initialization_failed");
+            root.setAttribute("data-vp-variant-drawer-error", String(error && error.message ? error.message : error));
+          }
+        } catch (statusError) {
+          /* no-op */
+        }
+      }
+    }
+
+    function initializeAll() {
+      try {
+        createPublicApi();
+        bindGlobalEvents();
+
+        toArray(document.querySelectorAll(DRAWER_SELECTOR)).forEach(function (root) {
+          initializeDrawer(root);
+        });
+      } catch (error) {
+        warn("Global drawer shell initialization failed.", error);
+      }
+    }
+
+    try {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializeAll, {
+          once: true
+        });
+      } else {
+        initializeAll();
+      }
+    } catch (error) {
+      warn("Bootstrap failed.", error);
+    }
+  })();
+</script>

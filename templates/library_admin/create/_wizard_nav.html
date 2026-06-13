@@ -1,0 +1,731 @@
+{# services/vectoplan-library/templates/library_admin/create/_wizard_nav.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard Navigation
+
+  Zweck:
+  - Globale Wizard-Navigation für /create.
+  - Steuert Zurück / Weiter / Schrittstatus.
+  - Rendert keine Backend-Aktionsbuttons.
+  - Backend-Aktionen bleiben im Schritt 6 über _actions.html.
+  - Arbeitet defensiv mit oder ohne create.js/create_wizard.js.
+  - Verwendet keine gelöschten Partials:
+    - _hero.html
+    - _alerts.html
+    - _help.html
+    - _result.html
+
+  DOM-Verträge:
+  - Root:          [data-vp-wizard-nav]
+  - Zurück:        [data-vp-wizard-prev]
+  - Weiter:        [data-vp-wizard-next]
+  - Label:         [data-vp-wizard-step-label]
+  - Hint:          [data-vp-wizard-hint]
+  - Progress Text: [data-vp-wizard-progress-text]
+
+  Step-Container in create.html:
+  - [data-vp-create-step]
+  - [data-vp-step-index="1"]
+  - [data-vp-create-steps]
+
+  Events:
+  - dispatch: vectoplan:create:step-request
+  - dispatch: vectoplan:create:step-changed
+  - listen:   vectoplan:create:step-changed
+
+  Fix:
+  - Weiter-/Zurück-Buttons tragen mehrere kompatible Hooks.
+  - Fallback nutzt zuerst VectoplanCreateWizard, dann VectoplanCreate, dann Event,
+    dann direkten DOM-Wechsel.
+  - Direkter DOM-Wechsel aktualisiert Panels, Stepper, Nav und Form/App Attribute.
+  - Kein Submit-Verhalten.
+----------------------------------------------------------------------------- #}
+
+{% if create_steps is defined and create_steps %}
+  {% set vp_nav_steps = create_steps %}
+{% else %}
+  {% set vp_nav_steps = [
+    {
+      "index": 1,
+      "key": "identity",
+      "label": "Grunddaten",
+      "hint": "Name und Beschreibung festlegen."
+    },
+    {
+      "index": 2,
+      "key": "taxonomy",
+      "label": "Taxonomie",
+      "hint": "Domain, Kategorie und Subkategorie auswählen."
+    },
+    {
+      "index": 3,
+      "key": "object",
+      "label": "Objekt",
+      "hint": "Objektart und Varianten definieren."
+    },
+    {
+      "index": 4,
+      "key": "geometry",
+      "label": "Geometrie",
+      "hint": "Form, Maße und Editor-Raster prüfen."
+    },
+    {
+      "index": 5,
+      "key": "technical",
+      "label": "Technik",
+      "hint": "Material und technische Kennwerte ergänzen."
+    },
+    {
+      "index": 6,
+      "key": "create",
+      "label": "Erzeugen",
+      "hint": "Draft, Validierung, Package-Plan, Download oder Speichern ausführen."
+    }
+  ] %}
+{% endif %}
+
+{% set vp_nav_step_count = vp_nav_steps | length %}
+{% set vp_nav_initial_step_raw = create_initial_step if create_initial_step is defined and create_initial_step else 1 %}
+{% set vp_nav_initial_step = vp_nav_initial_step_raw | int %}
+
+{% if vp_nav_initial_step < 1 %}
+  {% set vp_nav_initial_step = 1 %}
+{% endif %}
+
+{% if vp_nav_initial_step > vp_nav_step_count %}
+  {% set vp_nav_initial_step = vp_nav_step_count %}
+{% endif %}
+
+{% set vp_nav_component_id = create_wizard_nav_id if create_wizard_nav_id is defined and create_wizard_nav_id else "vplib-create-wizard-nav" %}
+{% set vp_nav_label_id = vp_nav_component_id ~ "-label" %}
+{% set vp_nav_hint_id = vp_nav_component_id ~ "-hint" %}
+{% set vp_nav_progress_id = vp_nav_component_id ~ "-progress" %}
+
+{% set vp_current_step_label = "Schritt" %}
+{% set vp_current_step_hint = "" %}
+
+{% for step in vp_nav_steps %}
+  {% if (step.index | int) == vp_nav_initial_step %}
+    {% set vp_current_step_label = step.label | default("Schritt " ~ vp_nav_initial_step) %}
+    {% set vp_current_step_hint = step.hint | default(step.description | default("")) %}
+  {% endif %}
+{% endfor %}
+
+<footer
+  id="{{ vp_nav_component_id }}"
+  class="vplib-create-wizard-nav"
+  data-vp-wizard-nav
+  data-create-wizard-nav="true"
+  data-vp-current-step="{{ vp_nav_initial_step }}"
+  data-vp-step-count="{{ vp_nav_step_count }}"
+  data-vp-min-step="1"
+  data-vp-max-step="{{ vp_nav_step_count }}"
+  aria-labelledby="{{ vp_nav_label_id }}"
+>
+  <div class="vplib-create-wizard-nav__inner">
+    <div class="vplib-create-wizard-nav__status">
+      <p
+        id="{{ vp_nav_progress_id }}"
+        class="vplib-create-wizard-nav__progress"
+        data-vp-wizard-progress-text
+        data-create-wizard-progress-text="true"
+      >
+        Schritt {{ vp_nav_initial_step }} von {{ vp_nav_step_count }}
+      </p>
+
+      <div class="vplib-create-wizard-nav__copy">
+        <h2
+          id="{{ vp_nav_label_id }}"
+          class="vplib-create-wizard-nav__title"
+          data-vp-wizard-step-label
+          data-create-wizard-step-label="true"
+        >
+          {{ vp_current_step_label }}
+        </h2>
+
+        <p
+          id="{{ vp_nav_hint_id }}"
+          class="vplib-create-wizard-nav__hint"
+          data-vp-wizard-hint
+          data-create-wizard-hint="true"
+        >
+          {% if vp_current_step_hint %}
+            {{ vp_current_step_hint }}
+          {% else %}
+            Führe den aktuellen Schritt aus und gehe anschließend weiter.
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    <div
+      class="vplib-create-wizard-nav__actions"
+      aria-label="Wizard-Navigation"
+    >
+      <button
+        type="button"
+        class="vplib-create-wizard-nav__button vplib-create-wizard-nav__button--secondary"
+        data-vp-wizard-prev
+        data-vp-wizard-prev="true"
+        data-vp-wizard-previous="true"
+        data-create-wizard-prev="true"
+        data-create-wizard-previous="true"
+        data-create-prev="true"
+        data-create-back="true"
+        data-vp-prev-step="true"
+        data-vp-step-prev="true"
+        data-vp-wizard-action="previous"
+        data-create-wizard-action="previous"
+        data-action="previous"
+        data-vp-step-direction="previous"
+        name="previous"
+        value="previous"
+        {% if vp_nav_initial_step <= 1 %}disabled aria-disabled="true"{% else %}aria-disabled="false"{% endif %}
+      >
+        <span class="vplib-create-wizard-nav__button-icon" aria-hidden="true">
+          ←
+        </span>
+        <span class="vplib-create-wizard-nav__button-text">
+          Zurück
+        </span>
+      </button>
+
+      <button
+        type="button"
+        class="vplib-create-wizard-nav__button vplib-create-wizard-nav__button--primary"
+        data-vp-wizard-next
+        data-vp-wizard-next="true"
+        data-create-wizard-next="true"
+        data-create-next="true"
+        data-create-next-step="true"
+        data-vp-next-step="true"
+        data-vp-step-next="true"
+        data-vp-submit-next="true"
+        data-vp-wizard-action="next"
+        data-create-wizard-action="next"
+        data-action="next"
+        data-vp-step-direction="next"
+        name="next"
+        value="next"
+        {% if vp_nav_initial_step >= vp_nav_step_count %}disabled aria-disabled="true"{% else %}aria-disabled="false"{% endif %}
+      >
+        <span class="vplib-create-wizard-nav__button-text" data-vp-wizard-next-label>
+          {% if vp_nav_initial_step >= vp_nav_step_count %}
+            Aktionen ausführen
+          {% else %}
+            Weiter
+          {% endif %}
+        </span>
+        <span class="vplib-create-wizard-nav__button-icon" aria-hidden="true">
+          →
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <script type="application/json" data-vp-wizard-nav-steps>
+    {{ vp_nav_steps | tojson }}
+  </script>
+</footer>
+
+<script>
+  (function () {
+    "use strict";
+
+    try {
+      var nav = document.getElementById({{ vp_nav_component_id | tojson }});
+
+      if (!nav) {
+        return;
+      }
+
+      if (nav.getAttribute("data-vp-wizard-nav-ready") === "true") {
+        return;
+      }
+
+      var previousButton = nav.querySelector("[data-vp-wizard-prev], [data-create-wizard-prev='true']");
+      var nextButton = nav.querySelector("[data-vp-wizard-next], [data-create-wizard-next='true']");
+      var nextLabel = nav.querySelector("[data-vp-wizard-next-label]");
+      var progressText = nav.querySelector("[data-vp-wizard-progress-text], [data-create-wizard-progress-text='true']");
+      var stepLabel = nav.querySelector("[data-vp-wizard-step-label], [data-create-wizard-step-label='true']");
+      var stepHint = nav.querySelector("[data-vp-wizard-hint], [data-create-wizard-hint='true']");
+      var stepsScript = nav.querySelector("[data-vp-wizard-nav-steps]");
+
+      var minStep = parseInt(nav.getAttribute("data-vp-min-step") || "1", 10);
+      var maxStep = parseInt(nav.getAttribute("data-vp-max-step") || nav.getAttribute("data-vp-step-count") || "6", 10);
+      var currentStep = parseInt(nav.getAttribute("data-vp-current-step") || "1", 10);
+      var steps = [];
+
+      try {
+        if (stepsScript && stepsScript.textContent) {
+          steps = JSON.parse(stepsScript.textContent);
+        }
+      } catch (jsonError) {
+        steps = [];
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Wizard Nav] Step metadata could not be parsed.", jsonError);
+        }
+      }
+
+      if (!Number.isFinite(minStep) || minStep < 1) {
+        minStep = 1;
+      }
+
+      if (!Number.isFinite(maxStep) || maxStep < minStep) {
+        maxStep = 6;
+      }
+
+      function clampStep(value) {
+        var parsed = parseInt(value, 10);
+
+        if (!Number.isFinite(parsed)) {
+          parsed = minStep;
+        }
+
+        if (parsed < minStep) {
+          return minStep;
+        }
+
+        if (parsed > maxStep) {
+          return maxStep;
+        }
+
+        return parsed;
+      }
+
+      function getStepMeta(stepIndex) {
+        var fallback = {
+          index: stepIndex,
+          key: "step-" + stepIndex,
+          label: "Schritt " + stepIndex,
+          hint: ""
+        };
+
+        try {
+          if (!Array.isArray(steps)) {
+            return fallback;
+          }
+
+          for (var index = 0; index < steps.length; index += 1) {
+            var item = steps[index];
+
+            if (item && parseInt(item.index, 10) === stepIndex) {
+              return {
+                index: stepIndex,
+                key: item.key || fallback.key,
+                label: item.label || fallback.label,
+                hint: item.hint || item.description || fallback.hint
+              };
+            }
+          }
+        } catch (error) {
+          return fallback;
+        }
+
+        return fallback;
+      }
+
+      function setDisabled(button, disabled) {
+        if (!button) {
+          return;
+        }
+
+        button.disabled = !!disabled;
+        button.setAttribute("aria-disabled", disabled ? "true" : "false");
+      }
+
+      function updateRootAttributes(stepIndex) {
+        try {
+          var app = document.querySelector("[data-vp-create-app]");
+          var form = document.querySelector("[data-vp-create-form], [data-create-form='true'], #vp-create-form");
+          var stepsRoot = document.querySelector("[data-vp-create-steps]");
+
+          document.documentElement.setAttribute("data-vp-create-current-step", String(stepIndex));
+
+          [app, form, stepsRoot].forEach(function (node) {
+            if (!node) {
+              return;
+            }
+
+            node.setAttribute("data-vp-current-step", String(stepIndex));
+            node.setAttribute("data-vp-step-count", String(maxStep));
+          });
+        } catch (error) {
+          /* no-op */
+        }
+      }
+
+      function updateStepperFallback(stepIndex) {
+        try {
+          var stepper = document.querySelector("[data-vp-create-stepper]");
+
+          if (!stepper) {
+            return;
+          }
+
+          var stepCount = parseInt(stepper.getAttribute("data-vp-step-count") || String(maxStep), 10);
+          var progressFill = stepper.querySelector("[data-vp-step-progress-fill]");
+          var currentStepLabel = stepper.querySelector("[data-vp-current-step-label]");
+          var liveRegion = stepper.querySelector("[data-vp-step-live-region]");
+          var buttons = stepper.querySelectorAll("[data-vp-step-button], [data-vp-step-target], [data-step-target], [data-step]");
+
+          stepper.setAttribute("data-vp-current-step", String(stepIndex));
+          stepper.style.setProperty("--vp-create-current-step", String(stepIndex));
+
+          if (currentStepLabel) {
+            currentStepLabel.textContent = String(stepIndex);
+          }
+
+          if (progressFill) {
+            var progress = stepCount > 1
+              ? ((stepIndex - 1) / (stepCount - 1)) * 100
+              : 100;
+
+            progressFill.style.width = Math.max(0, Math.min(100, progress)) + "%";
+          }
+
+          buttons.forEach(function (button) {
+            var targetStep = parseInt(
+              button.getAttribute("data-vp-step-target") ||
+              button.getAttribute("data-step-target") ||
+              button.getAttribute("data-step") ||
+              "0",
+              10
+            );
+            var item = button.closest("[data-vp-step-item]");
+            var isActive = targetStep === stepIndex;
+            var isComplete = targetStep > 0 && targetStep < stepIndex;
+            var isLocked = false;
+
+            if (item) {
+              item.classList.toggle("is-active", isActive);
+              item.classList.toggle("is-complete", isComplete);
+              item.classList.toggle("is-locked", isLocked);
+            }
+
+            if (isActive) {
+              button.setAttribute("aria-current", "step");
+            } else {
+              button.removeAttribute("aria-current");
+            }
+
+            button.setAttribute("aria-disabled", "false");
+            button.disabled = false;
+          });
+
+          if (liveRegion) {
+            var meta = getStepMeta(stepIndex);
+            liveRegion.textContent = "Schritt " + stepIndex + " von " + maxStep + ": " + meta.label + ".";
+          }
+        } catch (error) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Wizard Nav] Stepper fallback update failed.", error);
+          }
+        }
+      }
+
+      function updateStepPanelsFallback(stepIndex) {
+        try {
+          var panels = document.querySelectorAll("[data-vp-create-step]");
+
+          if (!panels || panels.length === 0) {
+            return;
+          }
+
+          panels.forEach(function (panel) {
+            var panelStep = parseInt(panel.getAttribute("data-vp-step-index") || panel.getAttribute("data-step") || "0", 10);
+            var isActive = panelStep === stepIndex;
+
+            panel.classList.toggle("is-active", isActive);
+            panel.classList.toggle("is-hidden", !isActive);
+            panel.hidden = !isActive;
+            panel.setAttribute("aria-hidden", isActive ? "false" : "true");
+
+            if (isActive) {
+              panel.removeAttribute("inert");
+            } else {
+              try {
+                panel.setAttribute("inert", "");
+              } catch (inertError) {
+                /* no-op */
+              }
+            }
+          });
+        } catch (error) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Wizard Nav] Step panel fallback update failed.", error);
+          }
+        }
+      }
+
+      function updateNav(stepIndex, options) {
+        var safeOptions = options || {};
+        var safeStep = clampStep(stepIndex);
+        var meta = getStepMeta(safeStep);
+
+        currentStep = safeStep;
+
+        nav.setAttribute("data-vp-current-step", String(currentStep));
+        nav.classList.toggle("is-first-step", currentStep <= minStep);
+        nav.classList.toggle("is-final-step", currentStep >= maxStep);
+
+        updateRootAttributes(currentStep);
+
+        if (progressText) {
+          progressText.textContent = "Schritt " + currentStep + " von " + maxStep;
+        }
+
+        if (stepLabel) {
+          stepLabel.textContent = meta.label;
+        }
+
+        if (stepHint) {
+          if (currentStep >= maxStep) {
+            stepHint.textContent = meta.hint || "Prüfe das Package und führe anschließend die gewünschte Backend-Aktion aus.";
+          } else {
+            stepHint.textContent = meta.hint || "Führe den aktuellen Schritt aus und gehe anschließend weiter.";
+          }
+        }
+
+        if (nextLabel) {
+          nextLabel.textContent = currentStep >= maxStep ? "Aktionen ausführen" : "Weiter";
+        }
+
+        setDisabled(previousButton, currentStep <= minStep);
+        setDisabled(nextButton, currentStep >= maxStep);
+
+        if (!safeOptions.skipFallbackPanels) {
+          updateStepPanelsFallback(currentStep);
+        }
+
+        if (!safeOptions.skipFallbackStepper) {
+          updateStepperFallback(currentStep);
+        }
+      }
+
+      function tryWizardApi(targetStep, source) {
+        try {
+          if (
+            window.VectoplanCreateWizard &&
+            typeof window.VectoplanCreateWizard.goToStep === "function"
+          ) {
+            window.VectoplanCreateWizard.goToStep(targetStep, {
+              source: source || "wizard-nav",
+              validate: targetStep > currentStep,
+              focus: true,
+              force: true
+            });
+            return true;
+          }
+        } catch (wizardError) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Wizard Nav] Wizard API step request failed.", wizardError);
+          }
+        }
+
+        return false;
+      }
+
+      function tryCreateApi(targetStep, source) {
+        try {
+          if (
+            window.VectoplanCreate &&
+            typeof window.VectoplanCreate.goToStep === "function"
+          ) {
+            window.VectoplanCreate.goToStep(targetStep, {
+              source: source || "wizard-nav",
+              validate: targetStep > currentStep,
+              focus: true,
+              force: true
+            });
+            return true;
+          }
+        } catch (apiError) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Wizard Nav] Public create API step request failed.", apiError);
+          }
+        }
+
+        return false;
+      }
+
+      function dispatchStepRequest(targetStep, source) {
+        try {
+          var event = new CustomEvent("vectoplan:create:step-request", {
+            bubbles: true,
+            cancelable: true,
+            detail: {
+              source: source || "wizard-nav",
+              currentStep: currentStep,
+              targetStep: targetStep,
+              step: targetStep,
+              minStep: minStep,
+              maxStep: maxStep,
+              validate: targetStep > currentStep,
+              focus: true,
+              force: true
+            }
+          });
+
+          nav.dispatchEvent(event);
+
+          return !event.defaultPrevented;
+        } catch (eventError) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Wizard Nav] Step request event failed.", eventError);
+          }
+
+          return true;
+        }
+      }
+
+      function dispatchStepChanged(targetStep, previousStep, source) {
+        try {
+          document.dispatchEvent(new CustomEvent("vectoplan:create:step-changed", {
+            bubbles: true,
+            cancelable: false,
+            detail: {
+              source: source || "wizard-nav-fallback",
+              previousStep: previousStep,
+              currentStep: targetStep,
+              step: targetStep,
+              stepCount: maxStep,
+              maxReachedStep: targetStep,
+              skipStepperUpdate: false
+            }
+          }));
+        } catch (error) {
+          /* no-op */
+        }
+      }
+
+      function requestStep(targetStep, source) {
+        var previousStep = currentStep;
+        var safeTargetStep = clampStep(targetStep);
+
+        if (safeTargetStep === currentStep) {
+          updateNav(safeTargetStep);
+          return;
+        }
+
+        if (tryWizardApi(safeTargetStep, source)) {
+          updateNav(safeTargetStep, {
+            skipFallbackPanels: true,
+            skipFallbackStepper: true
+          });
+          return;
+        }
+
+        if (tryCreateApi(safeTargetStep, source)) {
+          updateNav(safeTargetStep, {
+            skipFallbackPanels: true,
+            skipFallbackStepper: true
+          });
+          return;
+        }
+
+        if (!dispatchStepRequest(safeTargetStep, source)) {
+          return;
+        }
+
+        updateNav(safeTargetStep);
+        dispatchStepChanged(safeTargetStep, previousStep, source || "wizard-nav-fallback");
+      }
+
+      if (previousButton) {
+        previousButton.addEventListener("click", function (event) {
+          try {
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (currentStep <= minStep) {
+              return;
+            }
+
+            requestStep(currentStep - 1, "previous-button");
+          } catch (error) {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[VECTOPLAN Create Wizard Nav] Previous step failed.", error);
+            }
+          }
+        }, true);
+      }
+
+      if (nextButton) {
+        nextButton.addEventListener("click", function (event) {
+          try {
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (currentStep >= maxStep) {
+              return;
+            }
+
+            requestStep(currentStep + 1, "next-button");
+          } catch (error) {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[VECTOPLAN Create Wizard Nav] Next step failed.", error);
+            }
+          }
+        }, true);
+      }
+
+      document.addEventListener("vectoplan:create:step-changed", function (event) {
+        try {
+          if (!event || !event.detail) {
+            return;
+          }
+
+          updateNav(event.detail.currentStep || event.detail.step || event.detail.targetStep, {
+            skipFallbackPanels: true,
+            skipFallbackStepper: !!event.detail.skipStepperUpdate
+          });
+        } catch (error) {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Wizard Nav] External step change update failed.", error);
+          }
+        }
+      });
+
+      if (!window.VectoplanCreateWizardNav) {
+        window.VectoplanCreateWizardNav = {
+          getState: function () {
+            return {
+              currentStep: currentStep,
+              minStep: minStep,
+              maxStep: maxStep,
+              stepCount: maxStep,
+              steps: steps
+            };
+          },
+          update: function (stepIndex) {
+            updateNav(stepIndex);
+          },
+          requestStep: function (stepIndex) {
+            requestStep(stepIndex, "public-api");
+          },
+          next: function () {
+            requestStep(currentStep + 1, "public-api-next");
+          },
+          previous: function () {
+            requestStep(currentStep - 1, "public-api-previous");
+          }
+        };
+      }
+
+      updateNav(currentStep, {
+        skipFallbackPanels: true,
+        skipFallbackStepper: false
+      });
+
+      nav.setAttribute("data-vp-wizard-nav-ready", "true");
+    } catch (error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Wizard Nav] Defensive initialization failed.", error);
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+  })();
+</script>

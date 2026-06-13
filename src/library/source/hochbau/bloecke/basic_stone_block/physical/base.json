@@ -1,0 +1,43 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/physical/base.json",
+  "schema_version": "vplib.physical.base.v1",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "package_id": "vplib.vp.hochbau.bloecke.basic_stone_block",
+  "object_kind": "cell_block",
+  "physical_profile_id": "vp.physical.basic_stone_block.default",
+  "enabled": true,
+  "solid": true,
+  "static": true,
+  "movable": false,
+  "deformable": false,
+  "unit_system": "metric",
+  "base_unit": "m",
+  "mass": {
+    "value": 2200,
+    "unit": "kg",
+    "source": "density_times_volume"
+  },
+  "density": {
+    "value": 2200,
+    "unit": "kg/m3",
+    "material": "basic_stone"
+  },
+  "volume": {
+    "value": 1.0,
+    "unit": "m3"
+  },
+  "physics": {
+    "collision_enabled": true,
+    "gravity_affected": false,
+    "blocks_movement": true,
+    "blocks_visibility": false,
+    "supporting": true
+  },
+  "behavior": {
+    "can_be_selected": true,
+    "can_be_moved_after_placement": true,
+    "can_be_deleted": true,
+    "can_be_copied": true,
+    "can_be_cut": true
+  }
+}

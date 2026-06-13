@@ -1,0 +1,118 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/vplib.modules.json",
+  "schema_version": "vplib.modules.v1",
+  "package_id": "vplib.vp.hochbau.bloecke.basic_stone_block",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "modules": [
+    {
+      "name": "family",
+      "active": true,
+      "required": true,
+      "version": "1.0.0",
+      "documents": [
+        "family/identity.json",
+        "family/classification.json"
+      ]
+    },
+    {
+      "name": "variants",
+      "active": true,
+      "required": true,
+      "version": "1.0.0",
+      "documents": [
+        "variants/index.json",
+        "variants/default.json"
+      ]
+    },
+    {
+      "name": "editor",
+      "active": true,
+      "required": true,
+      "version": "1.0.0",
+      "documents": [
+        "editor/inventory.json",
+        "editor/placement.json"
+      ]
+    },
+    {
+      "name": "render",
+      "active": true,
+      "required": false,
+      "version": "1.0.0",
+      "documents": [
+        "render/render_variants.json"
+      ]
+    },
+    {
+      "name": "physical",
+      "active": true,
+      "required": true,
+      "version": "1.0.0",
+      "documents": [
+        "physical/base.json",
+        "physical/dimensions.json",
+        "physical/collision.json"
+      ]
+    },
+    {
+      "name": "manufacturer",
+      "active": true,
+      "required": false,
+      "version": "1.0.0",
+      "documents": [
+        "manufacturer/contract.json"
+      ]
+    }
+  ],
+  "active_modules": [
+    "family",
+    "variants",
+    "editor",
+    "render",
+    "physical",
+    "manufacturer"
+  ],
+  "required_modules": [
+    "family",
+    "variants",
+    "editor",
+    "physical"
+  ],
+  "optional_modules": [
+    "render",
+    "manufacturer"
+  ],
+  "module_versions": {
+    "family": "1.0.0",
+    "variants": "1.0.0",
+    "editor": "1.0.0",
+    "render": "1.0.0",
+    "physical": "1.0.0",
+    "manufacturer": "1.0.0"
+  },
+  "module_documents": {
+    "family": [
+      "family/identity.json",
+      "family/classification.json"
+    ],
+    "variants": [
+      "variants/index.json",
+      "variants/default.json"
+    ],
+    "editor": [
+      "editor/inventory.json",
+      "editor/placement.json"
+    ],
+    "render": [
+      "render/render_variants.json"
+    ],
+    "physical": [
+      "physical/base.json",
+      "physical/dimensions.json",
+      "physical/collision.json"
+    ],
+    "manufacturer": [
+      "manufacturer/contract.json"
+    ]
+  }
+}

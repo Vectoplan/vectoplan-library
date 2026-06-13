@@ -1,0 +1,35 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/family/identity.json",
+  "schema_version": "vplib.family.identity.v1",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "package_id": "vplib.vp.hochbau.bloecke.basic_stone_block",
+  "slug": "basic_stone_block",
+  "label": "Basic Stone Block",
+  "name": "Basic Stone Block",
+  "family_name": "Basic Stone Block",
+  "description": "Ein einfacher Steinblock als erster testbarer Creative-Library-Block.",
+  "object_kind": "cell_block",
+  "enabled": true,
+  "visibility": "public",
+  "lifecycle_status": "development",
+  "version": "0.1.0",
+  "authoring": {
+    "source": "manual",
+    "owner": "vectoplan",
+    "maintainer": "vectoplan-dev"
+  },
+  "identity": {
+    "stable_id": "vp.hochbau.bloecke.basic_stone_block",
+    "canonical_name": "basic_stone_block",
+    "display_name": "Basic Stone Block"
+  },
+  "tags": [
+    "test",
+    "stone",
+    "block",
+    "basic",
+    "creative_library"
+  ],
+  "created_at": "2026-05-20T00:00:00+00:00",
+  "updated_at": "2026-05-20T00:00:00+00:00"
+}

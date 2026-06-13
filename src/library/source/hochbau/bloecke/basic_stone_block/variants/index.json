@@ -1,0 +1,40 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/variants/index.json",
+  "schema_version": "vplib.variants.index.v1",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "package_id": "vplib.vp.hochbau.bloecke.basic_stone_block",
+  "default_variant_id": "default",
+  "variant_count": 1,
+  "variant_ids": [
+    "default"
+  ],
+  "variants": [
+    {
+      "variant_id": "default",
+      "id": "default",
+      "label": "Default Stone Block",
+      "description": "Standardvariante des Basic Stone Block.",
+      "status": "valid",
+      "enabled": true,
+      "sort_order": 10,
+      "document": "variants/default.json",
+      "is_default": true
+    }
+  ],
+  "selection": {
+    "default": "default",
+    "allow_variant_switching": false,
+    "editor_selects_default_automatically": true
+  },
+  "rules": {
+    "variant_id_must_remain_stable": true,
+    "variants_may_override": [
+      "label",
+      "description",
+      "material",
+      "render",
+      "physical",
+      "editor"
+    ]
+  }
+}

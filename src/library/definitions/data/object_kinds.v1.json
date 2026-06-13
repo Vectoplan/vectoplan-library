@@ -1,0 +1,445 @@
+{
+  "_file": "services/vectoplan-library/src/library/definitions/data/object_kinds.v1.json",
+  "schema_version": "1.0",
+  "definitions_version": "v1",
+  "dataset": "object_kinds",
+  "label": "VECTOPLAN Object Kind Definitions",
+  "description": "Backend-owned UI/profile metadata for the technical VPLIB object kinds. The hard technical object kind validation remains in src/vplib/domain/object_kinds.py; this dataset adds labels, create-flow behavior, profile compatibility and default module hints.",
+  "items": [
+    {
+      "id": "cell_block",
+      "label": "Rasterbauteil / Einzelblock",
+      "description": "Rasterbasiertes Bauteil oder einzelner blockartiger Baustein. Geeignet für Wände, Decken, einfache Steinblöcke, Straßenbausteine und andere Elemente, die sich in einem Editor-Raster platzieren oder stapeln lassen.",
+      "active": true,
+      "sort_order": 10,
+      "tags": [
+        "grid",
+        "block",
+        "raster",
+        "authoring",
+        "editor"
+      ],
+      "aliases": [
+        "single_block",
+        "grid_block",
+        "raster_block",
+        "rasterbauteil",
+        "einzelblock"
+      ],
+      "i18n": {
+        "de": "Rasterbauteil / Einzelblock",
+        "en": "Cell block / single block"
+      },
+      "allowed_family_profiles": [
+        "simple_cell_block",
+        "wall_masonry",
+        "wall_concrete",
+        "slab_concrete",
+        "road_pavement_block"
+      ],
+      "default_family_profile_id": "simple_cell_block",
+      "default_variant_profile_id": "simple_cell_block.v1",
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": false,
+        "dynamic": false
+      },
+      "geometry_rules": {
+        "placement_mode": "grid",
+        "supports_grid_snapping": true,
+        "supports_free_placement": false,
+        "supports_rotation": true,
+        "supports_stacking": true,
+        "supports_scaling": false,
+        "default_editor_cells": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "requires_editor_footprint": true,
+        "requires_real_dimensions": true,
+        "recommended_dimension_fields": [
+          "dimensions.width_mm",
+          "dimensions.height_mm",
+          "dimensions.depth_mm"
+        ],
+        "variant_dimension_fields": [
+          "dimensions.thickness_mm",
+          "dimensions.width_mm",
+          "dimensions.height_mm",
+          "dimensions.depth_mm"
+        ]
+      },
+      "preview_behavior": {
+        "preview_type": "css_block",
+        "supports_material_preview": true,
+        "supports_dimension_preview": true,
+        "supports_variant_summary": true,
+        "default_shape": "cube",
+        "default_icon": "block"
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": true,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "variant_drawer": {
+          "enabled": true,
+          "title": "Variante für Rasterbauteil definieren",
+          "summary_fields": [
+            "variant.label",
+            "material.type",
+            "dimensions.thickness_mm",
+            "manufacturer.name",
+            "product.designation"
+          ]
+        },
+        "badges": [
+          "Raster",
+          "Block",
+          "stapelbar"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "technical_truth": "src/vplib/domain/object_kinds.py",
+        "definition_role": "ui_and_profile_metadata",
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "multi_cell_module",
+      "label": "Mehrblockmodul",
+      "description": "Modulares Objekt, das mehrere Rasterzellen oder Teilblöcke fachlich zusammenfasst. Geeignet für Treppenkerne, Schächte, Fundamentmodule, Installationsmodule oder andere zusammengesetzte Bauteile.",
+      "active": true,
+      "sort_order": 20,
+      "tags": [
+        "module",
+        "multi-cell",
+        "compound",
+        "editor"
+      ],
+      "aliases": [
+        "multi_block_module",
+        "mehrblockmodul",
+        "compound_module",
+        "module_block"
+      ],
+      "i18n": {
+        "de": "Mehrblockmodul",
+        "en": "Multi-cell module"
+      },
+      "allowed_family_profiles": [
+        "stair_core_module",
+        "shaft_module",
+        "foundation_module",
+        "installation_module",
+        "multi_cell_generic"
+      ],
+      "default_family_profile_id": "multi_cell_generic",
+      "default_variant_profile_id": "multi_cell_module.v1",
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": false,
+        "dynamic": false
+      },
+      "geometry_rules": {
+        "placement_mode": "grid_module",
+        "supports_grid_snapping": true,
+        "supports_free_placement": false,
+        "supports_rotation": true,
+        "supports_stacking": false,
+        "supports_scaling": false,
+        "requires_editor_footprint": true,
+        "requires_real_dimensions": true,
+        "supports_multiple_cells": true,
+        "default_editor_cells": {
+          "x": 2,
+          "y": 2,
+          "z": 1
+        },
+        "recommended_dimension_fields": [
+          "dimensions.width_mm",
+          "dimensions.height_mm",
+          "dimensions.depth_mm"
+        ],
+        "module_fields": [
+          "module.cell_count_x",
+          "module.cell_count_y",
+          "module.cell_count_z",
+          "module.connection_logic"
+        ]
+      },
+      "preview_behavior": {
+        "preview_type": "css_module",
+        "supports_material_preview": true,
+        "supports_dimension_preview": true,
+        "supports_variant_summary": true,
+        "default_shape": "module",
+        "default_icon": "module"
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "variant_drawer": {
+          "enabled": true,
+          "title": "Variante für Mehrblockmodul definieren",
+          "summary_fields": [
+            "variant.label",
+            "material.type",
+            "module.cell_count_x",
+            "module.cell_count_y",
+            "manufacturer.name"
+          ]
+        },
+        "badges": [
+          "Modul",
+          "mehrzellig",
+          "zusammengesetzt"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "technical_truth": "src/vplib/domain/object_kinds.py",
+        "definition_role": "ui_and_profile_metadata",
+        "stability": "planned"
+      }
+    },
+    {
+      "id": "catalog_object",
+      "label": "Katalogobjekt / freies Einzelobjekt",
+      "description": "Freies oder eher objektartiges Library-Element. Geeignet für Wasserhähne, Möbel, Ausstattung, Armaturen, Wärmepumpen, technische Geräte und andere platzierbare 3D-Katalogobjekte.",
+      "active": true,
+      "sort_order": 30,
+      "tags": [
+        "catalog",
+        "object",
+        "asset",
+        "equipment",
+        "furniture"
+      ],
+      "aliases": [
+        "single_object",
+        "free_object",
+        "catalog_item",
+        "einzelobjekt",
+        "katalogobjekt"
+      ],
+      "i18n": {
+        "de": "Katalogobjekt / freies Einzelobjekt",
+        "en": "Catalog object / free object"
+      },
+      "allowed_family_profiles": [
+        "sanitary_faucet",
+        "furniture_catalog_object",
+        "equipment_catalog_object",
+        "generic_catalog_object"
+      ],
+      "default_family_profile_id": "generic_catalog_object",
+      "default_variant_profile_id": "catalog_object.v1",
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": false,
+        "manufacturer": true,
+        "analysis": false,
+        "dynamic": false
+      },
+      "geometry_rules": {
+        "placement_mode": "free_or_anchor",
+        "supports_grid_snapping": true,
+        "supports_free_placement": true,
+        "supports_rotation": true,
+        "supports_stacking": false,
+        "supports_scaling": true,
+        "requires_editor_footprint": false,
+        "requires_real_dimensions": false,
+        "requires_bounding_box": true,
+        "recommended_dimension_fields": [
+          "dimensions.width_mm",
+          "dimensions.height_mm",
+          "dimensions.depth_mm"
+        ],
+        "anchor_fields": [
+          "editor.anchor_type",
+          "editor.mounting_surface",
+          "editor.connection_points"
+        ]
+      },
+      "preview_behavior": {
+        "preview_type": "asset_or_css_placeholder",
+        "supports_material_preview": true,
+        "supports_dimension_preview": true,
+        "supports_variant_summary": true,
+        "default_shape": "object",
+        "default_icon": "cube"
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": true,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "hide_technical_step": true
+        },
+        "variant_drawer": {
+          "enabled": true,
+          "title": "Variante für Katalogobjekt definieren",
+          "summary_fields": [
+            "variant.label",
+            "manufacturer.name",
+            "product.designation",
+            "material.type",
+            "surface.finish"
+          ]
+        },
+        "badges": [
+          "Katalog",
+          "Objekt",
+          "frei platzierbar"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "technical_truth": "src/vplib/domain/object_kinds.py",
+        "definition_role": "ui_and_profile_metadata",
+        "stability": "stable"
+      }
+    },
+    {
+      "id": "adaptive_system",
+      "label": "Adaptives System",
+      "description": "Kontextabhängiges, adaptives Objekt oder System. Geeignet für Brückenkappen, Randbalken, Geländer, adaptive Sonderformen und Bauteile, die aus einem Projekt- oder Tragwerkskontext abgeleitet werden.",
+      "active": true,
+      "sort_order": 40,
+      "tags": [
+        "adaptive",
+        "context",
+        "dynamic",
+        "bridge",
+        "system"
+      ],
+      "aliases": [
+        "adaptive_object",
+        "dynamic_system",
+        "context_system",
+        "adaptives_system"
+      ],
+      "i18n": {
+        "de": "Adaptives System",
+        "en": "Adaptive system"
+      },
+      "allowed_family_profiles": [
+        "adaptive_bridge_component",
+        "bridge_cap",
+        "bridge_abutment_concrete",
+        "railing_system",
+        "edge_beam_system"
+      ],
+      "default_family_profile_id": "adaptive_bridge_component",
+      "default_variant_profile_id": "adaptive_system.v1",
+      "default_modules": {
+        "family": true,
+        "variants": true,
+        "editor": true,
+        "render": true,
+        "physical": true,
+        "material": true,
+        "calculation": true,
+        "manufacturer": true,
+        "analysis": true,
+        "dynamic": true
+      },
+      "geometry_rules": {
+        "placement_mode": "context_bound",
+        "supports_grid_snapping": false,
+        "supports_free_placement": false,
+        "supports_rotation": false,
+        "supports_stacking": false,
+        "supports_scaling": false,
+        "requires_context": true,
+        "requires_editor_footprint": false,
+        "requires_real_dimensions": true,
+        "requires_dynamic_bindings": true,
+        "requires_generator_parameters": true,
+        "context_fields": [
+          "context.host_type",
+          "context.reference_axis",
+          "context.supporting_structure",
+          "context.boundary_conditions"
+        ],
+        "recommended_dimension_fields": [
+          "dimensions.width_mm",
+          "dimensions.height_mm",
+          "dimensions.length_mm"
+        ]
+      },
+      "preview_behavior": {
+        "preview_type": "context_placeholder",
+        "supports_material_preview": true,
+        "supports_dimension_preview": false,
+        "supports_variant_summary": true,
+        "default_shape": "adaptive",
+        "default_icon": "nodes"
+      },
+      "ui": {
+        "create_flow": {
+          "visible": true,
+          "recommended_for_first_package": false,
+          "requires_geometry_step": true,
+          "requires_variant_drawer": true,
+          "requires_dynamic_step_later": true,
+          "hide_technical_step": true
+        },
+        "variant_drawer": {
+          "enabled": true,
+          "title": "Variante für adaptives System definieren",
+          "summary_fields": [
+            "variant.label",
+            "material.type",
+            "structural.compressive_strength",
+            "context.host_type",
+            "manufacturer.name"
+          ]
+        },
+        "badges": [
+          "adaptiv",
+          "kontextabhängig",
+          "dynamisch"
+        ]
+      },
+      "metadata": {
+        "owner": "vectoplan-library",
+        "technical_truth": "src/vplib/domain/object_kinds.py",
+        "definition_role": "ui_and_profile_metadata",
+        "stability": "planned"
+      }
+    }
+  ]
+}

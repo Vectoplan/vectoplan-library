@@ -1,0 +1,103 @@
+/* services/vectoplan-library/static/library_admin/css/create.css */
+
+/* -----------------------------------------------------------------------------
+   VECTOPLAN Library – Create CSS Entry
+
+   Zweck:
+   - Stabiler CSS-Einstiegspunkt für /create.
+   - Diese Datei bleibt der einzige Stylesheet-Link im Template:
+       /static/library_admin/css/create.css
+   - Die eigentlichen Styles liegen modular unter:
+       /static/library_admin/css/create/
+   - Dadurch kann create.html stabil bleiben, während Design, Theme,
+     Wizard, Definitions, Varianten, Mobile-Optimierung und Preview getrennt
+     weiterentwickelt werden.
+
+   Zielzustand:
+   - /create ist kein langes Admin-Formular mehr.
+   - /create wird als Fullscreen-Wizard aufgebaut.
+   - Kein Body-/Page-Scroll im Wizard-Modus.
+   - Oben Stepper 1–6.
+   - Mitte aktiver Schritt.
+   - Rechts kompakte Preview.
+   - Unten Wizard-Navigation.
+   - Schritt 3 enthält Object Kind, Family-/Variant-Profilauflösung und den
+     definition-managed Variantenbereich.
+   - Schritt 3 enthält zusätzlich optionale Backend-Variablen wie U-Wert,
+     Brandschutz, Dichte, Kalkulationswerte usw.
+   - Schritt 6 enthält die Backend-Aktionen.
+
+   Gelöschte / nicht mehr verwendete Partials:
+   - templates/library_admin/create/_hero.html
+   - templates/library_admin/create/_alerts.html
+   - templates/library_admin/create/sections/_help.html
+   - templates/library_admin/create/sections/_result.html
+
+   Wichtig:
+   - Diese Datei enthält bewusst keine Komponentenregeln.
+   - Keine doppelten alten Monolith-Styles.
+   - Keine Three.js-/WebGL-/Upload-Styles.
+   - Keine Backend-Annahmen.
+   - Keine Formularlogik.
+   - Keine Scroll-Hacks.
+   - Keine direkten Regeln für entfernte Hero-/Alert-/Help-/Result-Blöcke.
+   - Reihenfolge der Imports ist relevant.
+
+   Robustheitsprinzip:
+   - CSS selbst hat kein try/catch.
+   - Robustheit entsteht hier durch eine stabile Import-Reihenfolge.
+   - Neue Wizard- und Variantenregeln werden nach den Basis-Komponenten geladen,
+     damit alte Layoutannahmen kontrolliert überschrieben werden können.
+   - definitions.css bleibt vor den neuen Variantenmodulen, damit gemeinsame
+     Definitions-Tokens/-Basisklassen zuerst existieren.
+   - variant-*.css wird nach definitions.css geladen, weil der neue Variantenflow
+     diese alte Definitions-/Drawer-Schicht gezielt erweitert und überschreibt.
+   - variant-optional-fields.css wird nach variant-fields.css geladen, damit
+     optionale Backend-Variablen nicht in alte Drawer-/Grid-Spalten gequetscht
+     werden.
+   - variant-validation.css bleibt danach, damit Validierungszustände final
+     über optionalen und normalen Feldern liegen.
+   - themes.css und responsive.css bleiben am Ende als globale finale Overrides.
+
+   Import-Reihenfolge:
+   1.  tokens.css                   Design Tokens, Theme, Farben, Abstände
+   2.  base.css                     Reset, Typografie, Accessibility
+   3.  layout.css                   Grundlayout und ältere Shell-/Sidebar-Basis
+   4.  cards.css                    Cards, Panels, Pills, Status- und Assist-Elemente
+   5.  forms.css                    Inputs, Selects, Textareas, Buttons
+   6.  tables.css                   Basis-Tabellen und ältere Varianten-/Kennwert-Reihen
+   7.  preview.css                  Preview-Platzhalter ohne Three.js
+   8.  actions.css                  Action-Card, Status, Save/Download-Aktionen
+   9.  wizard.css                   Fullscreen-Wizard, Stepper, Panels, Navigation
+   10. definitions.css              Bestehende Definitions-/Create-Profile-Basis
+   11. variant-workspace.css        Neuer Varianten-Workspace in Schritt 3
+   12. variant-table.css            Neue read-only Variantenliste
+   13. variant-drawer.css           Neue Drawer-Shell, Summary, Empty-State, Footer
+   14. variant-fields.css           Dynamisch gerenderte Definitionsfelder
+   15. variant-optional-fields.css  Optionaler Backend-Variablenkatalog
+   16. variant-validation.css       Feld-, Section-, Drawer- und Row-Validation
+   17. themes.css                   Theme-Toggle und hell/dunkel-spezifische UI-Details
+   18. responsive.css               Finale Mobile-/Tablet-Overrides
+----------------------------------------------------------------------------- */
+
+
+@import url("./create/tokens.css");
+@import url("./create/base.css");
+@import url("./create/layout.css");
+@import url("./create/cards.css");
+@import url("./create/forms.css");
+@import url("./create/tables.css");
+@import url("./create/preview.css");
+@import url("./create/actions.css");
+@import url("./create/wizard.css");
+@import url("./create/definitions.css");
+
+@import url("./create/variant-workspace.css");
+@import url("./create/variant-table.css");
+@import url("./create/variant-drawer.css");
+@import url("./create/variant-fields.css");
+@import url("./create/variant-optional-fields.css");
+@import url("./create/variant-validation.css");
+
+@import url("./create/themes.css");
+@import url("./create/responsive.css");

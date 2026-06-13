@@ -1,0 +1,1105 @@
+/* services/vectoplan-library/static/library_admin/css/create/variant-workspace.css */
+/* -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard · Variant Workspace
+
+  Zweck:
+  - Layout und Grunddarstellung des zentralen Varianten-Workspace in Schritt 3.
+  - Umfasst Workspace-Shell, Header, Toolbar, Tabellen-Slot, Drawer-/Editor-Slot,
+    Fallbacks und Editor-State.
+  - Fachliche Feld-, Tabellen- und Drawer-Details liegen weiterhin in:
+      - tables.css
+      - variant-drawer.css
+      - variant-fields.css
+      - variant-optional-fields.css
+      - variant-validation.css
+
+  Aktuelles Ziel:
+  - Workspace bleibt flach und platzsparend.
+  - Keine zusätzliche schwere Card im Step-3-Inhalt.
+  - Kein großer Statusbereich zwischen Header und Tabelle.
+  - Status erscheint als kompakte Pill im Header.
+  - data-vp-variant-editor-state="closed":
+      - Objektart-Auswahl sichtbar.
+      - Objektart-Hinweis sichtbar.
+      - Variantenübersicht sichtbar.
+      - Drawer-Slot verborgen.
+  - data-vp-variant-editor-state="open":
+      - Objektart-Auswahl verborgen.
+      - Objektart-Hinweis verborgen.
+      - Variantenübersicht verborgen.
+      - Workspace-Header reduziert.
+      - Drawer-Slot sichtbar und volle Breite.
+  - Der Drawer/Editor bekommt die volle verfügbare Breite.
+  - Der Workspace selbst erzeugt keine zusätzliche Scrollbar.
+  - Bestehende Runtime-Hooks und Fallback-Klassen bleiben kompatibel.
+
+  Erwartete Haupt-Hooks:
+  - .vp-create-section--object-variants
+  - [data-vp-create-section="object-variants"]
+  - [data-vp-object-variants-top="true"]
+  - [data-vp-object-kind-area="true"]
+  - .vp-create-variant-workspace
+  - [data-vp-variant-workspace-root="true"]
+  - [data-vp-variant-editor-state="closed|open"]
+  - [data-vp-variant-table-slot="true"]
+  - [data-vp-variant-drawer-slot="true"]
+  - [data-vp-variant-workspace-status-pill="true"]
+  - [data-vp-variant-workspace-status-text="true"]
+
+  Robustheit:
+  - CSS besitzt kein try/catch.
+  - Robustheit entsteht über:
+      - enge Scope-Selektoren
+      - Fallback-Variablen
+      - Kompatibilität zu alten Markups
+      - defensive hidden/empty-Regeln
+      - Editor-State-Fallbacks über Klassen und :has()
+      - min-width: 0 / min-height: 0
+      - kontrollierte Overflow-Regeln
+----------------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+  1. Workspace Tokens
+----------------------------------------------------------------------------- */
+
+:root {
+  --vp-variant-workspace-bg: var(--vp-create-surface, #ffffff);
+  --vp-variant-workspace-bg-soft: var(--vp-create-surface-soft, #f8fafc);
+  --vp-variant-workspace-bg-muted: var(--vp-create-surface-muted, #f1f5f9);
+  --vp-variant-workspace-bg-elevated: var(--vp-create-surface-elevated, #ffffff);
+
+  --vp-variant-workspace-border: var(--vp-create-border, rgba(15, 23, 42, 0.12));
+  --vp-variant-workspace-border-strong: var(--vp-create-border-strong, rgba(15, 23, 42, 0.2));
+
+  --vp-variant-workspace-text: var(--vp-create-text, #0f172a);
+  --vp-variant-workspace-text-muted: var(--vp-create-text-muted, #64748b);
+  --vp-variant-workspace-text-soft: var(--vp-create-text-soft, #94a3b8);
+
+  --vp-variant-workspace-accent: var(--vp-create-accent, var(--vp-create-primary, #2563eb));
+  --vp-variant-workspace-accent-soft: var(--vp-create-accent-soft, rgba(37, 99, 235, 0.1));
+  --vp-variant-workspace-accent-border: rgba(37, 99, 235, 0.28);
+
+  --vp-variant-workspace-success: var(--vp-create-success, #16a34a);
+  --vp-variant-workspace-success-soft: var(--vp-create-success-soft, rgba(22, 163, 74, 0.1));
+  --vp-variant-workspace-success-border: rgba(22, 163, 74, 0.28);
+
+  --vp-variant-workspace-warning: var(--vp-create-warning, #d97706);
+  --vp-variant-workspace-warning-soft: var(--vp-create-warning-soft, rgba(217, 119, 6, 0.12));
+  --vp-variant-workspace-warning-border: rgba(217, 119, 6, 0.28);
+
+  --vp-variant-workspace-danger: var(--vp-create-danger, #dc2626);
+  --vp-variant-workspace-danger-soft: var(--vp-create-danger-soft, rgba(220, 38, 38, 0.1));
+  --vp-variant-workspace-danger-border: rgba(220, 38, 38, 0.28);
+
+  --vp-variant-workspace-radius: var(--vp-create-radius-lg, 18px);
+  --vp-variant-workspace-radius-sm: var(--vp-create-radius, 12px);
+  --vp-variant-workspace-radius-xs: var(--vp-create-radius-sm, 8px);
+
+  --vp-variant-workspace-shadow: var(--vp-create-shadow-sm, 0 10px 30px rgba(15, 23, 42, 0.08));
+  --vp-variant-workspace-shadow-soft: 0 8px 20px rgba(15, 23, 42, 0.06);
+
+  --vp-variant-workspace-gap: clamp(0.82rem, 1vw, 1.1rem);
+  --vp-variant-workspace-gap-compact: clamp(0.45rem, 0.65vw, 0.7rem);
+  --vp-variant-workspace-padding: clamp(0.95rem, 1.35vw, 1.25rem);
+  --vp-variant-workspace-padding-sm: clamp(0.7rem, 1vw, 0.9rem);
+
+  --vp-variant-workspace-title-size: clamp(1.08rem, 1.24vw, 1.28rem);
+  --vp-variant-workspace-copy-size: 0.92rem;
+  --vp-variant-workspace-small-size: 0.82rem;
+
+  --vp-variant-workspace-transition: 160ms ease;
+  --vp-variant-workspace-z-base: 1;
+  --vp-variant-workspace-z-drawer: 5;
+}
+
+
+/* -----------------------------------------------------------------------------
+  2. Theme Compatibility
+----------------------------------------------------------------------------- */
+
+[data-theme="dark"],
+.vplib-create-app[data-theme="dark"],
+.dark .vplib-create-app {
+  --vp-variant-workspace-bg: var(--vp-create-surface, #111827);
+  --vp-variant-workspace-bg-soft: var(--vp-create-surface-soft, #0f172a);
+  --vp-variant-workspace-bg-muted: var(--vp-create-surface-muted, #1f2937);
+  --vp-variant-workspace-bg-elevated: var(--vp-create-surface-elevated, #111827);
+
+  --vp-variant-workspace-border: var(--vp-create-border, rgba(148, 163, 184, 0.18));
+  --vp-variant-workspace-border-strong: var(--vp-create-border-strong, rgba(148, 163, 184, 0.28));
+
+  --vp-variant-workspace-text: var(--vp-create-text, #f8fafc);
+  --vp-variant-workspace-text-muted: var(--vp-create-text-muted, #cbd5e1);
+  --vp-variant-workspace-text-soft: var(--vp-create-text-soft, #94a3b8);
+
+  --vp-variant-workspace-accent-soft: var(--vp-create-accent-soft, rgba(96, 165, 250, 0.14));
+  --vp-variant-workspace-accent-border: rgba(96, 165, 250, 0.32);
+
+  --vp-variant-workspace-success-soft: var(--vp-create-success-soft, rgba(34, 197, 94, 0.14));
+  --vp-variant-workspace-warning-soft: var(--vp-create-warning-soft, rgba(245, 158, 11, 0.16));
+  --vp-variant-workspace-danger-soft: var(--vp-create-danger-soft, rgba(248, 113, 113, 0.14));
+
+  --vp-variant-workspace-shadow: var(--vp-create-shadow-sm, 0 16px 36px rgba(0, 0, 0, 0.22));
+  --vp-variant-workspace-shadow-soft: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --vp-variant-workspace-bg: var(--vp-create-surface, #111827);
+    --vp-variant-workspace-bg-soft: var(--vp-create-surface-soft, #0f172a);
+    --vp-variant-workspace-bg-muted: var(--vp-create-surface-muted, #1f2937);
+    --vp-variant-workspace-bg-elevated: var(--vp-create-surface-elevated, #111827);
+
+    --vp-variant-workspace-border: var(--vp-create-border, rgba(148, 163, 184, 0.18));
+    --vp-variant-workspace-border-strong: var(--vp-create-border-strong, rgba(148, 163, 184, 0.28));
+
+    --vp-variant-workspace-text: var(--vp-create-text, #f8fafc);
+    --vp-variant-workspace-text-muted: var(--vp-create-text-muted, #cbd5e1);
+    --vp-variant-workspace-text-soft: var(--vp-create-text-soft, #94a3b8);
+
+    --vp-variant-workspace-shadow: var(--vp-create-shadow-sm, 0 16px 36px rgba(0, 0, 0, 0.22));
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  3. Parent Step-3 Compatibility
+----------------------------------------------------------------------------- */
+
+.vp-create-section--object-variants,
+[data-vp-create-section="object-variants"],
+[data-create-section="object-variants"] {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-object-variants__body,
+[data-vp-object-variants-body="true"] {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(0.8rem, 1vw, 1.08rem);
+  overflow: hidden;
+}
+
+.vp-create-object-variants__top,
+[data-vp-object-variants-top="true"] {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.58fr) minmax(18rem, 1fr);
+  gap: clamp(0.75rem, 1vw, 1rem);
+  align-items: stretch;
+}
+
+.vp-create-object-variants__field,
+[data-vp-object-kind-field-area="true"] {
+  min-width: 0;
+}
+
+.vp-create-object-kind-note,
+[data-vp-object-kind-note] {
+  min-width: 0;
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem 0.95rem;
+  color: var(--vp-variant-workspace-text);
+  background: var(--vp-variant-workspace-bg-soft);
+  border: 1px solid var(--vp-variant-workspace-border);
+  border-radius: var(--vp-variant-workspace-radius-sm);
+}
+
+.vp-create-object-kind-note__icon {
+  width: 2.1rem;
+  height: 2.1rem;
+  display: grid;
+  place-items: center;
+  color: var(--vp-variant-workspace-accent);
+  background: var(--vp-variant-workspace-accent-soft);
+  border: 1px solid var(--vp-variant-workspace-accent-border);
+  border-radius: 999px;
+}
+
+.vp-create-object-kind-note__glyph {
+  display: block;
+  font-size: 1rem;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.vp-create-object-kind-note__copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.vp-create-object-kind-note__copy strong {
+  min-width: 0;
+  color: var(--vp-variant-workspace-text);
+  font-size: 0.95rem;
+  line-height: 1.22;
+  font-weight: 850;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-object-kind-note__copy span {
+  min-width: 0;
+  color: var(--vp-variant-workspace-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.38;
+}
+
+.vp-create-object-variants__workspace,
+[data-vp-object-variants-workspace-slot="true"] {
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+}
+
+
+/* -----------------------------------------------------------------------------
+  4. Step-3 Editor-State: Object-Kind Area ausblenden
+----------------------------------------------------------------------------- */
+
+.vp-create-section--object-variants[data-vp-variant-editor-state="open"] .vp-create-object-variants__top,
+.vp-create-section--object-variants[data-vp-variant-editor-state="open"] [data-vp-object-variants-top="true"],
+.vp-create-section--object-variants[data-vp-variant-editor-state="open"] [data-vp-object-kind-area="true"],
+.vp-create-section--object-variants[data-vp-variant-editor-state="open"] [data-vp-editor-hidden-when-open="true"],
+.vp-create-section--object-variants[data-vp-object-variants-editor-state="open"] .vp-create-object-variants__top,
+.vp-create-section--object-variants[data-vp-object-variants-editor-state="open"] [data-vp-object-variants-top="true"],
+.vp-create-section--object-variants[data-vp-object-variants-editor-state="open"] [data-vp-object-kind-area="true"],
+.vp-create-section--object-variants[data-vp-object-variants-editor-state="open"] [data-vp-editor-hidden-when-open="true"],
+.vp-create-section--object-variants.is-variant-editor-open .vp-create-object-variants__top,
+.vp-create-section--object-variants.is-variant-editor-open [data-vp-object-variants-top="true"],
+.vp-create-section--object-variants.is-variant-editor-open [data-vp-object-kind-area="true"],
+.vp-create-section--object-variants.is-variant-editor-open [data-vp-editor-hidden-when-open="true"],
+[data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] .vp-create-object-variants__top,
+[data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] [data-vp-object-variants-top="true"],
+[data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] [data-vp-object-kind-area="true"],
+[data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] [data-vp-editor-hidden-when-open="true"],
+[data-vp-create-section="object-variants"].is-variant-editor-open .vp-create-object-variants__top,
+[data-vp-create-section="object-variants"].is-variant-editor-open [data-vp-object-variants-top="true"],
+[data-vp-create-section="object-variants"].is-variant-editor-open [data-vp-object-kind-area="true"],
+[data-vp-create-section="object-variants"].is-variant-editor-open [data-vp-editor-hidden-when-open="true"] {
+  display: none !important;
+}
+
+.vp-create-section--object-variants[data-vp-variant-editor-state="open"] .vp-create-object-variants__body,
+.vp-create-section--object-variants[data-vp-object-variants-editor-state="open"] .vp-create-object-variants__body,
+.vp-create-section--object-variants.is-variant-editor-open .vp-create-object-variants__body,
+[data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] [data-vp-object-variants-body="true"],
+[data-vp-create-section="object-variants"].is-variant-editor-open [data-vp-object-variants-body="true"] {
+  gap: var(--vp-variant-workspace-gap-compact);
+}
+
+.vp-create-section--object-variants[data-vp-variant-editor-state="open"] .vp-create-object-variants__workspace,
+.vp-create-section--object-variants[data-vp-object-variants-editor-state="open"] .vp-create-object-variants__workspace,
+.vp-create-section--object-variants.is-variant-editor-open .vp-create-object-variants__workspace,
+[data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] [data-vp-object-variants-workspace-slot="true"],
+[data-vp-create-section="object-variants"].is-variant-editor-open [data-vp-object-variants-workspace-slot="true"] {
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Fallback für Browser mit :has(), falls ein JS-State nur auf Workspace/Drawer landet. */
+@supports selector(:has(*)) {
+  .vp-create-section--object-variants:has([data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"]) .vp-create-object-variants__top,
+  .vp-create-section--object-variants:has([data-vp-variant-workspace-root="true"].is-variant-editor-open) .vp-create-object-variants__top,
+  .vp-create-section--object-variants:has([data-vp-variant-drawer-root="true"][data-vp-variant-drawer-state="open"]) .vp-create-object-variants__top,
+  .vp-create-section--object-variants:has(.vp-create-variant-drawer[data-vp-variant-drawer-state="open"]) .vp-create-object-variants__top,
+  [data-vp-create-section="object-variants"]:has([data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"]) [data-vp-object-variants-top="true"],
+  [data-vp-create-section="object-variants"]:has([data-vp-variant-drawer-root="true"][data-vp-variant-drawer-state="open"]) [data-vp-object-variants-top="true"] {
+    display: none !important;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  5. Workspace Shell
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace,
+[data-vp-variant-workspace-root="true"] {
+  position: relative;
+  z-index: var(--vp-variant-workspace-z-base);
+  container-type: inline-size;
+  container-name: vp-variant-workspace;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "header"
+    "status-text"
+    "table"
+    "drawer"
+    "fallback";
+  gap: var(--vp-variant-workspace-gap);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--vp-variant-workspace-padding);
+  color: var(--vp-variant-workspace-text);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0)),
+    var(--vp-variant-workspace-bg);
+  border: 1px solid var(--vp-variant-workspace-border);
+  border-radius: var(--vp-variant-workspace-radius);
+  box-shadow: var(--vp-variant-workspace-shadow);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.vp-create-variant-workspace *,
+.vp-create-variant-workspace *::before,
+.vp-create-variant-workspace *::after,
+[data-vp-variant-workspace-root="true"] *,
+[data-vp-variant-workspace-root="true"] *::before,
+[data-vp-variant-workspace-root="true"] *::after {
+  box-sizing: border-box;
+}
+
+.vp-create-variant-workspace[hidden],
+[data-vp-variant-workspace-root="true"][hidden] {
+  display: none !important;
+}
+
+/* Eingebettet in Schritt 3: keine zusätzliche schwere Card. */
+.vp-create-object-variants__workspace > .vp-create-variant-workspace,
+.vp-create-object-variants__workspace > [data-vp-variant-workspace-root="true"],
+.vp-create-section--object-variants .vp-create-variant-workspace,
+.vp-create-section--object-variants [data-vp-variant-workspace-root="true"],
+[data-vp-create-section="object-variants"] .vp-create-variant-workspace,
+[data-vp-create-section="object-variants"] [data-vp-variant-workspace-root="true"] {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+
+/* -----------------------------------------------------------------------------
+  6. Workspace Editor State
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace[data-vp-variant-editor-state="closed"],
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="closed"],
+.vp-create-variant-workspace.is-variant-editor-closed,
+[data-vp-variant-workspace-root="true"].is-variant-editor-closed {
+  grid-template-areas:
+    "header"
+    "status-text"
+    "table"
+    "fallback";
+}
+
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"],
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"],
+.vp-create-variant-workspace.is-variant-editor-open,
+[data-vp-variant-workspace-root="true"].is-variant-editor-open {
+  grid-template-areas:
+    "drawer"
+    "fallback";
+  gap: var(--vp-variant-workspace-gap-compact);
+}
+
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] .vp-create-variant-workspace__header,
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] .vp-create-variant-workspace__status-text,
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] .vp-create-variant-workspace__status,
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] .vp-create-variant-workspace__header,
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] .vp-create-variant-workspace__status-text,
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] .vp-create-variant-workspace__status,
+.vp-create-variant-workspace.is-variant-editor-open .vp-create-variant-workspace__header,
+.vp-create-variant-workspace.is-variant-editor-open .vp-create-variant-workspace__status-text,
+.vp-create-variant-workspace.is-variant-editor-open .vp-create-variant-workspace__status {
+  display: none !important;
+}
+
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] .vp-create-variant-workspace__table-slot,
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] [data-vp-variant-table-slot="true"],
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] .vp-create-variant-workspace__table-slot,
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] [data-vp-variant-table-slot="true"],
+.vp-create-variant-workspace.is-variant-editor-open .vp-create-variant-workspace__table-slot,
+.vp-create-variant-workspace.is-variant-editor-open [data-vp-variant-table-slot="true"],
+[data-vp-variant-workspace-root="true"].is-variant-editor-open .vp-create-variant-workspace__table-slot,
+[data-vp-variant-workspace-root="true"].is-variant-editor-open [data-vp-variant-table-slot="true"] {
+  display: none !important;
+}
+
+.vp-create-variant-workspace[data-vp-variant-editor-state="closed"] .vp-create-variant-workspace__drawer-slot,
+.vp-create-variant-workspace[data-vp-variant-editor-state="closed"] [data-vp-variant-drawer-slot="true"],
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="closed"] .vp-create-variant-workspace__drawer-slot,
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="closed"] [data-vp-variant-drawer-slot="true"],
+.vp-create-variant-workspace.is-variant-editor-closed .vp-create-variant-workspace__drawer-slot,
+.vp-create-variant-workspace.is-variant-editor-closed [data-vp-variant-drawer-slot="true"],
+[data-vp-variant-workspace-root="true"].is-variant-editor-closed .vp-create-variant-workspace__drawer-slot,
+[data-vp-variant-workspace-root="true"].is-variant-editor-closed [data-vp-variant-drawer-slot="true"] {
+  display: none !important;
+}
+
+.vp-create-variant-workspace__drawer-slot:empty,
+[data-vp-variant-drawer-slot="true"]:empty {
+  display: none !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+  7. Header
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace__header {
+  grid-area: header;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--vp-variant-workspace-gap);
+  align-items: start;
+}
+
+.vp-create-variant-workspace__title-wrap {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.32rem;
+}
+
+.vp-create-variant-workspace__title {
+  margin: 0;
+  color: var(--vp-variant-workspace-text);
+  font-size: var(--vp-variant-workspace-title-size);
+  font-weight: 850;
+  line-height: 1.18;
+  letter-spacing: -0.015em;
+}
+
+.vp-create-variant-workspace__description {
+  max-width: 78ch;
+  margin: 0;
+  color: var(--vp-variant-workspace-text-muted);
+  font-size: var(--vp-variant-workspace-copy-size);
+  line-height: 1.42;
+  font-weight: 500;
+}
+
+.vp-create-variant-workspace__tools {
+  min-width: max-content;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.vp-create-variant-workspace__count {
+  min-height: 2.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.32rem 0.66rem;
+  color: var(--vp-variant-workspace-text-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--vp-variant-workspace-bg-soft);
+  border: 1px solid var(--vp-variant-workspace-border);
+  border-radius: 999px;
+}
+
+.vp-create-variant-workspace__add {
+  min-height: 2.15rem;
+  white-space: nowrap;
+}
+
+.vp-create-variant-workspace__add[data-vp-action-disabled-reason],
+.vp-create-variant-workspace__add[disabled] {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+
+/* -----------------------------------------------------------------------------
+  8. Compact Status
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace__status-pill {
+  min-height: 2.1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.32rem 0.62rem;
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+.vp-create-variant-workspace__status-pill::before {
+  content: "";
+  width: 0.46rem;
+  height: 0.46rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.vp-create-variant-workspace__status-pill--ready {
+  color: var(--vp-variant-workspace-success);
+  background: var(--vp-variant-workspace-success-soft);
+  border-color: var(--vp-variant-workspace-success-border);
+}
+
+.vp-create-variant-workspace__status-pill--warning {
+  color: var(--vp-variant-workspace-warning);
+  background: var(--vp-variant-workspace-warning-soft);
+  border-color: var(--vp-variant-workspace-warning-border);
+}
+
+.vp-create-variant-workspace__status-pill--error,
+.vp-create-variant-workspace__status-pill--failed {
+  color: var(--vp-variant-workspace-danger);
+  background: var(--vp-variant-workspace-danger-soft);
+  border-color: var(--vp-variant-workspace-danger-border);
+}
+
+.vp-create-variant-workspace__status-text {
+  grid-area: status-text;
+  margin: 0;
+  padding: 0.72rem 0.85rem;
+  color: var(--vp-variant-workspace-warning);
+  background: var(--vp-variant-workspace-warning-soft);
+  border: 1px solid var(--vp-variant-workspace-warning-border);
+  border-radius: var(--vp-variant-workspace-radius-sm);
+  font-size: 0.86rem;
+  line-height: 1.4;
+  font-weight: 650;
+}
+
+.vp-create-variant-workspace__status-text[hidden] {
+  display: none !important;
+}
+
+/* Kompatibilität zu älteren Markups mit separater Status-Zone. */
+.vp-create-variant-workspace__status {
+  grid-area: status-text;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem 0.65rem;
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+  background: var(--vp-variant-workspace-bg-soft);
+  border: 1px solid var(--vp-variant-workspace-border);
+  border-radius: var(--vp-variant-workspace-radius-sm);
+}
+
+.vp-create-variant-workspace__status:empty {
+  display: none;
+}
+
+/* Wenn die neue Header-Pill existiert und keine Warnmeldung nötig ist, soll ein
+   alter separater Statusblock keinen Platz verbrauchen. */
+.vp-create-variant-workspace[data-vp-variant-workspace-status="ready"] > .vp-create-variant-workspace__status {
+  display: none;
+}
+
+
+/* -----------------------------------------------------------------------------
+  9. Hidden Context / State
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace__context,
+.vp-create-variant-workspace__context[hidden],
+.vp-create-definition-variants-hidden,
+.vp-create-definition-variants-hidden[hidden] {
+  display: none !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+  10. Table Slot
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace__table-slot,
+[data-vp-variant-table-slot="true"] {
+  grid-area: table;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  transition:
+    opacity var(--vp-variant-workspace-transition),
+    max-height var(--vp-variant-workspace-transition),
+    transform var(--vp-variant-workspace-transition);
+}
+
+.vp-create-variant-workspace__table-slot[hidden],
+[data-vp-variant-table-slot="true"][hidden],
+.vp-create-variant-workspace__table-slot[data-vp-variant-editor-state="open"],
+[data-vp-variant-table-slot="true"][data-vp-variant-editor-state="open"],
+.vp-create-variant-workspace__table-slot.is-variant-editor-open,
+[data-vp-variant-table-slot="true"].is-variant-editor-open {
+  display: none !important;
+}
+
+.vp-create-variant-workspace__table-slot:empty,
+[data-vp-variant-table-slot="true"]:empty {
+  min-height: 7rem;
+  border: 1px dashed var(--vp-variant-workspace-border);
+  border-radius: var(--vp-variant-workspace-radius-sm);
+  background: var(--vp-variant-workspace-bg-soft);
+}
+
+.vp-create-variant-workspace__table-slot:empty::before,
+[data-vp-variant-table-slot="true"]:empty::before {
+  content: "Variantenliste wird geladen.";
+  min-height: 7rem;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  color: var(--vp-variant-workspace-text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+
+/* -----------------------------------------------------------------------------
+  11. Drawer Slot
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace__drawer-slot,
+[data-vp-variant-drawer-slot="true"] {
+  position: relative;
+  z-index: var(--vp-variant-workspace-z-drawer);
+  grid-area: drawer;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.vp-create-variant-workspace__drawer-slot[hidden],
+[data-vp-variant-drawer-slot="true"][hidden] {
+  display: none !important;
+}
+
+.vp-create-variant-workspace__drawer-slot > *,
+[data-vp-variant-drawer-slot="true"] > * {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] .vp-create-variant-workspace__drawer-slot,
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] [data-vp-variant-drawer-slot="true"],
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] .vp-create-variant-workspace__drawer-slot,
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] [data-vp-variant-drawer-slot="true"],
+.vp-create-variant-workspace.is-variant-editor-open .vp-create-variant-workspace__drawer-slot,
+.vp-create-variant-workspace.is-variant-editor-open [data-vp-variant-drawer-slot="true"],
+[data-vp-variant-workspace-root="true"].is-variant-editor-open .vp-create-variant-workspace__drawer-slot,
+[data-vp-variant-workspace-root="true"].is-variant-editor-open [data-vp-variant-drawer-slot="true"] {
+  display: block !important;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] > .vp-create-variant-drawer,
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] > [data-vp-variant-drawer-root="true"],
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] > .vp-create-variant-drawer,
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] > [data-vp-variant-drawer-root="true"],
+.vp-create-variant-workspace.is-variant-editor-open > .vp-create-variant-drawer,
+.vp-create-variant-workspace.is-variant-editor-open > [data-vp-variant-drawer-root="true"] {
+  grid-area: drawer;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+
+/* -----------------------------------------------------------------------------
+  12. Fallback Message
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace__fallback {
+  grid-area: fallback;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.25rem;
+  padding: 0.75rem 0.85rem;
+  color: var(--vp-variant-workspace-warning);
+  background: var(--vp-variant-workspace-warning-soft);
+  border: 1px solid var(--vp-variant-workspace-warning-border);
+  border-radius: var(--vp-variant-workspace-radius-sm);
+}
+
+.vp-create-variant-workspace__fallback[hidden] {
+  display: none !important;
+}
+
+.vp-create-variant-workspace__fallback strong {
+  color: inherit;
+  font-size: 0.9rem;
+  font-weight: 850;
+  line-height: 1.3;
+}
+
+.vp-create-variant-workspace__fallback span {
+  color: var(--vp-variant-workspace-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+
+/* -----------------------------------------------------------------------------
+  13. Runtime States
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace[data-vp-variant-workspace-ready="true"] {
+  animation: vpVariantWorkspaceReady var(--vp-variant-workspace-transition) ease-out;
+}
+
+.vp-create-variant-workspace[data-vp-variant-workspace-status="ready"] {
+  --vp-variant-workspace-current-status-color: var(--vp-variant-workspace-success);
+}
+
+.vp-create-variant-workspace[data-vp-variant-workspace-status="definitions_unavailable"] {
+  --vp-variant-workspace-current-status-color: var(--vp-variant-workspace-warning);
+}
+
+.vp-create-variant-workspace[data-vp-variant-workspace-status="initialization_failed"] {
+  --vp-variant-workspace-current-status-color: var(--vp-variant-workspace-danger);
+}
+
+.vp-create-variant-workspace[data-vp-variant-workspace-status="initialization_failed"] {
+  border-color: var(--vp-variant-workspace-danger-border);
+  background:
+    linear-gradient(180deg, var(--vp-variant-workspace-danger-soft), transparent 55%),
+    var(--vp-variant-workspace-bg);
+}
+
+.vp-create-variant-workspace[data-vp-definitions-available="false"] {
+  border-color: var(--vp-variant-workspace-warning-border);
+}
+
+.vp-create-variant-workspace[data-vp-variant-workspace-status="definitions_unavailable"] .vp-create-variant-workspace__table-slot {
+  opacity: 0.86;
+}
+
+.vp-create-variant-workspace[data-vp-variant-count="0"] .vp-create-variant-workspace__count {
+  color: var(--vp-variant-workspace-warning);
+  background: var(--vp-variant-workspace-warning-soft);
+  border-color: var(--vp-variant-workspace-warning-border);
+}
+
+.vp-create-variant-workspace[data-vp-variant-count="1"] .vp-create-variant-workspace__count {
+  color: var(--vp-variant-workspace-text-muted);
+}
+
+
+/* -----------------------------------------------------------------------------
+  14. Embedded Editor Hygiene
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace .vp-create-variant-drawer,
+[data-vp-variant-workspace-root="true"] .vp-create-variant-drawer,
+.vp-create-variant-workspace [data-vp-variant-drawer-root="true"],
+[data-vp-variant-workspace-root="true"] [data-vp-variant-drawer-root="true"] {
+  width: 100%;
+  max-width: 100%;
+}
+
+.vp-create-variant-workspace .vp-create-variant-drawer__panel,
+[data-vp-variant-workspace-root="true"] .vp-create-variant-drawer__panel {
+  width: 100%;
+  max-width: 100%;
+}
+
+.vp-create-variant-workspace .vp-create-variant-drawer__body,
+[data-vp-variant-workspace-root="true"] .vp-create-variant-drawer__body,
+.vp-create-variant-workspace .vp-create-variant-drawer__fields,
+[data-vp-variant-workspace-root="true"] .vp-create-variant-drawer__fields {
+  min-width: 0;
+}
+
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] .vp-create-variant-drawer,
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] .vp-create-variant-drawer,
+.vp-create-variant-workspace.is-variant-editor-open .vp-create-variant-drawer,
+[data-vp-variant-workspace-root="true"].is-variant-editor-open .vp-create-variant-drawer {
+  margin: 0;
+}
+
+
+/* -----------------------------------------------------------------------------
+  15. Shared Button Compatibility inside Workspace
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace .vp-create-button,
+[data-vp-variant-workspace-root="true"] .vp-create-button {
+  min-height: 2.15rem;
+  font-size: 0.86rem;
+}
+
+.vp-create-variant-workspace .vp-create-button:focus-visible,
+[data-vp-variant-workspace-root="true"] .vp-create-button:focus-visible {
+  outline: 2px solid var(--vp-variant-workspace-accent);
+  outline-offset: 2px;
+}
+
+.vp-create-variant-workspace .vp-create-button[disabled],
+.vp-create-variant-workspace .vp-create-button[aria-disabled="true"],
+[data-vp-variant-workspace-root="true"] .vp-create-button[disabled],
+[data-vp-variant-workspace-root="true"] .vp-create-button[aria-disabled="true"] {
+  pointer-events: none;
+}
+
+
+/* -----------------------------------------------------------------------------
+  16. Accessibility
+----------------------------------------------------------------------------- */
+
+.vp-create-variant-workspace:focus-within {
+  border-color: var(--vp-variant-workspace-accent-border);
+}
+
+.vp-create-object-variants__workspace > .vp-create-variant-workspace:focus-within,
+.vp-create-section--object-variants .vp-create-variant-workspace:focus-within,
+[data-vp-create-section="object-variants"] .vp-create-variant-workspace:focus-within {
+  border-color: transparent;
+}
+
+.vp-create-variant-workspace [aria-live="polite"],
+[data-vp-variant-workspace-root="true"] [aria-live="polite"] {
+  overflow-anchor: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vp-create-variant-workspace,
+  .vp-create-variant-workspace *,
+  [data-vp-variant-workspace-root="true"],
+  [data-vp-variant-workspace-root="true"] * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  17. Container Queries
+----------------------------------------------------------------------------- */
+
+@container vp-variant-workspace (max-width: 760px) {
+  .vp-create-variant-workspace__header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vp-create-variant-workspace__tools {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .vp-create-variant-workspace__status-pill,
+  .vp-create-variant-workspace__count {
+    min-height: 2rem;
+  }
+}
+
+@container vp-variant-workspace (max-width: 560px) {
+  .vp-create-variant-workspace,
+  [data-vp-variant-workspace-root="true"] {
+    padding: var(--vp-variant-workspace-padding-sm);
+    border-radius: var(--vp-variant-workspace-radius-sm);
+  }
+
+  .vp-create-object-variants__workspace > .vp-create-variant-workspace,
+  .vp-create-section--object-variants .vp-create-variant-workspace,
+  [data-vp-create-section="object-variants"] .vp-create-variant-workspace {
+    padding: 0;
+    border-radius: 0;
+  }
+
+  .vp-create-variant-workspace__tools {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .vp-create-variant-workspace__count,
+  .vp-create-variant-workspace__status-pill {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .vp-create-variant-workspace__add {
+    flex: 1 1 100%;
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  18. Responsive
+----------------------------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  .vp-create-object-variants__top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vp-create-object-kind-note__copy strong {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 980px) {
+  .vp-create-variant-workspace__header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vp-create-variant-workspace__tools {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .vp-create-variant-workspace__add {
+    flex: 0 1 auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .vp-create-variant-workspace,
+  [data-vp-variant-workspace-root="true"] {
+    padding: var(--vp-variant-workspace-padding-sm);
+    border-radius: var(--vp-variant-workspace-radius-sm);
+  }
+
+  .vp-create-object-variants__workspace > .vp-create-variant-workspace,
+  .vp-create-section--object-variants .vp-create-variant-workspace,
+  [data-vp-create-section="object-variants"] .vp-create-variant-workspace {
+    padding: 0;
+    border-radius: 0;
+  }
+
+  .vp-create-variant-workspace__header {
+    gap: 0.75rem;
+  }
+
+  .vp-create-variant-workspace__tools {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .vp-create-variant-workspace__count,
+  .vp-create-variant-workspace__status-pill {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .vp-create-variant-workspace__add {
+    flex: 1 1 100%;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .vp-create-object-kind-note {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vp-create-object-kind-note__icon {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .vp-create-variant-workspace__title {
+    font-size: 1.05rem;
+  }
+
+  .vp-create-variant-workspace__description {
+    font-size: 0.84rem;
+  }
+
+  .vp-create-variant-workspace__status-text {
+    padding: 0.65rem;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  19. Forced Colors / High Contrast
+----------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  .vp-create-variant-workspace,
+  [data-vp-variant-workspace-root="true"],
+  .vp-create-variant-workspace__status,
+  .vp-create-variant-workspace__count,
+  .vp-create-variant-workspace__status-pill,
+  .vp-create-variant-workspace__status-text,
+  .vp-create-variant-workspace__fallback,
+  .vp-create-object-kind-note {
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+
+  .vp-create-variant-workspace__status-pill::before {
+    background: CanvasText;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  20. Print
+----------------------------------------------------------------------------- */
+
+@media print {
+  .vp-create-variant-workspace,
+  [data-vp-variant-workspace-root="true"] {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .vp-create-variant-workspace__tools,
+  .vp-create-variant-workspace__drawer-slot,
+  .vp-create-variant-workspace__status,
+  .vp-create-variant-workspace__status-pill,
+  .vp-create-variant-workspace__status-text,
+  [data-vp-variant-drawer-slot="true"],
+  [data-vp-variant-workspace-status-node="true"] {
+    display: none !important;
+  }
+
+  .vp-create-variant-workspace__description {
+    color: #000;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  21. Animation
+----------------------------------------------------------------------------- */
+
+@keyframes vpVariantWorkspaceReady {
+  from {
+    opacity: 0.84;
+    transform: translateY(2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

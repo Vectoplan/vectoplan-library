@@ -1,0 +1,721 @@
+/* services/vectoplan-library/static/library_admin/css/create/actions.css */
+
+/* -----------------------------------------------------------------------------
+  VECTOPLAN Library · Create Wizard · Action Styles
+
+  Zweck:
+  - Styling für Schritt 6 des /create-Wizards.
+  - Draft / Validate / Package-Plan / Download / Save.
+  - Kompaktes Inline-Feedback als Ersatz für die gelöschte _result.html.
+  - Keine eigene Result-Section.
+  - Keine Help-Section.
+  - Keine Hero-Section.
+  - Keine Alert-Section.
+  - Keine Backend-Logik.
+  - Keine API-Aufrufe.
+  - Keine Preview-3D-Details.
+  - Keine Tabellen-/Row-Layouts.
+
+  Betroffener Partial:
+  - templates/library_admin/create/sections/_actions.html
+
+  Wichtige Hooks:
+  - data-create-actions-card="true"
+  - data-create-action-stack="true"
+  - data-create-action="draft"
+  - data-create-action="validate"
+  - data-create-action="package-plan"
+  - data-create-action="download"
+  - data-create-action="save"
+  - data-create-action-status="true"
+  - data-vp-actions-feedback
+  - data-vp-actions-result-output
+  - data-vp-actions-result-copy
+  - data-vp-actions-result-clear
+
+  UI-Ziel dieser Fassung:
+  - Schritt 6 bleibt in der 100dvh-Wizard-Struktur kompakt.
+  - Action-Buttons sind größer und lesbarer, aber nicht raumgreifend.
+  - Feedback ersetzt weiterhin die alte Result-Section.
+  - Result-Output scrollt intern und verlängert nicht die gesamte Seite.
+  - Dark/Light/Forced-Colors bleiben stabil.
+  - Keine Konflikte mit Stepper, Variant Editor oder Preview.
+
+  Robustheitsprinzip:
+  - CSS hat kein try/catch.
+  - Robustheit entsteht durch:
+    - defensive Fallback-Variablen
+    - alte data-create-* Hooks bleiben unterstützt
+    - neue data-vp-* Hooks bleiben unterstützt
+    - kein Bezug zu gelöschten Partials
+    - kein Body/Page-Scroll
+    - interne max-height-Regeln für Output
+----------------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+  1. Actions Step Panel
+----------------------------------------------------------------------------- */
+
+.vp-create-section--actions,
+.vp-create-actions-card,
+[data-create-actions-card="true"] {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-actions-card,
+[data-create-actions-card="true"] {
+  background:
+    var(--vp-create-card-gradient, linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.92))),
+    radial-gradient(circle at top right, var(--vp-create-primary-softer, rgba(37, 99, 235, 0.08)), transparent 18rem);
+}
+
+.vp-create-actions-card[data-create-health-ok="false"],
+[data-create-health-ok="false"] .vp-create-actions-card,
+[data-create-health-ok="false"] [data-create-actions-card="true"] {
+  border-color: var(--vp-create-warning-border, rgba(245, 158, 11, 0.32));
+}
+
+.vp-create-actions-card[data-create-write-enabled="false"] [data-create-action="save"],
+[data-create-write-enabled="false"] [data-create-action="save"],
+body[data-create-write-enabled="false"] [data-create-action="save"] {
+  opacity: 0.56;
+}
+
+
+/* -----------------------------------------------------------------------------
+  2. Action Status Strip
+----------------------------------------------------------------------------- */
+
+.vp-create-action-status-strip {
+  min-width: 0;
+}
+
+.vp-create-mini-status {
+  position: relative;
+  overflow: hidden;
+}
+
+.vp-create-mini-status::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--vp-create-border, rgba(15, 23, 42, 0.12));
+  opacity: 0.8;
+}
+
+.vp-create-mini-status[data-vp-action-health-status="ok"]::before,
+.vp-create-mini-status[data-vp-action-write-status="ok"]::before {
+  background: var(--vp-create-success, #16a34a);
+}
+
+.vp-create-mini-status[data-vp-action-health-status="warning"]::before,
+.vp-create-mini-status[data-vp-action-write-status="warning"]::before {
+  background: var(--vp-create-warning, #f59e0b);
+}
+
+.vp-create-mini-status[data-vp-action-health-status="error"]::before,
+.vp-create-mini-status[data-vp-action-write-status="error"]::before {
+  background: var(--vp-create-danger, #dc2626);
+}
+
+.vp-create-mini-status[data-vp-action-write-status="muted"]::before {
+  background: var(--vp-create-text-soft, #94a3b8);
+}
+
+
+/* -----------------------------------------------------------------------------
+  3. Action Stack
+----------------------------------------------------------------------------- */
+
+.vp-create-action-stack,
+[data-create-action-stack="true"] {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--vp-create-space-3, 0.75rem);
+  min-width: 0;
+}
+
+.vp-create-action-stack .vp-create-button,
+[data-create-action-stack="true"] .vp-create-button,
+.vp-create-action-button {
+  width: 100%;
+  min-width: 0;
+  min-height: 74px;
+  justify-content: center;
+  align-items: center;
+  padding: var(--vp-create-space-3, 0.75rem);
+  white-space: normal;
+  text-align: center;
+}
+
+.vp-create-action-stack .vp-create-button__label,
+[data-create-action-stack="true"] .vp-create-button__label,
+.vp-create-action-button .vp-create-button__label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  font-size: var(--vp-create-text-sm, 0.875rem);
+  font-weight: var(--vp-create-weight-bold, 740);
+  line-height: var(--vp-create-line-snug, 1.35);
+  text-overflow: ellipsis;
+}
+
+.vp-create-action-stack .vp-create-button__hint,
+[data-create-action-stack="true"] .vp-create-button__hint,
+.vp-create-action-button .vp-create-button__hint {
+  display: block;
+  max-width: 100%;
+  margin-top: 3px;
+  overflow: hidden;
+  color: currentColor;
+  font-size: var(--vp-create-text-2xs, 0.7rem);
+  font-weight: var(--vp-create-weight-medium, 540);
+  line-height: var(--vp-create-line-snug, 1.35);
+  opacity: 0.78;
+  text-overflow: ellipsis;
+}
+
+.vp-create-action-button,
+[data-create-action] {
+  position: relative;
+  isolation: isolate;
+}
+
+.vp-create-action-button::before,
+[data-create-action]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity var(--vp-create-duration-fast, 160ms) var(--vp-create-ease-soft, ease);
+}
+
+.vp-create-action-button:hover::before,
+[data-create-action]:hover::before {
+  opacity: 1;
+}
+
+
+/* -----------------------------------------------------------------------------
+  4. Specific Action Emphasis
+----------------------------------------------------------------------------- */
+
+[data-create-action="draft"] {
+  border-color: var(--vp-create-muted-border, rgba(148, 163, 184, 0.24));
+}
+
+[data-create-action="draft"]::before {
+  background: var(--vp-create-muted-soft, rgba(148, 163, 184, 0.08));
+}
+
+[data-create-action="validate"] {
+  border-color: var(--vp-create-info-border, rgba(14, 165, 233, 0.28));
+}
+
+[data-create-action="validate"]::before {
+  background: var(--vp-create-info-soft, rgba(14, 165, 233, 0.10));
+}
+
+[data-create-action="package-plan"] {
+  border-color: var(--vp-create-primary-soft, rgba(37, 99, 235, 0.18));
+}
+
+[data-create-action="package-plan"]::before {
+  background: var(--vp-create-primary-softer, rgba(37, 99, 235, 0.08));
+}
+
+[data-create-action="download"] {
+  box-shadow: 0 10px 28px rgba(37, 99, 235, 0.18);
+}
+
+[data-create-action="save"] {
+  box-shadow: 0 10px 28px rgba(220, 38, 38, 0.14);
+}
+
+[data-create-action="save"]:disabled,
+[data-create-action="save"][aria-disabled="true"],
+[data-create-action="save"][data-vp-action-disabled-reason] {
+  box-shadow: none;
+}
+
+
+/* -----------------------------------------------------------------------------
+  5. Loading / Pending States
+----------------------------------------------------------------------------- */
+
+[data-create-form-state="loading"] [data-create-action],
+[data-vp-actions-state="running"] [data-create-action],
+[data-vp-action-running="true"] {
+  position: relative;
+}
+
+[data-create-form-state="loading"] [data-create-action][aria-busy="true"]::after,
+[data-vp-action-running="true"]::after,
+.vp-create-action-button.is-running::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: var(--vp-create-space-3, 0.75rem);
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--vp-create-radius-full, 999px);
+  opacity: 0.82;
+  animation: vp-create-action-spin 820ms linear infinite;
+}
+
+@keyframes vp-create-action-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  6. Action Status Text
+----------------------------------------------------------------------------- */
+
+.vp-create-action-status,
+[data-create-action-status="true"] {
+  margin: 0;
+  padding: var(--vp-create-space-3, 0.75rem);
+  border: 1px solid var(--vp-create-border, rgba(15, 23, 42, 0.12));
+  border-radius: var(--vp-create-radius-sm, 0.75rem);
+  color: var(--vp-create-text-soft, #94a3b8);
+  font-size: var(--vp-create-text-sm, 0.875rem);
+  line-height: var(--vp-create-line-normal, 1.5);
+  background: var(--vp-create-bg-overlay, rgba(255, 255, 255, 0.82));
+}
+
+.vp-create-action-status.is-loading,
+[data-create-action-status="true"].is-loading {
+  border-color: var(--vp-create-info-border, rgba(14, 165, 233, 0.28));
+  color: var(--vp-create-info-text, #075985);
+  background: var(--vp-create-info-soft, rgba(14, 165, 233, 0.10));
+}
+
+.vp-create-action-status.is-ok,
+[data-create-action-status="true"].is-ok {
+  border-color: var(--vp-create-success-border, rgba(22, 163, 74, 0.28));
+  color: var(--vp-create-success-text, #166534);
+  background: var(--vp-create-success-soft, rgba(22, 163, 74, 0.10));
+}
+
+.vp-create-action-status.is-warning,
+[data-create-action-status="true"].is-warning {
+  border-color: var(--vp-create-warning-border, rgba(245, 158, 11, 0.32));
+  color: var(--vp-create-warning-text, #92400e);
+  background: var(--vp-create-warning-soft, rgba(245, 158, 11, 0.10));
+}
+
+.vp-create-action-status.is-error,
+[data-create-action-status="true"].is-error {
+  border-color: var(--vp-create-danger-border, rgba(220, 38, 38, 0.32));
+  color: var(--vp-create-danger-text, #991b1b);
+  background: var(--vp-create-danger-soft, rgba(220, 38, 38, 0.10));
+}
+
+
+/* -----------------------------------------------------------------------------
+  7. Inline Feedback / Result Replacement
+----------------------------------------------------------------------------- */
+
+.vp-create-action-feedback,
+[data-vp-actions-feedback] {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--vp-create-border-soft, rgba(15, 23, 42, 0.08));
+  border-radius: var(--vp-create-radius-lg, 1rem);
+  background: var(--vp-create-bg-overlay, rgba(255, 255, 255, 0.82));
+  overflow: hidden;
+}
+
+.vp-create-action-feedback[hidden],
+[data-vp-actions-feedback][hidden] {
+  display: none !important;
+}
+
+.vp-create-action-feedback[data-vp-actions-feedback-state="running"],
+[data-vp-actions-feedback][data-vp-actions-feedback-state="running"] {
+  border-color: var(--vp-create-info-border, rgba(14, 165, 233, 0.28));
+}
+
+.vp-create-action-feedback[data-vp-actions-feedback-state="ok"],
+.vp-create-action-feedback[data-vp-actions-feedback-state="result"],
+[data-vp-actions-feedback][data-vp-actions-feedback-state="ok"],
+[data-vp-actions-feedback][data-vp-actions-feedback-state="result"] {
+  border-color: var(--vp-create-success-border, rgba(22, 163, 74, 0.28));
+}
+
+.vp-create-action-feedback[data-vp-actions-feedback-state="warning"],
+[data-vp-actions-feedback][data-vp-actions-feedback-state="warning"] {
+  border-color: var(--vp-create-warning-border, rgba(245, 158, 11, 0.32));
+}
+
+.vp-create-action-feedback[data-vp-actions-feedback-state="error"],
+[data-vp-actions-feedback][data-vp-actions-feedback-state="error"] {
+  border-color: var(--vp-create-danger-border, rgba(220, 38, 38, 0.32));
+}
+
+.vp-create-action-feedback__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--vp-create-space-3, 0.75rem);
+  min-width: 0;
+  padding: var(--vp-create-space-3, 0.75rem);
+  border-bottom: 1px solid var(--vp-create-border-soft, rgba(15, 23, 42, 0.08));
+}
+
+.vp-create-action-feedback__title-wrap {
+  min-width: 0;
+}
+
+.vp-create-action-feedback__title {
+  margin: 0;
+  color: var(--vp-create-text-strong, #0f172a);
+  font-size: var(--vp-create-text-sm, 0.875rem);
+  font-weight: var(--vp-create-weight-bold, 740);
+  line-height: var(--vp-create-line-snug, 1.35);
+}
+
+.vp-create-action-feedback__status {
+  margin: var(--vp-create-space-1, 0.25rem) 0 0;
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: var(--vp-create-text-xs, 0.78rem);
+  line-height: 1.35;
+}
+
+.vp-create-action-feedback__tools {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--vp-create-space-2, 0.5rem);
+}
+
+
+/* -----------------------------------------------------------------------------
+  8. Result Summary / JSON Output
+----------------------------------------------------------------------------- */
+
+.vp-create-result-summary,
+[data-vp-actions-result-summary] {
+  min-width: 0;
+  margin: 0;
+  padding: var(--vp-create-space-2, 0.5rem) var(--vp-create-space-3, 0.75rem);
+  border-bottom: 1px solid var(--vp-create-border-soft, rgba(15, 23, 42, 0.08));
+  color: var(--vp-create-text-muted, #64748b);
+  font-size: var(--vp-create-text-xs, 0.78rem);
+  line-height: 1.35;
+  background: var(--vp-create-muted-soft, rgba(148, 163, 184, 0.08));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-result-summary[hidden],
+[data-vp-actions-result-summary][hidden] {
+  display: none !important;
+}
+
+.vp-create-result-output,
+[data-vp-actions-result-output] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  max-height: clamp(130px, 22vh, 270px);
+  margin: 0;
+  padding: var(--vp-create-space-3, 0.75rem);
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  color: var(--vp-create-text-strong, #0f172a);
+  font-family: var(--vp-create-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  font-size: var(--vp-create-text-xs, 0.78rem);
+  line-height: 1.45;
+  background: var(--vp-create-muted-soft, rgba(148, 163, 184, 0.08));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.vp-create-result-output[hidden],
+[data-vp-actions-result-output][hidden] {
+  display: none !important;
+}
+
+.vp-create-result-output:focus-visible,
+[data-vp-actions-result-output]:focus-visible {
+  outline: none;
+  box-shadow: inset var(--vp-create-shadow-focus, 0 0 0 3px rgba(37, 99, 235, 0.22));
+}
+
+.vp-create-result-output code,
+[data-vp-actions-result-output] code {
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+
+/* -----------------------------------------------------------------------------
+  9. Small Buttons in Feedback Header
+----------------------------------------------------------------------------- */
+
+.vp-create-button--small,
+.vp-create-action-feedback__tools .vp-create-button {
+  min-height: 34px;
+  padding: 7px 11px;
+  font-size: var(--vp-create-text-xs, 0.78rem);
+}
+
+.vp-create-action-feedback__tools .vp-create-button:disabled,
+.vp-create-action-feedback__tools .vp-create-button[aria-disabled="true"] {
+  opacity: 0.48;
+}
+
+
+/* -----------------------------------------------------------------------------
+  10. Copy / Clear Feedback States
+----------------------------------------------------------------------------- */
+
+[data-create-result-copy].is-copied,
+[data-create-copy-result].is-copied,
+[data-vp-actions-result-copy].is-copied {
+  border-color: var(--vp-create-success-border, rgba(22, 163, 74, 0.28));
+  color: var(--vp-create-success-text, #166534);
+  background: var(--vp-create-success-soft, rgba(22, 163, 74, 0.10));
+}
+
+[data-create-result-clear].is-cleared,
+[data-create-clear-result].is-cleared,
+[data-vp-actions-result-clear].is-cleared {
+  border-color: var(--vp-create-info-border, rgba(14, 165, 233, 0.28));
+  color: var(--vp-create-info-text, #075985);
+  background: var(--vp-create-info-soft, rgba(14, 165, 233, 0.10));
+}
+
+
+/* -----------------------------------------------------------------------------
+  11. Legacy / Removed Action Blocks
+----------------------------------------------------------------------------- */
+
+.vp-create-action-overview,
+.vp-create-side-note,
+.vp-create-action-links,
+.vp-create-mobile-action-hint {
+  display: none;
+}
+
+[data-create-save-enabled-note="true"],
+[data-create-save-disabled-note="true"] {
+  display: none;
+}
+
+[data-create-write-enabled="false"] [data-create-save-enabled-note="true"] {
+  display: none;
+}
+
+[data-create-write-enabled="true"] [data-create-save-disabled-note="true"] {
+  display: none;
+}
+
+
+/* -----------------------------------------------------------------------------
+  12. Dark Theme Fallbacks
+----------------------------------------------------------------------------- */
+
+[data-theme="dark"] .vp-create-actions-card,
+[data-theme="dark"] [data-create-actions-card="true"],
+.vp-create-app[data-theme="dark"] .vp-create-actions-card,
+.vp-create-app[data-theme="dark"] [data-create-actions-card="true"],
+.dark .vp-create-actions-card,
+.dark [data-create-actions-card="true"] {
+  background:
+    linear-gradient(180deg, rgba(17, 24, 39, 0.96), rgba(15, 23, 42, 0.92)),
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.18), transparent 18rem);
+}
+
+[data-theme="dark"] .vp-create-action-feedback,
+[data-theme="dark"] [data-vp-actions-feedback],
+.vp-create-app[data-theme="dark"] .vp-create-action-feedback,
+.vp-create-app[data-theme="dark"] [data-vp-actions-feedback],
+.dark .vp-create-action-feedback,
+.dark [data-vp-actions-feedback] {
+  background: rgba(15, 23, 42, 0.76);
+}
+
+[data-theme="dark"] .vp-create-result-output,
+[data-theme="dark"] .vp-create-result-summary,
+[data-theme="dark"] [data-vp-actions-result-output],
+[data-theme="dark"] [data-vp-actions-result-summary],
+.vp-create-app[data-theme="dark"] .vp-create-result-output,
+.vp-create-app[data-theme="dark"] .vp-create-result-summary,
+.dark .vp-create-result-output,
+.dark .vp-create-result-summary {
+  background: rgba(2, 6, 23, 0.45);
+}
+
+
+/* -----------------------------------------------------------------------------
+  13. Responsive
+----------------------------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .vp-create-action-stack,
+  [data-create-action-stack="true"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .vp-create-action-stack [data-create-action="download"],
+  .vp-create-action-stack [data-create-action="save"],
+  [data-create-action-stack="true"] [data-create-action="download"],
+  [data-create-action-stack="true"] [data-create-action="save"] {
+    min-height: 76px;
+  }
+}
+
+@media (max-width: 980px) {
+  .vp-create-action-stack,
+  [data-create-action-stack="true"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .vp-create-action-stack [data-create-action="download"],
+  [data-create-action-stack="true"] [data-create-action="download"] {
+    grid-column: span 1;
+  }
+
+  .vp-create-action-stack [data-create-action="save"],
+  [data-create-action-stack="true"] [data-create-action="save"] {
+    grid-column: span 1;
+  }
+
+  .vp-create-result-output,
+  [data-vp-actions-result-output] {
+    max-height: 170px;
+  }
+}
+
+@media (max-width: 640px) {
+  .vp-create-action-stack,
+  [data-create-action-stack="true"] {
+    grid-template-columns: 1fr;
+    gap: var(--vp-create-space-2, 0.5rem);
+  }
+
+  .vp-create-action-stack .vp-create-button,
+  [data-create-action-stack="true"] .vp-create-button,
+  .vp-create-action-button {
+    min-height: var(--vp-create-touch-target, 44px);
+    padding: var(--vp-create-space-3, 0.75rem);
+  }
+
+  .vp-create-action-stack .vp-create-button__hint,
+  [data-create-action-stack="true"] .vp-create-button__hint,
+  .vp-create-action-button .vp-create-button__hint {
+    display: none;
+  }
+
+  .vp-create-action-feedback__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vp-create-action-feedback__tools {
+    justify-content: stretch;
+  }
+
+  .vp-create-action-feedback__tools .vp-create-button {
+    flex: 1 1 0;
+  }
+
+  .vp-create-result-summary,
+  [data-vp-actions-result-summary] {
+    white-space: normal;
+  }
+
+  .vp-create-result-output,
+  [data-vp-actions-result-output] {
+    max-height: 140px;
+    font-size: var(--vp-create-text-2xs, 0.7rem);
+  }
+}
+
+@media (max-width: 420px) {
+  .vp-create-action-status,
+  [data-create-action-status="true"] {
+    font-size: var(--vp-create-text-xs, 0.78rem);
+  }
+
+  .vp-create-action-feedback__tools {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  14. Reduced Motion
+----------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-create-form-state="loading"] [data-create-action][aria-busy="true"]::after,
+  [data-vp-action-running="true"]::after,
+  .vp-create-action-button.is-running::after {
+    animation: none;
+  }
+
+  .vp-create-action-button::before,
+  [data-create-action]::before {
+    transition: none;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  15. Forced Colors
+----------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  .vp-create-action-feedback,
+  [data-vp-actions-feedback],
+  .vp-create-action-status,
+  [data-create-action-status="true"],
+  .vp-create-result-summary,
+  [data-vp-actions-result-summary],
+  .vp-create-result-output,
+  [data-vp-actions-result-output],
+  .vp-create-mini-status {
+    border-color: CanvasText;
+    color: CanvasText;
+    background: Canvas;
+  }
+
+  [data-create-form-state="loading"] [data-create-action][aria-busy="true"]::after,
+  [data-vp-action-running="true"]::after,
+  .vp-create-action-button.is-running::after {
+    border-color: CanvasText;
+    border-right-color: transparent;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  16. Print
+----------------------------------------------------------------------------- */
+
+@media print {
+  .vp-create-actions-card,
+  [data-create-actions-card="true"] {
+    display: none !important;
+  }
+}

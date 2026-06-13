@@ -1,0 +1,66 @@
+{
+  "_file": "services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/editor/placement.json",
+  "schema_version": "vplib.editor.placement.v1",
+  "family_id": "vp.hochbau.bloecke.basic_stone_block",
+  "package_id": "vplib.vp.hochbau.bloecke.basic_stone_block",
+  "default_variant_id": "default",
+  "placement_mode": "grid_cell",
+  "enabled": true,
+  "rules": {
+    "requires_grid": true,
+    "snap_to_grid": true,
+    "snap_mode": "cell",
+    "allow_free_placement": false,
+    "allow_rotation": false,
+    "allow_stack": true,
+    "allow_overlap": false,
+    "allow_negative_height": false
+  },
+  "anchor": {
+    "mode": "bottom_center",
+    "local_position": {
+      "x": 0.5,
+      "y": 0.0,
+      "z": 0.5
+    }
+  },
+  "cell_footprint": {
+    "unit": "cell",
+    "x": 1,
+    "y": 1,
+    "z": 1
+  },
+  "transform_defaults": {
+    "position": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "rotation": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "scale": {
+      "x": 1,
+      "y": 1,
+      "z": 1
+    }
+  },
+  "constraints": {
+    "min_instances": 0,
+    "max_instances": null,
+    "requires_support_below": false,
+    "can_attach_to": [
+      "grid_cell",
+      "cell_block"
+    ],
+    "cannot_attach_to": []
+  },
+  "editor_feedback": {
+    "valid_placement_color": "default_valid",
+    "invalid_placement_color": "default_invalid",
+    "show_cell_outline": true,
+    "show_anchor_marker": false
+  }
+}
