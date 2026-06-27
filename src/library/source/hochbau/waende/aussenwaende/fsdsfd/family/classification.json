@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "waende",
+  "subcategory": "aussenwaende",
+  "classification_path": "hochbau/waende/aussenwaende",
+  "source_path": "hochbau/waende/aussenwaende/fsdsfd",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Wände",
+    "subcategory": "Außenwände"
+  },
+  "object_kind": "cell_block"
+}

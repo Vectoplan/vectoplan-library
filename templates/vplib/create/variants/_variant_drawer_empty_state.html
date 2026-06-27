@@ -1,0 +1,1218 @@
+{# services/vectoplan-library/templates/vplib/create/variants/_variant_drawer_empty_state.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · VPLIB Create Wizard · Compact Variant Drawer Empty State
+
+  Zweck:
+  - Kompakter Empty-/Fallback-State für den Varianten-/Variablen-Drawer.
+  - Wird angezeigt, wenn Definitionsdaten fehlen, kein Variant Profile aufgelöst
+    werden kann oder die Runtime noch keine Felder rendern kann.
+  - Vermeidet große Diagnoseflächen im normalen UI.
+  - Gibt nur die nötigste sichtbare Meldung aus.
+  - Hält Diagnose-, Retry-, Close- und Copy-Hooks weiterhin stabil.
+  - Keine API-Aufrufe direkt im Template.
+  - Keine Package-Erzeugung.
+  - Keine fachliche Variant-Logik.
+  - Keine Three.js-Logik.
+  - Keine Dateioperation.
+
+  Verantwortung dieser Datei:
+  - Compact Empty-State-DOM.
+  - Hidden/klappbarer Diagnosebereich.
+  - Kontext-JSON für Entwickler und Runtime.
+  - Retry-/Close-/Copy-Hooks.
+  - Defensiver JS-Bootstrap mit try/catch und Cache.
+
+  Nicht-Verantwortung:
+  - Definitionsdaten laden.
+  - Profile auflösen.
+  - Felder rendern.
+  - Variant Values validieren.
+  - Varianten speichern.
+  - Tabellenzeilen erzeugen.
+
+  Stabile Hooks:
+  - data-vp-variant-drawer-empty-state="true"
+  - data-vp-variant-drawer-empty-state-root="true"
+  - data-vp-empty-state-retry="true"
+  - data-vp-empty-state-close="true"
+  - data-vp-empty-state-toggle-diagnostics="true"
+  - data-vp-empty-state-copy-context="true"
+  - data-vp-empty-state-context-json="true"
+  - data-vp-empty-state-diagnostics="true"
+
+  Event-Vertrag:
+  - dispatch:
+      vectoplan:create:variant-empty-state-ready
+      vectoplan:create:variant-definitions-retry-requested
+      vectoplan:create:variant-empty-state-close-requested
+      vectoplan:create:variant-empty-state-context-copied
+
+  - listen:
+      vectoplan:create:variant-profile-resolved
+      vectoplan:create:definitions-ready
+      vectoplan:create:definitions-unavailable
+      vectoplan:create:variant-drawer-opened
+      vectoplan:create:variant-drawer-closed
+----------------------------------------------------------------------------- #}
+
+
+{# -----------------------------------------------------------------------------
+  1. Kontext defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if _variant_workspace_id is defined and _variant_workspace_id %}
+  {% set _empty_workspace_id = _variant_workspace_id %}
+{% elif _vp_variant_workspace_id is defined and _vp_variant_workspace_id %}
+  {% set _empty_workspace_id = _vp_variant_workspace_id %}
+{% elif vp_variant_workspace_id is defined and vp_variant_workspace_id %}
+  {% set _empty_workspace_id = vp_variant_workspace_id %}
+{% else %}
+  {% set _empty_workspace_id = 'vp-create-variant-workspace' %}
+{% endif %}
+
+{% if vp_variant_empty_state_id is defined and vp_variant_empty_state_id %}
+  {% set _vp_variant_empty_state_id = vp_variant_empty_state_id %}
+{% else %}
+  {% set _vp_variant_empty_state_id = _empty_workspace_id ~ '-drawer-empty-state' %}
+{% endif %}
+
+{% if _vp_variant_drawer_id is defined and _vp_variant_drawer_id %}
+  {% set _empty_drawer_id = _vp_variant_drawer_id %}
+{% elif vp_variant_drawer_id is defined and vp_variant_drawer_id %}
+  {% set _empty_drawer_id = vp_variant_drawer_id %}
+{% else %}
+  {% set _empty_drawer_id = _empty_workspace_id ~ '-drawer' %}
+{% endif %}
+
+{% if _variant_workspace_definitions_available is defined %}
+  {% set _empty_definitions_available_raw = _variant_workspace_definitions_available %}
+{% elif _vp_variant_definitions_available is defined %}
+  {% set _empty_definitions_available_raw = _vp_variant_definitions_available %}
+{% elif _definitions_available is defined %}
+  {% set _empty_definitions_available_raw = _definitions_available %}
+{% else %}
+  {% set _empty_definitions_available_raw = false %}
+{% endif %}
+
+{% set _empty_definitions_available_text = _empty_definitions_available_raw | string | lower %}
+{% if _empty_definitions_available_raw is sameas true or _empty_definitions_available_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy'] %}
+  {% set _empty_definitions_available = true %}
+{% else %}
+  {% set _empty_definitions_available = false %}
+{% endif %}
+
+{% if _variant_workspace_domain is defined and _variant_workspace_domain %}
+  {% set _empty_domain = _variant_workspace_domain %}
+{% elif _vp_variant_domain is defined and _vp_variant_domain %}
+  {% set _empty_domain = _vp_variant_domain %}
+{% elif _selected_domain is defined and _selected_domain %}
+  {% set _empty_domain = _selected_domain %}
+{% else %}
+  {% set _empty_domain = '' %}
+{% endif %}
+
+{% if _variant_workspace_category is defined and _variant_workspace_category %}
+  {% set _empty_category = _variant_workspace_category %}
+{% elif _vp_variant_category is defined and _vp_variant_category %}
+  {% set _empty_category = _vp_variant_category %}
+{% elif _selected_category is defined and _selected_category %}
+  {% set _empty_category = _selected_category %}
+{% else %}
+  {% set _empty_category = '' %}
+{% endif %}
+
+{% if _variant_workspace_subcategory is defined and _variant_workspace_subcategory %}
+  {% set _empty_subcategory = _variant_workspace_subcategory %}
+{% elif _vp_variant_subcategory is defined and _vp_variant_subcategory %}
+  {% set _empty_subcategory = _vp_variant_subcategory %}
+{% elif _selected_subcategory is defined and _selected_subcategory %}
+  {% set _empty_subcategory = _selected_subcategory %}
+{% else %}
+  {% set _empty_subcategory = '' %}
+{% endif %}
+
+{% if _variant_workspace_object_kind_normalized is defined and _variant_workspace_object_kind_normalized %}
+  {% set _empty_object_kind = _variant_workspace_object_kind_normalized %}
+{% elif _vp_variant_object_kind_normalized is defined and _vp_variant_object_kind_normalized %}
+  {% set _empty_object_kind = _vp_variant_object_kind_normalized %}
+{% elif _variant_workspace_object_kind is defined and _variant_workspace_object_kind %}
+  {% set _empty_object_kind = _variant_workspace_object_kind | string | lower | replace('-', '_') | replace(' ', '_') %}
+{% elif _vp_variant_object_kind is defined and _vp_variant_object_kind %}
+  {% set _empty_object_kind = _vp_variant_object_kind | string | lower | replace('-', '_') | replace(' ', '_') %}
+{% elif _selected_object_kind is defined and _selected_object_kind %}
+  {% set _empty_object_kind = _selected_object_kind | string | lower | replace('-', '_') | replace(' ', '_') %}
+{% else %}
+  {% set _empty_object_kind = 'cell_block' %}
+{% endif %}
+
+{% if _variant_workspace_family_profile_id is defined and _variant_workspace_family_profile_id %}
+  {% set _empty_family_profile_id = _variant_workspace_family_profile_id %}
+{% elif _vp_variant_family_profile_id is defined and _vp_variant_family_profile_id %}
+  {% set _empty_family_profile_id = _vp_variant_family_profile_id %}
+{% elif _selected_family_profile_id is defined and _selected_family_profile_id %}
+  {% set _empty_family_profile_id = _selected_family_profile_id %}
+{% else %}
+  {% set _empty_family_profile_id = '' %}
+{% endif %}
+
+{% if _variant_workspace_profile_id is defined and _variant_workspace_profile_id %}
+  {% set _empty_variant_profile_id = _variant_workspace_profile_id %}
+{% elif _vp_variant_profile_id is defined and _vp_variant_profile_id %}
+  {% set _empty_variant_profile_id = _vp_variant_profile_id %}
+{% elif _selected_variant_profile_id is defined and _selected_variant_profile_id %}
+  {% set _empty_variant_profile_id = _selected_variant_profile_id %}
+{% else %}
+  {% set _empty_variant_profile_id = '' %}
+{% endif %}
+
+{% if _empty_definitions_available %}
+  {% set _empty_status = 'profile_unresolved' %}
+  {% set _empty_title = 'Variablenprofil nicht geladen' %}
+  {% set _empty_description = 'Definitionsdaten sind vorhanden. Die Felder erscheinen, sobald das passende Profil aufgelöst ist.' %}
+{% else %}
+  {% set _empty_status = 'definitions_unavailable' %}
+  {% set _empty_title = 'Definitionsdaten fehlen' %}
+  {% set _empty_description = 'Die Variablenfelder können erst gerendert werden, wenn die Backend-Definitionsdaten verfügbar sind.' %}
+{% endif %}
+
+{% set _empty_context_payload = {
+  'workspace_id': _empty_workspace_id,
+  'drawer_id': _empty_drawer_id,
+  'empty_state_id': _vp_variant_empty_state_id,
+  'status': _empty_status,
+  'definitions_available': _empty_definitions_available,
+  'domain': _empty_domain,
+  'category': _empty_category,
+  'subcategory': _empty_subcategory,
+  'object_kind': _empty_object_kind,
+  'family_profile_id': _empty_family_profile_id,
+  'variant_profile_id': _empty_variant_profile_id
+} %}
+
+
+<section
+  id="{{ _vp_variant_empty_state_id }}"
+  class="vp-create-variant-drawer-empty-state vp-create-variant-drawer-empty-state--compact"
+  data-vp-variant-drawer-empty-state="true"
+  data-vp-variant-drawer-empty-state-root="true"
+  data-vp-variant-drawer-empty-state-version="0.6.0"
+  data-vp-empty-state-status="{{ _empty_status }}"
+  data-vp-empty-state-visible="true"
+  data-vp-definitions-available="{% if _empty_definitions_available %}true{% else %}false{% endif %}"
+  data-vp-workspace-id="{{ _empty_workspace_id | string | e }}"
+  data-vp-drawer-id="{{ _empty_drawer_id | string | e }}"
+  data-vp-current-domain="{{ _empty_domain | string | e }}"
+  data-vp-current-category="{{ _empty_category | string | e }}"
+  data-vp-current-subcategory="{{ _empty_subcategory | string | e }}"
+  data-vp-current-object-kind="{{ _empty_object_kind | string | e }}"
+  data-vp-current-family-profile-id="{{ _empty_family_profile_id | string | e }}"
+  data-vp-current-variant-profile-id="{{ _empty_variant_profile_id | string | e }}"
+  aria-labelledby="{{ _vp_variant_empty_state_id }}-title"
+>
+  <div class="vp-create-variant-drawer-empty-state__card">
+    <header class="vp-create-variant-drawer-empty-state__header">
+      <div class="vp-create-variant-drawer-empty-state__icon" aria-hidden="true">
+        <span class="vp-create-variant-drawer-empty-state__glyph">!</span>
+      </div>
+
+      <div class="vp-create-variant-drawer-empty-state__copy">
+        <p class="vp-create-variant-drawer-empty-state__kicker">
+          Variableneditor
+        </p>
+
+        <h4
+          id="{{ _vp_variant_empty_state_id }}-title"
+          class="vp-create-variant-drawer-empty-state__title"
+          data-vp-empty-state-title="true"
+        >
+          {{ _empty_title }}
+        </h4>
+
+        <p
+          class="vp-create-variant-drawer-empty-state__description"
+          data-vp-empty-state-description="true"
+        >
+          {{ _empty_description }}
+        </p>
+      </div>
+    </header>
+
+    <div
+      class="vp-create-variant-drawer-empty-state__status"
+      data-vp-empty-state-status-node="true"
+      aria-live="polite"
+    >
+      <span
+        class="vp-create-variant-drawer-empty-state__status-pill vp-create-variant-drawer-empty-state__status-pill--{{ _empty_status }}"
+        data-vp-empty-state-status-pill="true"
+      >
+        {% if _empty_status == 'definitions_unavailable' %}
+          Definitionsdaten fehlen
+        {% elif _empty_status == 'profile_unresolved' %}
+          Profil offen
+        {% else %}
+          Nicht bereit
+        {% endif %}
+      </span>
+
+      <span
+        class="vp-create-variant-drawer-empty-state__status-text"
+        data-vp-empty-state-status-text="true"
+      >
+        {% if _empty_status == 'definitions_unavailable' %}
+          Definitionskontext erneut anfordern.
+        {% else %}
+          Profilauflösung erneut anfordern.
+        {% endif %}
+      </span>
+    </div>
+
+    <dl
+      class="vp-create-variant-drawer-empty-state__compact-context"
+      data-vp-empty-state-compact-context="true"
+      aria-label="Aktueller Variablenkontext"
+    >
+      <div>
+        <dt>Taxonomie</dt>
+        <dd>
+          <span data-vp-empty-state-domain="true">{% if _empty_domain %}{{ _empty_domain }}{% else %}offen{% endif %}</span>
+          <span aria-hidden="true">/</span>
+          <span data-vp-empty-state-category="true">{% if _empty_category %}{{ _empty_category }}{% else %}offen{% endif %}</span>
+          <span aria-hidden="true">/</span>
+          <span data-vp-empty-state-subcategory="true">{% if _empty_subcategory %}{{ _empty_subcategory }}{% else %}offen{% endif %}</span>
+        </dd>
+      </div>
+
+      <div>
+        <dt>Profil</dt>
+        <dd>
+          <span data-vp-empty-state-family-profile="true">{% if _empty_family_profile_id %}{{ _empty_family_profile_id }}{% else %}auto{% endif %}</span>
+          <span aria-hidden="true">→</span>
+          <span data-vp-empty-state-variant-profile="true">{% if _empty_variant_profile_id %}{{ _empty_variant_profile_id }}{% else %}auto{% endif %}</span>
+        </dd>
+      </div>
+
+      <div hidden>
+        <dt>Objektart</dt>
+        <dd data-vp-empty-state-object-kind="true">
+          {% if _empty_object_kind %}{{ _empty_object_kind }}{% else %}offen{% endif %}
+        </dd>
+      </div>
+    </dl>
+
+    <div
+      class="vp-create-variant-drawer-empty-state__checks"
+      data-vp-empty-state-checks="true"
+      hidden
+    >
+      <h5>Prüfpunkte</h5>
+
+      <ul class="vp-create-variant-drawer-empty-state__check-list">
+        <li
+          data-vp-empty-state-check="definitions"
+          data-vp-empty-state-check-state="{% if _empty_definitions_available %}ok{% else %}missing{% endif %}"
+        >
+          <span class="vp-create-variant-drawer-empty-state__check-dot" aria-hidden="true"></span>
+          <span>Definitionsdaten vorhanden</span>
+        </li>
+
+        <li
+          data-vp-empty-state-check="taxonomy"
+          data-vp-empty-state-check-state="{% if _empty_domain and _empty_category and _empty_subcategory %}ok{% else %}missing{% endif %}"
+        >
+          <span class="vp-create-variant-drawer-empty-state__check-dot" aria-hidden="true"></span>
+          <span>Taxonomie vollständig</span>
+        </li>
+
+        <li
+          data-vp-empty-state-check="object-kind"
+          data-vp-empty-state-check-state="{% if _empty_object_kind %}ok{% else %}missing{% endif %}"
+        >
+          <span class="vp-create-variant-drawer-empty-state__check-dot" aria-hidden="true"></span>
+          <span>Objektart gesetzt</span>
+        </li>
+
+        <li
+          data-vp-empty-state-check="variant-profile"
+          data-vp-empty-state-check-state="{% if _empty_variant_profile_id %}ok{% else %}pending{% endif %}"
+        >
+          <span class="vp-create-variant-drawer-empty-state__check-dot" aria-hidden="true"></span>
+          <span>Variant Profile aufgelöst</span>
+        </li>
+
+        <li
+          data-vp-empty-state-check="runtime"
+          data-vp-empty-state-check-state="pending"
+        >
+          <span class="vp-create-variant-drawer-empty-state__check-dot" aria-hidden="true"></span>
+          <span>Drawer Runtime bereit</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="vp-create-variant-drawer-empty-state__actions">
+      <button
+        class="vp-create-button vp-create-button--secondary"
+        type="button"
+        data-vp-empty-state-retry="true"
+      >
+        Erneut versuchen
+      </button>
+
+      <button
+        class="vp-create-button vp-create-button--ghost"
+        type="button"
+        data-vp-empty-state-toggle-diagnostics="true"
+        aria-expanded="false"
+        aria-controls="{{ _vp_variant_empty_state_id }}-diagnostics"
+      >
+        Diagnose
+      </button>
+
+      <button
+        class="vp-create-button vp-create-button--ghost"
+        type="button"
+        data-vp-empty-state-copy-context="true"
+      >
+        Kontext kopieren
+      </button>
+
+      <button
+        class="vp-create-button vp-create-button--ghost"
+        type="button"
+        data-vp-empty-state-close="true"
+      >
+        Schließen
+      </button>
+    </div>
+
+    <div
+      id="{{ _vp_variant_empty_state_id }}-diagnostics"
+      class="vp-create-variant-drawer-empty-state__diagnostics"
+      data-vp-empty-state-diagnostics="true"
+      hidden
+    >
+      <header class="vp-create-variant-drawer-empty-state__diagnostics-header">
+        <h5>Diagnose</h5>
+        <p>Technischer Kontext für Definitions-/Profilauflösung.</p>
+      </header>
+
+      <pre
+        class="vp-create-variant-drawer-empty-state__diagnostics-pre"
+        data-vp-empty-state-context-pre="true"
+      >{{ _empty_context_payload | tojson(indent=2) }}</pre>
+    </div>
+
+    <script
+      type="application/json"
+      data-vp-empty-state-context-json="true"
+    >{{ _empty_context_payload | tojson }}</script>
+
+    <textarea
+      class="vp-create-variant-drawer-empty-state__clipboard-fallback"
+      data-vp-empty-state-clipboard-fallback="true"
+      tabindex="-1"
+      aria-hidden="true"
+      hidden
+    >{{ _empty_context_payload | tojson(indent=2) }}</textarea>
+  </div>
+</section>
+
+<script>
+  (function () {
+    "use strict";
+
+    var EMPTY_SELECTOR = "[data-vp-variant-drawer-empty-state-root='true']";
+    var READY_ATTR = "data-vp-empty-state-ready";
+    var COMPONENT_NAME = "VECTOPLAN Variant Drawer Empty State";
+    var COMPONENT_VERSION = "0.6.0";
+
+    function warn(message, error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+
+    function toArray(value) {
+      try {
+        return Array.prototype.slice.call(value || []);
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function dispatch(node, eventName, detail, cancelable) {
+      try {
+        if (!node || !eventName) {
+          return null;
+        }
+
+        var event = new CustomEvent(eventName, {
+          bubbles: true,
+          cancelable: !!cancelable,
+          detail: detail || {}
+        });
+
+        node.dispatchEvent(event);
+        return event;
+      } catch (error) {
+        warn("Could not dispatch event: " + eventName, error);
+        return null;
+      }
+    }
+
+    function safeSetText(node, value) {
+      try {
+        if (node) {
+          node.textContent = value === null || value === undefined ? "" : String(value);
+        }
+      } catch (error) {
+        warn("Could not set text.", error);
+      }
+    }
+
+    function safeSetHidden(node, hidden) {
+      try {
+        if (node) {
+          node.hidden = !!hidden;
+
+          if (hidden) {
+            node.setAttribute("hidden", "");
+          } else {
+            node.removeAttribute("hidden");
+          }
+        }
+      } catch (error) {
+        warn("Could not set hidden state.", error);
+      }
+    }
+
+    function readJsonScript(node) {
+      try {
+        if (!node) {
+          return {};
+        }
+
+        var text = node.textContent || "{}";
+        var parsed = JSON.parse(text);
+
+        if (parsed && typeof parsed === "object") {
+          return parsed;
+        }
+
+        return {};
+      } catch (error) {
+        warn("Could not parse empty-state context JSON.", error);
+        return {};
+      }
+    }
+
+    function readContext(root) {
+      try {
+        if (!root) {
+          return {};
+        }
+
+        var jsonNode = root.querySelector("[data-vp-empty-state-context-json='true']");
+        var fromJson = readJsonScript(jsonNode);
+
+        return {
+          workspace_id: root.getAttribute("data-vp-workspace-id") || fromJson.workspace_id || "",
+          drawer_id: root.getAttribute("data-vp-drawer-id") || fromJson.drawer_id || "",
+          empty_state_id: root.getAttribute("id") || fromJson.empty_state_id || "",
+          status: root.getAttribute("data-vp-empty-state-status") || fromJson.status || "",
+          definitions_available: String(root.getAttribute("data-vp-definitions-available") || "").toLowerCase() === "true" || !!fromJson.definitions_available,
+          domain: root.getAttribute("data-vp-current-domain") || fromJson.domain || "",
+          category: root.getAttribute("data-vp-current-category") || fromJson.category || "",
+          subcategory: root.getAttribute("data-vp-current-subcategory") || fromJson.subcategory || "",
+          object_kind: root.getAttribute("data-vp-current-object-kind") || fromJson.object_kind || "",
+          family_profile_id: root.getAttribute("data-vp-current-family-profile-id") || fromJson.family_profile_id || "",
+          variant_profile_id: root.getAttribute("data-vp-current-variant-profile-id") || fromJson.variant_profile_id || ""
+        };
+      } catch (error) {
+        warn("Could not read empty-state context.", error);
+        return {};
+      }
+    }
+
+    function cacheEmptyState(root) {
+      try {
+        return {
+          root: root,
+          title: root.querySelector("[data-vp-empty-state-title='true']"),
+          description: root.querySelector("[data-vp-empty-state-description='true']"),
+          statusNode: root.querySelector("[data-vp-empty-state-status-node='true']"),
+          statusPill: root.querySelector("[data-vp-empty-state-status-pill='true']"),
+          statusText: root.querySelector("[data-vp-empty-state-status-text='true']"),
+          retryButton: root.querySelector("[data-vp-empty-state-retry='true']"),
+          closeButton: root.querySelector("[data-vp-empty-state-close='true']"),
+          diagnosticsButton: root.querySelector("[data-vp-empty-state-toggle-diagnostics='true']"),
+          copyButton: root.querySelector("[data-vp-empty-state-copy-context='true']"),
+          diagnostics: root.querySelector("[data-vp-empty-state-diagnostics='true']"),
+          contextPre: root.querySelector("[data-vp-empty-state-context-pre='true']"),
+          contextJson: root.querySelector("[data-vp-empty-state-context-json='true']"),
+          clipboardFallback: root.querySelector("[data-vp-empty-state-clipboard-fallback='true']"),
+          checksBlock: root.querySelector("[data-vp-empty-state-checks='true']"),
+          checks: toArray(root.querySelectorAll("[data-vp-empty-state-check]")),
+          domain: root.querySelector("[data-vp-empty-state-domain='true']"),
+          category: root.querySelector("[data-vp-empty-state-category='true']"),
+          subcategory: root.querySelector("[data-vp-empty-state-subcategory='true']"),
+          objectKind: root.querySelector("[data-vp-empty-state-object-kind='true']"),
+          familyProfile: root.querySelector("[data-vp-empty-state-family-profile='true']"),
+          variantProfile: root.querySelector("[data-vp-empty-state-variant-profile='true']")
+        };
+      } catch (error) {
+        warn("Could not cache empty-state nodes.", error);
+        return {
+          root: root
+        };
+      }
+    }
+
+    function setStatus(cache, status, message) {
+      try {
+        var normalized = String(status || "unknown").toLowerCase();
+
+        cache.root.setAttribute("data-vp-empty-state-status", normalized);
+
+        if (cache.statusPill) {
+          cache.statusPill.className = "vp-create-variant-drawer-empty-state__status-pill vp-create-variant-drawer-empty-state__status-pill--" + normalized;
+
+          if (normalized === "definitions_unavailable") {
+            cache.statusPill.textContent = "Definitionsdaten fehlen";
+          } else if (normalized === "profile_unresolved") {
+            cache.statusPill.textContent = "Profil offen";
+          } else if (normalized === "ready") {
+            cache.statusPill.textContent = "Bereit";
+          } else if (normalized === "retrying") {
+            cache.statusPill.textContent = "Wird geprüft";
+          } else if (normalized === "initialization_failed") {
+            cache.statusPill.textContent = "Fehler";
+          } else {
+            cache.statusPill.textContent = "Nicht bereit";
+          }
+        }
+
+        if (cache.statusText && message !== undefined && message !== null) {
+          cache.statusText.textContent = String(message);
+        }
+      } catch (error) {
+        warn("Could not set empty-state status.", error);
+      }
+    }
+
+    function updateContextDisplay(cache, context) {
+      try {
+        var payload = context || readContext(cache.root);
+
+        safeSetText(cache.domain, payload.domain || "offen");
+        safeSetText(cache.category, payload.category || "offen");
+        safeSetText(cache.subcategory, payload.subcategory || "offen");
+        safeSetText(cache.objectKind, payload.object_kind || "offen");
+        safeSetText(cache.familyProfile, payload.family_profile_id || "auto");
+        safeSetText(cache.variantProfile, payload.variant_profile_id || "auto");
+
+        if (cache.contextPre) {
+          cache.contextPre.textContent = JSON.stringify(payload, null, 2);
+        }
+
+        if (cache.clipboardFallback) {
+          cache.clipboardFallback.value = JSON.stringify(payload, null, 2);
+        }
+
+        cache.root.setAttribute("data-vp-current-domain", payload.domain || "");
+        cache.root.setAttribute("data-vp-current-category", payload.category || "");
+        cache.root.setAttribute("data-vp-current-subcategory", payload.subcategory || "");
+        cache.root.setAttribute("data-vp-current-object-kind", payload.object_kind || "");
+        cache.root.setAttribute("data-vp-current-family-profile-id", payload.family_profile_id || "");
+        cache.root.setAttribute("data-vp-current-variant-profile-id", payload.variant_profile_id || "");
+        cache.root.setAttribute("data-vp-definitions-available", payload.definitions_available ? "true" : "false");
+      } catch (error) {
+        warn("Could not update context display.", error);
+      }
+    }
+
+    function updateCheck(cache, key, state) {
+      try {
+        var normalizedKey = String(key || "").trim();
+        var normalizedState = String(state || "").trim() || "pending";
+
+        cache.checks.forEach(function (item) {
+          try {
+            if (item.getAttribute("data-vp-empty-state-check") === normalizedKey) {
+              item.setAttribute("data-vp-empty-state-check-state", normalizedState);
+            }
+          } catch (error) {
+            warn("Could not update check item.", error);
+          }
+        });
+      } catch (error) {
+        warn("Could not update check state.", error);
+      }
+    }
+
+    function updateChecksFromContext(cache, context) {
+      try {
+        var payload = context || readContext(cache.root);
+
+        updateCheck(cache, "definitions", payload.definitions_available ? "ok" : "missing");
+        updateCheck(cache, "taxonomy", payload.domain && payload.category && payload.subcategory ? "ok" : "missing");
+        updateCheck(cache, "object-kind", payload.object_kind ? "ok" : "missing");
+        updateCheck(cache, "variant-profile", payload.variant_profile_id ? "ok" : "pending");
+
+        if (
+          window.VectoplanCreateVariantDrawerShell ||
+          window.VectoplanCreateVariantDrawer ||
+          window.VectoplanCreateDefinitionsRuntime
+        ) {
+          updateCheck(cache, "runtime", "ok");
+        } else {
+          updateCheck(cache, "runtime", "pending");
+        }
+      } catch (error) {
+        warn("Could not update checks from context.", error);
+      }
+    }
+
+    function toggleDiagnostics(cache, force) {
+      try {
+        if (!cache.diagnostics) {
+          return;
+        }
+
+        var nextState = typeof force === "boolean" ? force : !!cache.diagnostics.hidden;
+
+        cache.diagnostics.hidden = !nextState;
+
+        if (cache.checksBlock) {
+          cache.checksBlock.hidden = !nextState;
+        }
+
+        if (cache.diagnosticsButton) {
+          cache.diagnosticsButton.setAttribute("aria-expanded", nextState ? "true" : "false");
+          cache.diagnosticsButton.textContent = nextState ? "Diagnose ausblenden" : "Diagnose";
+        }
+      } catch (error) {
+        warn("Could not toggle diagnostics.", error);
+      }
+    }
+
+    function fallbackCopy(cache, text, done) {
+      try {
+        var textarea = cache.clipboardFallback || document.createElement("textarea");
+
+        textarea.hidden = false;
+        textarea.value = text;
+        textarea.setAttribute("aria-hidden", "true");
+        textarea.setAttribute("tabindex", "-1");
+
+        if (!textarea.parentNode) {
+          document.body.appendChild(textarea);
+        }
+
+        textarea.focus();
+        textarea.select();
+
+        var ok = false;
+
+        try {
+          ok = document.execCommand("copy");
+        } catch (copyError) {
+          ok = false;
+        }
+
+        textarea.hidden = true;
+
+        if (typeof done === "function") {
+          done(ok);
+        }
+      } catch (error) {
+        warn("Fallback copy failed.", error);
+
+        if (typeof done === "function") {
+          done(false);
+        }
+      }
+    }
+
+    function copyContext(cache) {
+      try {
+        var context = readContext(cache.root);
+        var text = JSON.stringify(context, null, 2);
+
+        function done(ok) {
+          try {
+            dispatch(cache.root, "vectoplan:create:variant-empty-state-context-copied", {
+              ok: !!ok,
+              context: context
+            });
+
+            dispatch(document, "vectoplan:create:variant-empty-state-context-copied", {
+              ok: !!ok,
+              emptyStateId: cache.root.getAttribute("id") || "",
+              context: context
+            });
+
+            if (cache.copyButton) {
+              cache.copyButton.textContent = ok ? "Kopiert" : "Kopieren fehlgeschlagen";
+
+              window.setTimeout(function () {
+                try {
+                  cache.copyButton.textContent = "Kontext kopieren";
+                } catch (error) {
+                  /* no-op */
+                }
+              }, 1400);
+            }
+          } catch (error) {
+            warn("Could not finish copy action.", error);
+          }
+        }
+
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          navigator.clipboard.writeText(text).then(function () {
+            done(true);
+          }).catch(function (error) {
+            warn("Clipboard API failed.", error);
+            fallbackCopy(cache, text, done);
+          });
+
+          return;
+        }
+
+        fallbackCopy(cache, text, done);
+      } catch (error) {
+        warn("Could not copy context.", error);
+      }
+    }
+
+    function requestRetry(cache) {
+      try {
+        var context = readContext(cache.root);
+
+        setStatus(cache, "retrying", "Profilauflösung wird erneut angefordert.");
+
+        dispatch(cache.root, "vectoplan:create:variant-definitions-retry-requested", {
+          context: context,
+          source: COMPONENT_NAME
+        });
+
+        dispatch(document, "vectoplan:create:variant-definitions-retry-requested", {
+          context: context,
+          emptyStateId: cache.root.getAttribute("id") || "",
+          source: COMPONENT_NAME
+        });
+
+        try {
+          if (
+            window.VectoplanCreateDefinitionsRuntime &&
+            typeof window.VectoplanCreateDefinitionsRuntime.resolveCurrentProfile === "function"
+          ) {
+            window.VectoplanCreateDefinitionsRuntime.resolveCurrentProfile();
+          } else if (
+            window.VectoplanCreateVariantProfiles &&
+            typeof window.VectoplanCreateVariantProfiles.resolveCurrentProfile === "function"
+          ) {
+            window.VectoplanCreateVariantProfiles.resolveCurrentProfile({
+              source: "empty-state-retry"
+            });
+          }
+        } catch (runtimeError) {
+          warn("Definitions runtime retry failed.", runtimeError);
+        }
+      } catch (error) {
+        warn("Could not request retry.", error);
+      }
+    }
+
+    function requestClose(cache) {
+      try {
+        var context = readContext(cache.root);
+
+        dispatch(cache.root, "vectoplan:create:variant-empty-state-close-requested", {
+          context: context
+        });
+
+        dispatch(document, "vectoplan:create:variant-empty-state-close-requested", {
+          emptyStateId: cache.root.getAttribute("id") || "",
+          context: context
+        });
+
+        try {
+          if (
+            window.VectoplanCreateVariantDrawerShell &&
+            typeof window.VectoplanCreateVariantDrawerShell.close === "function"
+          ) {
+            window.VectoplanCreateVariantDrawerShell.close("empty_state_close");
+            return;
+          }
+
+          if (
+            window.VectoplanCreateVariantDrawer &&
+            typeof window.VectoplanCreateVariantDrawer.close === "function"
+          ) {
+            window.VectoplanCreateVariantDrawer.close("empty_state_close");
+            return;
+          }
+        } catch (drawerError) {
+          warn("Could not close via drawer API.", drawerError);
+        }
+
+        safeSetHidden(cache.root, true);
+      } catch (error) {
+        warn("Could not request close.", error);
+      }
+    }
+
+    function showEmptyState(root, reason, contextPatch) {
+      try {
+        if (!root) {
+          return;
+        }
+
+        var cache = cacheEmptyState(root);
+        var current = readContext(root);
+        var nextContext = Object.assign({}, current, contextPatch || {});
+
+        root.hidden = false;
+        root.removeAttribute("hidden");
+        root.setAttribute("data-vp-empty-state-visible", "true");
+
+        if (reason) {
+          setStatus(cache, reason, reason === "definitions_unavailable"
+            ? "Definitionskontext erneut anfordern."
+            : "Profilauflösung erneut anfordern.");
+        }
+
+        updateContextDisplay(cache, nextContext);
+        updateChecksFromContext(cache, nextContext);
+      } catch (error) {
+        warn("Could not show empty state.", error);
+      }
+    }
+
+    function hideEmptyState(root) {
+      try {
+        if (!root) {
+          return;
+        }
+
+        root.hidden = true;
+        root.setAttribute("hidden", "");
+        root.setAttribute("data-vp-empty-state-visible", "false");
+      } catch (error) {
+        warn("Could not hide empty state.", error);
+      }
+    }
+
+    function bindEvents(root) {
+      try {
+        if (!root || root.getAttribute("data-vp-empty-state-events-bound") === "true") {
+          return;
+        }
+
+        var cache = cacheEmptyState(root);
+
+        if (cache.retryButton) {
+          cache.retryButton.addEventListener("click", function () {
+            requestRetry(cache);
+          });
+        }
+
+        if (cache.closeButton) {
+          cache.closeButton.addEventListener("click", function () {
+            requestClose(cache);
+          });
+        }
+
+        if (cache.diagnosticsButton) {
+          cache.diagnosticsButton.addEventListener("click", function () {
+            toggleDiagnostics(cache);
+          });
+        }
+
+        if (cache.copyButton) {
+          cache.copyButton.addEventListener("click", function () {
+            copyContext(cache);
+          });
+        }
+
+        root.setAttribute("data-vp-empty-state-events-bound", "true");
+      } catch (error) {
+        warn("Could not bind empty-state events.", error);
+      }
+    }
+
+    function bindGlobalEvents() {
+      try {
+        if (document.documentElement.getAttribute("data-vp-empty-state-global-events-bound") === "true") {
+          return;
+        }
+
+        document.addEventListener("vectoplan:create:variant-profile-resolved", function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+            var profileId = detail.variant_profile_id || detail.variantProfileId || "";
+            var familyProfileId = detail.family_profile_id || detail.familyProfileId || "";
+
+            toArray(document.querySelectorAll(EMPTY_SELECTOR)).forEach(function (root) {
+              var cache = cacheEmptyState(root);
+              var context = readContext(root);
+
+              if (profileId) {
+                context.variant_profile_id = profileId;
+                context.family_profile_id = familyProfileId || context.family_profile_id;
+                context.definitions_available = true;
+
+                root.setAttribute("data-vp-current-variant-profile-id", profileId);
+                root.setAttribute("data-vp-empty-state-status", "ready");
+
+                if (familyProfileId) {
+                  root.setAttribute("data-vp-current-family-profile-id", familyProfileId);
+                }
+
+                updateContextDisplay(cache, context);
+                updateCheck(cache, "variant-profile", "ok");
+                updateCheck(cache, "definitions", "ok");
+                setStatus(cache, "ready", "Variant Profile wurde aufgelöst.");
+
+                window.setTimeout(function () {
+                  hideEmptyState(root);
+                }, 300);
+              }
+            });
+          } catch (error) {
+            warn("Profile resolved listener failed.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:definitions-ready", function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+
+            toArray(document.querySelectorAll(EMPTY_SELECTOR)).forEach(function (root) {
+              var cache = cacheEmptyState(root);
+
+              root.setAttribute("data-vp-definitions-available", "true");
+              root.setAttribute("data-vp-empty-state-status", "profile_unresolved");
+
+              var context = readContext(root);
+              context.definitions_available = true;
+
+              if (detail.variant_profile_id || detail.variantProfileId) {
+                context.variant_profile_id = detail.variant_profile_id || detail.variantProfileId;
+                root.setAttribute("data-vp-current-variant-profile-id", context.variant_profile_id);
+              }
+
+              updateContextDisplay(cache, context);
+              updateChecksFromContext(cache, context);
+              setStatus(cache, context.variant_profile_id ? "ready" : "profile_unresolved", context.variant_profile_id ? "Definitionsdaten bereit." : "Definitionsdaten bereit, Profilauflösung steht aus.");
+            });
+          } catch (error) {
+            warn("Definitions ready listener failed.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:definitions-unavailable", function () {
+          try {
+            toArray(document.querySelectorAll(EMPTY_SELECTOR)).forEach(function (root) {
+              showEmptyState(root, "definitions_unavailable", {
+                definitions_available: false
+              });
+            });
+          } catch (error) {
+            warn("Definitions unavailable listener failed.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:variant-drawer-opened", function () {
+          try {
+            toArray(document.querySelectorAll(EMPTY_SELECTOR)).forEach(function (root) {
+              if (root.getAttribute("data-vp-empty-state-status") !== "ready") {
+                root.setAttribute("data-vp-empty-state-visible", root.hidden ? "false" : "true");
+              }
+            });
+          } catch (error) {
+            warn("Drawer opened listener failed.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:variant-drawer-closed", function () {
+          try {
+            toArray(document.querySelectorAll(EMPTY_SELECTOR)).forEach(function (root) {
+              hideEmptyState(root);
+            });
+          } catch (error) {
+            warn("Drawer closed listener failed.", error);
+          }
+        });
+
+        document.documentElement.setAttribute("data-vp-empty-state-global-events-bound", "true");
+      } catch (error) {
+        warn("Could not bind global empty-state events.", error);
+      }
+    }
+
+    function createPublicApi() {
+      try {
+        var previousApi = window.VectoplanCreateVariantEmptyState || {};
+
+        var api = Object.assign({}, previousApi, {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          __version: COMPONENT_VERSION,
+          getRoots: function () {
+            try {
+              return toArray(document.querySelectorAll(EMPTY_SELECTOR));
+            } catch (error) {
+              return [];
+            }
+          },
+          getFirstRoot: function () {
+            try {
+              return document.querySelector(EMPTY_SELECTOR);
+            } catch (error) {
+              return null;
+            }
+          },
+          getContext: function (root) {
+            return readContext(root || api.getFirstRoot());
+          },
+          show: function (reason, contextPatch, root) {
+            showEmptyState(root || api.getFirstRoot(), reason || "", contextPatch || {});
+          },
+          hide: function (root) {
+            hideEmptyState(root || api.getFirstRoot());
+          },
+          retry: function (root) {
+            requestRetry(cacheEmptyState(root || api.getFirstRoot()));
+          },
+          copyContext: function (root) {
+            copyContext(cacheEmptyState(root || api.getFirstRoot()));
+          },
+          refresh: function (root) {
+            try {
+              var node = root || api.getFirstRoot();
+              var cache = cacheEmptyState(node);
+              var context = readContext(node);
+
+              updateContextDisplay(cache, context);
+              updateChecksFromContext(cache, context);
+            } catch (error) {
+              warn("Could not refresh empty state.", error);
+            }
+          },
+          getSnapshot: function (root) {
+            try {
+              var node = root || api.getFirstRoot();
+              var cache = cacheEmptyState(node);
+
+              return {
+                ready: !!(node && node.getAttribute(READY_ATTR) === "true"),
+                version: COMPONENT_VERSION,
+                visible: !!(node && node.getAttribute("data-vp-empty-state-visible") === "true"),
+                status: node ? node.getAttribute("data-vp-empty-state-status") || "" : "",
+                context: node ? readContext(node) : {},
+                hasDiagnostics: !!(cache && cache.diagnostics),
+                hasRetry: !!(cache && cache.retryButton),
+                hasClose: !!(cache && cache.closeButton)
+              };
+            } catch (error) {
+              return {
+                ready: false,
+                error: String(error && error.message ? error.message : error)
+              };
+            }
+          }
+        });
+
+        window.VectoplanCreateVariantEmptyState = api;
+        return api;
+      } catch (error) {
+        warn("Could not create public empty-state API.", error);
+        return null;
+      }
+    }
+
+    function dispatchReady(root, cache) {
+      try {
+        var context = readContext(root);
+
+        dispatch(root, "vectoplan:create:variant-empty-state-ready", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          context: context
+        });
+
+        dispatch(document, "vectoplan:create:variant-empty-state-ready", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          emptyStateId: root.getAttribute("id") || "",
+          context: context
+        });
+      } catch (error) {
+        warn("Could not dispatch empty-state ready event.", error);
+      }
+    }
+
+    function initializeRoot(root) {
+      try {
+        if (!root || root.getAttribute(READY_ATTR) === "true") {
+          return;
+        }
+
+        var cache = cacheEmptyState(root);
+        var context = readContext(root);
+
+        bindEvents(root);
+        updateContextDisplay(cache, context);
+        updateChecksFromContext(cache, context);
+
+        root.setAttribute(READY_ATTR, "true");
+        root.setAttribute("data-vp-empty-state-js-version", COMPONENT_VERSION);
+
+        dispatchReady(root, cache);
+      } catch (error) {
+        warn("Empty-state initialization failed.", error);
+
+        try {
+          if (root) {
+            root.setAttribute("data-vp-empty-state-status", "initialization_failed");
+            root.setAttribute("data-vp-empty-state-error", String(error && error.message ? error.message : error));
+          }
+        } catch (statusError) {
+          /* no-op */
+        }
+      }
+    }
+
+    function initializeAll() {
+      try {
+        createPublicApi();
+        bindGlobalEvents();
+
+        toArray(document.querySelectorAll(EMPTY_SELECTOR)).forEach(function (root) {
+          initializeRoot(root);
+        });
+      } catch (error) {
+        warn("Global empty-state initialization failed.", error);
+      }
+    }
+
+    try {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializeAll, {
+          once: true
+        });
+      } else {
+        initializeAll();
+      }
+    } catch (error) {
+      warn("Bootstrap failed.", error);
+    }
+  })();
+</script>

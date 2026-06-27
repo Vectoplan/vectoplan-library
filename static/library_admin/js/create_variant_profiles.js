@@ -23,47 +23,19 @@
  * - Sie validiert keine fachlichen Werte.
  * - Sie erzeugt keine VPLIB-Packages.
  *
- * Wichtiger Fix in dieser Fassung:
+ * Version 0.6.1:
  * - Profil-IDs werden idempotent und still geschrieben.
- * - updateProfileAttrs() feuert keine nativen input/change Events mehr.
+ * - updateProfileAttrs() feuert standardmäßig keine nativen input/change Events.
  * - setFieldValue() schreibt nur bei echten Wertänderungen.
  * - Programmatic Events werden beim Context-Listener ignoriert.
- * - applyResolvedProfile() und dispatchVariantResolved() sind gegen
- *   doppelte identische Profile geschützt.
+ * - applyResolvedProfile() und dispatchVariantResolved() sind gegen doppelte
+ *   identische Profile geschützt.
  * - VariantState.setContext() wird ohne native Events aufgerufen.
+ * - Lokale Definitionsdaten werden bevorzugt, um unnötige Backend-Fetches und
+ *   Warnketten im Wizard zu vermeiden.
  *
  * Global:
  * - window.VectoplanCreateVariantProfiles
- *
- * Benötigt, falls vorhanden:
- * - window.VectoplanCreateVariantUtils
- * - window.VectoplanCreateVariantState
- * - window.VectoplanCreateDefinitions
- * - window.VectoplanCreateContext
- *
- * Backend-Routen:
- * - GET|POST /api/v1/vplib/definitions/resolve-family-profile
- * - GET|POST /api/v1/vplib/definitions/resolve-variant-profile
- * - GET      /api/v1/vplib/definitions/variant-profiles/<profile_id>
- * - GET|POST /api/v1/vplib/definitions/empty-variant-values/<profile_id>
- * - GET      /api/v1/vplib/definitions/options
- *
- * Events:
- * - dispatch: vectoplan:create:variant-profiles-ready
- * - dispatch: vectoplan:create:definitions-ready
- * - dispatch: vectoplan:create:definitions-unavailable
- * - dispatch: vectoplan:create:variant-family-profile-resolved
- * - dispatch: vectoplan:create:variant-profile-resolved
- * - dispatch: vectoplan:create:variant-profile-loaded
- * - dispatch: vectoplan:create:variant-empty-values-ready
- * - dispatch: vectoplan:create:variant-profile-resolution-failed
- * - dispatch: vectoplan:create:variant-profile-cache-cleared
- *
- * - listen: vectoplan:create:variant-workspace-ready
- * - listen: vectoplan:create:variant-drawer-opened
- * - listen: vectoplan:create:variant-definitions-retry-requested
- * - listen: vectoplan:create:variant-profile-resolve-requested
- * - listen: change/input on taxonomy/object_kind fields
  * -------------------------------------------------------------------------- */
 
 (function () {
@@ -71,7 +43,7 @@
 
   var GLOBAL_NAME = "VectoplanCreateVariantProfiles";
   var COMPONENT_NAME = "VECTOPLAN Create Variant Profiles";
-  var COMPONENT_VERSION = "0.1.1";
+  var COMPONENT_VERSION = "0.6.1";
   var READY_ATTR = "data-vp-create-variant-profiles-ready";
 
   var WORKSPACE_SELECTOR = "[data-vp-variant-workspace-root='true'], [data-vp-variant-workspace='true']";
@@ -115,19 +87,16 @@
     ]
   };
 
-  if (window[GLOBAL_NAME] && window[GLOBAL_NAME].__version) {
+  if (window[GLOBAL_NAME] && window[GLOBAL_NAME].__version === COMPONENT_VERSION) {
     try {
       document.documentElement.setAttribute(READY_ATTR, "true");
+      document.documentElement.setAttribute("data-vp-create-variant-profiles-version", COMPONENT_VERSION);
     } catch (alreadyReadyError) {
       /* no-op */
     }
 
     return;
   }
-
-  /* ---------------------------------------------------------------------------
-   * Utils / fallback
-   * ------------------------------------------------------------------------ */
 
   function getUtils() {
     if (window.VectoplanCreateVariantUtils && window.VectoplanCreateVariantUtils.__version) {
@@ -178,9 +147,27 @@
       }
     },
 
+    toArrayOrObjectValues: function (value) {
+      try {
+        if (Array.isArray(value)) {
+          return value.slice();
+        }
+
+        if (value && typeof value === "object") {
+          return Object.keys(value).map(function (key) {
+            return value[key];
+          });
+        }
+
+        return fallbackUtils.toArray(value);
+      } catch (error) {
+        return [];
+      }
+    },
+
     qs: function (selector, root) {
       try {
-        return (root || document).querySelector(selector);
+        return selector ? (root || document).querySelector(selector) : null;
       } catch (error) {
         return null;
       }
@@ -188,7 +175,7 @@
 
     qsa: function (selector, root) {
       try {
-        return Array.prototype.slice.call((root || document).querySelectorAll(selector));
+        return selector ? Array.prototype.slice.call((root || document).querySelectorAll(selector)) : [];
       } catch (error) {
         return [];
       }
@@ -248,10 +235,12 @@
 
         if (dispatchEvents) {
           fallbackUtils.dispatchNative(node, "input", {
-            source: COMPONENT_NAME
+            source: COMPONENT_NAME,
+            silent: true
           });
           fallbackUtils.dispatchNative(node, "change", {
-            source: COMPONENT_NAME
+            source: COMPONENT_NAME,
+            silent: true
           });
         }
 
@@ -285,11 +274,11 @@
 
         var text = String(value === null || value === undefined ? "" : value).trim().toLowerCase();
 
-        if (["true", "1", "yes", "ja", "on", "ok", "healthy"].indexOf(text) !== -1) {
+        if (["true", "1", "yes", "ja", "on", "ok", "healthy", "enabled", "active"].indexOf(text) !== -1) {
           return true;
         }
 
-        if (["false", "0", "no", "nein", "off", ""].indexOf(text) !== -1) {
+        if (["false", "0", "no", "nein", "off", "disabled", "inactive", ""].indexOf(text) !== -1) {
           return false;
         }
 
@@ -356,14 +345,14 @@
         }
 
         return {
-          object_kinds: fallbackUtils.toArray(defs.object_kinds || defs.objectKinds),
-          family_profiles: fallbackUtils.toArray(defs.family_profiles || defs.familyProfiles),
-          variant_profiles: fallbackUtils.toArray(defs.variant_profiles || defs.variantProfiles),
-          variables: fallbackUtils.toArray(defs.variables),
-          units: fallbackUtils.toArray(defs.units),
-          materials: fallbackUtils.toArray(defs.materials),
-          document_types: fallbackUtils.toArray(defs.document_types || defs.documentTypes),
-          profile_bindings: fallbackUtils.toArray(defs.profile_bindings || defs.profileBindings)
+          object_kinds: fallbackUtils.toArrayOrObjectValues(defs.object_kinds || defs.objectKinds),
+          family_profiles: fallbackUtils.toArrayOrObjectValues(defs.family_profiles || defs.familyProfiles),
+          variant_profiles: fallbackUtils.toArrayOrObjectValues(defs.variant_profiles || defs.variantProfiles),
+          variables: fallbackUtils.toArrayOrObjectValues(defs.variables),
+          units: fallbackUtils.toArrayOrObjectValues(defs.units),
+          materials: fallbackUtils.toArrayOrObjectValues(defs.materials),
+          document_types: fallbackUtils.toArrayOrObjectValues(defs.document_types || defs.documentTypes),
+          profile_bindings: fallbackUtils.toArrayOrObjectValues(defs.profile_bindings || defs.profileBindings)
         };
       } catch (error) {
         return {
@@ -548,14 +537,12 @@
     U().warn(message, error);
   }
 
-  /* ---------------------------------------------------------------------------
-   * Runtime cache
-   * ------------------------------------------------------------------------ */
-
   var runtime = {
     initialized: false,
     globalEventsBound: false,
     resolveInProgress: false,
+    activeResolvePromise: null,
+    activeResolveKey: "",
     applyInProgress: false,
     autoResolveTimer: null,
     cache: {
@@ -572,6 +559,9 @@
     lastContextKey: "",
     lastResolved: null,
     lastResolvedSignature: "",
+    lastBundle: null,
+    lastBundleSignature: "",
+    lastProfilePayload: null,
     lastAppliedSignature: "",
     lastFamilyDispatchSignature: "",
     lastVariantDispatchSignature: "",
@@ -579,14 +569,13 @@
     lastEmptyValuesSignature: "",
     suppressedApplyCount: 0,
     suppressedResolveCount: 0,
+    suppressedDispatchCount: 0,
     options: {
-      emitNativeEvents: false
+      emitNativeEvents: false,
+      preferLocal: true,
+      autoResolve: true
     }
   };
-
-  /* ---------------------------------------------------------------------------
-   * Endpoint discovery
-   * ------------------------------------------------------------------------ */
 
   function getDefaultEndpoints() {
     return {
@@ -685,10 +674,6 @@
     }
   }
 
-  /* ---------------------------------------------------------------------------
-   * Fetch / response helpers
-   * ------------------------------------------------------------------------ */
-
   function canFetch() {
     try {
       return typeof window.fetch === "function";
@@ -729,37 +714,29 @@
     }
   }
 
-  function getErrorFromPayload(payload, fallbackMessage) {
+  function normalizeError(error) {
     try {
-      if (!payload || typeof payload !== "object") {
+      if (!error) {
         return {
-          code: "invalid_response",
-          message: fallbackMessage || "Ungültige Antwort."
+          code: "unknown_error",
+          message: "Unbekannter Fehler."
         };
       }
 
-      if (payload.error && typeof payload.error === "object") {
-        return {
-          code: payload.error.code || "error",
-          message: payload.error.message || fallbackMessage || "Fehler."
-        };
-      }
-
-      if (payload.message) {
-        return {
-          code: payload.code || "error",
-          message: payload.message
-        };
+      if (error.error && typeof error.error === "object") {
+        return normalizeError(error.error);
       }
 
       return {
-        code: payload.code || "error",
-        message: fallbackMessage || "Fehler."
+        code: error.code || error.status || "error",
+        message: error.message || String(error),
+        status: error.status || null,
+        payload: error.payload || null
       };
-    } catch (error) {
+    } catch (normalizationError) {
       return {
         code: "error",
-        message: fallbackMessage || "Fehler."
+        message: "Fehler konnte nicht normalisiert werden."
       };
     }
   }
@@ -834,10 +811,6 @@
       return Promise.reject(error);
     }
   }
-
-  /* ---------------------------------------------------------------------------
-   * Definitions data
-   * ------------------------------------------------------------------------ */
 
   function readDefinitionsFromWindow() {
     try {
@@ -940,6 +913,18 @@
         return Promise.resolve(getDefinitionsSync());
       }
 
+      if (config.localOnly === true || !canFetch()) {
+        var localOnly = getDefinitionsSync();
+        if (hasDefinitionData(localOnly)) {
+          return Promise.resolve(localOnly);
+        }
+
+        return Promise.reject({
+          code: "definitions_not_loaded",
+          message: "Keine Definitionsdaten im Fensterkontext gefunden."
+        });
+      }
+
       var endpoints = getEndpoints();
 
       return requestJson(endpoints.options, {
@@ -992,10 +977,6 @@
       return Promise.reject(error);
     }
   }
-
-  /* ---------------------------------------------------------------------------
-   * Context reading
-   * ------------------------------------------------------------------------ */
 
   function firstValue(selectors, root) {
     try {
@@ -1128,6 +1109,10 @@
     }
   }
 
+  function collectContext(options) {
+    return getCurrentContext(options || {});
+  }
+
   function contextKey(context, suffix) {
     try {
       var ctx = normalizeContext(context || {});
@@ -1153,10 +1138,6 @@
       return "";
     }
   }
-
-  /* ---------------------------------------------------------------------------
-   * Local matching
-   * ------------------------------------------------------------------------ */
 
   function valueMatches(ruleValue, contextValue) {
     try {
@@ -1369,7 +1350,9 @@
           ok: true,
           source: "local_explicit",
           family_profile_id: ctx.family_profile_id,
+          familyProfileId: ctx.family_profile_id,
           family_profile: maps.familyProfilesById[ctx.family_profile_id],
+          familyProfile: maps.familyProfilesById[ctx.family_profile_id],
           context: ctx
         };
       }
@@ -1387,7 +1370,9 @@
             ok: true,
             source: "local_binding",
             family_profile_id: familyId,
+            familyProfileId: familyId,
             family_profile: maps.familyProfilesById[familyId],
+            familyProfile: maps.familyProfilesById[familyId],
             binding: binding,
             context: ctx
           };
@@ -1407,7 +1392,9 @@
           ok: true,
           source: "local_family_profile_match",
           family_profile_id: matchingProfiles[0].id,
+          familyProfileId: matchingProfiles[0].id,
           family_profile: matchingProfiles[0],
+          familyProfile: matchingProfiles[0],
           context: ctx
         };
       }
@@ -1442,8 +1429,12 @@
           ok: true,
           source: "local_explicit",
           family_profile_id: ctx.family_profile_id,
+          familyProfileId: ctx.family_profile_id,
           variant_profile_id: ctx.variant_profile_id,
+          variantProfileId: ctx.variant_profile_id,
           variant_profile: maps.variantProfilesById[ctx.variant_profile_id],
+          variantProfile: maps.variantProfilesById[ctx.variant_profile_id],
+          profile: maps.variantProfilesById[ctx.variant_profile_id],
           context: ctx
         };
       }
@@ -1468,9 +1459,14 @@
             ok: true,
             source: "local_binding",
             family_profile_id: familyProfileId,
+            familyProfileId: familyProfileId,
             family_profile: familyProfileId ? maps.familyProfilesById[familyProfileId] : null,
+            familyProfile: familyProfileId ? maps.familyProfilesById[familyProfileId] : null,
             variant_profile_id: variantId,
+            variantProfileId: variantId,
             variant_profile: maps.variantProfilesById[variantId],
+            variantProfile: maps.variantProfilesById[variantId],
+            profile: maps.variantProfilesById[variantId],
             binding: binding,
             context: ctx
           };
@@ -1486,9 +1482,14 @@
             ok: true,
             source: "local_family_default",
             family_profile_id: familyProfileId,
+            familyProfileId: familyProfileId,
             family_profile: familyProfile,
+            familyProfile: familyProfile,
             variant_profile_id: defaultVariantProfileId,
+            variantProfileId: defaultVariantProfileId,
             variant_profile: maps.variantProfilesById[defaultVariantProfileId],
+            variantProfile: maps.variantProfilesById[defaultVariantProfileId],
+            profile: maps.variantProfilesById[defaultVariantProfileId],
             context: ctx
           };
         }
@@ -1521,9 +1522,14 @@
           ok: true,
           source: "local_variant_profile_match",
           family_profile_id: familyProfileId,
+          familyProfileId: familyProfileId,
           family_profile: familyProfileId ? maps.familyProfilesById[familyProfileId] : null,
+          familyProfile: familyProfileId ? maps.familyProfilesById[familyProfileId] : null,
           variant_profile_id: matchingVariantProfiles[0].id,
+          variantProfileId: matchingVariantProfiles[0].id,
           variant_profile: matchingVariantProfiles[0],
+          variantProfile: matchingVariantProfiles[0],
+          profile: matchingVariantProfiles[0],
           context: ctx
         };
       }
@@ -1532,6 +1538,7 @@
         ok: false,
         source: "local",
         family_profile_id: familyProfileId,
+        familyProfileId: familyProfileId,
         error: {
           code: "variant_profile_not_found",
           message: "Kein Variant Profile im lokalen Definitionskatalog gefunden."
@@ -1544,37 +1551,6 @@
         source: "local",
         error: normalizeError(error),
         context: normalizeContext(context || {})
-      };
-    }
-  }
-
-  /* ---------------------------------------------------------------------------
-   * Resolved payload normalization
-   * ------------------------------------------------------------------------ */
-
-  function normalizeError(error) {
-    try {
-      if (!error) {
-        return {
-          code: "unknown_error",
-          message: "Unbekannter Fehler."
-        };
-      }
-
-      if (error.error && typeof error.error === "object") {
-        return normalizeError(error.error);
-      }
-
-      return {
-        code: error.code || error.status || "error",
-        message: error.message || String(error),
-        status: error.status || null,
-        payload: error.payload || null
-      };
-    } catch (normalizationError) {
-      return {
-        code: "error",
-        message: "Fehler konnte nicht normalisiert werden."
       };
     }
   }
@@ -1606,7 +1582,9 @@
         ok: responseOk(payload) || !!familyProfileId,
         source: source || data.source || "unknown",
         family_profile_id: familyProfileId,
+        familyProfileId: familyProfileId,
         family_profile: familyProfile,
+        familyProfile: familyProfile,
         context: ctx,
         raw: payload
       };
@@ -1667,9 +1645,13 @@
         ok: responseOk(payload) || !!variantProfileId,
         source: source || data.source || "unknown",
         family_profile_id: familyProfileId,
+        familyProfileId: familyProfileId,
         family_profile: familyProfile,
+        familyProfile: familyProfile,
         variant_profile_id: variantProfileId,
+        variantProfileId: variantProfileId,
         variant_profile: variantProfile,
+        variantProfile: variantProfile,
         profile: variantProfile,
         binding: data.binding || null,
         context: normalizeContext(U().safeMerge(ctx, {
@@ -1708,6 +1690,7 @@
           ok: false,
           source: source || "unknown",
           profile_id: profileId,
+          variant_profile_id: profileId,
           error: {
             code: "variant_profile_not_found",
             message: "Variant Profile wurde nicht gefunden."
@@ -1721,7 +1704,9 @@
         source: source || data.source || "unknown",
         profile_id: profile.id || profileId,
         variant_profile_id: profile.id || profileId,
+        variantProfileId: profile.id || profileId,
         variant_profile: profile,
+        variantProfile: profile,
         profile: profile,
         raw: payload
       };
@@ -1730,6 +1715,7 @@
         ok: false,
         source: source || "unknown",
         profile_id: profileId,
+        variant_profile_id: profileId,
         error: normalizeError(error),
         raw: payload
       };
@@ -1743,6 +1729,7 @@
         data.empty_values ||
         data.emptyValues ||
         data.default_values ||
+        data.defaultValues ||
         data.defaults ||
         {};
 
@@ -1755,6 +1742,7 @@
         source: source || data.source || "unknown",
         profile_id: profileId,
         variant_profile_id: profileId,
+        variantProfileId: profileId,
         values: values,
         context: normalizeContext(context || {}),
         raw: payload
@@ -1764,6 +1752,7 @@
         ok: false,
         source: source || "unknown",
         profile_id: profileId,
+        variant_profile_id: profileId,
         values: {},
         error: normalizeError(error),
         context: normalizeContext(context || {}),
@@ -1771,10 +1760,6 @@
       };
     }
   }
-
-  /* ---------------------------------------------------------------------------
-   * Backend + local resolve functions
-   * ------------------------------------------------------------------------ */
 
   function resolveFamilyProfileBackend(context, options) {
     try {
@@ -1900,6 +1885,7 @@
           ok: false,
           source: "local",
           profile_id: id,
+          variant_profile_id: id,
           error: {
             code: "variant_profile_not_found",
             message: "Variant Profile wurde lokal nicht gefunden."
@@ -1912,7 +1898,9 @@
         source: "local",
         profile_id: id,
         variant_profile_id: id,
+        variantProfileId: id,
         variant_profile: profile,
+        variantProfile: profile,
         profile: profile
       };
     } catch (error) {
@@ -1920,6 +1908,7 @@
         ok: false,
         source: "local",
         profile_id: profileId,
+        variant_profile_id: profileId,
         error: normalizeError(error)
       };
     }
@@ -1934,6 +1923,7 @@
           ok: false,
           source: "local",
           profile_id: profileId,
+          variant_profile_id: profileId,
           values: {},
           error: profileResult.error,
           context: normalizeContext(context || {})
@@ -1959,14 +1949,21 @@
             return;
           }
 
-          var type = variable.value_type || variable.type || "string";
+          if (Object.prototype.hasOwnProperty.call(variable, "defaultValue")) {
+            values[key] = U().deepClone(variable.defaultValue, null);
+            return;
+          }
+
+          var type = variable.value_type || variable.valueType || variable.type || "string";
 
           if (type === "boolean") {
             values[key] = false;
           } else if (type === "number" || type === "integer" || type === "money") {
             values[key] = null;
-          } else if (type === "document_list") {
+          } else if (type === "document_list" || type === "document" || type === "documents" || type === "array" || type === "multi_enum") {
             values[key] = [];
+          } else if (type === "object") {
+            values[key] = {};
           } else {
             values[key] = "";
           }
@@ -1988,13 +1985,13 @@
           });
         });
 
-        U().toArray(profile.required_fields).forEach(function (fieldKey) {
+        U().toArray(profile.required_fields || profile.requiredFields).forEach(function (fieldKey) {
           if (fieldKeys.indexOf(fieldKey) === -1) {
             fieldKeys.push(fieldKey);
           }
         });
 
-        U().toArray(profile.optional_fields).forEach(function (fieldKey) {
+        U().toArray(profile.optional_fields || profile.optionalFields).forEach(function (fieldKey) {
           if (fieldKeys.indexOf(fieldKey) === -1) {
             fieldKeys.push(fieldKey);
           }
@@ -2006,6 +2003,12 @@
       if (profile.default_values && typeof profile.default_values === "object") {
         Object.keys(profile.default_values).forEach(function (key) {
           values[key] = U().deepClone(profile.default_values[key], profile.default_values[key]);
+        });
+      }
+
+      if (profile.defaultValues && typeof profile.defaultValues === "object") {
+        Object.keys(profile.defaultValues).forEach(function (key) {
+          values[key] = U().deepClone(profile.defaultValues[key], profile.defaultValues[key]);
         });
       }
 
@@ -2022,6 +2025,7 @@
         source: "local",
         profile_id: profileId,
         variant_profile_id: profileId,
+        variantProfileId: profileId,
         values: values,
         definitions: defs,
         context: normalizeContext(context || {})
@@ -2031,6 +2035,7 @@
         ok: false,
         source: "local",
         profile_id: profileId,
+        variant_profile_id: profileId,
         values: {},
         error: normalizeError(error),
         context: normalizeContext(context || {})
@@ -2038,9 +2043,27 @@
     }
   }
 
-  /* ---------------------------------------------------------------------------
-   * Public async API
-   * ------------------------------------------------------------------------ */
+  function shouldPreferLocal(options) {
+    try {
+      var config = options || {};
+
+      if (config.localOnly === true) {
+        return true;
+      }
+
+      if (config.preferLocal === false) {
+        return false;
+      }
+
+      if (runtime.options.preferLocal === false) {
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      return true;
+    }
+  }
 
   function resolveFamilyProfile(context, options) {
     try {
@@ -2052,11 +2075,18 @@
         return Promise.resolve(runtime.cache.familyResolve[key]);
       }
 
+      var localFirst = resolveFamilyProfileLocal(ctx);
+
+      if ((config.localOnly === true || shouldPreferLocal(config) || !canFetch()) && localFirst.ok) {
+        runtime.cache.familyResolve[key] = localFirst;
+        dispatchFamilyResolved(localFirst);
+        return Promise.resolve(localFirst);
+      }
+
       if (config.localOnly === true || !canFetch()) {
-        var localOnlyResult = resolveFamilyProfileLocal(ctx);
-        runtime.cache.familyResolve[key] = localOnlyResult;
-        dispatchFamilyResolved(localOnlyResult);
-        return Promise.resolve(localOnlyResult);
+        runtime.cache.familyResolve[key] = localFirst;
+        dispatchFamilyResolved(localFirst);
+        return Promise.resolve(localFirst);
       }
 
       return resolveFamilyProfileBackend(ctx, config)
@@ -2070,7 +2100,7 @@
           return result;
         })
         .catch(function (error) {
-          var local = resolveFamilyProfileLocal(ctx);
+          var local = localFirst.ok ? localFirst : resolveFamilyProfileLocal(ctx);
 
           if (local.ok) {
             local.backend_error = normalizeError(error);
@@ -2105,18 +2135,26 @@
         return Promise.resolve(runtime.cache.variantResolve[key]);
       }
 
-      if (config.localOnly === true || !canFetch()) {
-        var localOnlyResult = resolveVariantProfileLocal(ctx);
-        runtime.cache.variantResolve[key] = localOnlyResult;
+      var localFirst = resolveVariantProfileLocal(ctx);
 
-        if (localOnlyResult.ok) {
-          applyResolvedProfile(localOnlyResult);
-          dispatchVariantResolved(localOnlyResult);
+      if ((config.localOnly === true || shouldPreferLocal(config) || !canFetch()) && localFirst.ok) {
+        runtime.cache.variantResolve[key] = localFirst;
+        applyResolvedProfile(localFirst);
+        dispatchVariantResolved(localFirst);
+        return Promise.resolve(localFirst);
+      }
+
+      if (config.localOnly === true || !canFetch()) {
+        runtime.cache.variantResolve[key] = localFirst;
+
+        if (localFirst.ok) {
+          applyResolvedProfile(localFirst);
+          dispatchVariantResolved(localFirst);
         } else {
-          dispatchResolutionFailed("variant", localOnlyResult);
+          dispatchResolutionFailed("variant", localFirst);
         }
 
-        return Promise.resolve(localOnlyResult);
+        return Promise.resolve(localFirst);
       }
 
       return resolveVariantProfileBackend(ctx, config)
@@ -2131,7 +2169,7 @@
           return result;
         })
         .catch(function (error) {
-          var local = resolveVariantProfileLocal(ctx);
+          var local = localFirst.ok ? localFirst : resolveVariantProfileLocal(ctx);
 
           if (local.ok) {
             local.backend_error = normalizeError(error);
@@ -2177,15 +2215,22 @@
         return Promise.resolve(runtime.cache.variantProfiles[id]);
       }
 
-      if (config.localOnly === true || !canFetch()) {
-        var localOnlyResult = getVariantProfileLocal(id);
-        runtime.cache.variantProfiles[id] = localOnlyResult;
+      var localFirst = getVariantProfileLocal(id);
 
-        if (localOnlyResult.ok) {
-          dispatchVariantProfileLoaded(localOnlyResult);
+      if ((config.localOnly === true || shouldPreferLocal(config) || !canFetch()) && localFirst.ok) {
+        runtime.cache.variantProfiles[id] = localFirst;
+        dispatchVariantProfileLoaded(localFirst);
+        return Promise.resolve(localFirst);
+      }
+
+      if (config.localOnly === true || !canFetch()) {
+        runtime.cache.variantProfiles[id] = localFirst;
+
+        if (localFirst.ok) {
+          dispatchVariantProfileLoaded(localFirst);
         }
 
-        return Promise.resolve(localOnlyResult);
+        return Promise.resolve(localFirst);
       }
 
       return getVariantProfileBackend(id, config)
@@ -2199,7 +2244,7 @@
           return result;
         })
         .catch(function (error) {
-          var local = getVariantProfileLocal(id);
+          var local = localFirst.ok ? localFirst : getVariantProfileLocal(id);
 
           if (local.ok) {
             local.backend_error = normalizeError(error);
@@ -2247,15 +2292,22 @@
         return Promise.resolve(runtime.cache.emptyValues[key]);
       }
 
-      if (config.localOnly === true || !canFetch()) {
-        var localOnlyResult = getEmptyValuesLocal(id, ctx);
-        runtime.cache.emptyValues[key] = localOnlyResult;
+      var localFirst = getEmptyValuesLocal(id, ctx);
 
-        if (localOnlyResult.ok) {
-          dispatchEmptyValuesReady(localOnlyResult);
+      if ((config.localOnly === true || shouldPreferLocal(config) || !canFetch()) && localFirst.ok) {
+        runtime.cache.emptyValues[key] = localFirst;
+        dispatchEmptyValuesReady(localFirst);
+        return Promise.resolve(localFirst);
+      }
+
+      if (config.localOnly === true || !canFetch()) {
+        runtime.cache.emptyValues[key] = localFirst;
+
+        if (localFirst.ok) {
+          dispatchEmptyValuesReady(localFirst);
         }
 
-        return Promise.resolve(localOnlyResult);
+        return Promise.resolve(localFirst);
       }
 
       return getEmptyValuesBackend(id, ctx, config)
@@ -2269,7 +2321,7 @@
           return result;
         })
         .catch(function (error) {
-          var local = getEmptyValuesLocal(id, ctx);
+          var local = localFirst.ok ? localFirst : getEmptyValuesLocal(id, ctx);
 
           if (local.ok) {
             local.backend_error = normalizeError(error);
@@ -2302,8 +2354,9 @@
       var context = normalizeContext(config.context || getCurrentContext(config));
       var key = contextKey(context, "resolve_current");
 
-      if (runtime.resolveInProgress && config.force !== true) {
+      if (runtime.activeResolvePromise && runtime.activeResolveKey === key && config.force !== true && config.forceReload !== true) {
         runtime.suppressedResolveCount += 1;
+        return runtime.activeResolvePromise;
       }
 
       if (runtime.lastResolved && runtime.lastContextKey === key && config.force !== true && config.forceReload !== true) {
@@ -2312,8 +2365,12 @@
 
       runtime.resolveInProgress = true;
       runtime.lastContextKey = key;
+      runtime.activeResolveKey = key;
 
-      return fetchDefinitions(config)
+      runtime.activeResolvePromise = fetchDefinitions(config)
+        .catch(function () {
+          return getDefinitionsSync();
+        })
         .then(function () {
           return resolveFamilyProfile(context, config);
         })
@@ -2327,6 +2384,7 @@
         .then(function (variantResult) {
           if (!variantResult.ok) {
             runtime.resolveInProgress = false;
+            runtime.activeResolvePromise = null;
             return variantResult;
           }
 
@@ -2334,12 +2392,16 @@
             .then(function (profileResult) {
               var result = U().safeMerge(variantResult, {
                 profile_payload: profileResult,
-                variant_profile: profileResult.variant_profile || variantResult.variant_profile
+                variant_profile: profileResult.variant_profile || variantResult.variant_profile,
+                variantProfile: profileResult.variant_profile || variantResult.variant_profile,
+                profile: profileResult.variant_profile || variantResult.variant_profile
               });
 
               runtime.resolveInProgress = false;
+              runtime.activeResolvePromise = null;
               runtime.lastResolved = result;
               runtime.lastResolvedSignature = resolvedSignature(result);
+              runtime.lastProfilePayload = profileResult;
 
               applyResolvedProfile(result);
               dispatchVariantResolved(result);
@@ -2349,10 +2411,20 @@
         })
         .catch(function (error) {
           runtime.resolveInProgress = false;
+          runtime.activeResolvePromise = null;
+          dispatchResolutionFailed("current", {
+            ok: false,
+            source: config.source || "resolve_current",
+            error: normalizeError(error),
+            context: context
+          });
           throw error;
         });
+
+      return runtime.activeResolvePromise;
     } catch (error) {
       runtime.resolveInProgress = false;
+      runtime.activeResolvePromise = null;
       return Promise.reject(error);
     }
   }
@@ -2360,20 +2432,28 @@
   function getResolvedProfileBundle(context, options) {
     try {
       var config = options || {};
+      var ctx = normalizeContext(context || getCurrentContext(config));
 
       return resolveCurrentProfile(U().safeMerge(config, {
-        context: context || getCurrentContext(config)
+        context: ctx
       })).then(function (resolved) {
         if (!resolved.ok) {
           return resolved;
         }
 
-        return getEmptyVariantValues(resolved.variant_profile_id, resolved.context || context || getCurrentContext(), config)
+        return getEmptyVariantValues(resolved.variant_profile_id, resolved.context || ctx, config)
           .then(function (emptyValues) {
-            return U().safeMerge(resolved, {
+            var bundle = U().safeMerge(resolved, {
               empty_values: emptyValues.values || {},
-              empty_values_payload: emptyValues
+              emptyValues: emptyValues.values || {},
+              empty_values_payload: emptyValues,
+              emptyValuesPayload: emptyValues
             });
+
+            runtime.lastBundle = bundle;
+            runtime.lastBundleSignature = resolvedSignature(bundle) + "::" + U().safeJsonStringify(emptyValues.values || {}, "{}", 0);
+
+            return bundle;
           });
       });
     } catch (error) {
@@ -2381,9 +2461,28 @@
     }
   }
 
-  /* ---------------------------------------------------------------------------
-   * DOM application
-   * ------------------------------------------------------------------------ */
+  function getResolvedProfileBundleSync() {
+    try {
+      return runtime.lastBundle || runtime.lastResolved || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getCurrentProfilePayload() {
+    try {
+      return runtime.lastProfilePayload || {
+        ok: !!(runtime.lastResolved && runtime.lastResolved.variant_profile_id),
+        source: "sync_cache",
+        profile_id: runtime.lastResolved ? runtime.lastResolved.variant_profile_id : "",
+        variant_profile_id: runtime.lastResolved ? runtime.lastResolved.variant_profile_id : "",
+        variant_profile: runtime.lastResolved ? runtime.lastResolved.variant_profile || runtime.lastResolved.profile || null : null,
+        profile: runtime.lastResolved ? runtime.lastResolved.variant_profile || runtime.lastResolved.profile || null : null
+      };
+    } catch (error) {
+      return {};
+    }
+  }
 
   function setAttrIfChanged(node, name, value) {
     try {
@@ -2622,10 +2721,6 @@
     }
   }
 
-  /* ---------------------------------------------------------------------------
-   * Dispatch helpers
-   * ------------------------------------------------------------------------ */
-
   function dispatchFamilyResolved(result) {
     try {
       var signature = [
@@ -2634,6 +2729,7 @@
       ].join("::");
 
       if (signature === runtime.lastFamilyDispatchSignature) {
+        runtime.suppressedDispatchCount += 1;
         return false;
       }
 
@@ -2667,6 +2763,7 @@
       var signature = resolvedSignature(result);
 
       if (signature && signature === runtime.lastVariantDispatchSignature) {
+        runtime.suppressedDispatchCount += 1;
         return false;
       }
 
@@ -2710,6 +2807,7 @@
       ].join("::");
 
       if (signature === runtime.lastProfileLoadedSignature) {
+        runtime.suppressedDispatchCount += 1;
         return false;
       }
 
@@ -2747,6 +2845,7 @@
       ].join("::");
 
       if (signature === runtime.lastEmptyValuesSignature) {
+        runtime.suppressedDispatchCount += 1;
         return false;
       }
 
@@ -2796,10 +2895,6 @@
     }
   }
 
-  /* ---------------------------------------------------------------------------
-   * Auto resolve / listeners
-   * ------------------------------------------------------------------------ */
-
   function scheduleResolve(reason, delay) {
     try {
       window.clearTimeout(runtime.autoResolveTimer);
@@ -2844,7 +2939,7 @@
       if (target.getAttribute && target.getAttribute("data-vp-last-profile-sync")) {
         var timestamp = parseInt(target.getAttribute("data-vp-last-profile-sync") || "0", 10);
 
-        if (timestamp && Date.now() - timestamp < 80) {
+        if (timestamp && Date.now() - timestamp < 100) {
           return true;
         }
       }
@@ -2950,10 +3045,26 @@
           resolveCurrentProfile({
             force: !!detail.force,
             context: detail.context || getCurrentContext(),
-            source: "resolve_requested"
+            source: detail.source || "resolve_requested"
+          }).catch(function (error) {
+            warn("Explicit profile resolve request failed.", error);
           });
         } catch (error) {
           warn("Explicit profile resolve request failed.", error);
+        }
+      });
+
+      document.addEventListener("vectoplan:create:context-synced", function (event) {
+        try {
+          var detail = event && event.detail ? event.detail : {};
+
+          if (detail.__vp_variant_profiles_event) {
+            return;
+          }
+
+          scheduleResolve(detail.source || "context_synced", 140);
+        } catch (error) {
+          warn("Context synced resolve failed.", error);
         }
       });
 
@@ -2962,10 +3073,6 @@
       warn("Could not bind profile global events.", error);
     }
   }
-
-  /* ---------------------------------------------------------------------------
-   * Cache / diagnostics
-   * ------------------------------------------------------------------------ */
 
   function clearCache(options) {
     try {
@@ -2986,13 +3093,18 @@
       };
 
       runtime.lastResolved = null;
+      runtime.lastBundle = null;
+      runtime.lastProfilePayload = null;
       runtime.lastContextKey = "";
       runtime.lastResolvedSignature = "";
+      runtime.lastBundleSignature = "";
       runtime.lastAppliedSignature = "";
       runtime.lastFamilyDispatchSignature = "";
       runtime.lastVariantDispatchSignature = "";
       runtime.lastProfileLoadedSignature = "";
       runtime.lastEmptyValuesSignature = "";
+      runtime.activeResolvePromise = null;
+      runtime.activeResolveKey = "";
 
       U().dispatchDocument("vectoplan:create:variant-profile-cache-cleared", {
         component: COMPONENT_NAME,
@@ -3036,23 +3148,41 @@
         lastContext: runtime.lastContext,
         lastContextKey: runtime.lastContextKey,
         lastResolved: runtime.lastResolved,
+        currentBundle: runtime.lastBundle,
+        resolvedProfileBundle: runtime.lastBundle,
+        currentProfilePayload: runtime.lastProfilePayload,
         lastResolvedSignature: runtime.lastResolvedSignature,
+        lastBundleSignature: runtime.lastBundleSignature,
         lastAppliedSignature: runtime.lastAppliedSignature,
         suppressedApplyCount: runtime.suppressedApplyCount,
-        suppressedResolveCount: runtime.suppressedResolveCount
+        suppressedResolveCount: runtime.suppressedResolveCount,
+        suppressedDispatchCount: runtime.suppressedDispatchCount
       };
     } catch (error) {
       return {};
     }
   }
 
-  /* ---------------------------------------------------------------------------
-   * Initialization
-   * ------------------------------------------------------------------------ */
+  function getState() {
+    return {
+      component: COMPONENT_NAME,
+      version: COMPONENT_VERSION,
+      initialized: runtime.initialized,
+      ready: runtime.initialized,
+      cache: getCacheSnapshot(),
+      endpoints: getEndpoints(),
+      context: getCurrentContext(),
+      options: U().deepClone(runtime.options, {})
+    };
+  }
 
   function initialize(options) {
     try {
       var config = options || {};
+
+      if (runtime.initialized && config.force !== true && config.reinitialize !== true) {
+        return true;
+      }
 
       runtime.options = U().safeMerge(runtime.options, config || {});
 
@@ -3089,7 +3219,7 @@
           silent: true
         });
 
-        if (config.autoResolve !== false) {
+        if (config.autoResolve !== false && runtime.options.autoResolve !== false) {
           scheduleResolve("profiles_initialized", 100);
         }
       } else {
@@ -3109,7 +3239,7 @@
           fetchDefinitions({
             source: "initialize_fetch"
           }).then(function () {
-            if (config.autoResolve !== false) {
+            if (config.autoResolve !== false && runtime.options.autoResolve !== false) {
               scheduleResolve("definitions_fetched", 80);
             }
           }).catch(function (error) {
@@ -3125,15 +3255,13 @@
     }
   }
 
-  /* ---------------------------------------------------------------------------
-   * Public API
-   * ------------------------------------------------------------------------ */
-
   var api = {
     __name: COMPONENT_NAME,
     __version: COMPONENT_VERSION,
+    version: COMPONENT_VERSION,
 
     initialize: initialize,
+    getState: getState,
 
     getEndpoints: getEndpoints,
     getDefinitionsSync: getDefinitionsSync,
@@ -3142,6 +3270,7 @@
     hasDefinitionData: hasDefinitionData,
 
     getCurrentContext: getCurrentContext,
+    collectContext: collectContext,
     readContextFromDom: readContextFromDom,
     readContextFromState: readContextFromState,
     normalizeContext: normalizeContext,
@@ -3152,6 +3281,8 @@
     getVariantProfile: getVariantProfile,
     getEmptyVariantValues: getEmptyVariantValues,
     getResolvedProfileBundle: getResolvedProfileBundle,
+    getResolvedProfileBundleSync: getResolvedProfileBundleSync,
+    getCurrentProfilePayload: getCurrentProfilePayload,
 
     resolveFamilyProfileLocal: resolveFamilyProfileLocal,
     resolveVariantProfileLocal: resolveVariantProfileLocal,

@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "default_render_variant_id": "default",
+  "render_variants": [
+    {
+      "render_variant_id": "default",
+      "mode": "primitive",
+      "primitive_shape": "block",
+      "label": "Default primitive preview",
+      "source": "generated"
+    }
+  ]
+}

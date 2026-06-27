@@ -1,0 +1,1136 @@
+{# services/vectoplan-library/templates/vplib/create/_wizard_nav.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · VPLIB Create Wizard · Compact Navigation
+
+  Zweck:
+  - Globale Wizard-Navigation für /create.
+  - Steuert Zurück / Weiter / Schrittstatus.
+  - Rendert keine Backend-Aktionsbuttons.
+  - Backend-Aktionen bleiben im Schritt 6 über sections/_actions.html.
+  - Kompakte Black-UI-Navigation für templates/vplib.
+  - Arbeitet defensiv mit oder ohne create.js/create_wizard.js.
+  - Verwendet keine entfernten Partials:
+      - _hero.html
+      - _alerts.html
+      - _help.html
+      - _result.html
+
+  DOM-Verträge:
+  - Root:          [data-vp-wizard-nav]
+  - Zurück:        [data-vp-wizard-prev]
+  - Weiter:        [data-vp-wizard-next]
+  - Label:         [data-vp-wizard-step-label]
+  - Hint:          [data-vp-wizard-hint]
+  - Progress Text: [data-vp-wizard-progress-text]
+
+  Step-Container:
+  - [data-vp-create-step]
+  - [data-vp-step-index="1"]
+  - [data-vp-create-steps]
+
+  Events:
+  - dispatch:
+      vectoplan:create:step-request
+      vectoplan:create:step-changed
+      vectoplan:create:wizard-nav-ready
+      vectoplan:create:wizard-nav-state-changed
+  - listen:
+      vectoplan:create:step-changed
+      vectoplan:create:wizard-step-changed
+      vectoplan:create:current-step-changed
+      vectoplan:create:stepper-step-requested
+
+  Wichtig:
+  - Step 3 wird sichtbar als "Variablen" geführt.
+  - Intern bleiben key="object" und target="object-variants" kompatibel.
+  - Schritt 6 zeigt keine Weiter-Primärnavigation mehr; Aktionen liegen dort
+    im Action-Step selbst.
+----------------------------------------------------------------------------- #}
+
+{% if create_steps is defined and create_steps %}
+  {% set vp_nav_steps = create_steps %}
+{% else %}
+  {% set vp_nav_steps = [
+    {
+      "index": 1,
+      "key": "identity",
+      "label": "Grunddaten",
+      "short_label": "Daten",
+      "hint": "Name und Beschreibung festlegen.",
+      "description": "Name und Beschreibung",
+      "target": "identity"
+    },
+    {
+      "index": 2,
+      "key": "taxonomy",
+      "label": "Taxonomie",
+      "short_label": "Taxonomie",
+      "hint": "Domain, Kategorie und Subkategorie auswählen.",
+      "description": "Domain, Kategorie und Subkategorie",
+      "target": "taxonomy"
+    },
+    {
+      "index": 3,
+      "key": "object",
+      "alias": "variables",
+      "label": "Variablen",
+      "short_label": "Variablen",
+      "hint": "Technische Variablen und Unterlagen definieren.",
+      "description": "Variablen und Unterlagen",
+      "target": "object-variants"
+    },
+    {
+      "index": 4,
+      "key": "geometry",
+      "label": "Geometrie",
+      "short_label": "Geometrie",
+      "hint": "Form, Maße, Raster und 3D-Modell vorbereiten.",
+      "description": "Form, Maße, Raster und 3D-Upload",
+      "target": "geometry"
+    },
+    {
+      "index": 5,
+      "key": "technical",
+      "label": "Technik",
+      "short_label": "Technik",
+      "hint": "Material und technische Kennwerte ergänzen.",
+      "description": "Material und Kennwerte",
+      "target": "technical"
+    },
+    {
+      "index": 6,
+      "key": "create",
+      "label": "Erzeugen",
+      "short_label": "Erzeugen",
+      "hint": "Wähle links die gewünschte Aktion aus.",
+      "description": "Prüfen und ausgeben",
+      "target": "actions"
+    }
+  ] %}
+{% endif %}
+
+{% set vp_nav_step_count = vp_nav_steps | length %}
+{% set vp_nav_initial_step_raw = create_initial_step if create_initial_step is defined and create_initial_step else 1 %}
+{% set vp_nav_initial_step = vp_nav_initial_step_raw | int %}
+
+{% if vp_nav_step_count < 1 %}
+  {% set vp_nav_step_count = 6 %}
+{% endif %}
+
+{% if vp_nav_initial_step < 1 %}
+  {% set vp_nav_initial_step = 1 %}
+{% endif %}
+
+{% if vp_nav_initial_step > vp_nav_step_count %}
+  {% set vp_nav_initial_step = vp_nav_step_count %}
+{% endif %}
+
+{% set vp_nav_component_id = create_wizard_nav_id if create_wizard_nav_id is defined and create_wizard_nav_id else "vplib-create-wizard-nav" %}
+{% set vp_nav_label_id = vp_nav_component_id ~ "-label" %}
+{% set vp_nav_hint_id = vp_nav_component_id ~ "-hint" %}
+{% set vp_nav_progress_id = vp_nav_component_id ~ "-progress" %}
+
+{% set vp_current_step_label = "Schritt" %}
+{% set vp_current_step_hint = "" %}
+{% set vp_current_step_key = "" %}
+{% set vp_current_step_alias = "" %}
+{% set vp_current_step_target = "" %}
+
+{% for step in vp_nav_steps %}
+  {% if step is mapping and 'index' in step %}
+    {% set _step_index = step['index'] | int %}
+  {% else %}
+    {% set _step_index = loop.index %}
+  {% endif %}
+
+  {% if _step_index == vp_nav_initial_step %}
+    {% if step is mapping and 'label' in step and step['label'] %}
+      {% set vp_current_step_label = step['label'] %}
+    {% else %}
+      {% set vp_current_step_label = "Schritt " ~ vp_nav_initial_step %}
+    {% endif %}
+
+    {% if step is mapping and 'hint' in step and step['hint'] %}
+      {% set vp_current_step_hint = step['hint'] %}
+    {% elif step is mapping and 'description' in step and step['description'] %}
+      {% set vp_current_step_hint = step['description'] %}
+    {% else %}
+      {% set vp_current_step_hint = "" %}
+    {% endif %}
+
+    {% if step is mapping and 'key' in step and step['key'] %}
+      {% set vp_current_step_key = step['key'] %}
+    {% endif %}
+
+    {% if step is mapping and 'alias' in step and step['alias'] %}
+      {% set vp_current_step_alias = step['alias'] %}
+    {% elif vp_current_step_key == 'object' %}
+      {% set vp_current_step_alias = 'variables' %}
+    {% endif %}
+
+    {% if step is mapping and 'target' in step and step['target'] %}
+      {% set vp_current_step_target = step['target'] %}
+    {% endif %}
+  {% endif %}
+{% endfor %}
+
+{% if vp_current_step_key == 'object' and vp_current_step_label == 'Objekt' %}
+  {% set vp_current_step_label = 'Variablen' %}
+{% endif %}
+
+{% if vp_current_step_key == 'object' and vp_current_step_hint in ['', 'Objektart und Varianten definieren.', 'Objektklasse festlegen und Varianten vorbereiten.'] %}
+  {% set vp_current_step_hint = 'Technische Variablen und Unterlagen definieren.' %}
+{% endif %}
+
+<footer
+  id="{{ vp_nav_component_id }}"
+  class="vplib-create-wizard-nav{% if vp_nav_initial_step <= 1 %} is-first-step{% endif %}{% if vp_nav_initial_step >= vp_nav_step_count %} is-final-step{% endif %}"
+  data-vp-wizard-nav
+  data-create-wizard-nav="true"
+  data-vp-wizard-nav-layout="compact"
+  data-vp-wizard-nav-theme="black"
+  data-vp-wizard-nav-template-root="vplib"
+  data-vp-wizard-nav-version="0.6.0"
+  data-vp-current-step="{{ vp_nav_initial_step }}"
+  data-vp-step-count="{{ vp_nav_step_count }}"
+  data-vp-min-step="1"
+  data-vp-max-step="{{ vp_nav_step_count }}"
+  data-vp-current-step-key="{{ vp_current_step_key }}"
+  {% if vp_current_step_alias %}data-vp-current-step-alias="{{ vp_current_step_alias }}"{% endif %}
+  data-vp-current-step-section="{{ vp_current_step_target }}"
+  aria-labelledby="{{ vp_nav_label_id }}"
+>
+  <div class="vplib-create-wizard-nav__inner">
+    <div class="vplib-create-wizard-nav__status">
+      <p
+        id="{{ vp_nav_progress_id }}"
+        class="vplib-create-wizard-nav__progress"
+        data-vp-wizard-progress-text
+        data-create-wizard-progress-text="true"
+      >
+        {{ vp_nav_initial_step }} / {{ vp_nav_step_count }}
+      </p>
+
+      <div class="vplib-create-wizard-nav__copy">
+        <h2
+          id="{{ vp_nav_label_id }}"
+          class="vplib-create-wizard-nav__title"
+          data-vp-wizard-step-label
+          data-create-wizard-step-label="true"
+        >
+          {{ vp_current_step_label }}
+        </h2>
+
+        <p
+          id="{{ vp_nav_hint_id }}"
+          class="vplib-create-wizard-nav__hint"
+          data-vp-wizard-hint
+          data-create-wizard-hint="true"
+        >
+          {% if vp_nav_initial_step >= vp_nav_step_count %}
+            Wähle die gewünschte Aktion im Schritt aus.
+          {% elif vp_current_step_hint %}
+            {{ vp_current_step_hint }}
+          {% else %}
+            Aktuellen Schritt ausfüllen und weitergehen.
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    <div
+      class="vplib-create-wizard-nav__actions"
+      aria-label="Wizard-Navigation"
+    >
+      <button
+        type="button"
+        class="vplib-create-wizard-nav__button vplib-create-wizard-nav__button--secondary"
+        data-vp-wizard-prev
+        data-vp-wizard-prev="true"
+        data-vp-wizard-previous="true"
+        data-create-wizard-prev="true"
+        data-create-wizard-previous="true"
+        data-create-prev="true"
+        data-create-back="true"
+        data-vp-prev-step="true"
+        data-vp-step-prev="true"
+        data-vp-wizard-action="previous"
+        data-create-wizard-action="previous"
+        data-action="previous"
+        data-vp-step-direction="previous"
+        name="previous"
+        value="previous"
+        {% if vp_nav_initial_step <= 1 %}disabled aria-disabled="true"{% else %}aria-disabled="false"{% endif %}
+      >
+        <span class="vplib-create-wizard-nav__button-icon" aria-hidden="true">
+          ←
+        </span>
+        <span class="vplib-create-wizard-nav__button-text">
+          Zurück
+        </span>
+      </button>
+
+      <button
+        type="button"
+        class="vplib-create-wizard-nav__button vplib-create-wizard-nav__button--primary"
+        data-vp-wizard-next
+        data-vp-wizard-next="true"
+        data-create-wizard-next="true"
+        data-create-next="true"
+        data-create-next-step="true"
+        data-vp-next-step="true"
+        data-vp-step-next="true"
+        data-vp-submit-next="true"
+        data-vp-wizard-action="next"
+        data-create-wizard-action="next"
+        data-action="next"
+        data-vp-step-direction="next"
+        name="next"
+        value="next"
+        {% if vp_nav_initial_step >= vp_nav_step_count %}disabled aria-disabled="true"{% else %}aria-disabled="false"{% endif %}
+      >
+        <span class="vplib-create-wizard-nav__button-text" data-vp-wizard-next-label>
+          {% if vp_nav_initial_step >= vp_nav_step_count %}
+            Aktionen
+          {% else %}
+            Weiter
+          {% endif %}
+        </span>
+        <span class="vplib-create-wizard-nav__button-icon" aria-hidden="true">
+          →
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <script type="application/json" data-vp-wizard-nav-steps>
+    {{ vp_nav_steps | tojson }}
+  </script>
+</footer>
+
+<script>
+  (function () {
+    "use strict";
+
+    try {
+      var COMPONENT_NAME = "VECTOPLAN Create Wizard Nav";
+      var COMPONENT_VERSION = "0.6.0";
+      var nav = document.getElementById({{ vp_nav_component_id | tojson }});
+
+      if (!nav) {
+        return;
+      }
+
+      if (nav.getAttribute("data-vp-wizard-nav-ready") === "true") {
+        return;
+      }
+
+      var previousButton = nav.querySelector("[data-vp-wizard-prev], [data-create-wizard-prev='true']");
+      var nextButton = nav.querySelector("[data-vp-wizard-next], [data-create-wizard-next='true']");
+      var nextLabel = nav.querySelector("[data-vp-wizard-next-label]");
+      var progressText = nav.querySelector("[data-vp-wizard-progress-text], [data-create-wizard-progress-text='true']");
+      var stepLabel = nav.querySelector("[data-vp-wizard-step-label], [data-create-wizard-step-label='true']");
+      var stepHint = nav.querySelector("[data-vp-wizard-hint], [data-create-wizard-hint='true']");
+      var stepsScript = nav.querySelector("[data-vp-wizard-nav-steps]");
+
+      var minStep = parseInteger(nav.getAttribute("data-vp-min-step"), 1);
+      var maxStep = parseInteger(nav.getAttribute("data-vp-max-step") || nav.getAttribute("data-vp-step-count"), 6);
+      var currentStep = parseInteger(nav.getAttribute("data-vp-current-step"), 1);
+      var maxReachedStep = currentStep;
+      var steps = [];
+
+      try {
+        if (stepsScript && stepsScript.textContent) {
+          steps = JSON.parse(stepsScript.textContent);
+        }
+      } catch (jsonError) {
+        steps = [];
+        warn("Step metadata could not be parsed.", jsonError);
+      }
+
+      if (!Number.isFinite(minStep) || minStep < 1) {
+        minStep = 1;
+      }
+
+      if (!Number.isFinite(maxStep) || maxStep < minStep) {
+        maxStep = 6;
+      }
+
+      currentStep = clampStep(currentStep);
+      maxReachedStep = currentStep;
+
+      bindButtons();
+      bindExternalEvents();
+      exposeApi();
+
+      updateNav(currentStep, {
+        skipFallbackPanels: true,
+        skipFallbackStepper: false,
+        silent: true,
+        source: "init"
+      });
+
+      nav.setAttribute("data-vp-wizard-nav-ready", "true");
+      nav.setAttribute("data-vp-wizard-nav-version", COMPONENT_VERSION);
+
+      dispatch(nav, "vectoplan:create:wizard-nav-ready", {
+        component: COMPONENT_NAME,
+        version: COMPONENT_VERSION,
+        currentStep: currentStep,
+        minStep: minStep,
+        maxStep: maxStep,
+        stepCount: maxStep,
+        steps: steps,
+        nav: nav
+      });
+
+      function toArray(value) {
+        try {
+          return Array.prototype.slice.call(value || []);
+        } catch (error) {
+          return [];
+        }
+      }
+
+      function parseInteger(value, fallback) {
+        try {
+          var parsed = parseInt(value, 10);
+
+          if (!Number.isFinite(parsed)) {
+            return fallback;
+          }
+
+          return parsed;
+        } catch (error) {
+          return fallback;
+        }
+      }
+
+      function clampStep(value) {
+        try {
+          var parsed = parseInteger(value, minStep);
+
+          if (parsed < minStep) {
+            return minStep;
+          }
+
+          if (parsed > maxStep) {
+            return maxStep;
+          }
+
+          return parsed;
+        } catch (error) {
+          return minStep;
+        }
+      }
+
+      function normalizeStepMeta(item, fallbackIndex) {
+        try {
+          var safeIndex = parseInteger(item && item.index, fallbackIndex || 1);
+          var key = item && item.key ? String(item.key) : "step-" + safeIndex;
+          var alias = item && item.alias ? String(item.alias) : "";
+
+          if (key === "object" && !alias) {
+            alias = "variables";
+          }
+
+          var label = item && item.label ? String(item.label) : "Schritt " + safeIndex;
+
+          if (key === "object" && label === "Objekt") {
+            label = "Variablen";
+          }
+
+          var shortLabel = item && item.short_label ? String(item.short_label) : label;
+
+          if (key === "object" && shortLabel === "Objekt") {
+            shortLabel = "Variablen";
+          }
+
+          var hint = "";
+
+          if (item && item.hint) {
+            hint = String(item.hint);
+          } else if (item && item.description) {
+            hint = String(item.description);
+          }
+
+          if (
+            key === "object" &&
+            (
+              !hint ||
+              hint === "Objektart und Varianten definieren." ||
+              hint === "Objektklasse festlegen und Varianten vorbereiten." ||
+              hint === "Objektart und Varianten"
+            )
+          ) {
+            hint = "Technische Variablen und Unterlagen definieren.";
+          }
+
+          return {
+            index: safeIndex,
+            key: key,
+            alias: alias,
+            label: label,
+            shortLabel: shortLabel,
+            hint: hint,
+            description: item && item.description ? String(item.description) : hint,
+            target: item && item.target ? String(item.target) : key
+          };
+        } catch (error) {
+          return {
+            index: fallbackIndex || 1,
+            key: "step-" + (fallbackIndex || 1),
+            alias: "",
+            label: "Schritt " + (fallbackIndex || 1),
+            shortLabel: "Schritt " + (fallbackIndex || 1),
+            hint: "",
+            description: "",
+            target: "step-" + (fallbackIndex || 1)
+          };
+        }
+      }
+
+      function getStepMeta(stepIndex) {
+        var safeStep = clampStep(stepIndex);
+        var fallback = normalizeStepMeta({
+          index: safeStep,
+          key: "step-" + safeStep,
+          label: "Schritt " + safeStep,
+          hint: ""
+        }, safeStep);
+
+        try {
+          if (!Array.isArray(steps)) {
+            return fallback;
+          }
+
+          for (var index = 0; index < steps.length; index += 1) {
+            var item = steps[index];
+
+            if (item && parseInteger(item.index, 0) === safeStep) {
+              return normalizeStepMeta(item, safeStep);
+            }
+          }
+        } catch (error) {
+          return fallback;
+        }
+
+        return fallback;
+      }
+
+      function setDisabled(button, disabled) {
+        try {
+          if (!button) {
+            return;
+          }
+
+          button.disabled = !!disabled;
+          button.setAttribute("aria-disabled", disabled ? "true" : "false");
+        } catch (error) {
+          warn("Button disabled state failed.", error);
+        }
+      }
+
+      function updateRootAttributes(stepIndex, meta) {
+        try {
+          var app = document.querySelector("[data-vp-create-app]");
+          var form = document.querySelector("[data-vp-create-form], [data-create-form='true'], #vp-create-form");
+          var stepsRoot = document.querySelector("[data-vp-create-steps]");
+          var body = document.body;
+          var html = document.documentElement;
+
+          if (html) {
+            html.setAttribute("data-vp-create-current-step", String(stepIndex));
+            html.setAttribute("data-vp-create-current-step-key", meta.key || "");
+            html.setAttribute("data-vp-create-current-step-section", meta.target || "");
+
+            if (meta.alias) {
+              html.setAttribute("data-vp-create-current-step-alias", meta.alias);
+            } else {
+              html.removeAttribute("data-vp-create-current-step-alias");
+            }
+          }
+
+          [app, form, stepsRoot, body].forEach(function (node) {
+            try {
+              if (!node) {
+                return;
+              }
+
+              node.setAttribute("data-vp-current-step", String(stepIndex));
+              node.setAttribute("data-vp-create-current-step", String(stepIndex));
+              node.setAttribute("data-vp-step-count", String(maxStep));
+              node.setAttribute("data-vp-current-step-key", meta.key || "");
+              node.setAttribute("data-vp-current-step-section", meta.target || "");
+
+              if (meta.alias) {
+                node.setAttribute("data-vp-current-step-alias", meta.alias);
+              } else {
+                node.removeAttribute("data-vp-current-step-alias");
+              }
+            } catch (nodeError) {
+              /* no-op */
+            }
+          });
+        } catch (error) {
+          warn("Root attribute update failed.", error);
+        }
+      }
+
+      function updateStepperFallback(stepIndex) {
+        try {
+          var stepper = document.querySelector("[data-vp-create-stepper]");
+
+          if (!stepper) {
+            return;
+          }
+
+          if (
+            window.VectoplanCreateStepper &&
+            typeof window.VectoplanCreateStepper.sync === "function"
+          ) {
+            window.VectoplanCreateStepper.sync(stepIndex, {
+              source: "wizard-nav",
+              silent: true,
+              maxReachedStep: Math.max(maxReachedStep, stepIndex)
+            });
+            return;
+          }
+
+          var stepCount = parseInteger(stepper.getAttribute("data-vp-step-count") || String(maxStep), maxStep);
+          var progressFill = stepper.querySelector("[data-vp-step-progress-fill]");
+          var currentStepLabel = stepper.querySelector("[data-vp-current-step-label]");
+          var totalStepLabel = stepper.querySelector("[data-vp-total-step-label]");
+          var liveRegion = stepper.querySelector("[data-vp-step-live-region]");
+          var buttons = toArray(stepper.querySelectorAll("[data-vp-step-button], [data-vp-step-target], [data-step-target], [data-step]"));
+
+          stepper.setAttribute("data-vp-current-step", String(stepIndex));
+          stepper.setAttribute("data-vp-max-reached-step", String(maxReachedStep));
+          stepper.style.setProperty("--vp-create-current-step", String(stepIndex));
+
+          if (currentStepLabel) {
+            currentStepLabel.textContent = String(stepIndex);
+          }
+
+          if (totalStepLabel) {
+            totalStepLabel.textContent = String(stepCount);
+          }
+
+          if (progressFill) {
+            var progress = stepCount > 1
+              ? ((stepIndex - 1) / (stepCount - 1)) * 100
+              : 100;
+
+            progressFill.style.width = Math.max(0, Math.min(100, progress)) + "%";
+          }
+
+          buttons.forEach(function (button) {
+            try {
+              var targetStep = parseInteger(
+                button.getAttribute("data-vp-step-target") ||
+                button.getAttribute("data-step-target") ||
+                button.getAttribute("data-step"),
+                0
+              );
+              var item = button.closest("[data-vp-step-item]");
+              var isActive = targetStep === stepIndex;
+              var isComplete = targetStep > 0 && targetStep < stepIndex;
+              var isLocked = targetStep > maxReachedStep;
+
+              if (item) {
+                item.classList.toggle("is-active", isActive);
+                item.classList.toggle("is-complete", isComplete);
+                item.classList.toggle("is-locked", isLocked);
+                item.setAttribute(
+                  "data-vp-step-state",
+                  isActive
+                    ? "active"
+                    : isComplete
+                      ? "complete"
+                      : isLocked
+                        ? "locked"
+                        : "idle"
+                );
+              }
+
+              if (isActive) {
+                button.setAttribute("aria-current", "step");
+              } else {
+                button.removeAttribute("aria-current");
+              }
+
+              button.setAttribute("aria-disabled", isLocked ? "true" : "false");
+            } catch (buttonError) {
+              warn("Stepper fallback button update skipped.", buttonError);
+            }
+          });
+
+          if (liveRegion) {
+            var meta = getStepMeta(stepIndex);
+            liveRegion.textContent = "Schritt " + stepIndex + " von " + maxStep + ": " + meta.label + ".";
+          }
+        } catch (error) {
+          warn("Stepper fallback update failed.", error);
+        }
+      }
+
+      function updateStepPanelsFallback(stepIndex) {
+        try {
+          var panels = toArray(document.querySelectorAll("[data-vp-create-step]"));
+
+          if (!panels.length) {
+            return;
+          }
+
+          panels.forEach(function (panel) {
+            try {
+              var panelStep = parseInteger(panel.getAttribute("data-vp-step-index") || panel.getAttribute("data-step"), 0);
+              var isActive = panelStep === stepIndex;
+
+              panel.classList.toggle("is-active", isActive);
+              panel.classList.toggle("is-hidden", !isActive);
+              panel.hidden = !isActive;
+              panel.setAttribute("aria-hidden", isActive ? "false" : "true");
+
+              if (isActive) {
+                panel.removeAttribute("inert");
+              } else {
+                try {
+                  panel.setAttribute("inert", "");
+                } catch (inertError) {
+                  /* no-op */
+                }
+              }
+            } catch (panelError) {
+              warn("Panel fallback update skipped.", panelError);
+            }
+          });
+        } catch (error) {
+          warn("Step panel fallback update failed.", error);
+        }
+      }
+
+      function updateNav(stepIndex, options) {
+        try {
+          var safeOptions = options || {};
+          var safeStep = clampStep(stepIndex);
+          var meta = getStepMeta(safeStep);
+          var previousStep = currentStep;
+
+          currentStep = safeStep;
+          maxReachedStep = Math.max(maxReachedStep, currentStep);
+
+          nav.setAttribute("data-vp-current-step", String(currentStep));
+          nav.setAttribute("data-vp-max-reached-step", String(maxReachedStep));
+          nav.setAttribute("data-vp-current-step-key", meta.key || "");
+          nav.setAttribute("data-vp-current-step-section", meta.target || "");
+
+          if (meta.alias) {
+            nav.setAttribute("data-vp-current-step-alias", meta.alias);
+          } else {
+            nav.removeAttribute("data-vp-current-step-alias");
+          }
+
+          nav.classList.toggle("is-first-step", currentStep <= minStep);
+          nav.classList.toggle("is-final-step", currentStep >= maxStep);
+
+          updateRootAttributes(currentStep, meta);
+
+          if (progressText) {
+            progressText.textContent = currentStep + " / " + maxStep;
+          }
+
+          if (stepLabel) {
+            stepLabel.textContent = meta.label;
+          }
+
+          if (stepHint) {
+            if (currentStep >= maxStep) {
+              stepHint.textContent = "Wähle die gewünschte Aktion im Schritt aus.";
+            } else {
+              stepHint.textContent = meta.hint || "Aktuellen Schritt ausfüllen und weitergehen.";
+            }
+          }
+
+          if (nextLabel) {
+            nextLabel.textContent = currentStep >= maxStep ? "Aktionen" : "Weiter";
+          }
+
+          setDisabled(previousButton, currentStep <= minStep);
+          setDisabled(nextButton, currentStep >= maxStep);
+
+          if (!safeOptions.skipFallbackPanels) {
+            updateStepPanelsFallback(currentStep);
+          }
+
+          if (!safeOptions.skipFallbackStepper) {
+            updateStepperFallback(currentStep);
+          }
+
+          if (!safeOptions.silent) {
+            dispatch(nav, "vectoplan:create:wizard-nav-state-changed", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              source: safeOptions.source || "wizard-nav",
+              previousStep: previousStep,
+              currentStep: currentStep,
+              step: currentStep,
+              stepCount: maxStep,
+              maxReachedStep: maxReachedStep,
+              stepKey: meta.key,
+              stepAlias: meta.alias,
+              stepSection: meta.target,
+              stepLabel: meta.label
+            });
+          }
+        } catch (error) {
+          warn("Nav update failed.", error);
+        }
+      }
+
+      function tryWizardApi(targetStep, source) {
+        try {
+          if (
+            window.VectoplanCreateWizard &&
+            typeof window.VectoplanCreateWizard.goToStep === "function"
+          ) {
+            window.VectoplanCreateWizard.goToStep(targetStep, {
+              source: source || "wizard-nav",
+              validate: targetStep > currentStep,
+              focus: true,
+              force: true
+            });
+            return true;
+          }
+        } catch (wizardError) {
+          warn("Wizard API step request failed.", wizardError);
+        }
+
+        return false;
+      }
+
+      function tryCreateApi(targetStep, source) {
+        try {
+          if (
+            window.VectoplanCreate &&
+            typeof window.VectoplanCreate.goToStep === "function"
+          ) {
+            window.VectoplanCreate.goToStep(targetStep, {
+              source: source || "wizard-nav",
+              validate: targetStep > currentStep,
+              focus: true,
+              force: true
+            });
+            return true;
+          }
+        } catch (apiError) {
+          warn("Public create API step request failed.", apiError);
+        }
+
+        return false;
+      }
+
+      function dispatchStepRequest(targetStep, source) {
+        try {
+          var meta = getStepMeta(targetStep);
+          var event = new CustomEvent("vectoplan:create:step-request", {
+            bubbles: true,
+            cancelable: true,
+            detail: {
+              source: source || "wizard-nav",
+              currentStep: currentStep,
+              targetStep: targetStep,
+              step: targetStep,
+              minStep: minStep,
+              maxStep: maxStep,
+              stepCount: maxStep,
+              stepKey: meta.key,
+              stepAlias: meta.alias,
+              stepSection: meta.target,
+              stepLabel: meta.label,
+              validate: targetStep > currentStep,
+              focus: true,
+              force: true
+            }
+          });
+
+          nav.dispatchEvent(event);
+
+          return !event.defaultPrevented;
+        } catch (eventError) {
+          warn("Step request event failed.", eventError);
+          return true;
+        }
+      }
+
+      function dispatchStepChanged(targetStep, previousStep, source) {
+        try {
+          var meta = getStepMeta(targetStep);
+
+          document.dispatchEvent(new CustomEvent("vectoplan:create:step-changed", {
+            bubbles: true,
+            cancelable: false,
+            detail: {
+              source: source || "wizard-nav-fallback",
+              previousStep: previousStep,
+              currentStep: targetStep,
+              step: targetStep,
+              stepCount: maxStep,
+              maxReachedStep: maxReachedStep,
+              stepKey: meta.key,
+              stepAlias: meta.alias,
+              stepSection: meta.target,
+              stepLabel: meta.label,
+              skipStepperUpdate: false
+            }
+          }));
+        } catch (error) {
+          warn("Step changed dispatch failed.", error);
+        }
+      }
+
+      function requestStep(targetStep, source) {
+        try {
+          var previousStep = currentStep;
+          var safeTargetStep = clampStep(targetStep);
+
+          if (safeTargetStep === currentStep) {
+            updateNav(safeTargetStep, {
+              source: source || "same-step"
+            });
+            return;
+          }
+
+          if (tryWizardApi(safeTargetStep, source)) {
+            updateNav(safeTargetStep, {
+              skipFallbackPanels: true,
+              skipFallbackStepper: true,
+              source: source || "wizard-api"
+            });
+            return;
+          }
+
+          if (tryCreateApi(safeTargetStep, source)) {
+            updateNav(safeTargetStep, {
+              skipFallbackPanels: true,
+              skipFallbackStepper: true,
+              source: source || "create-api"
+            });
+            return;
+          }
+
+          if (!dispatchStepRequest(safeTargetStep, source)) {
+            return;
+          }
+
+          updateNav(safeTargetStep, {
+            source: source || "fallback"
+          });
+          dispatchStepChanged(safeTargetStep, previousStep, source || "wizard-nav-fallback");
+        } catch (error) {
+          warn("Step request failed.", error);
+        }
+      }
+
+      function bindButtons() {
+        try {
+          if (previousButton) {
+            previousButton.addEventListener("click", function (event) {
+              try {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (currentStep <= minStep) {
+                  return;
+                }
+
+                requestStep(currentStep - 1, "previous-button");
+              } catch (error) {
+                warn("Previous step failed.", error);
+              }
+            }, true);
+          }
+
+          if (nextButton) {
+            nextButton.addEventListener("click", function (event) {
+              try {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (currentStep >= maxStep) {
+                  return;
+                }
+
+                requestStep(currentStep + 1, "next-button");
+              } catch (error) {
+                warn("Next step failed.", error);
+              }
+            }, true);
+          }
+        } catch (error) {
+          warn("Button binding failed.", error);
+        }
+      }
+
+      function readStepFromEvent(event) {
+        try {
+          var detail = event && event.detail ? event.detail : {};
+          var candidates = [
+            detail.currentStep,
+            detail.current_step,
+            detail.step,
+            detail.stepIndex,
+            detail.step_index,
+            detail.targetStep,
+            detail.target_step,
+            detail.nextStep,
+            detail.next_step,
+            detail.index
+          ];
+
+          for (var index = 0; index < candidates.length; index += 1) {
+            var parsed = parseInteger(candidates[index], 0);
+
+            if (parsed > 0) {
+              return parsed;
+            }
+          }
+
+          return 0;
+        } catch (error) {
+          return 0;
+        }
+      }
+
+      function bindExternalEvents() {
+        try {
+          var eventNames = [
+            "vectoplan:create:step-changed",
+            "vectoplan:create:wizard-step-changed",
+            "vectoplan:create:current-step-changed"
+          ];
+
+          eventNames.forEach(function (eventName) {
+            document.addEventListener(eventName, function (event) {
+              try {
+                if (!event || !event.detail) {
+                  return;
+                }
+
+                var nextStep = readStepFromEvent(event);
+
+                if (nextStep > 0) {
+                  updateNav(nextStep, {
+                    skipFallbackPanels: true,
+                    skipFallbackStepper: !!event.detail.skipStepperUpdate,
+                    source: eventName,
+                    silent: eventName === "vectoplan:create:step-changed"
+                  });
+                }
+              } catch (error) {
+                warn("External step change update failed.", error);
+              }
+            });
+          });
+
+          document.addEventListener("vectoplan:create:stepper-step-requested", function (event) {
+            try {
+              if (!event || !event.detail) {
+                return;
+              }
+
+              var nextStep = readStepFromEvent(event);
+
+              if (nextStep > 0 && !event.detail.locked) {
+                requestStep(nextStep, "stepper");
+              }
+            } catch (error) {
+              warn("Stepper request handling failed.", error);
+            }
+          });
+        } catch (error) {
+          warn("External event binding failed.", error);
+        }
+      }
+
+      function exposeApi() {
+        try {
+          var previousApi = window.VectoplanCreateWizardNav || {};
+
+          window.VectoplanCreateWizardNav = Object.assign({}, previousApi, {
+            component: COMPONENT_NAME,
+            version: COMPONENT_VERSION,
+            root: nav,
+            getState: function () {
+              return {
+                ready: nav.getAttribute("data-vp-wizard-nav-ready") === "true",
+                currentStep: currentStep,
+                minStep: minStep,
+                maxStep: maxStep,
+                stepCount: maxStep,
+                maxReachedStep: maxReachedStep,
+                meta: getStepMeta(currentStep),
+                steps: steps
+              };
+            },
+            update: function (stepIndex, options) {
+              updateNav(stepIndex, options || {});
+            },
+            requestStep: function (stepIndex) {
+              requestStep(stepIndex, "public-api");
+            },
+            next: function () {
+              requestStep(currentStep + 1, "public-api-next");
+            },
+            previous: function () {
+              requestStep(currentStep - 1, "public-api-previous");
+            },
+            goToStep: function (stepIndex) {
+              requestStep(stepIndex, "public-api-go-to-step");
+            }
+          });
+        } catch (error) {
+          warn("Public API exposure failed.", error);
+        }
+      }
+
+      function dispatch(node, eventName, detail, cancelable) {
+        try {
+          if (!node || !eventName) {
+            return null;
+          }
+
+          var event = new CustomEvent(eventName, {
+            bubbles: true,
+            cancelable: !!cancelable,
+            detail: detail || {}
+          });
+
+          node.dispatchEvent(event);
+          return event;
+        } catch (error) {
+          warn("Event dispatch failed: " + eventName, error);
+          return null;
+        }
+      }
+
+      function warn(message, error) {
+        try {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
+          }
+        } catch (consoleError) {
+          /* no-op */
+        }
+      }
+    } catch (error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Wizard Nav] Defensive initialization failed.", error);
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+  })();
+</script>

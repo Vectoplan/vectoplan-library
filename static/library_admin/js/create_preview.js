@@ -5,21 +5,25 @@
 
   Zweck:
   - Eigenständige Preview-/Kontext-Schicht für /create.
-  - Entlastet die bisher zu große create.js.
-  - Steuert Taxonomie-Filterung, Taxonomiepfad, Object-Kind-Regeln,
-    Geometrie-Zusammenfassungen und CSS-/HTML-Preview.
-  - Synchronisiert Domain, Kategorie, Subkategorie und Objektart in den
-    Variant Workspace, ohne Wizard-Schritte automatisch weiterzuschalten.
+  - Entlastet create.js.
+  - Steuert Taxonomie-Filterung, Taxonomiepfad, technische Kontextregeln,
+    Geometrie-Zusammenfassungen und Context-Sync.
+  - Hält die rechte Preview bewusst leer: keine sichtbaren Preview-Texte,
+    keine Statusmeldungen, keine Metriken, keine Placeholder-Kopien.
+  - Synchronisiert Domain, Kategorie, Unterkategorie und technische Objektart in
+    den Variant Workspace, ohne Wizard-Schritte automatisch weiterzuschalten.
   - Löst keine Navigation aus.
   - Erzeugt keine VPLIB-Dateien im Browser.
+  - Liest keine Upload-Dateien und erzeugt keine Objekt-URLs.
 
   Abhängigkeit:
-  - Muss nach create_core.js geladen werden.
-  - Erwartet window.VectoplanCreateCore.
+  - Sollte nach create_core.js geladen werden.
+  - Erwartet bevorzugt window.VectoplanCreateCore.
   - Nutzt optional:
     - window.VectoplanCreateVariantProfiles
     - window.VectoplanCreateVariantState
-    - window.VectoplanCreatePreviewRenderer
+    - window.VectoplanCreatePreviewRenderer, aber nur bei explizit aktiviertem
+      data-vp-preview-render-enabled="true"
 
   Öffentliche API:
   - window.VectoplanCreatePreview.initialize()
@@ -29,6 +33,7 @@
   - window.VectoplanCreatePreview.applyTaxonomyFiltering()
   - window.VectoplanCreatePreview.applyObjectKindRules()
   - window.VectoplanCreatePreview.updateTaxonomyPath()
+  - window.VectoplanCreatePreview.clearVisiblePreviewText()
   - window.VectoplanCreatePreview.getContext()
   - window.VectoplanCreatePreview.getState()
 ----------------------------------------------------------------------------- */
@@ -38,7 +43,7 @@
 
   var GLOBAL_NAME = "VectoplanCreatePreview";
   var MODULE_NAME = "preview";
-  var PREVIEW_VERSION = "0.4.0";
+  var PREVIEW_VERSION = "0.6.0";
   var CORE_NAME = "VectoplanCreateCore";
   var BOOT_RETRY_MS = 40;
   var BOOT_MAX_ATTEMPTS = 80;
@@ -50,7 +55,7 @@
     taxonomyPathCanonical: "[data-vp-taxonomy-path-canonical]",
     taxonomyPathLabel: "[data-vp-taxonomy-path-label]",
 
-    variantWorkspace: "[data-vp-variant-workspace], [data-create-variant-workspace='true']",
+    variantWorkspace: "[data-vp-variant-workspace], [data-vp-variant-workspace-root='true'], [data-create-variant-workspace='true']",
     variantDrawer: "[data-vp-variant-drawer], [data-vp-variant-drawer-root], .vp-create-variant-drawer",
 
     familyName: "[name='family_name'], [data-create-field='family_name']",
@@ -66,7 +71,70 @@
     contextObjectKindTargets: "[data-vp-current-object-kind]",
 
     hiddenFamilyProfileId: "input[name='family_profile_id']",
-    hiddenVariantProfileId: "input[name='variant_profile_id']"
+    hiddenVariantProfileId: "input[name='variant_profile_id']",
+
+    uploadCountLabels: "[data-vp-upload-count-label]",
+    geometryUploadSummary: "[data-vp-geometry-upload-summary]",
+
+    previewRoot: "[data-vp-create-preview], [data-create-preview-placeholder='true']",
+    previewClearText: [
+      "[data-vp-preview-family]",
+      "[data-create-preview-family='true']",
+      "[data-vp-preview-taxonomy]",
+      "[data-create-preview-taxonomy='true']",
+      "[data-vp-preview-path]",
+      "[data-create-preview-path='true']",
+      "[data-vp-preview-shape]",
+      "[data-create-preview-shape='true']",
+      "[data-vp-preview-object-kind]",
+      "[data-create-preview-object-kind='true']",
+      "[data-vp-preview-dimensions]",
+      "[data-create-preview-dimensions='true']",
+      "[data-vp-preview-cells]",
+      "[data-create-preview-cells='true']",
+      "[data-vp-preview-status]",
+      "[data-create-preview-status='true']",
+      "[data-vp-preview-metric]",
+      "[data-vp-preview-label]",
+      "[data-vp-preview-copy]",
+      "[data-vp-preview-placeholder-text]",
+      "[data-create-preview-placeholder-text='true']"
+    ].join(",")
+  };
+
+  var FALLBACK_SELECTORS = {
+    form: "[data-vp-create-form], [data-create-form='true'], #vp-create-form, form[data-create-form]",
+    domainSelect: "[data-create-taxonomy-select='domain'], [name='domain'], [data-vp-taxonomy-domain]",
+    categorySelect: "[data-create-taxonomy-select='category'], [name='category'], [data-vp-taxonomy-category]",
+    subcategorySelect: "[data-create-taxonomy-select='subcategory'], [name='subcategory'], [data-vp-taxonomy-subcategory]",
+    taxonomyPathDomain: "[data-vp-taxonomy-path-domain]",
+    taxonomyPathCategory: "[data-vp-taxonomy-path-category]",
+    taxonomyPathFamily: "[data-vp-taxonomy-path-family]",
+    taxonomyLegacyPath: "[data-create-taxonomy-path-value='true']",
+    objectKindSelect: "[data-create-object-kind='true'], [name='object_kind']",
+    objectKindNote: "[data-create-object-kind-note='true'], [data-vp-object-kind-note]",
+    objectKindNoteLabel: "[data-create-object-kind-note-label='true']",
+    objectKindNoteText: "[data-create-object-kind-note-text='true']",
+    primitiveShapeSelect: "[data-create-field='primitive_shape'], [name='primitive_shape']",
+    geometryUnit: "[data-create-field='geometry_unit'], [name='geometry_unit']",
+    geometryWidth: "[data-create-field='geometry_width'], [name='geometry_width']",
+    geometryHeight: "[data-create-field='geometry_height'], [name='geometry_height']",
+    geometryDepth: "[data-create-field='geometry_depth'], [name='geometry_depth']",
+    editorCellsX: "[data-create-field='editor_cells_x'], [name='editor_cells_x']",
+    editorCellsY: "[data-create-field='editor_cells_y'], [name='editor_cells_y']",
+    editorCellsZ: "[data-create-field='editor_cells_z'], [name='editor_cells_z']",
+    previewPlaceholder: "[data-vp-create-preview], [data-create-preview-placeholder='true']",
+    previewCube: "[data-vp-preview-primitive], [data-create-preview-cube='true']",
+    previewShape: "[data-vp-preview-shape], [data-create-preview-shape='true']",
+    previewObjectKind: "[data-vp-preview-object-kind], [data-create-preview-object-kind='true']",
+    previewDimensions: "[data-vp-preview-dimensions], [data-create-preview-dimensions='true']",
+    previewCells: "[data-vp-preview-cells], [data-create-preview-cells='true']",
+    geometryVisibleSummary: "[data-vp-geometry-visible-summary], [data-create-geometry-visible-summary='true']",
+    geometryCellsSummary: "[data-vp-geometry-cells-summary], [data-create-geometry-cells-summary='true']",
+    variantRow: "[data-vp-variant-row='true'], [data-create-variant-row='true']",
+    variableRow: "[data-create-variable-row='true'], [data-vp-variable-row]",
+    variantCountLabel: "[data-vp-variant-count-label]",
+    variableCountLabel: "[data-vp-variable-count-label]"
   };
 
   var OBJECT_KIND_CELL_LOCKED = {
@@ -92,15 +160,15 @@
   var OBJECT_KIND_LABELS = {
     cell_block: "Raster-Bauteil",
     multi_cell_module: "Mehrblock-Modul",
-    catalog_object: "Katalogobjekt",
+    catalog_object: "Katalogelement",
     adaptive_system: "Adaptives System"
   };
 
   var OBJECT_KIND_HINTS = {
-    cell_block: "Ein einzelner Raster- oder Blockbaustein. Das Editor-Raster wird auf 1 × 1 × 1 fixiert.",
-    adaptive_system: "Ein kontextabhängiges System. Rasterbedarf 1 × 1 × 1; dynamische Regeln bleiben deklarativ vorbereitet.",
-    multi_cell_module: "Ein Modul, das mehrere Rasterzellen belegen kann.",
-    catalog_object: "Ein freies Objekt wie Möbel, Armatur, Gerät oder Ausstattung."
+    cell_block: "Rasterbedarf wird technisch auf 1 × 1 × 1 fixiert.",
+    adaptive_system: "Rasterbedarf 1 × 1 × 1; dynamische Regeln bleiben deklarativ vorbereitet.",
+    multi_cell_module: "Mehrere Rasterzellen möglich.",
+    catalog_object: "Freies Katalogelement."
   };
 
   var core = null;
@@ -117,6 +185,7 @@
     taxonomyUpdateCount: 0,
     objectKindUpdateCount: 0,
     contextSyncCount: 0,
+    previewClearCount: 0,
     lastContext: null,
     lastPreview: null,
     lastTaxonomyPath: "",
@@ -137,8 +206,8 @@
           return;
         }
 
-        fallbackWarn("Core runtime missing; preview runtime not initialized.");
-        return;
+        fallbackWarn("Core runtime missing; initializing preview with fallback core.");
+        maybeCore = buildFallbackCore();
       }
 
       initialize(maybeCore);
@@ -153,14 +222,14 @@
         return api;
       }
 
-      core = coreRuntime || window[CORE_NAME];
+      core = coreRuntime || window[CORE_NAME] || buildFallbackCore();
 
       if (!core) {
-        fallbackWarn("Cannot initialize preview without create_core.js.");
+        fallbackWarn("Cannot initialize preview runtime.");
         return api;
       }
 
-      selectors = core.selectors || {};
+      selectors = Object.assign({}, FALLBACK_SELECTORS, core.selectors || {});
       classes = core.classes || {};
 
       if (typeof core.refreshContext === "function") {
@@ -180,10 +249,10 @@
         core.registerModule(MODULE_NAME, api);
       }
 
-      core.safeSetAttribute(document.documentElement, "data-vp-create-preview-ready", "true");
-      core.safeSetAttribute(document.documentElement, "data-vp-create-preview-version", PREVIEW_VERSION);
+      safeSetAttribute(document.documentElement, "data-vp-create-preview-ready", "true");
+      safeSetAttribute(document.documentElement, "data-vp-create-preview-version", PREVIEW_VERSION);
 
-      core.dispatch("vectoplan:create:preview-ready", getState());
+      safeDispatch("vectoplan:create:preview-ready", getState());
 
       return api;
     } catch (error) {
@@ -203,17 +272,10 @@
       bindingDone = true;
       localState.bindingDone = true;
 
-      if (core && typeof core.bindOnce === "function") {
-        core.bindOnce("create-preview-taxonomy-filtering", bindTaxonomyFiltering);
-        core.bindOnce("create-preview-object-kind-rules", bindObjectKindRules);
-        core.bindOnce("create-preview-form-updates", bindPreviewUpdates);
-        core.bindOnce("create-preview-context-events", bindContextEvents);
-      } else {
-        bindTaxonomyFiltering();
-        bindObjectKindRules();
-        bindPreviewUpdates();
-        bindContextEvents();
-      }
+      bindOnce("create-preview-taxonomy-filtering", bindTaxonomyFiltering);
+      bindOnce("create-preview-object-kind-rules", bindObjectKindRules);
+      bindOnce("create-preview-form-updates", bindPreviewUpdates);
+      bindOnce("create-preview-context-events", bindContextEvents);
     } catch (error) {
       safeError("Preview control binding failed.", error);
     }
@@ -227,12 +289,12 @@
         return;
       }
 
-      var domainSelect = core.qs(selectors.domainSelect, form);
-      var categorySelect = core.qs(selectors.categorySelect, form);
-      var subcategorySelect = core.qs(selectors.subcategorySelect, form);
+      var domainSelect = qs(selectorFor("domainSelect"), form);
+      var categorySelect = qs(selectorFor("categorySelect"), form);
+      var subcategorySelect = qs(selectorFor("subcategorySelect"), form);
 
       [domainSelect, categorySelect, subcategorySelect].forEach(function (select) {
-        if (!select) {
+        if (!select || select.getAttribute("data-vp-preview-taxonomy-bound") === "true") {
           return;
         }
 
@@ -257,6 +319,8 @@
             safeWarn("Taxonomy input handling failed.", error);
           }
         });
+
+        select.setAttribute("data-vp-preview-taxonomy-bound", "true");
       });
     } catch (error) {
       safeError("Taxonomy filtering binding failed.", error);
@@ -271,9 +335,9 @@
         return;
       }
 
-      var objectKindSelect = core.qs(selectors.objectKindSelect, form);
+      var objectKindSelect = qs(selectorFor("objectKindSelect"), form);
 
-      if (!objectKindSelect) {
+      if (!objectKindSelect || objectKindSelect.getAttribute("data-vp-preview-object-kind-bound") === "true") {
         return;
       }
 
@@ -298,6 +362,8 @@
           safeWarn("Object kind input handling failed.", error);
         }
       });
+
+      objectKindSelect.setAttribute("data-vp-preview-object-kind-bound", "true");
     } catch (error) {
       safeError("Object kind binding failed.", error);
     }
@@ -307,24 +373,25 @@
     try {
       var form = resolveForm();
 
-      if (!form) {
+      if (!form || form.getAttribute("data-vp-preview-form-bound") === "true") {
         return;
       }
 
       var previewSelector = [
-        selectors.objectKindSelect,
-        selectors.primitiveShapeSelect,
-        selectors.geometryUnit,
-        selectors.geometryWidth,
-        selectors.geometryHeight,
-        selectors.geometryDepth,
-        selectors.editorCellsX,
-        selectors.editorCellsY,
-        selectors.editorCellsZ,
+        selectorFor("objectKindSelect"),
+        selectorFor("primitiveShapeSelect"),
+        selectorFor("geometryUnit"),
+        selectorFor("geometryWidth"),
+        selectorFor("geometryHeight"),
+        selectorFor("geometryDepth"),
+        selectorFor("editorCellsX"),
+        selectorFor("editorCellsY"),
+        selectorFor("editorCellsZ"),
         EXTRA_SELECTORS.familyName,
         EXTRA_SELECTORS.familySlug,
-        "[data-create-preview-source]"
-      ].join(",");
+        "[data-create-preview-source]",
+        "[data-vp-upload-input]"
+      ].filter(Boolean).join(",");
 
       form.addEventListener("input", function (event) {
         try {
@@ -351,7 +418,7 @@
             updateVariantCount(form);
           }
 
-          if (target.matches(selectors.variableRow + " input, " + selectors.variableRow + " select, " + selectors.variableRow + " textarea")) {
+          if (target.matches(selectorFor("variableRow") + " input, " + selectorFor("variableRow") + " select, " + selectorFor("variableRow") + " textarea")) {
             updateVariableCount(form);
           }
         } catch (inputError) {
@@ -368,7 +435,7 @@
           }
 
           if (target.matches(previewSelector)) {
-            if (target.matches(selectors.objectKindSelect)) {
+            if (target.matches(selectorFor("objectKindSelect"))) {
               applyObjectKindRules(form, {
                 source: "preview-change-object-kind",
                 animate: false
@@ -376,9 +443,9 @@
             }
 
             if (
-              target.matches(selectors.domainSelect) ||
-              target.matches(selectors.categorySelect) ||
-              target.matches(selectors.subcategorySelect)
+              target.matches(selectorFor("domainSelect")) ||
+              target.matches(selectorFor("categorySelect")) ||
+              target.matches(selectorFor("subcategorySelect"))
             ) {
               applyTaxonomyFiltering(form, {
                 source: "preview-change-taxonomy",
@@ -396,13 +463,15 @@
             updateVariantCount(form);
           }
 
-          if (target.matches(selectors.variableRow + " input, " + selectors.variableRow + " select, " + selectors.variableRow + " textarea")) {
+          if (target.matches(selectorFor("variableRow") + " input, " + selectorFor("variableRow") + " select, " + selectorFor("variableRow") + " textarea")) {
             updateVariableCount(form);
           }
         } catch (changeError) {
           safeWarn("Preview change update failed.", changeError);
         }
       });
+
+      form.setAttribute("data-vp-preview-form-bound", "true");
     } catch (error) {
       safeError("Preview update binding failed.", error);
     }
@@ -410,24 +479,25 @@
 
   function bindContextEvents() {
     try {
-      document.addEventListener("vectoplan:create:payload-ready", function () {
-        try {
-          syncContextToVariantWorkspace({
-            source: "payload-ready"
-          });
-        } catch (error) {
-          safeWarn("Payload-ready context sync failed.", error);
-        }
-      });
-
-      document.addEventListener("vectoplan:create:variant-state-ready", function () {
-        try {
-          syncContextToVariantWorkspace({
-            source: "variant-state-ready"
-          });
-        } catch (error) {
-          safeWarn("Variant-state-ready context sync failed.", error);
-        }
+      [
+        "vectoplan:create:payload-ready",
+        "vectoplan:create:payload-collected",
+        "vectoplan:create:variant-state-ready",
+        "vectoplan:create:variant-state-changed",
+        "vectoplan:create:variant-state-synced",
+        "vectoplan:create:uploads-runtime-ready",
+        "vectoplan:create:upload-changed",
+        "vectoplan:create:upload-cleared"
+      ].forEach(function (eventName) {
+        document.addEventListener(eventName, function () {
+          try {
+            syncContextToVariantWorkspace({
+              source: eventName
+            });
+          } catch (error) {
+            safeWarn("Context sync event failed: " + eventName, error);
+          }
+        });
       });
 
       document.addEventListener("vectoplan:create:wizard-ui-updated", function () {
@@ -438,6 +508,17 @@
           });
         } catch (error) {
           safeWarn("Wizard preview refresh failed.", error);
+        }
+      });
+
+      document.addEventListener("vectoplan:create:core-context-refreshed", function () {
+        try {
+          refresh({
+            source: "core-context-refreshed",
+            animate: false
+          });
+        } catch (error) {
+          safeWarn("Core context refresh preview failed.", error);
         }
       });
     } catch (error) {
@@ -468,6 +549,7 @@
 
       updateVariantCount(form);
       updateVariableCount(form);
+      updateUploadSummaries(form);
 
       updatePreview(form, {
         source: safeOptions.source || "refresh",
@@ -493,9 +575,9 @@
       }
 
       var safeOptions = options || {};
-      var domainSelect = core.qs(selectors.domainSelect, safeForm);
-      var categorySelect = core.qs(selectors.categorySelect, safeForm);
-      var subcategorySelect = core.qs(selectors.subcategorySelect, safeForm);
+      var domainSelect = qs(selectorFor("domainSelect"), safeForm);
+      var categorySelect = qs(selectorFor("categorySelect"), safeForm);
+      var subcategorySelect = qs(selectorFor("subcategorySelect"), safeForm);
 
       var selectedDomain = domainSelect ? domainSelect.value : "";
       var selectedCategory = categorySelect ? categorySelect.value : "";
@@ -526,7 +608,7 @@
 
       localState.taxonomyUpdateCount += 1;
 
-      core.dispatch("vectoplan:create:taxonomy-changed", {
+      safeDispatch("vectoplan:create:taxonomy-changed", {
         context: getContext(safeForm),
         source: safeOptions.source || "taxonomy-filter"
       });
@@ -552,6 +634,7 @@
         return false;
       }
 
+      var normalizedExpected = String(expectedValue || "").trim();
       var options = Array.prototype.slice.call(select.options || []);
 
       options.forEach(function (option) {
@@ -560,9 +643,12 @@
             return;
           }
 
-          var optionValue = option.getAttribute("data-" + dataKey) || "";
+          var optionValue = option.getAttribute("data-" + dataKey) ||
+            option.getAttribute("data-vp-parent-" + dataKey) ||
+            option.getAttribute("data-" + dataKey + "-slug") ||
+            "";
 
-          if (!expectedValue || !optionValue || optionValue === expectedValue) {
+          if (!normalizedExpected || !optionValue || optionValue === normalizedExpected) {
             option.hidden = false;
             option.disabled = false;
           } else {
@@ -600,7 +686,7 @@
 
       if (firstEnabled) {
         select.value = firstEnabled.value;
-        core.dispatchNativeEvent(select, "change");
+        dispatchNativeEvent(select, "change");
         return true;
       }
 
@@ -616,8 +702,8 @@
     try {
       var safeForm = resolveForm(form);
       var context = getContext(safeForm);
-      var familyName = core.getFieldValue(safeForm, "family_name") || core.getFieldValue(safeForm, "family_slug") || "family_slug";
-      var familySlug = core.slugify(core.getFieldValue(safeForm, "family_slug") || familyName) || "family_slug";
+      var familyName = getFieldValue(safeForm, "family_name") || getFieldValue(safeForm, "family_slug") || "family_slug";
+      var familySlug = slugify(getFieldValue(safeForm, "family_slug") || familyName) || "family_slug";
       var sourceRoot = getSourceRoot();
 
       var canonicalPath = sourceRoot + "/" +
@@ -633,22 +719,19 @@
 
       var visibleLabel = context.domain + " / " + context.category + " / " + context.subcategory + " / " + familySlug;
 
-      core.setText(selectors.taxonomyPathDomain, context.domain);
-      core.setText(selectors.taxonomyPathCategory, context.category);
-      core.setText(EXTRA_SELECTORS.taxonomyPathSubcategory, context.subcategory);
-      core.setText(selectors.taxonomyPathFamily, familySlug);
+      setText(selectorFor("taxonomyPathDomain"), context.domain);
+      setText(selectorFor("taxonomyPathCategory"), context.category);
+      setText(EXTRA_SELECTORS.taxonomyPathSubcategory, context.subcategory);
+      setText(selectorFor("taxonomyPathFamily"), familySlug);
 
-      core.setText(selectors.taxonomyLegacyPath, canonicalPath);
-      core.setText(EXTRA_SELECTORS.taxonomyPathFull, canonicalPath);
-      core.setText(EXTRA_SELECTORS.taxonomyPathCanonical, canonicalPath);
-      core.setText(EXTRA_SELECTORS.taxonomyPathLabel, visibleLabel);
-      core.setText(EXTRA_SELECTORS.previewPath, canonicalPath);
-      core.setText(EXTRA_SELECTORS.previewTaxonomy, visibleLabel);
-      core.setText(EXTRA_SELECTORS.previewFamily, familyName || familySlug);
+      setText(selectorFor("taxonomyLegacyPath"), canonicalPath);
+      setText(EXTRA_SELECTORS.taxonomyPathFull, canonicalPath);
+      setText(EXTRA_SELECTORS.taxonomyPathCanonical, canonicalPath);
+      setText(EXTRA_SELECTORS.taxonomyPathLabel, visibleLabel);
 
       localState.lastTaxonomyPath = canonicalPath;
 
-      core.dispatch("vectoplan:create:taxonomy-path-updated", {
+      safeDispatch("vectoplan:create:taxonomy-path-updated", {
         source: options && options.source ? options.source : "api",
         context: context,
         familySlug: familySlug,
@@ -667,10 +750,11 @@
 
   function getSourceRoot() {
     try {
-      var fromContext = core.getNested(core.state.context, ["source_root"], "") ||
-        core.getNested(core.state.context, ["sourceRoot"], "") ||
-        core.getNested(core.state.context, ["library", "source_root"], "") ||
-        core.getNested(core.state.context, ["library", "sourceRoot"], "");
+      var coreState = core && core.state ? core.state : {};
+      var fromContext = getNested(coreState.context, ["source_root"], "") ||
+        getNested(coreState.context, ["sourceRoot"], "") ||
+        getNested(coreState.context, ["library", "source_root"], "") ||
+        getNested(coreState.context, ["library", "sourceRoot"], "");
 
       return String(fromContext || "src/library/source").replace(/\/+$/, "");
     } catch (error) {
@@ -689,16 +773,16 @@
       }
 
       var safeOptions = options || {};
-      var objectKindSelect = core.qs(selectors.objectKindSelect, safeForm);
-      var cellsX = core.qs(selectors.editorCellsX, safeForm);
-      var cellsY = core.qs(selectors.editorCellsY, safeForm);
-      var cellsZ = core.qs(selectors.editorCellsZ, safeForm);
+      var objectKindSelect = qs(selectorFor("objectKindSelect"), safeForm);
+      var cellsX = qs(selectorFor("editorCellsX"), safeForm);
+      var cellsY = qs(selectorFor("editorCellsY"), safeForm);
+      var cellsZ = qs(selectorFor("editorCellsZ"), safeForm);
 
       if (!objectKindSelect) {
         return false;
       }
 
-      var objectKind = core.normalizeToken(objectKindSelect.value || "cell_block", "cell_block");
+      var objectKind = normalizeToken(objectKindSelect.value || "cell_block", "cell_block");
       var locked = !!OBJECT_KIND_CELL_LOCKED[objectKind];
 
       [cellsX, cellsY, cellsZ].forEach(function (input) {
@@ -720,7 +804,7 @@
             input.removeAttribute("data-create-grid-locked");
           }
         } catch (inputError) {
-          safeWarn("Object kind cell input update skipped.", inputError);
+          safeWarn("Technical context cell input update skipped.", inputError);
         }
       });
 
@@ -735,7 +819,7 @@
 
       localState.objectKindUpdateCount += 1;
 
-      core.dispatch("vectoplan:create:object-kind-changed", {
+      safeDispatch("vectoplan:create:object-kind-changed", {
         context: getContext(safeForm),
         objectKind: objectKind,
         lockedCells: locked,
@@ -757,17 +841,29 @@
 
   function updateObjectKindNote(form, objectKind, locked) {
     try {
-      var note = core.qs(selectors.objectKindNote);
-      var labelNode = core.qs(selectors.objectKindNoteLabel);
-      var textNode = core.qs(selectors.objectKindNoteText);
+      var note = qs(selectorFor("objectKindNote"));
+      var labelNode = qs(selectorFor("objectKindNoteLabel"));
+      var textNode = qs(selectorFor("objectKindNoteText"));
 
-      if (!note || !labelNode || !textNode) {
+      if (!note) {
         return false;
       }
 
-      var label = core.selectedOptionLabel(core.qs(selectors.objectKindSelect, form), objectKind) || objectKindLabelFallback(objectKind);
-      var hint = OBJECT_KIND_HINTS[objectKind] || "Objektart für dieses Library-Element.";
+      if (note.getAttribute("data-vp-show-object-kind-note") !== "true") {
+        note.hidden = true;
+        note.setAttribute("aria-hidden", "true");
+        return true;
+      }
 
+      if (!labelNode || !textNode) {
+        return false;
+      }
+
+      var label = selectedOptionLabel(qs(selectorFor("objectKindSelect"), form), objectKind) || objectKindLabelFallback(objectKind);
+      var hint = OBJECT_KIND_HINTS[objectKind] || "Technischer Kontext für dieses Library-Element.";
+
+      note.hidden = false;
+      note.setAttribute("aria-hidden", "false");
       note.setAttribute("data-create-object-kind-note-value", objectKind || "");
       note.setAttribute("data-create-object-kind-locks-cells", locked ? "true" : "false");
       labelNode.textContent = label;
@@ -775,7 +871,7 @@
 
       return true;
     } catch (error) {
-      safeWarn("Object kind note update failed.", error);
+      safeWarn("Technical context note update failed.", error);
       return false;
     }
   }
@@ -804,106 +900,87 @@
 
       var safeForm = resolveForm(form);
       var safeOptions = options || {};
-      var placeholder = core.qs(selectors.previewPlaceholder);
+      var placeholder = qs(selectorFor("previewPlaceholder")) || qs(EXTRA_SELECTORS.previewRoot);
 
       if (!safeForm) {
-        return false;
-      }
-
-      if (window.VectoplanCreatePreviewRenderer && typeof window.VectoplanCreatePreviewRenderer.update === "function") {
-        try {
-          window.VectoplanCreatePreviewRenderer.update({
-            form: safeForm,
-            context: getContext(safeForm),
-            source: safeOptions.source || "preview-runtime"
-          });
-
-          updateGeometrySummariesFromForm(safeForm);
-          updatePreviewTextFromForm(safeForm);
-
-          if (placeholder && safeOptions.animate) {
-            core.flashUpdated(placeholder);
-          }
-
-          return true;
-        } catch (rendererError) {
-          safeWarn("External preview renderer failed; using fallback preview.", rendererError);
-        }
-      }
-
-      if (!placeholder) {
-        updateGeometrySummariesFromForm(safeForm);
+        clearVisiblePreviewText(placeholder || document);
         return false;
       }
 
       var context = getContext(safeForm);
       var objectKind = context.object_kind;
-      var shape = core.normalizeToken(core.getFieldValue(safeForm, "primitive_shape") || "block", "block");
-      var width = core.normalizeDecimalDisplay(core.getFieldValue(safeForm, "geometry_width") || "1.00");
-      var height = core.normalizeDecimalDisplay(core.getFieldValue(safeForm, "geometry_height") || "1.00");
-      var depth = core.normalizeDecimalDisplay(core.getFieldValue(safeForm, "geometry_depth") || "1.00");
-      var unit = core.getFieldValue(safeForm, "geometry_unit") || "m";
-      var cellsX = core.normalizeIntDisplay(core.getFieldValue(safeForm, "editor_cells_x") || "1");
-      var cellsY = core.normalizeIntDisplay(core.getFieldValue(safeForm, "editor_cells_y") || "1");
-      var cellsZ = core.normalizeIntDisplay(core.getFieldValue(safeForm, "editor_cells_z") || "1");
+      var shape = normalizeToken(getFieldValue(safeForm, "primitive_shape") || "block", "block");
+      var width = normalizeDecimalDisplay(getFieldValue(safeForm, "geometry_width") || "1.00");
+      var height = normalizeDecimalDisplay(getFieldValue(safeForm, "geometry_height") || "1.00");
+      var depth = normalizeDecimalDisplay(getFieldValue(safeForm, "geometry_depth") || "1.00");
+      var unit = getFieldValue(safeForm, "geometry_unit") || "m";
+      var cellsX = normalizeIntDisplay(getFieldValue(safeForm, "editor_cells_x") || "1");
+      var cellsY = normalizeIntDisplay(getFieldValue(safeForm, "editor_cells_y") || "1");
+      var cellsZ = normalizeIntDisplay(getFieldValue(safeForm, "editor_cells_z") || "1");
 
-      var shapeSelect = core.qs(selectors.primitiveShapeSelect, safeForm);
-      var objectKindSelect = core.qs(selectors.objectKindSelect, safeForm);
-
-      var shapeLabel = core.selectedOptionLabel(shapeSelect, shape) || shapeLabelFallback(shape);
-      var objectKindLabel = core.selectedOptionLabel(objectKindSelect, objectKind) || objectKindLabelFallback(objectKind);
-
-      var dimensionsText = width + " × " + height + " × " + depth + " " + unit;
-      var cellsText = cellsX + " × " + cellsY + " × " + cellsZ;
-
-      placeholder.setAttribute("data-create-preview-primitive-shape", shape);
-      placeholder.setAttribute("data-create-preview-object-kind-value", objectKind);
-      placeholder.setAttribute("data-create-preview-unit-value", unit);
-      placeholder.setAttribute("data-create-preview-width-value", width);
-      placeholder.setAttribute("data-create-preview-height-value", height);
-      placeholder.setAttribute("data-create-preview-depth-value", depth);
-      placeholder.setAttribute("data-create-preview-cells-x-value", cellsX);
-      placeholder.setAttribute("data-create-preview-cells-y-value", cellsY);
-      placeholder.setAttribute("data-create-preview-cells-z-value", cellsZ);
-      placeholder.setAttribute("data-vp-preview-domain", context.domain);
-      placeholder.setAttribute("data-vp-preview-category", context.category);
-      placeholder.setAttribute("data-vp-preview-subcategory", context.subcategory);
-
-      setPreviewCssVariables(placeholder, {
-        width: width,
-        height: height,
-        depth: depth,
-        cellsX: cellsX,
-        cellsY: cellsY,
-        cellsZ: cellsZ
-      });
-
-      core.setText(selectors.previewShape, shapeLabel);
-      core.setText(selectors.previewObjectKind, objectKindLabel);
-      core.setText(selectors.previewDimensions, dimensionsText);
-      core.setText(selectors.previewCells, cellsText);
-
-      updatePreviewTextFromForm(safeForm);
-      updatePreviewCube(shape, safeOptions.animate);
       updateGeometrySummaries(width, height, depth, unit, cellsX, cellsY, cellsZ);
+      updateUploadSummaries(safeForm);
 
-      if (safeOptions.animate) {
-        core.flashUpdated(placeholder);
+      if (placeholder) {
+        placeholder.setAttribute("data-vp-preview-mode", "empty-dev");
+        placeholder.setAttribute("data-create-preview-primitive-shape", shape);
+        placeholder.setAttribute("data-create-preview-object-kind-value", objectKind);
+        placeholder.setAttribute("data-create-preview-unit-value", unit);
+        placeholder.setAttribute("data-create-preview-width-value", width);
+        placeholder.setAttribute("data-create-preview-height-value", height);
+        placeholder.setAttribute("data-create-preview-depth-value", depth);
+        placeholder.setAttribute("data-create-preview-cells-x-value", cellsX);
+        placeholder.setAttribute("data-create-preview-cells-y-value", cellsY);
+        placeholder.setAttribute("data-create-preview-cells-z-value", cellsZ);
+        placeholder.setAttribute("data-vp-preview-domain", context.domain);
+        placeholder.setAttribute("data-vp-preview-category", context.category);
+        placeholder.setAttribute("data-vp-preview-subcategory", context.subcategory);
+        placeholder.setAttribute("data-vp-preview-empty", "true");
+
+        setPreviewCssVariables(placeholder, {
+          width: width,
+          height: height,
+          depth: depth,
+          cellsX: cellsX,
+          cellsY: cellsY,
+          cellsZ: cellsZ
+        });
+
+        clearVisiblePreviewText(placeholder);
+      } else {
+        clearVisiblePreviewText(document);
+      }
+
+      if (isVisualPreviewEnabled(placeholder)) {
+        updateVisualPreview(safeForm, placeholder, {
+          context: context,
+          objectKind: objectKind,
+          shape: shape,
+          width: width,
+          height: height,
+          depth: depth,
+          unit: unit,
+          cellsX: cellsX,
+          cellsY: cellsY,
+          cellsZ: cellsZ,
+          source: safeOptions.source || "api",
+          animate: !!safeOptions.animate
+        });
       }
 
       localState.updateCount += 1;
       localState.lastContext = context;
       localState.lastPreview = {
+        mode: "empty-dev",
         objectKind: objectKind,
         shape: shape,
-        shapeLabel: shapeLabel,
-        objectKindLabel: objectKindLabel,
-        dimensionsText: dimensionsText,
-        cellsText: cellsText,
+        dimensionsText: width + " × " + height + " × " + depth + " " + unit,
+        cellsText: cellsX + " × " + cellsY + " × " + cellsZ,
+        visualEnabled: isVisualPreviewEnabled(placeholder),
         timestamp: timestamp()
       };
 
-      core.dispatch("vectoplan:create:preview-updated", {
+      safeDispatch("vectoplan:create:preview-updated", {
         context: context,
         preview: localState.lastPreview,
         source: safeOptions.source || "api"
@@ -913,24 +990,117 @@
     } catch (error) {
       localState.lastError = normalizeError(error);
       safeError("Preview update failed.", error);
+      clearVisiblePreviewText();
+      return false;
+    }
+  }
+
+  function updateVisualPreview(form, placeholder, data) {
+    try {
+      var safeForm = resolveForm(form);
+      var safeData = data || {};
+      var shapeSelect = qs(selectorFor("primitiveShapeSelect"), safeForm);
+      var objectKindSelect = qs(selectorFor("objectKindSelect"), safeForm);
+      var shapeLabel = selectedOptionLabel(shapeSelect, safeData.shape) || shapeLabelFallback(safeData.shape);
+      var objectKindLabel = selectedOptionLabel(objectKindSelect, safeData.objectKind) || objectKindLabelFallback(safeData.objectKind);
+      var dimensionsText = safeData.width + " × " + safeData.height + " × " + safeData.depth + " " + safeData.unit;
+      var cellsText = safeData.cellsX + " × " + safeData.cellsY + " × " + safeData.cellsZ;
+
+      if (window.VectoplanCreatePreviewRenderer && typeof window.VectoplanCreatePreviewRenderer.update === "function") {
+        window.VectoplanCreatePreviewRenderer.update({
+          form: safeForm,
+          context: safeData.context || getContext(safeForm),
+          source: safeData.source || "preview-runtime"
+        });
+      }
+
+      setTextInRoot(placeholder, selectorFor("previewShape"), shapeLabel);
+      setTextInRoot(placeholder, selectorFor("previewObjectKind"), objectKindLabel);
+      setTextInRoot(placeholder, selectorFor("previewDimensions"), dimensionsText);
+      setTextInRoot(placeholder, selectorFor("previewCells"), cellsText);
+
+      updatePreviewCube(safeData.shape, safeData.animate);
+
+      if (safeData.animate && placeholder && typeof flashUpdated === "function") {
+        flashUpdated(placeholder);
+      }
+
+      return true;
+    } catch (error) {
+      safeWarn("Visual preview update failed.", error);
+      clearVisiblePreviewText(placeholder);
+      return false;
+    }
+  }
+
+  function isVisualPreviewEnabled(placeholder) {
+    try {
+      if (!placeholder) {
+        return false;
+      }
+
+      return toBoolean(
+        placeholder.getAttribute("data-vp-preview-render-enabled") ||
+        placeholder.getAttribute("data-create-preview-render-enabled") ||
+        "",
+        false
+      );
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function clearVisiblePreviewText(root) {
+    try {
+      var scope = root || qs(selectorFor("previewPlaceholder")) || qs(EXTRA_SELECTORS.previewRoot) || document;
+      var nodes = qsa(EXTRA_SELECTORS.previewClearText, scope);
+
+      nodes.forEach(function (node) {
+        try {
+          node.textContent = "";
+          node.setAttribute("data-vp-preview-text-cleared", "true");
+        } catch (nodeError) {
+          safeWarn("Preview text clear skipped.", nodeError);
+        }
+      });
+
+      if (scope && scope.nodeType === 1) {
+        scope.setAttribute("data-vp-preview-visible-text-cleared", "true");
+      }
+
+      localState.previewClearCount += 1;
+
+      return true;
+    } catch (error) {
+      safeWarn("Preview text cleanup failed.", error);
       return false;
     }
   }
 
   function updatePreviewTextFromForm(form) {
     try {
+      var placeholder = qs(selectorFor("previewPlaceholder")) || qs(EXTRA_SELECTORS.previewRoot);
+
+      if (!isVisualPreviewEnabled(placeholder)) {
+        clearVisiblePreviewText(placeholder);
+        return false;
+      }
+
       var safeForm = resolveForm(form);
       var context = getContext(safeForm);
-      var familyName = core.getFieldValue(safeForm, "family_name") || "Unbenannte Family";
-      var familySlug = core.slugify(core.getFieldValue(safeForm, "family_slug") || familyName) || "family_slug";
+      var familyName = getFieldValue(safeForm, "family_name") || "Unbenannte Family";
+      var familySlug = slugify(getFieldValue(safeForm, "family_slug") || familyName) || "family_slug";
       var taxonomyText = context.domain + " / " + context.category + " / " + context.subcategory;
       var path = getSourceRoot() + "/" + context.domain + "/" + context.category + "/" + context.subcategory + "/" + familySlug;
 
-      core.setText(EXTRA_SELECTORS.previewFamily, familyName);
-      core.setText(EXTRA_SELECTORS.previewTaxonomy, taxonomyText);
-      core.setText(EXTRA_SELECTORS.previewPath, path);
+      setTextInRoot(placeholder, EXTRA_SELECTORS.previewFamily, familyName);
+      setTextInRoot(placeholder, EXTRA_SELECTORS.previewTaxonomy, taxonomyText);
+      setTextInRoot(placeholder, EXTRA_SELECTORS.previewPath, path);
+
+      return true;
     } catch (error) {
       safeWarn("Preview text from form failed.", error);
+      return false;
     }
   }
 
@@ -943,13 +1113,13 @@
       }
 
       updateGeometrySummaries(
-        core.normalizeDecimalDisplay(core.getFieldValue(safeForm, "geometry_width") || "1.00"),
-        core.normalizeDecimalDisplay(core.getFieldValue(safeForm, "geometry_height") || "1.00"),
-        core.normalizeDecimalDisplay(core.getFieldValue(safeForm, "geometry_depth") || "1.00"),
-        core.getFieldValue(safeForm, "geometry_unit") || "m",
-        core.normalizeIntDisplay(core.getFieldValue(safeForm, "editor_cells_x") || "1"),
-        core.normalizeIntDisplay(core.getFieldValue(safeForm, "editor_cells_y") || "1"),
-        core.normalizeIntDisplay(core.getFieldValue(safeForm, "editor_cells_z") || "1")
+        normalizeDecimalDisplay(getFieldValue(safeForm, "geometry_width") || "1.00"),
+        normalizeDecimalDisplay(getFieldValue(safeForm, "geometry_height") || "1.00"),
+        normalizeDecimalDisplay(getFieldValue(safeForm, "geometry_depth") || "1.00"),
+        getFieldValue(safeForm, "geometry_unit") || "m",
+        normalizeIntDisplay(getFieldValue(safeForm, "editor_cells_x") || "1"),
+        normalizeIntDisplay(getFieldValue(safeForm, "editor_cells_y") || "1"),
+        normalizeIntDisplay(getFieldValue(safeForm, "editor_cells_z") || "1")
       );
 
       return true;
@@ -964,8 +1134,8 @@
       var visibleText = width + " × " + height + " × " + depth + " " + unit;
       var cellsText = cellsX + " × " + cellsY + " × " + cellsZ + " Blöcke";
 
-      core.setText(selectors.geometryVisibleSummary, visibleText);
-      core.setText(selectors.geometryCellsSummary, cellsText);
+      setText(selectorFor("geometryVisibleSummary"), visibleText);
+      setText(selectorFor("geometryCellsSummary"), cellsText);
 
       return true;
     } catch (error) {
@@ -974,15 +1144,41 @@
     }
   }
 
+  function updateUploadSummaries(form) {
+    try {
+      var safeForm = resolveForm(form);
+
+      if (!safeForm) {
+        return false;
+      }
+
+      var geometryPayload = readUploadPayload(safeForm, "geometry_model_uploads_json");
+      var geometryCount = geometryPayload && geometryPayload.count ? parseInt(geometryPayload.count, 10) || 0 : countFileInputFiles(safeForm, "geometry_model_files");
+
+      setText(EXTRA_SELECTORS.geometryUploadSummary, geometryCount === 1 ? "1 Datei" : geometryCount + " Dateien");
+
+      return true;
+    } catch (error) {
+      safeWarn("Upload summary update failed.", error);
+      return false;
+    }
+  }
+
   function updatePreviewCube(shape, animate) {
     try {
-      var cube = core.qs(selectors.previewCube);
+      var placeholder = qs(selectorFor("previewPlaceholder")) || qs(EXTRA_SELECTORS.previewRoot);
+
+      if (!isVisualPreviewEnabled(placeholder)) {
+        return clearPreviewCubeClasses();
+      }
+
+      var cube = qs(selectorFor("previewCube"), placeholder || document);
 
       if (!cube) {
         return false;
       }
 
-      var shapeClasses = core.previewShapeClasses || [];
+      var shapeClasses = core && core.previewShapeClasses ? core.previewShapeClasses : [];
 
       shapeClasses.forEach(function (className) {
         cube.classList.remove(className);
@@ -995,12 +1191,36 @@
       cube.setAttribute("data-vp-preview-cube-shape", normalized);
 
       if (animate) {
-        core.flashUpdated(cube);
+        flashUpdated(cube);
       }
 
       return true;
     } catch (error) {
       safeWarn("Preview cube update failed.", error);
+      return false;
+    }
+  }
+
+  function clearPreviewCubeClasses() {
+    try {
+      var placeholder = qs(selectorFor("previewPlaceholder")) || qs(EXTRA_SELECTORS.previewRoot);
+      var cube = placeholder ? qs(selectorFor("previewCube"), placeholder) : null;
+
+      if (!cube) {
+        return false;
+      }
+
+      var shapeClasses = core && core.previewShapeClasses ? core.previewShapeClasses : [];
+
+      shapeClasses.forEach(function (className) {
+        cube.classList.remove(className);
+      });
+
+      cube.removeAttribute("data-create-preview-cube-shape");
+      cube.removeAttribute("data-vp-preview-cube-shape");
+
+      return true;
+    } catch (error) {
       return false;
     }
   }
@@ -1011,17 +1231,17 @@
         return false;
       }
 
-      var width = Math.max(0.1, core.toNumber(values.width, 1));
-      var height = Math.max(0.1, core.toNumber(values.height, 1));
-      var depth = Math.max(0.1, core.toNumber(values.depth, 1));
+      var width = Math.max(0.1, toNumber(values.width, 1));
+      var height = Math.max(0.1, toNumber(values.height, 1));
+      var depth = Math.max(0.1, toNumber(values.depth, 1));
       var maxDimension = Math.max(width, height, depth, 1);
 
       node.style.setProperty("--vp-preview-width-ratio", String(width / maxDimension));
       node.style.setProperty("--vp-preview-height-ratio", String(height / maxDimension));
       node.style.setProperty("--vp-preview-depth-ratio", String(depth / maxDimension));
-      node.style.setProperty("--vp-preview-cells-x", String(core.toInteger(values.cellsX, 1)));
-      node.style.setProperty("--vp-preview-cells-y", String(core.toInteger(values.cellsY, 1)));
-      node.style.setProperty("--vp-preview-cells-z", String(core.toInteger(values.cellsZ, 1)));
+      node.style.setProperty("--vp-preview-cells-x", String(toInteger(values.cellsX, 1)));
+      node.style.setProperty("--vp-preview-cells-y", String(toInteger(values.cellsY, 1)));
+      node.style.setProperty("--vp-preview-cells-z", String(toInteger(values.cellsZ, 1)));
 
       return true;
     } catch (error) {
@@ -1032,7 +1252,7 @@
 
   function normalizePreviewShape(shape) {
     try {
-      var value = core.normalizeToken(shape || "block", "block");
+      var value = normalizeToken(shape || "block", "block");
 
       if (
         value === "block" ||
@@ -1068,10 +1288,10 @@
 
   function objectKindLabelFallback(objectKind) {
     try {
-      var normalized = core.normalizeToken(objectKind, "cell_block");
-      return OBJECT_KIND_LABELS[normalized] || normalized || "Objektart";
+      var normalized = normalizeToken(objectKind, "cell_block");
+      return OBJECT_KIND_LABELS[normalized] || normalized || "Technischer Kontext";
     } catch (error) {
-      return "Objektart";
+      return "Technischer Kontext";
     }
   }
 
@@ -1079,8 +1299,8 @@
     try {
       var form = resolveForm();
       var context = getContext(form);
-      var workspaceNodes = core.qsa(EXTRA_SELECTORS.variantWorkspace);
-      var drawerNodes = core.qsa(EXTRA_SELECTORS.variantDrawer);
+      var workspaceNodes = qsa(EXTRA_SELECTORS.variantWorkspace);
+      var drawerNodes = qsa(EXTRA_SELECTORS.variantDrawer);
 
       workspaceNodes.concat(drawerNodes).forEach(function (node) {
         try {
@@ -1104,7 +1324,7 @@
       localState.contextSyncCount += 1;
       localState.lastContext = context;
 
-      core.dispatch("vectoplan:create:context-synced", {
+      safeDispatch("vectoplan:create:context-synced", {
         context: context,
         source: options && options.source ? options.source : "api"
       });
@@ -1121,7 +1341,7 @@
       var runtime = window.VectoplanCreateVariantProfiles;
       var context = getContext(resolveForm());
 
-      core.dispatch("vectoplan:create:variant-profile-context-changed", {
+      safeDispatch("vectoplan:create:variant-profile-context-changed", {
         context: context,
         source: options && options.source ? options.source : "api"
       });
@@ -1162,32 +1382,33 @@
   function getContext(form) {
     try {
       var safeForm = resolveForm(form);
-      var domain = core.getFieldValue(safeForm, "domain") ||
-        core.getNested(core.state.uiState, ["defaults", "domain"], "hochbau");
+      var coreState = core && core.state ? core.state : {};
+      var domain = getFieldValue(safeForm, "domain") ||
+        getNested(coreState.uiState, ["defaults", "domain"], "hochbau");
 
-      var category = core.getFieldValue(safeForm, "category") ||
-        core.getNested(core.state.uiState, ["defaults", "category"], "bloecke");
+      var category = getFieldValue(safeForm, "category") ||
+        getNested(coreState.uiState, ["defaults", "category"], "bloecke");
 
-      var subcategory = core.getFieldValue(safeForm, "subcategory") ||
-        core.getNested(core.state.uiState, ["defaults", "subcategory"], "basis");
+      var subcategory = getFieldValue(safeForm, "subcategory") ||
+        getNested(coreState.uiState, ["defaults", "subcategory"], "basis");
 
-      var objectKind = core.getFieldValue(safeForm, "object_kind") ||
-        core.getNested(core.state.uiState, ["defaults", "object_kind"], "cell_block");
+      var objectKind = getFieldValue(safeForm, "object_kind") ||
+        getNested(coreState.uiState, ["defaults", "object_kind"], "cell_block");
 
-      var familyProfileId = core.getFieldValue(safeForm, "family_profile_id") ||
+      var familyProfileId = getFieldValue(safeForm, "family_profile_id") ||
         readWorkspaceAttribute("data-vp-current-family-profile-id") ||
         "";
 
-      var variantProfileId = core.getFieldValue(safeForm, "variant_profile_id") ||
+      var variantProfileId = getFieldValue(safeForm, "variant_profile_id") ||
         readWorkspaceAttribute("data-vp-current-variant-profile-id") ||
         "";
 
       return {
-        domain: core.normalizeToken(domain, "hochbau"),
-        category: core.normalizeToken(category, "bloecke"),
-        subcategory: core.normalizeToken(subcategory, "basis"),
-        object_kind: core.normalizeToken(objectKind, "cell_block"),
-        objectKind: core.normalizeToken(objectKind, "cell_block"),
+        domain: normalizeToken(domain, "hochbau"),
+        category: normalizeToken(category, "bloecke"),
+        subcategory: normalizeToken(subcategory, "basis"),
+        object_kind: normalizeToken(objectKind, "cell_block"),
+        objectKind: normalizeToken(objectKind, "cell_block"),
         family_profile_id: String(familyProfileId || "").trim(),
         familyProfileId: String(familyProfileId || "").trim(),
         variant_profile_id: String(variantProfileId || "").trim(),
@@ -1210,7 +1431,7 @@
 
   function readWorkspaceAttribute(attributeName) {
     try {
-      var workspace = core.qs(EXTRA_SELECTORS.variantWorkspace);
+      var workspace = qs(EXTRA_SELECTORS.variantWorkspace);
 
       if (!workspace || !attributeName) {
         return "";
@@ -1225,7 +1446,7 @@
   function updateVariantCount(form) {
     try {
       var safeForm = resolveForm(form);
-      var label = core.qs(selectors.variantCountLabel);
+      var label = qs(selectorFor("variantCountLabel"));
       var count = 0;
 
       if (window.VectoplanCreateVariantState && typeof window.VectoplanCreateVariantState.getVariants === "function") {
@@ -1234,7 +1455,7 @@
       }
 
       if (!count && safeForm) {
-        count = core.qsa(selectors.variantRow, safeForm).length;
+        count = qsa(selectorFor("variantRow"), safeForm).length;
       }
 
       if (label) {
@@ -1251,8 +1472,8 @@
   function updateVariableCount(form) {
     try {
       var safeForm = resolveForm(form);
-      var label = core.qs(selectors.variableCountLabel);
-      var rows = safeForm ? core.qsa(selectors.variableRow, safeForm) : [];
+      var label = qs(selectorFor("variableCountLabel"));
+      var rows = safeForm ? qsa(selectorFor("variableRow"), safeForm) : [];
       var filled = rows.filter(rowHasAnyInputValue).length;
       var count = rows.length;
 
@@ -1277,7 +1498,7 @@
 
   function rowHasAnyInputValue(row) {
     try {
-      var fields = core.qsa("input, select, textarea", row);
+      var fields = qsa("input, select, textarea", row);
 
       return fields.some(function (field) {
         return field.value && String(field.value).trim() !== "";
@@ -1294,8 +1515,8 @@
       }
 
       return core && typeof core.qs === "function"
-        ? core.qs(selectors.form)
-        : document.querySelector("[data-vp-create-form], [data-create-form='true'], #vp-create-form");
+        ? core.qs(selectorFor("form"))
+        : document.querySelector(FALLBACK_SELECTORS.form);
     } catch (error) {
       return null;
     }
@@ -1311,8 +1532,9 @@
         taxonomyUpdateCount: localState.taxonomyUpdateCount,
         objectKindUpdateCount: localState.objectKindUpdateCount,
         contextSyncCount: localState.contextSyncCount,
-        lastContext: core && typeof core.clone === "function" ? core.clone(localState.lastContext) : localState.lastContext,
-        lastPreview: core && typeof core.clone === "function" ? core.clone(localState.lastPreview) : localState.lastPreview,
+        previewClearCount: localState.previewClearCount,
+        lastContext: clone(localState.lastContext),
+        lastPreview: clone(localState.lastPreview),
         lastTaxonomyPath: localState.lastTaxonomyPath,
         lastError: localState.lastError
       };
@@ -1351,7 +1573,7 @@
   function ensureCore() {
     try {
       if (!core) {
-        core = window[CORE_NAME];
+        core = window[CORE_NAME] || buildFallbackCore();
       }
 
       if (!core) {
@@ -1359,7 +1581,7 @@
       }
 
       if (!selectors) {
-        selectors = core.selectors || {};
+        selectors = Object.assign({}, FALLBACK_SELECTORS, core.selectors || {});
       }
 
       if (!classes) {
@@ -1369,6 +1591,467 @@
       return core;
     } catch (error) {
       throw error;
+    }
+  }
+
+  function selectorFor(key) {
+    try {
+      if (!selectors) {
+        selectors = Object.assign({}, FALLBACK_SELECTORS, core && core.selectors ? core.selectors : {});
+      }
+
+      return selectors[key] || FALLBACK_SELECTORS[key] || "";
+    } catch (error) {
+      return FALLBACK_SELECTORS[key] || "";
+    }
+  }
+
+  function qs(selector, root) {
+    try {
+      if (!selector) {
+        return null;
+      }
+
+      if (core && typeof core.qs === "function") {
+        return core.qs(selector, root || document);
+      }
+
+      return (root || document).querySelector(selector);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function qsa(selector, root) {
+    try {
+      if (!selector) {
+        return [];
+      }
+
+      if (core && typeof core.qsa === "function") {
+        return core.qsa(selector, root || document);
+      }
+
+      return Array.prototype.slice.call((root || document).querySelectorAll(selector));
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function setText(selector, value, root) {
+    try {
+      if (core && typeof core.setText === "function") {
+        core.setText(selector, value, root);
+        return true;
+      }
+
+      var node = qs(selector, root);
+
+      if (node) {
+        node.textContent = value === null || typeof value === "undefined" ? "" : String(value);
+      }
+
+      return !!node;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function setTextInRoot(root, selector, value) {
+    try {
+      if (!root || !selector) {
+        return false;
+      }
+
+      var node = qs(selector, root);
+
+      if (node) {
+        node.textContent = value === null || typeof value === "undefined" ? "" : String(value);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function getFieldValue(form, name) {
+    try {
+      if (core && typeof core.getFieldValue === "function") {
+        return core.getFieldValue(form, name);
+      }
+
+      if (!form || !name) {
+        return "";
+      }
+
+      var field = form.elements ? form.elements[name] : null;
+
+      if (!field || field.nodeType !== 1) {
+        field = qs("[name='" + cssEscape(name) + "']", form);
+      }
+
+      return field && typeof field.value !== "undefined" ? String(field.value || "") : "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function dispatchNativeEvent(node, eventName) {
+    try {
+      if (core && typeof core.dispatchNativeEvent === "function") {
+        core.dispatchNativeEvent(node, eventName);
+        return;
+      }
+
+      if (node) {
+        node.dispatchEvent(new Event(eventName, {
+          bubbles: true,
+          cancelable: false
+        }));
+      }
+    } catch (error) {
+      /* no-op */
+    }
+  }
+
+  function safeDispatch(eventName, detail) {
+    try {
+      if (core && typeof core.dispatch === "function") {
+        core.dispatch(eventName, detail || {});
+        return true;
+      }
+
+      document.dispatchEvent(new CustomEvent(eventName, {
+        bubbles: true,
+        cancelable: false,
+        detail: detail || {}
+      }));
+
+      return true;
+    } catch (error) {
+      fallbackWarn("Dispatch failed: " + eventName, error);
+      return false;
+    }
+  }
+
+  function bindOnce(key, callback) {
+    try {
+      if (core && typeof core.bindOnce === "function") {
+        core.bindOnce(key, callback);
+        return;
+      }
+
+      var attr = "data-vp-" + String(key || "bind-once").replace(/[^a-z0-9_-]/gi, "-");
+
+      if (document.documentElement.getAttribute(attr) === "true") {
+        return;
+      }
+
+      document.documentElement.setAttribute(attr, "true");
+
+      if (typeof callback === "function") {
+        callback();
+      }
+    } catch (error) {
+      safeWarn("bindOnce failed: " + key, error);
+    }
+  }
+
+  function selectedOptionLabel(select, value) {
+    try {
+      if (core && typeof core.selectedOptionLabel === "function") {
+        return core.selectedOptionLabel(select, value);
+      }
+
+      if (!select) {
+        return "";
+      }
+
+      var selected = select.options[select.selectedIndex];
+
+      if (selected && selected.value === value) {
+        return normalizeOptionText(selected.textContent);
+      }
+
+      var options = Array.prototype.slice.call(select.options || []);
+      var match = options.find(function (option) {
+        return option.value === value;
+      });
+
+      return match ? normalizeOptionText(match.textContent) : "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function normalizeOptionText(value) {
+    try {
+      if (core && typeof core.normalizeOptionText === "function") {
+        return core.normalizeOptionText(value);
+      }
+
+      return String(value || "")
+        .replace(/\s+·\s+deaktiviert\s*$/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function normalizeToken(value, fallback) {
+    try {
+      if (core && typeof core.normalizeToken === "function") {
+        return core.normalizeToken(value, fallback);
+      }
+
+      var text = String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/ä/g, "ae")
+        .replace(/ö/g, "oe")
+        .replace(/ü/g, "ue")
+        .replace(/ß/g, "ss")
+        .replace(/[-\s]+/g, "_")
+        .replace(/[^a-z0-9_./[\]-]/g, "")
+        .replace(/_{2,}/g, "_")
+        .replace(/^_+|_+$/g, "");
+
+      return text || fallback || "";
+    } catch (error) {
+      return fallback || "";
+    }
+  }
+
+  function slugify(value) {
+    try {
+      if (core && typeof core.slugify === "function") {
+        return core.slugify(value);
+      }
+
+      return normalizeToken(value, "");
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function normalizeDecimalDisplay(value) {
+    try {
+      if (core && typeof core.normalizeDecimalDisplay === "function") {
+        return core.normalizeDecimalDisplay(value);
+      }
+
+      var text = String(value || "").replace(",", ".").trim();
+      var number = Number(text);
+
+      if (!Number.isFinite(number) || number <= 0) {
+        return "1.00";
+      }
+
+      return number.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+    } catch (error) {
+      return "1.00";
+    }
+  }
+
+  function normalizeIntDisplay(value) {
+    try {
+      if (core && typeof core.normalizeIntDisplay === "function") {
+        return core.normalizeIntDisplay(value);
+      }
+
+      var number = parseInt(String(value || "").trim(), 10);
+
+      if (!Number.isFinite(number) || number < 1) {
+        return "1";
+      }
+
+      return String(number);
+    } catch (error) {
+      return "1";
+    }
+  }
+
+  function toNumber(value, fallback) {
+    try {
+      if (core && typeof core.toNumber === "function") {
+        return core.toNumber(value, fallback);
+      }
+
+      var number = Number(String(value || "").replace(",", "."));
+
+      return Number.isFinite(number) ? number : fallback;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  function toInteger(value, fallback) {
+    try {
+      if (core && typeof core.toInteger === "function") {
+        return core.toInteger(value, fallback);
+      }
+
+      var number = parseInt(String(value || "").trim(), 10);
+
+      return Number.isFinite(number) ? number : fallback;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  function toBoolean(value, fallback) {
+    try {
+      if (core && typeof core.toBoolean === "function") {
+        return core.toBoolean(value, fallback);
+      }
+
+      if (value === true || value === false) {
+        return value;
+      }
+
+      var text = String(value || "").trim().toLowerCase();
+
+      if (["true", "1", "yes", "ja", "on", "enabled", "active"].indexOf(text) >= 0) {
+        return true;
+      }
+
+      if (["false", "0", "no", "nein", "off", "disabled", "inactive"].indexOf(text) >= 0) {
+        return false;
+      }
+
+      return !!fallback;
+    } catch (error) {
+      return !!fallback;
+    }
+  }
+
+  function getNested(object, path, fallback) {
+    try {
+      if (core && typeof core.getNested === "function") {
+        return core.getNested(object, path, fallback);
+      }
+
+      var cursor = object;
+
+      for (var index = 0; index < path.length; index += 1) {
+        if (!cursor || typeof cursor !== "object" || !(path[index] in cursor)) {
+          return fallback;
+        }
+
+        cursor = cursor[path[index]];
+      }
+
+      return cursor === undefined || cursor === null ? fallback : cursor;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  function clone(value) {
+    try {
+      if (core && typeof core.clone === "function") {
+        return core.clone(value);
+      }
+
+      return JSON.parse(JSON.stringify(value));
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function cssEscape(value) {
+    try {
+      if (core && typeof core.cssEscape === "function") {
+        return core.cssEscape(value);
+      }
+
+      if (window.CSS && typeof window.CSS.escape === "function") {
+        return window.CSS.escape(String(value || ""));
+      }
+
+      return String(value || "").replace(/["\\]/g, "\\$&");
+    } catch (error) {
+      return String(value || "");
+    }
+  }
+
+  function flashUpdated(node) {
+    try {
+      if (core && typeof core.flashUpdated === "function") {
+        core.flashUpdated(node);
+        return;
+      }
+
+      if (!node) {
+        return;
+      }
+
+      node.classList.remove("is-updated");
+      void node.offsetWidth;
+      node.classList.add("is-updated");
+
+      window.setTimeout(function () {
+        try {
+          node.classList.remove("is-updated");
+        } catch (error) {
+          /* no-op */
+        }
+      }, 380);
+    } catch (error) {
+      /* no-op */
+    }
+  }
+
+  function readUploadPayload(form, fieldName) {
+    try {
+      var field = form && form.elements ? form.elements[fieldName] : null;
+
+      if (!field || field.nodeType !== 1) {
+        field = qs("[name='" + cssEscape(fieldName) + "']", form);
+      }
+
+      if (!field || typeof field.value === "undefined" || !String(field.value || "").trim()) {
+        return {};
+      }
+
+      return JSON.parse(field.value);
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function countFileInputFiles(form, fieldName) {
+    try {
+      var field = form && form.elements ? form.elements[fieldName] : null;
+
+      if (!field || field.nodeType !== 1) {
+        field = qs("input[type='file'][name='" + cssEscape(fieldName) + "']", form);
+      }
+
+      return field && field.files ? field.files.length : 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  function safeSetAttribute(node, name, value) {
+    try {
+      if (core && typeof core.safeSetAttribute === "function") {
+        core.safeSetAttribute(node, name, value);
+        return true;
+      }
+
+      if (node && name) {
+        node.setAttribute(name, value === undefined || value === null ? "" : String(value));
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      return false;
     }
   }
 
@@ -1412,6 +2095,65 @@
     }
   }
 
+  function buildFallbackCore() {
+    try {
+      return {
+        selectors: FALLBACK_SELECTORS,
+        classes: {},
+        state: {
+          context: {},
+          uiState: {
+            defaults: {}
+          }
+        },
+        previewShapeClasses: [
+          "vp-create-preview-cube--block",
+          "vp-create-preview-cube--box",
+          "vp-create-preview-cube--cuboid",
+          "vp-create-preview-cube--rectangular_prism",
+          "vp-create-preview-cube--cube",
+          "vp-create-preview-cube--wall",
+          "vp-create-preview-cube--wall_block",
+          "vp-create-preview-cube--slab",
+          "vp-create-preview-cube--plate",
+          "vp-create-preview-cube--cylinder",
+          "vp-create-preview-cube--pipe",
+          "vp-create-preview-cube--sphere"
+        ],
+        qs: function (selector, root) {
+          return (root || document).querySelector(selector);
+        },
+        qsa: function (selector, root) {
+          return Array.prototype.slice.call((root || document).querySelectorAll(selector));
+        },
+        setText: setText,
+        getFieldValue: getFieldValue,
+        getNested: getNested,
+        slugify: slugify,
+        normalizeToken: normalizeToken,
+        normalizeDecimalDisplay: normalizeDecimalDisplay,
+        normalizeIntDisplay: normalizeIntDisplay,
+        toNumber: toNumber,
+        toInteger: toInteger,
+        toBoolean: toBoolean,
+        selectedOptionLabel: selectedOptionLabel,
+        dispatchNativeEvent: dispatchNativeEvent,
+        dispatch: safeDispatch,
+        registerModule: function () {},
+        bindOnce: bindOnce,
+        refreshContext: function () {},
+        safeSetAttribute: safeSetAttribute,
+        clone: clone,
+        cssEscape: cssEscape,
+        flashUpdated: flashUpdated,
+        warn: fallbackWarn,
+        error: fallbackWarn
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
   var api = {
     version: PREVIEW_VERSION,
 
@@ -1432,6 +2174,7 @@
     updateGeometrySummariesFromForm: updateGeometrySummariesFromForm,
     updateGeometrySummaries: updateGeometrySummaries,
     updatePreviewCube: updatePreviewCube,
+    clearVisiblePreviewText: clearVisiblePreviewText,
 
     syncContextToVariantWorkspace: syncContextToVariantWorkspace,
     scheduleVariantProfileResolve: scheduleVariantProfileResolve,
@@ -1439,6 +2182,7 @@
 
     updateVariantCount: updateVariantCount,
     updateVariableCount: updateVariableCount,
+    updateUploadSummaries: updateUploadSummaries,
 
     normalizePreviewShape: normalizePreviewShape,
     shapeLabelFallback: shapeLabelFallback,

@@ -1,0 +1,37 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "vplib_uid": "0d6e6372-e69a-4cd8-ba1d-98ac6089321d",
+  "package_id": "vplib.vp.hochbau.waende.aussenwaende.fsdsfd",
+  "family_id": "vp.hochbau.waende.aussenwaende.fsdsfd",
+  "family_slug": "fsdsfd",
+  "family_name": "fsdsfd",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "waende",
+  "subcategory": "aussenwaende",
+  "classification": {
+    "domain": "hochbau",
+    "category": "waende",
+    "subcategory": "aussenwaende",
+    "classification_path": "hochbau/waende/aussenwaende",
+    "labels": {
+      "domain": "Hochbau",
+      "category": "Wände",
+      "subcategory": "Außenwände"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "hochbau/waende/aussenwaende",
+  "source_path": "hochbau/waende/aussenwaende/fsdsfd",
+  "default_variant_id": "default",
+  "created_at": "2026-06-27T12:31:59Z",
+  "created_by": "library-create-service",
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.3.0",
+    "mode": "simple_create"
+  }
+}

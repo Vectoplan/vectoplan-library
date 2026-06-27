@@ -1,0 +1,1706 @@
+{# services/vectoplan-library/templates/vplib/create/sections/_technical.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · VPLIB Create Wizard · Step 5: Technical
+
+  Zweck:
+  - Erfasst optionale technische Daten für ein neues VPLIB-Family-Package.
+  - Direkt lesbares HTML statt langer Macro-Aufrufe.
+  - Kompakt für den Black-Fullscreen-Wizard.
+  - Materialklasse, einfache deklarative Kennwerte und optionale technische
+    Hersteller-/Produktunterlagen vorbereiten.
+  - Keine Hero-Inhalte.
+  - Keine Alerts als eigene Section.
+  - Keine Help-Section.
+  - Keine Result-Section.
+  - Keine Formelausführung.
+  - Keine Skripte im Package.
+  - Keine API-Aufrufe.
+  - Keine Backend-Dateioperationen.
+  - Keine Hersteller-Overlay-Logik.
+  - Dateien werden aktuell nur lokal als Metadaten erfasst.
+
+  Backend-Vertrag:
+  Diese Feldnamen bleiben stabil:
+  - material_class
+  - variables[0][key]
+  - variables[0][value]
+  - variables[0][unit]
+  - variables[0][description]
+  - variables[...][...]
+
+  Neuer Frontend-/späterer Backend-Vertrag:
+  - technical_document_files
+  - technical_document_uploads_json
+
+  JS-Hooks bleiben erhalten:
+  - data-create-add-variable="true"
+  - data-create-variable-table="true"
+  - data-create-variable-row="true"
+  - data-create-variable-row-template="true"
+  - data-create-remove-row="true"
+  - data-create-clear-variable="true"
+
+  Neue defensive Hooks:
+  - data-vp-technical-root
+  - data-vp-technical-ready
+  - data-vp-technical-upload
+  - data-vp-upload-kind="technical_documents"
+  - window.VectoplanCreateTechnical
+
+  Defensive Defaults:
+  - material_class leer
+  - eine leere Kennwert-Zeile
+  - keine technischen Dokumente
+----------------------------------------------------------------------------- #}
+
+
+{# -----------------------------------------------------------------------------
+  1. Options defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if _material_classes is defined and _material_classes is iterable and _material_classes is not string %}
+  {% set _technical_material_classes = _material_classes %}
+{% elif create_options is defined and create_options is mapping and 'material_classes' in create_options and create_options['material_classes'] is iterable and create_options['material_classes'] is not string %}
+  {% set _technical_material_classes = create_options['material_classes'] %}
+{% elif create_options is defined and create_options is mapping and 'technical' in create_options and create_options['technical'] is mapping and 'material_classes' in create_options['technical'] and create_options['technical']['material_classes'] is iterable and create_options['technical']['material_classes'] is not string %}
+  {% set _technical_material_classes = create_options['technical']['material_classes'] %}
+{% elif _options_data is defined and _options_data is mapping and 'material_classes' in _options_data and _options_data['material_classes'] is iterable and _options_data['material_classes'] is not string %}
+  {% set _technical_material_classes = _options_data['material_classes'] %}
+{% else %}
+  {% set _technical_material_classes = [] %}
+{% endif %}
+
+{% if _units is defined and _units is iterable and _units is not string %}
+  {% set _technical_units = _units %}
+{% elif create_options is defined and create_options is mapping and 'units' in create_options and create_options['units'] is iterable and create_options['units'] is not string %}
+  {% set _technical_units = create_options['units'] %}
+{% elif create_options is defined and create_options is mapping and 'technical' in create_options and create_options['technical'] is mapping and 'units' in create_options['technical'] and create_options['technical']['units'] is iterable and create_options['technical']['units'] is not string %}
+  {% set _technical_units = create_options['technical']['units'] %}
+{% elif _options_data is defined and _options_data is mapping and 'units' in _options_data and _options_data['units'] is iterable and _options_data['units'] is not string %}
+  {% set _technical_units = _options_data['units'] %}
+{% else %}
+  {% set _technical_units = [] %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  2. Draft defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if create_initial_draft is defined and create_initial_draft is mapping %}
+  {% set _technical_draft = create_initial_draft %}
+{% elif _initial_draft is defined and _initial_draft is mapping %}
+  {% set _technical_draft = _initial_draft %}
+{% elif _draft is defined and _draft is mapping %}
+  {% set _technical_draft = _draft %}
+{% elif draft is defined and draft is mapping %}
+  {% set _technical_draft = draft %}
+{% elif vplib_draft is defined and vplib_draft is mapping %}
+  {% set _technical_draft = vplib_draft %}
+{% else %}
+  {% set _technical_draft = {} %}
+{% endif %}
+
+{% if _technical_draft is mapping and 'technical' in _technical_draft and _technical_draft['technical'] is mapping %}
+  {% set _technical_values = _technical_draft['technical'] %}
+{% elif _technical_draft is mapping and 'calculation' in _technical_draft and _technical_draft['calculation'] is mapping %}
+  {% set _technical_values = _technical_draft['calculation'] %}
+{% elif _technical_draft is mapping and 'material' in _technical_draft and _technical_draft['material'] is mapping %}
+  {% set _technical_values = _technical_draft['material'] %}
+{% else %}
+  {% set _technical_values = {} %}
+{% endif %}
+
+{% if _technical_values is mapping and 'profile' in _technical_values and _technical_values['profile'] is mapping %}
+  {% set _technical_profile = _technical_values['profile'] %}
+{% elif _technical_draft is mapping and 'profile' in _technical_draft and _technical_draft['profile'] is mapping %}
+  {% set _technical_profile = _technical_draft['profile'] %}
+{% elif _technical_draft is mapping and 'material' in _technical_draft and _technical_draft['material'] is mapping and 'base' in _technical_draft['material'] and _technical_draft['material']['base'] is mapping %}
+  {% set _technical_profile = _technical_draft['material']['base'] %}
+{% else %}
+  {% set _technical_profile = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  3. Materialwert defensiv lesen
+----------------------------------------------------------------------------- #}
+
+{% if _technical_draft is mapping and 'material_class' in _technical_draft and _technical_draft['material_class'] %}
+  {% set _material_class_value = _technical_draft['material_class'] %}
+{% elif _technical_profile is mapping and 'material_class' in _technical_profile and _technical_profile['material_class'] %}
+  {% set _material_class_value = _technical_profile['material_class'] %}
+{% elif _technical_profile is mapping and 'class' in _technical_profile and _technical_profile['class'] %}
+  {% set _material_class_value = _technical_profile['class'] %}
+{% elif _technical_values is mapping and 'material_class' in _technical_values and _technical_values['material_class'] %}
+  {% set _material_class_value = _technical_values['material_class'] %}
+{% elif _technical_draft is mapping and 'material' in _technical_draft and _technical_draft['material'] is mapping and 'material_class' in _technical_draft['material'] and _technical_draft['material']['material_class'] %}
+  {% set _material_class_value = _technical_draft['material']['material_class'] %}
+{% else %}
+  {% set _material_class_value = '' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  4. Variablen defensiv lesen
+----------------------------------------------------------------------------- #}
+
+{% if _technical_draft is mapping and 'variables' in _technical_draft and _technical_draft['variables'] is mapping %}
+  {% set _draft_variables = [] %}
+{% elif _technical_draft is mapping and 'variables' in _technical_draft and _technical_draft['variables'] is iterable and _technical_draft['variables'] is not string %}
+  {% set _draft_variables = _technical_draft['variables'] %}
+{% elif _technical_values is mapping and 'variables' in _technical_values and _technical_values['variables'] is mapping %}
+  {% set _draft_variables = [] %}
+{% elif _technical_values is mapping and 'variables' in _technical_values and _technical_values['variables'] is iterable and _technical_values['variables'] is not string %}
+  {% set _draft_variables = _technical_values['variables'] %}
+{% elif _technical_draft is mapping and 'calculation' in _technical_draft and _technical_draft['calculation'] is mapping and 'variables' in _technical_draft['calculation'] and _technical_draft['calculation']['variables'] is mapping %}
+  {% set _draft_variables = [] %}
+{% elif _technical_draft is mapping and 'calculation' in _technical_draft and _technical_draft['calculation'] is mapping and 'variables' in _technical_draft['calculation'] and _technical_draft['calculation']['variables'] is iterable and _technical_draft['calculation']['variables'] is not string %}
+  {% set _draft_variables = _technical_draft['calculation']['variables'] %}
+{% else %}
+  {% set _draft_variables = [] %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  5. Upload-Metadaten defensiv lesen
+----------------------------------------------------------------------------- #}
+
+{% if _technical_draft is mapping and 'technical_document_uploads_json' in _technical_draft and _technical_draft['technical_document_uploads_json'] %}
+  {% set _technical_document_uploads_json = _technical_draft['technical_document_uploads_json'] %}
+{% elif _technical_values is mapping and 'technical_document_uploads_json' in _technical_values and _technical_values['technical_document_uploads_json'] %}
+  {% set _technical_document_uploads_json = _technical_values['technical_document_uploads_json'] %}
+{% elif _technical_draft is mapping and 'manufacturer_document_uploads_json' in _technical_draft and _technical_draft['manufacturer_document_uploads_json'] %}
+  {% set _technical_document_uploads_json = _technical_draft['manufacturer_document_uploads_json'] %}
+{% elif _technical_draft is mapping and 'documents_uploads_json' in _technical_draft and _technical_draft['documents_uploads_json'] %}
+  {% set _technical_document_uploads_json = _technical_draft['documents_uploads_json'] %}
+{% else %}
+  {% set _technical_document_uploads_json = '{"count":0,"files":[]}' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  6. Status ableiten
+----------------------------------------------------------------------------- #}
+
+{% if _technical_material_classes | length > 0 %}
+  {% set _has_material_classes = true %}
+{% else %}
+  {% set _has_material_classes = false %}
+{% endif %}
+
+{% if _technical_units | length > 0 %}
+  {% set _has_units = true %}
+{% else %}
+  {% set _has_units = false %}
+{% endif %}
+
+{% if _draft_variables and (_draft_variables | length > 0) %}
+  {% set _variable_count = _draft_variables | length %}
+{% else %}
+  {% set _variable_count = 1 %}
+{% endif %}
+
+
+<div
+  class="vplib-create-step__panel vp-create-card vp-create-section vp-create-section--technical"
+  data-create-section="technical"
+  data-vp-create-section="technical"
+  data-create-section-required="false"
+  data-create-material-count="{{ _technical_material_classes | length }}"
+  data-create-unit-count="{{ _technical_units | length }}"
+  data-vp-variable-count="{{ _variable_count }}"
+  data-vp-step-panel="technical"
+  data-vp-technical-root="true"
+  data-vp-technical-ready="false"
+  data-vp-technical-version="0.6.0"
+  data-vp-technical-upload-enabled="true"
+  aria-labelledby="vp-create-technical-title"
+>
+  <header class="vplib-create-step__header">
+    <div class="vplib-create-step__header-main">
+
+
+      <h2
+        id="vp-create-technical-title"
+        class="vplib-create-step__title"
+      >
+        Technik
+      </h2>
+
+      <p class="vplib-create-step__description">
+        Ergänze optionale Kennwerte, Materialdaten und technische Unterlagen.
+      </p>
+    </div>
+
+
+  </header>
+
+  <div class="vplib-create-step__body">
+    <div class="vplib-create-step__grid">
+      <div
+        class="vplib-create-step__field vplib-create-step__field--full"
+        data-create-technical-material-section="true"
+      >
+        <label
+          class="vp-create-field vp-create-field--wide"
+          for="create-material-class"
+          data-vp-field-wrapper="material_class"
+        >
+          <span class="vp-create-field__label">
+            Materialklasse
+          </span>
+
+          <input
+            class="vp-create-input"
+            id="create-material-class"
+            name="material_class"
+            type="text"
+            value="{{ _material_class_value }}"
+            placeholder="z. B. ziegel, beton, stahl"
+            list="create-material-class-suggestions"
+            data-create-field="material_class"
+            data-create-technical-profile-field="material_class"
+            data-create-preview-source="technical"
+            data-vp-step-field="technical.material_class"
+            data-vp-technical-field="material_class"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="create-material-class-hint"
+          />
+
+
+        </label>
+
+        <datalist id="create-material-class-suggestions">
+          {% for material in _technical_material_classes %}
+            {% if material is mapping %}
+              {% if 'value' in material and material['value'] %}
+                {% set _material_value = material['value'] %}
+              {% elif 'key' in material and material['key'] %}
+                {% set _material_value = material['key'] %}
+              {% elif 'slug' in material and material['slug'] %}
+                {% set _material_value = material['slug'] %}
+              {% elif 'label' in material and material['label'] %}
+                {% set _material_value = material['label'] %}
+              {% else %}
+                {% set _material_value = '' %}
+              {% endif %}
+
+              {% if 'label' in material and material['label'] %}
+                {% set _material_label = material['label'] %}
+              {% elif 'title' in material and material['title'] %}
+                {% set _material_label = material['title'] %}
+              {% else %}
+                {% set _material_label = _material_value %}
+              {% endif %}
+            {% elif material %}
+              {% set _material_value = material | string %}
+              {% set _material_label = material | string %}
+            {% else %}
+              {% set _material_value = '' %}
+              {% set _material_label = '' %}
+            {% endif %}
+
+            {% if _material_value %}
+              <option value="{{ _material_value }}">{{ _material_label }}</option>
+            {% endif %}
+          {% endfor %}
+        </datalist>
+      </div>
+
+
+
+      <div
+        class="vplib-create-step__field vplib-create-step__field--full vp-create-subsection vp-create-variable-editor vp-create-variable-editor--compact"
+        data-create-variables-section="true"
+        data-vp-variable-editor
+      >
+        <div class="vp-create-variable-editor__header">
+          <div class="vp-create-variable-editor__title-wrap">
+            <h3 class="vp-create-variable-editor__title">
+              Kennwerte
+            </h3>
+
+            <p class="vp-create-variable-editor__description">
+              Erfasse einfache Werte wie Dicke, Dichte, U-Wert, Druckfestigkeit oder eigene Erweiterungen.
+            </p>
+          </div>
+
+          <div class="vp-create-variable-editor__tools">
+            <span
+              class="vp-create-variable-editor__count"
+              data-vp-variable-count-label
+              aria-live="polite"
+            >
+              {% if _variable_count == 1 %}
+                1 Zeile
+              {% else %}
+                {{ _variable_count }} Zeilen
+              {% endif %}
+            </span>
+
+            <button
+              class="vp-create-button vp-create-button--secondary"
+              type="button"
+              data-create-add-variable="true"
+              data-vp-add-variable
+            >
+              Kennwert hinzufügen
+            </button>
+          </div>
+        </div>
+
+        <div
+          class="vp-create-variable-table"
+          data-create-variable-table="true"
+          data-vp-variable-table
+          role="table"
+          aria-label="Technische Kennwerte"
+        >
+          <div class="vp-create-variable-table__head" role="row" aria-hidden="true">
+            <span role="columnheader">Key</span>
+            <span role="columnheader">Wert</span>
+            <span role="columnheader">Einheit</span>
+            <span role="columnheader">Beschreibung</span>
+            <span role="columnheader">Aktion</span>
+          </div>
+
+          {% if _draft_variables and (_draft_variables | length > 0) %}
+            {% for variable in _draft_variables %}
+              {% if variable is mapping %}
+                {% if 'key' in variable and variable['key'] %}
+                  {% set _variable_key = variable['key'] %}
+                {% elif 'name' in variable and variable['name'] %}
+                  {% set _variable_key = variable['name'] %}
+                {% else %}
+                  {% set _variable_key = '' %}
+                {% endif %}
+
+                {% if 'value' in variable and variable['value'] is not none %}
+                  {% set _variable_value = variable['value'] %}
+                {% elif 'default' in variable and variable['default'] is not none %}
+                  {% set _variable_value = variable['default'] %}
+                {% else %}
+                  {% set _variable_value = '' %}
+                {% endif %}
+
+                {% if 'unit' in variable and variable['unit'] %}
+                  {% set _variable_unit = variable['unit'] %}
+                {% else %}
+                  {% set _variable_unit = '' %}
+                {% endif %}
+
+                {% if 'description' in variable and variable['description'] %}
+                  {% set _variable_description = variable['description'] %}
+                {% elif 'label' in variable and variable['label'] %}
+                  {% set _variable_description = variable['label'] %}
+                {% elif 'title' in variable and variable['title'] %}
+                  {% set _variable_description = variable['title'] %}
+                {% else %}
+                  {% set _variable_description = '' %}
+                {% endif %}
+              {% else %}
+                {% set _variable_key = '' %}
+                {% set _variable_value = variable | string %}
+                {% set _variable_unit = '' %}
+                {% set _variable_description = '' %}
+              {% endif %}
+
+              <div
+                class="vp-create-variable-row"
+                data-create-variable-row="true"
+                data-vp-variable-row
+                data-row-index="{{ loop.index0 }}"
+                role="row"
+              >
+                <label class="vp-create-field vp-create-field--compact">
+                  <span class="vp-create-sr-only">Kennwert-Key</span>
+                  <input
+                    class="vp-create-input vp-create-input--mono"
+                    name="variables[{{ loop.index0 }}][key]"
+                    type="text"
+                    value="{{ _variable_key | string | e }}"
+                    placeholder="dimensions.thickness"
+                    data-create-field="variable_key"
+                    data-vp-variable-key
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                </label>
+
+                <label class="vp-create-field vp-create-field--compact">
+                  <span class="vp-create-sr-only">Wert</span>
+                  <input
+                    class="vp-create-input"
+                    name="variables[{{ loop.index0 }}][value]"
+                    type="text"
+                    value="{{ _variable_value | string | e }}"
+                    placeholder="0.24"
+                    data-create-field="variable_value"
+                    data-vp-variable-value
+                    autocomplete="off"
+                  />
+                </label>
+
+                <label class="vp-create-field vp-create-field--compact">
+                  <span class="vp-create-sr-only">Einheit</span>
+                  <input
+                    class="vp-create-input vp-create-input--mono"
+                    name="variables[{{ loop.index0 }}][unit]"
+                    type="text"
+                    value="{{ _variable_unit | string | e }}"
+                    placeholder="m"
+                    list="create-technical-unit-suggestions"
+                    data-create-field="variable_unit"
+                    data-vp-variable-unit
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                </label>
+
+                <label class="vp-create-field vp-create-field--compact">
+                  <span class="vp-create-sr-only">Beschreibung</span>
+                  <input
+                    class="vp-create-input"
+                    name="variables[{{ loop.index0 }}][description]"
+                    type="text"
+                    value="{{ _variable_description | string | e }}"
+                    placeholder="z. B. reale Bauteildicke"
+                    data-create-field="variable_description"
+                    data-vp-variable-description
+                    autocomplete="off"
+                  />
+                </label>
+
+                <div class="vp-create-row-action">
+                  {% if loop.index0 == 0 %}
+                    <button
+                      class="vp-create-button vp-create-button--ghost"
+                      type="button"
+                      data-create-clear-variable="true"
+                    >
+                      Leeren
+                    </button>
+                  {% else %}
+                    <button
+                      class="vp-create-button vp-create-button--ghost"
+                      type="button"
+                      data-create-remove-row="true"
+                    >
+                      Entfernen
+                    </button>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div
+              class="vp-create-variable-row"
+              data-create-variable-row="true"
+              data-vp-variable-row
+              data-row-index="0"
+              role="row"
+            >
+              <label class="vp-create-field vp-create-field--compact">
+                <span class="vp-create-sr-only">Kennwert-Key</span>
+                <input
+                  class="vp-create-input vp-create-input--mono"
+                  name="variables[0][key]"
+                  type="text"
+                  placeholder="dimensions.thickness"
+                  data-create-field="variable_key"
+                  data-vp-variable-key
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </label>
+
+              <label class="vp-create-field vp-create-field--compact">
+                <span class="vp-create-sr-only">Wert</span>
+                <input
+                  class="vp-create-input"
+                  name="variables[0][value]"
+                  type="text"
+                  placeholder="0.24"
+                  data-create-field="variable_value"
+                  data-vp-variable-value
+                  autocomplete="off"
+                />
+              </label>
+
+              <label class="vp-create-field vp-create-field--compact">
+                <span class="vp-create-sr-only">Einheit</span>
+                <input
+                  class="vp-create-input vp-create-input--mono"
+                  name="variables[0][unit]"
+                  type="text"
+                  placeholder="m"
+                  list="create-technical-unit-suggestions"
+                  data-create-field="variable_unit"
+                  data-vp-variable-unit
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </label>
+
+              <label class="vp-create-field vp-create-field--compact">
+                <span class="vp-create-sr-only">Beschreibung</span>
+                <input
+                  class="vp-create-input"
+                  name="variables[0][description]"
+                  type="text"
+                  placeholder="z. B. reale Bauteildicke"
+                  data-create-field="variable_description"
+                  data-vp-variable-description
+                  autocomplete="off"
+                />
+              </label>
+
+              <div class="vp-create-row-action">
+                <button
+                  class="vp-create-button vp-create-button--ghost"
+                  type="button"
+                  data-create-clear-variable="true"
+                >
+                  Leeren
+                </button>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <template data-create-variable-row-template="true">
+          <div
+            class="vp-create-variable-row"
+            data-create-variable-row="true"
+            data-vp-variable-row
+            data-row-index="__index__"
+            role="row"
+          >
+            <label class="vp-create-field vp-create-field--compact">
+              <span class="vp-create-sr-only">Kennwert-Key</span>
+              <input
+                class="vp-create-input vp-create-input--mono"
+                name="variables[__index__][key]"
+                type="text"
+                placeholder="extensions.custom.value"
+                data-create-field="variable_key"
+                data-vp-variable-key
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+
+            <label class="vp-create-field vp-create-field--compact">
+              <span class="vp-create-sr-only">Wert</span>
+              <input
+                class="vp-create-input"
+                name="variables[__index__][value]"
+                type="text"
+                placeholder="Wert"
+                data-create-field="variable_value"
+                data-vp-variable-value
+                autocomplete="off"
+              />
+            </label>
+
+            <label class="vp-create-field vp-create-field--compact">
+              <span class="vp-create-sr-only">Einheit</span>
+              <input
+                class="vp-create-input vp-create-input--mono"
+                name="variables[__index__][unit]"
+                type="text"
+                placeholder="optional"
+                list="create-technical-unit-suggestions"
+                data-create-field="variable_unit"
+                data-vp-variable-unit
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+
+            <label class="vp-create-field vp-create-field--compact">
+              <span class="vp-create-sr-only">Beschreibung</span>
+              <input
+                class="vp-create-input"
+                name="variables[__index__][description]"
+                type="text"
+                placeholder="Beschreibung"
+                data-create-field="variable_description"
+                data-vp-variable-description
+                autocomplete="off"
+              />
+            </label>
+
+            <div class="vp-create-row-action">
+              <button
+                class="vp-create-button vp-create-button--ghost"
+                type="button"
+                data-create-remove-row="true"
+              >
+                Entfernen
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <datalist id="create-technical-unit-suggestions">
+          {% if _technical_units and (_technical_units | length > 0) %}
+            {% for unit in _technical_units %}
+              {% if unit is mapping %}
+                {% if 'value' in unit and unit['value'] %}
+                  {% set _unit_value = unit['value'] %}
+                {% elif 'key' in unit and unit['key'] %}
+                  {% set _unit_value = unit['key'] %}
+                {% elif 'slug' in unit and unit['slug'] %}
+                  {% set _unit_value = unit['slug'] %}
+                {% elif 'label' in unit and unit['label'] %}
+                  {% set _unit_value = unit['label'] %}
+                {% else %}
+                  {% set _unit_value = '' %}
+                {% endif %}
+
+                {% if 'label' in unit and unit['label'] %}
+                  {% set _unit_label = unit['label'] %}
+                {% elif 'title' in unit and unit['title'] %}
+                  {% set _unit_label = unit['title'] %}
+                {% else %}
+                  {% set _unit_label = _unit_value %}
+                {% endif %}
+
+                {% if _unit_value %}
+                  <option value="{{ _unit_value }}">{{ _unit_label }}</option>
+                {% endif %}
+              {% elif unit %}
+                <option value="{{ unit }}">{{ unit }}</option>
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+
+          <option value="m"></option>
+          <option value="cm"></option>
+          <option value="mm"></option>
+          <option value="m2"></option>
+          <option value="m²"></option>
+          <option value="m3"></option>
+          <option value="m³"></option>
+          <option value="kg"></option>
+          <option value="kg/m3"></option>
+          <option value="kg/m³"></option>
+          <option value="W/(m*K)"></option>
+          <option value="W/(m·K)"></option>
+          <option value="W/(m2*K)"></option>
+          <option value="W/(m²·K)"></option>
+          <option value="MPa"></option>
+          <option value="kN"></option>
+          <option value="dB"></option>
+          <option value="%"></option>
+        </datalist>
+      </div>
+
+      <div
+        class="vplib-create-step__field vplib-create-step__field--full vp-create-derived-note"
+        data-vp-derived-note="technical"
+        aria-label="Technischer Hinweis"
+      >
+        <div class="vp-create-derived-note__inner">
+          <span class="vp-create-derived-note__label">
+            Deklarativ:
+          </span>
+
+          <span class="vp-create-derived-note__text">
+            Kennwerte und Unterlagen werden als Daten vorbereitet. Keine Formeln und keine Skripte werden in diesem Schritt ausgeführt.
+          </span>
+        </div>
+      </div>
+
+      {% if not _has_material_classes or not _has_units %}
+        <div
+          class="vplib-create-step__field vplib-create-step__field--full vp-create-inline-warning"
+          data-vp-inline-warning="technical"
+          role="status"
+        >
+          <strong>Options unvollständig.</strong>
+          {% if not _has_material_classes %}
+            Materialklassen fehlen.
+          {% endif %}
+          {% if not _has_units %}
+            Einheiten fehlen.
+          {% endif %}
+          Freitext bleibt möglich.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <script type="application/json" data-vp-technical-config>
+    {
+      "component": "create.technical",
+      "version": "0.6.0",
+      "required": false,
+      "defaults": {
+        "materialClass": {{ _material_class_value | tojson }},
+        "variableCount": {{ _variable_count | tojson }}
+      },
+      "uploads": {
+        "enabled": true,
+        "backendEnabled": false,
+        "localOnly": true,
+        "field": "technical_document_files",
+        "metadataField": "technical_document_uploads_json",
+        "kind": "technical_documents",
+        "purpose": "manufacturer_documents",
+        "accept": ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp,.zip"
+      },
+      "events": {
+        "ready": "vectoplan:create:technical-ready",
+        "changed": "vectoplan:create:technical-changed",
+        "uploadChanged": "vectoplan:create:technical-upload-changed",
+        "genericUploadChanged": "vectoplan:create:upload-changed"
+      }
+    }
+  </script>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    function bootTechnical() {
+      try {
+        var COMPONENT_NAME = "VECTOPLAN Create Technical";
+        var COMPONENT_VERSION = "0.6.0";
+
+        var section = document.querySelector('[data-vp-create-section="technical"]') ||
+          document.querySelector('[data-create-section="technical"]') ||
+          document.querySelector("[data-vp-technical-root='true']");
+
+        if (!section || section.getAttribute("data-vp-technical-ready") === "true") {
+          return;
+        }
+
+        var config = {
+          component: "create.technical",
+          version: COMPONENT_VERSION,
+          required: false,
+          defaults: {
+            materialClass: "",
+            variableCount: 1
+          },
+          uploads: {
+            enabled: true,
+            backendEnabled: false,
+            localOnly: true,
+            field: "technical_document_files",
+            metadataField: "technical_document_uploads_json",
+            kind: "technical_documents",
+            purpose: "manufacturer_documents",
+            accept: ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp,.zip"
+          },
+          events: {
+            ready: "vectoplan:create:technical-ready",
+            changed: "vectoplan:create:technical-changed",
+            uploadChanged: "vectoplan:create:technical-upload-changed",
+            genericUploadChanged: "vectoplan:create:upload-changed"
+          }
+        };
+
+        var configNode = section.querySelector("[data-vp-technical-config]");
+
+        try {
+          if (configNode && configNode.textContent) {
+            var parsedConfig = JSON.parse(configNode.textContent);
+
+            if (parsedConfig && typeof parsedConfig === "object") {
+              config = Object.assign({}, config, parsedConfig);
+              config.defaults = Object.assign({}, config.defaults || {}, parsedConfig.defaults || {});
+              config.uploads = Object.assign({}, config.uploads || {}, parsedConfig.uploads || {});
+              config.events = Object.assign({}, config.events || {}, parsedConfig.events || {});
+            }
+          }
+        } catch (configError) {
+          warn("Config parse failed.", configError);
+        }
+
+        var addButton = section.querySelector('[data-create-add-variable="true"]');
+        var table = section.querySelector('[data-create-variable-table="true"]');
+        var template = section.querySelector('[data-create-variable-row-template="true"]');
+        var countLabel = section.querySelector("[data-vp-variable-count-label]");
+        var materialField = section.querySelector('[data-create-field="material_class"]');
+
+        var uploadZone = section.querySelector("[data-vp-technical-upload]") ||
+          section.querySelector("[data-vp-upload-zone][data-vp-upload-kind='technical_documents']");
+
+        var uploadInput = section.querySelector("[data-vp-technical-document-upload-input='true']") ||
+          section.querySelector("[data-vp-upload-input][data-vp-upload-kind='technical_documents']");
+
+        var uploadMetaField = section.querySelector("[data-vp-technical-document-upload-metadata='true']") ||
+          section.querySelector("[data-vp-upload-metadata][data-vp-upload-metadata-kind='technical_documents']");
+
+        var uploadFileList = section.querySelector("[data-vp-upload-file-list]");
+        var uploadEmpty = section.querySelector("[data-vp-upload-empty]");
+        var uploadCountLabel = section.querySelector("[data-vp-upload-count-label]");
+
+        var state = {
+          materialClass: "",
+          variables: [],
+          variableCount: 0,
+          filledVariableCount: 0,
+          uploads: {
+            count: 0,
+            files: []
+          },
+          updatedAt: "",
+          source: "initial"
+        };
+
+        function warn(message, error) {
+          try {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
+            }
+          } catch (consoleError) {
+            /* no-op */
+          }
+        }
+
+        function dispatch(node, eventName, detail, cancelable) {
+          try {
+            if (!node || !eventName) {
+              return null;
+            }
+
+            var event = new CustomEvent(eventName, {
+              bubbles: true,
+              cancelable: !!cancelable,
+              detail: detail || {}
+            });
+
+            node.dispatchEvent(event);
+            return event;
+          } catch (error) {
+            warn("Event dispatch failed: " + eventName, error);
+            return null;
+          }
+        }
+
+        function toArray(value) {
+          try {
+            return Array.prototype.slice.call(value || []);
+          } catch (error) {
+            return [];
+          }
+        }
+
+        function getRows() {
+          try {
+            if (!table) {
+              return [];
+            }
+
+            return toArray(table.querySelectorAll('[data-create-variable-row="true"]'));
+          } catch (error) {
+            return [];
+          }
+        }
+
+        function rowHasValue(row) {
+          try {
+            if (!row) {
+              return false;
+            }
+
+            var fields = row.querySelectorAll("input, select, textarea");
+
+            for (var index = 0; index < fields.length; index += 1) {
+              if (fields[index].value && String(fields[index].value).trim() !== "") {
+                return true;
+              }
+            }
+
+            return false;
+          } catch (error) {
+            return false;
+          }
+        }
+
+        function normalizeKey(value) {
+          try {
+            return String(value || "")
+              .trim()
+              .toLowerCase()
+              .replace(/\s+/g, "_")
+              .replace(/[^a-z0-9._-]/g, "")
+              .replace(/_{2,}/g, "_")
+              .replace(/\.{2,}/g, ".")
+              .replace(/^[_\-.]+|[_\-.]+$/g, "");
+          } catch (error) {
+            return "";
+          }
+        }
+
+        function normalizeMaterial(value) {
+          try {
+            return String(value || "")
+              .trim()
+              .toLowerCase()
+              .replace(/\s+/g, "_")
+              .replace(/ä/g, "ae")
+              .replace(/ö/g, "oe")
+              .replace(/ü/g, "ue")
+              .replace(/ß/g, "ss")
+              .replace(/[^a-z0-9._-]/g, "_")
+              .replace(/_{2,}/g, "_")
+              .replace(/^_+|_+$/g, "");
+          } catch (error) {
+            return "";
+          }
+        }
+
+        function getFieldValue(row, selector, fallbackValue) {
+          try {
+            var field = row ? row.querySelector(selector) : null;
+
+            if (!field) {
+              return fallbackValue || "";
+            }
+
+            return field.value === undefined || field.value === null
+              ? fallbackValue || ""
+              : String(field.value).trim();
+          } catch (error) {
+            return fallbackValue || "";
+          }
+        }
+
+        function readVariables() {
+          try {
+            return getRows().map(function (row, index) {
+              return {
+                index: index,
+                key: getFieldValue(row, "[data-vp-variable-key]", ""),
+                value: getFieldValue(row, "[data-vp-variable-value]", ""),
+                unit: getFieldValue(row, "[data-vp-variable-unit]", ""),
+                description: getFieldValue(row, "[data-vp-variable-description]", "")
+              };
+            });
+          } catch (error) {
+            warn("Variable read failed.", error);
+            return [];
+          }
+        }
+
+        function updateCount() {
+          try {
+            var rows = getRows();
+            var count = rows.length;
+            var filled = rows.filter(rowHasValue).length;
+
+            section.setAttribute("data-vp-variable-count", String(count));
+            section.setAttribute("data-vp-variable-filled-count", String(filled));
+
+            if (countLabel) {
+              if (count === 1) {
+                countLabel.textContent = filled === 1 ? "1 Zeile · befüllt" : "1 Zeile";
+              } else {
+                countLabel.textContent = filled + " / " + count + " befüllt";
+              }
+            }
+
+            state.variableCount = count;
+            state.filledVariableCount = filled;
+
+            return {
+              count: count,
+              filled: filled
+            };
+          } catch (error) {
+            warn("Count update failed.", error);
+
+            return {
+              count: 0,
+              filled: 0
+            };
+          }
+        }
+
+        function updateRowIndexes() {
+          try {
+            getRows().forEach(function (row, index) {
+              try {
+                row.setAttribute("data-row-index", String(index));
+
+                row.querySelectorAll("[name]").forEach(function (field) {
+                  try {
+                    var name = field.getAttribute("name");
+
+                    if (!name) {
+                      return;
+                    }
+
+                    field.setAttribute("name", name.replace(/variables\[\d+\]/g, "variables[" + index + "]"));
+                  } catch (fieldError) {
+                    warn("Variable field index update skipped.", fieldError);
+                  }
+                });
+
+                var clearButton = row.querySelector('[data-create-clear-variable="true"]');
+                var removeButton = row.querySelector('[data-create-remove-row="true"]');
+
+                if (index === 0) {
+                  if (!clearButton && removeButton) {
+                    removeButton.setAttribute("data-create-clear-variable", "true");
+                    removeButton.removeAttribute("data-create-remove-row");
+                    removeButton.textContent = "Leeren";
+                  }
+                } else {
+                  if (clearButton && !removeButton) {
+                    clearButton.setAttribute("data-create-remove-row", "true");
+                    clearButton.removeAttribute("data-create-clear-variable");
+                    clearButton.textContent = "Entfernen";
+                  }
+                }
+              } catch (rowError) {
+                warn("Variable row index update skipped.", rowError);
+              }
+            });
+
+            updateCount();
+          } catch (error) {
+            warn("Row index update failed.", error);
+          }
+        }
+
+        function clearRow(row) {
+          try {
+            if (!row) {
+              return;
+            }
+
+            row.querySelectorAll("input, select, textarea").forEach(function (field) {
+              try {
+                if (field.tagName && field.tagName.toLowerCase() === "select") {
+                  field.selectedIndex = 0;
+                } else {
+                  field.value = "";
+                }
+
+                field.dispatchEvent(new Event("input", { bubbles: true }));
+                field.dispatchEvent(new Event("change", { bubbles: true }));
+              } catch (fieldError) {
+                warn("Variable field clear skipped.", fieldError);
+              }
+            });
+
+            updateTechnicalState({
+              source: "clear-row"
+            });
+          } catch (error) {
+            warn("Row clear failed.", error);
+          }
+        }
+
+        function createFallbackRow() {
+          try {
+            if (!template || !table) {
+              return null;
+            }
+
+            var index = getRows().length;
+            var html = "";
+
+            if ("content" in template && template.innerHTML) {
+              html = template.innerHTML;
+            } else {
+              html = template.textContent || "";
+            }
+
+            html = html.split("__index__").join(String(index));
+
+            var wrapper = document.createElement("div");
+            wrapper.innerHTML = html.trim();
+
+            var row = wrapper.firstElementChild;
+
+            if (!row) {
+              return null;
+            }
+
+            table.appendChild(row);
+            updateRowIndexes();
+
+            var firstInput = row.querySelector("input, select, textarea");
+
+            if (firstInput && typeof firstInput.focus === "function") {
+              firstInput.focus();
+            }
+
+            updateTechnicalState({
+              source: "create-fallback-row"
+            });
+
+            return row;
+          } catch (error) {
+            warn("Fallback row creation failed.", error);
+            return null;
+          }
+        }
+
+        function normalizeCurrentInput(target) {
+          try {
+            if (!target || !target.matches) {
+              return;
+            }
+
+            if (target.matches('[data-create-field="variable_key"]')) {
+              target.value = normalizeKey(target.value);
+            }
+
+            if (target.matches('[data-create-field="material_class"]')) {
+              var normalized = normalizeMaterial(target.value);
+
+              if (normalized) {
+                target.value = normalized;
+              }
+            }
+          } catch (error) {
+            warn("Input normalization failed.", error);
+          }
+        }
+
+        function fileSizeLabel(bytes) {
+          try {
+            var value = parseInt(bytes, 10);
+
+            if (!Number.isFinite(value) || value <= 0) {
+              return "0 B";
+            }
+
+            if (value < 1024) {
+              return value + " B";
+            }
+
+            if (value < 1024 * 1024) {
+              return (value / 1024).toFixed(1).replace(".0", "") + " KB";
+            }
+
+            return (value / (1024 * 1024)).toFixed(1).replace(".0", "") + " MB";
+          } catch (error) {
+            return "";
+          }
+        }
+
+        function readUploadFiles() {
+          try {
+            if (!uploadInput || !uploadInput.files) {
+              return [];
+            }
+
+            return toArray(uploadInput.files).map(function (file, index) {
+              try {
+                return {
+                  index: index,
+                  name: file.name || "",
+                  size: file.size || 0,
+                  size_label: fileSizeLabel(file.size || 0),
+                  sizeLabel: fileSizeLabel(file.size || 0),
+                  type: file.type || "",
+                  extension: file.name && file.name.indexOf(".") >= 0
+                    ? file.name.split(".").pop().toLowerCase()
+                    : "",
+                  last_modified: file.lastModified || null,
+                  lastModified: file.lastModified || null,
+                  kind: "technical_documents",
+                  purpose: "manufacturer_documents",
+                  backend_stored: false,
+                  backendStored: false,
+                  local_only: true,
+                  localOnly: true
+                };
+              } catch (fileError) {
+                return {
+                  index: index,
+                  name: "",
+                  size: 0,
+                  size_label: "0 B",
+                  sizeLabel: "0 B",
+                  type: "",
+                  extension: "",
+                  last_modified: null,
+                  lastModified: null,
+                  kind: "technical_documents",
+                  purpose: "manufacturer_documents",
+                  backend_stored: false,
+                  backendStored: false,
+                  local_only: true,
+                  localOnly: true
+                };
+              }
+            });
+          } catch (error) {
+            warn("Upload file read failed.", error);
+            return [];
+          }
+        }
+
+        function renderUploadList(files) {
+          try {
+            var countText = files.length === 1 ? "1 Datei" : files.length + " Dateien";
+
+            if (uploadCountLabel) {
+              uploadCountLabel.textContent = countText;
+            }
+
+            if (uploadEmpty) {
+              uploadEmpty.textContent = files.length
+                ? "Ausgewählte Unterlagen werden aktuell nur als lokale Metadaten erfasst."
+                : "Noch keine technischen Unterlagen ausgewählt.";
+            }
+
+            if (!uploadFileList) {
+              return;
+            }
+
+            uploadFileList.innerHTML = "";
+
+            files.forEach(function (file) {
+              try {
+                var row = document.createElement("div");
+                row.className = "vp-create-upload__file";
+                row.setAttribute("data-vp-upload-file", "true");
+
+                var copy = document.createElement("div");
+                copy.className = "vp-create-upload__file-copy";
+
+                var name = document.createElement("strong");
+                name.className = "vp-create-upload__file-name";
+                name.setAttribute("data-vp-upload-file-name", "true");
+                name.textContent = file.name || "Unbenannte Datei";
+
+                var meta = document.createElement("span");
+                meta.className = "vp-create-upload__file-meta";
+                meta.setAttribute("data-vp-upload-file-meta", "true");
+                meta.textContent = [
+                  file.size_label || file.sizeLabel || "",
+                  file.extension ? "." + file.extension : "",
+                  file.type || "unbekannter Typ"
+                ].filter(Boolean).join(" · ");
+
+                copy.appendChild(name);
+                copy.appendChild(meta);
+                row.appendChild(copy);
+
+                uploadFileList.appendChild(row);
+              } catch (rowError) {
+                warn("Upload row render skipped.", rowError);
+              }
+            });
+          } catch (error) {
+            warn("Upload list render failed.", error);
+          }
+        }
+
+        function syncUploadMetadata(options) {
+          try {
+            var files = readUploadFiles();
+            var updatedAt = new Date().toISOString();
+            var payload = {
+              version: COMPONENT_VERSION,
+              kind: "technical_documents",
+              purpose: "manufacturer_documents",
+              backend_enabled: false,
+              backendEnabled: false,
+              local_only: true,
+              localOnly: true,
+              count: files.length,
+              files: files,
+              updated_at: updatedAt,
+              updatedAt: updatedAt,
+              source: options && options.source ? options.source : "upload"
+            };
+
+            if (uploadMetaField) {
+              uploadMetaField.value = JSON.stringify(payload);
+              uploadMetaField.setAttribute("data-vp-last-upload-sync", String(Date.now()));
+            }
+
+            if (uploadZone) {
+              uploadZone.setAttribute("data-vp-upload-count", String(files.length));
+              uploadZone.setAttribute("data-vp-upload-has-files", files.length > 0 ? "true" : "false");
+              uploadZone.setAttribute("data-vp-upload-last-update", String(Date.now()));
+            }
+
+            section.setAttribute("data-vp-technical-document-count", String(files.length));
+            section.setAttribute("data-vp-technical-documents-selected", files.length > 0 ? "true" : "false");
+
+            renderUploadList(files);
+            state.uploads = payload;
+
+            dispatch(section, config.events.uploadChanged || "vectoplan:create:technical-upload-changed", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              kind: "technical_documents",
+              purpose: "manufacturer_documents",
+              count: files.length,
+              files: files,
+              payload: payload,
+              source: payload.source
+            });
+
+            dispatch(document, config.events.genericUploadChanged || "vectoplan:create:upload-changed", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              kind: "technical_documents",
+              purpose: "manufacturer_documents",
+              count: files.length,
+              files: files,
+              payload: payload,
+              source: payload.source
+            });
+
+            return payload;
+          } catch (error) {
+            warn("Upload metadata sync failed.", error);
+
+            return {
+              count: 0,
+              files: []
+            };
+          }
+        }
+
+        function readTechnicalState(source) {
+          try {
+            var variables = readVariables();
+            var counts = updateCount();
+
+            return {
+              materialClass: materialField && materialField.value ? String(materialField.value).trim() : "",
+              variables: variables,
+              variableCount: counts.count,
+              filledVariableCount: counts.filled,
+              uploads: state.uploads || {
+                count: 0,
+                files: []
+              },
+              updatedAt: new Date().toISOString(),
+              source: source || "read"
+            };
+          } catch (error) {
+            warn("State read failed.", error);
+            return Object.assign({}, state);
+          }
+        }
+
+        function updateRootAttributes(nextState) {
+          try {
+            section.setAttribute("data-vp-material-class", nextState.materialClass || "");
+            section.setAttribute("data-vp-variable-count", String(nextState.variableCount || 0));
+            section.setAttribute("data-vp-variable-filled-count", String(nextState.filledVariableCount || 0));
+            section.setAttribute("data-vp-technical-last-source", nextState.source || "unknown");
+            section.setAttribute("data-vp-technical-last-update", String(Date.now()));
+
+            var app = document.querySelector("[data-vp-create-app]");
+            var form = document.querySelector("[data-vp-create-form], [data-create-form='true'], #vp-create-form");
+
+            [app, form].forEach(function (node) {
+              try {
+                if (!node) {
+                  return;
+                }
+
+                node.setAttribute("data-vp-material-class", nextState.materialClass || "");
+                node.setAttribute("data-vp-variable-count", String(nextState.variableCount || 0));
+                node.setAttribute("data-vp-variable-filled-count", String(nextState.filledVariableCount || 0));
+              } catch (nodeError) {
+                /* no-op */
+              }
+            });
+          } catch (error) {
+            warn("Root attribute update failed.", error);
+          }
+        }
+
+        function updateTechnicalState(options) {
+          try {
+            var updateOptions = options || {};
+            var previousState = Object.assign({}, state);
+
+            state = readTechnicalState(updateOptions.source || "update");
+            updateRootAttributes(state);
+
+            dispatch(section, config.events.changed || "vectoplan:create:technical-changed", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              state: Object.assign({}, state),
+              previousState: previousState,
+              root: section,
+              source: state.source
+            });
+
+            return Object.assign({}, state);
+          } catch (error) {
+            warn("Technical update failed.", error);
+            return Object.assign({}, state);
+          }
+        }
+
+        if (addButton) {
+          addButton.addEventListener("click", function () {
+            try {
+              var before = getRows().length;
+
+              window.setTimeout(function () {
+                try {
+                  var after = getRows().length;
+
+                  if (after === before) {
+                    createFallbackRow();
+                  } else {
+                    updateRowIndexes();
+                    updateTechnicalState({
+                      source: "add-variable"
+                    });
+                  }
+                } catch (error) {
+                  warn("Add fallback check failed.", error);
+                }
+              }, 50);
+            } catch (error) {
+              warn("Add variable failed.", error);
+            }
+          });
+        }
+
+        section.addEventListener("click", function (event) {
+          try {
+            var target = event.target;
+
+            if (!target || !target.closest) {
+              return;
+            }
+
+            var clearButton = target.closest('[data-create-clear-variable="true"]');
+            var removeButton = target.closest('[data-create-remove-row="true"]');
+
+            if (clearButton && section.contains(clearButton)) {
+              var clearRowElement = clearButton.closest('[data-create-variable-row="true"]');
+              window.setTimeout(function () {
+                clearRow(clearRowElement);
+              }, 0);
+              return;
+            }
+
+            if (removeButton && section.contains(removeButton)) {
+              var row = removeButton.closest('[data-create-variable-row="true"]');
+              var before = getRows().length;
+
+              window.setTimeout(function () {
+                try {
+                  if (!row || !row.isConnected || getRows().length !== before || before <= 1) {
+                    updateRowIndexes();
+                    updateTechnicalState({
+                      source: "remove-variable"
+                    });
+                    return;
+                  }
+
+                  row.remove();
+                  updateRowIndexes();
+                  updateTechnicalState({
+                    source: "remove-variable-fallback"
+                  });
+                } catch (error) {
+                  warn("Remove fallback check failed.", error);
+                }
+              }, 50);
+            }
+          } catch (error) {
+            warn("Click handling failed.", error);
+          }
+        });
+
+        section.addEventListener("input", function (event) {
+          try {
+            updateTechnicalState({
+              source: "input"
+            });
+
+            if (event && event.target) {
+              section.setAttribute("data-vp-technical-last-field", event.target.getAttribute("data-create-field") || "");
+            }
+          } catch (error) {
+            warn("Input handling failed.", error);
+          }
+        });
+
+        section.addEventListener("change", function (event) {
+          try {
+            updateTechnicalState({
+              source: "change"
+            });
+
+            if (event && event.target) {
+              section.setAttribute("data-vp-technical-last-field", event.target.getAttribute("data-create-field") || "");
+            }
+          } catch (error) {
+            warn("Change handling failed.", error);
+          }
+        });
+
+        section.addEventListener("blur", function (event) {
+          try {
+            if (!event || !event.target) {
+              return;
+            }
+
+            normalizeCurrentInput(event.target);
+            updateTechnicalState({
+              source: "blur"
+            });
+          } catch (error) {
+            warn("Blur handling failed.", error);
+          }
+        }, true);
+
+        if (materialField) {
+          materialField.addEventListener("blur", function () {
+            try {
+              normalizeCurrentInput(materialField);
+            } catch (error) {
+              warn("Material normalization failed.", error);
+            }
+          });
+        }
+
+        if (uploadInput) {
+          try {
+            uploadInput.addEventListener("change", function () {
+              syncUploadMetadata({
+                source: "technical-upload-change"
+              });
+              updateTechnicalState({
+                source: "technical-upload-change"
+              });
+            });
+            uploadInput.setAttribute("data-vp-upload-bound", "true");
+          } catch (uploadBindError) {
+            warn("Upload binding failed.", uploadBindError);
+          }
+        }
+
+        updateRowIndexes();
+        syncUploadMetadata({
+          source: "boot"
+        });
+        updateTechnicalState({
+          source: "boot"
+        });
+
+        window.VectoplanCreateTechnical = Object.assign({}, window.VectoplanCreateTechnical || {}, {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          root: section,
+          update: updateTechnicalState,
+          syncUploads: syncUploadMetadata,
+          addVariableRow: createFallbackRow,
+          refreshRows: function () {
+            try {
+              updateRowIndexes();
+              return updateTechnicalState({
+                source: "public-refresh-rows"
+              });
+            } catch (error) {
+              warn("Public refreshRows failed.", error);
+              return Object.assign({}, state);
+            }
+          },
+          validate: function () {
+            try {
+              updateRowIndexes();
+              updateTechnicalState({
+                source: "validate"
+              });
+
+              return true;
+            } catch (error) {
+              warn("Validate failed.", error);
+              return false;
+            }
+          },
+          getState: function () {
+            try {
+              return Object.assign({}, state);
+            } catch (error) {
+              return {};
+            }
+          },
+          getVariables: function () {
+            try {
+              return readVariables();
+            } catch (error) {
+              return [];
+            }
+          },
+          getUploads: function () {
+            try {
+              return Object.assign({}, state.uploads || {
+                count: 0,
+                files: []
+              });
+            } catch (error) {
+              return {
+                count: 0,
+                files: []
+              };
+            }
+          },
+          getConfig: function () {
+            try {
+              return Object.assign({}, config);
+            } catch (error) {
+              return {};
+            }
+          }
+        });
+
+        section.setAttribute("data-vp-technical-ready", "true");
+        section.setAttribute("data-vp-technical-version", COMPONENT_VERSION);
+
+        dispatch(section, config.events.ready || "vectoplan:create:technical-ready", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          state: Object.assign({}, state),
+          root: section
+        });
+      } catch (error) {
+        try {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Technical] Defensive initialization failed.", error);
+          }
+        } catch (consoleError) {
+          /* no-op */
+        }
+      }
+    }
+
+    try {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", bootTechnical, {
+          once: true
+        });
+      } else {
+        bootTechnical();
+      }
+    } catch (error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Technical] Boot scheduling failed.", error);
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+  })();
+</script>

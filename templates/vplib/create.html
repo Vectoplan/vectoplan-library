@@ -1,0 +1,977 @@
+{# services/vectoplan-library/templates/vplib/create.html #}
+<!doctype html>
+<html
+  lang="de"
+  data-create-document="true"
+  data-vp-create-document="true"
+  data-theme="dark"
+  data-vp-create-theme="dark"
+  data-create-default-theme="dark"
+  data-vp-create-default-theme="dark"
+  data-vp-create-color-scheme="dark"
+  data-vp-create-style="black"
+  data-vp-create-template-root="vplib"
+  data-vp-create-template-version="0.6.0"
+>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+
+  <title>VPLIB erstellen · VECTOPLAN Library</title>
+
+  <script>
+    (function () {
+      "use strict";
+
+      try {
+        var root = document.documentElement;
+        var defaultTheme = "dark";
+        var themeStorageKey = "vectoplan.create.wizard.theme";
+        var legacyThemeStorageKey = "vectoplan.create.theme";
+        var allowedThemes = {
+          light: true,
+          dark: true,
+          system: true
+        };
+
+        root.classList.add("vp-create-js-pending");
+        root.setAttribute("data-vp-create-shell", "wizard");
+        root.setAttribute("data-create-default-theme", defaultTheme);
+        root.setAttribute("data-vp-create-default-theme", defaultTheme);
+        root.setAttribute("data-vp-create-color-scheme", "dark");
+        root.setAttribute("data-vp-create-style", "black");
+        root.setAttribute("data-vp-create-template-root", "vplib");
+        root.setAttribute("data-vp-create-template-version", "0.6.0");
+        root.setAttribute("data-vp-create-css-mode", "single-file");
+        root.setAttribute("data-vp-create-variant-runtime", "definition-managed");
+        root.setAttribute("data-vp-create-variant-runtime-version", "0.1.0");
+
+        try {
+          var isEmbedded = false;
+
+          try {
+            isEmbedded = window.self !== window.top;
+          } catch (frameError) {
+            isEmbedded = true;
+          }
+
+          root.setAttribute("data-vp-create-embedded", isEmbedded ? "true" : "false");
+        } catch (embedError) {
+          root.setAttribute("data-vp-create-embedded", "false");
+        }
+
+        try {
+          var storedTheme = window.localStorage.getItem(themeStorageKey);
+
+          if (!storedTheme || !allowedThemes[String(storedTheme).toLowerCase()]) {
+            storedTheme = defaultTheme;
+          }
+
+          /*
+            Der neue Create-Wizard wird bewusst schwarz geführt.
+            Alte localStorage-Werte wie "light" werden hier auf dark normalisiert,
+            damit JS-Kontext, CSS und Shell nicht gegeneinander arbeiten.
+          */
+          storedTheme = defaultTheme;
+
+          window.localStorage.setItem(themeStorageKey, storedTheme);
+          window.localStorage.setItem(legacyThemeStorageKey, storedTheme);
+
+          root.setAttribute("data-theme", String(storedTheme).toLowerCase());
+          root.setAttribute("data-vp-create-theme", String(storedTheme).toLowerCase());
+          root.setAttribute("data-create-default-theme", defaultTheme);
+          root.setAttribute("data-vp-create-default-theme", defaultTheme);
+          root.style.colorScheme = "dark";
+        } catch (storageError) {
+          root.setAttribute("data-theme", defaultTheme);
+          root.setAttribute("data-vp-create-theme", defaultTheme);
+          root.style.colorScheme = "dark";
+
+          try {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[VECTOPLAN Create] Theme storage bootstrap failed. Falling back to dark.", storageError);
+            }
+          } catch (consoleError) {
+            /* no-op */
+          }
+        }
+      } catch (error) {
+        try {
+          document.documentElement.setAttribute("data-theme", "dark");
+          document.documentElement.setAttribute("data-vp-create-theme", "dark");
+          document.documentElement.setAttribute("data-vp-create-shell", "wizard");
+          document.documentElement.setAttribute("data-vp-create-style", "black");
+          document.documentElement.setAttribute("data-vp-create-template-root", "vplib");
+          document.documentElement.setAttribute("data-vp-create-variant-runtime", "definition-managed");
+          document.documentElement.style.colorScheme = "dark";
+        } catch (fallbackError) {
+          /* no-op */
+        }
+
+        try {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create] Early shell bootstrap failed.", error);
+          }
+        } catch (consoleError) {
+          /* no-op */
+        }
+      }
+    })();
+  </script>
+
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/vplib/create.css') }}"
+    data-vp-create-stylesheet="vplib/create.css"
+    data-vp-create-css-mode="single-file"
+  />
+</head>
+
+{% import "vplib/create/_macros.html" as create_ui %}
+
+
+{# -----------------------------------------------------------------------------
+   1. API-Kontext
+----------------------------------------------------------------------------- #}
+
+{% if create_api_prefix is defined and create_api_prefix %}
+  {% set _api_prefix = create_api_prefix %}
+{% else %}
+  {% set _api_prefix = '/api/v1/vplib/create' %}
+{% endif %}
+
+{% set _definitions_api_prefix = '/api/v1/vplib/definitions' %}
+
+
+{# -----------------------------------------------------------------------------
+   2. Options / Health / Blueprint
+----------------------------------------------------------------------------- #}
+
+{% if create_options is defined and create_options is mapping %}
+  {% set _options = create_options %}
+{% else %}
+  {% set _options = {} %}
+{% endif %}
+
+{% if create_health is defined and create_health is mapping %}
+  {% set _health = create_health %}
+{% else %}
+  {% set _health = {} %}
+{% endif %}
+
+{% if create_blueprint is defined and create_blueprint is mapping %}
+  {% set _blueprint = create_blueprint %}
+{% else %}
+  {% set _blueprint = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+   3. Option-Gruppen
+
+   Unterstützt:
+   - direkte Optionsdaten
+   - RouteResponse-Envelope mit data
+   - definitions_options.*
+   - definition_catalogs.*
+   - definitions.* direkt
+
+   Wichtig:
+   Der aktuelle Backend-Stand liefert die echten Definitionsarrays direkt unter:
+     _options.data.definitions.object_kinds
+     _options.data.definitions.units
+     _options.data.definitions.materials
+----------------------------------------------------------------------------- #}
+
+{% if _options is mapping and 'data' in _options and _options['data'] is mapping %}
+  {% set _options_data = _options['data'] %}
+{% else %}
+  {% set _options_data = _options %}
+{% endif %}
+
+{% if _options_data is mapping and 'definitions' in _options_data and _options_data['definitions'] is mapping %}
+  {% set _definitions_data = _options_data['definitions'] %}
+{% else %}
+  {% set _definitions_data = {} %}
+{% endif %}
+
+{% if _options_data is mapping and 'definitions_options' in _options_data and _options_data['definitions_options'] is mapping %}
+  {% set _definitions_options = _options_data['definitions_options'] %}
+{% elif _definitions_data is mapping and 'options' in _definitions_data and _definitions_data['options'] is mapping %}
+  {% set _definitions_options = _definitions_data['options'] %}
+{% else %}
+  {% set _definitions_options = {} %}
+{% endif %}
+
+{% if _options_data is mapping and 'definition_catalogs' in _options_data and _options_data['definition_catalogs'] is mapping %}
+  {% set _definition_catalogs = _options_data['definition_catalogs'] %}
+{% elif _definitions_data is mapping and 'definitions' in _definitions_data and _definitions_data['definitions'] is mapping %}
+  {% set _definition_catalogs = _definitions_data['definitions'] %}
+{% elif _definitions_data is mapping and (
+  'object_kinds' in _definitions_data or
+  'family_profiles' in _definitions_data or
+  'variant_profiles' in _definitions_data or
+  'variables' in _definitions_data or
+  'units' in _definitions_data or
+  'materials' in _definitions_data or
+  'document_types' in _definitions_data or
+  'profile_bindings' in _definitions_data
+) %}
+  {% set _definition_catalogs = _definitions_data %}
+{% else %}
+  {% set _definition_catalogs = {} %}
+{% endif %}
+
+{% if _definitions_data is mapping and (
+  _definitions_data.get('ok') is sameas true or
+  (_definitions_data.get('ok') | string | lower) in ['true', '1', 'yes', 'ja', 'ok', 'healthy']
+) %}
+  {% set _create_definitions_available = true %}
+{% elif _definition_catalogs is mapping and (
+  ('object_kinds' in _definition_catalogs and _definition_catalogs['object_kinds']) or
+  ('family_profiles' in _definition_catalogs and _definition_catalogs['family_profiles']) or
+  ('variant_profiles' in _definition_catalogs and _definition_catalogs['variant_profiles']) or
+  ('variables' in _definition_catalogs and _definition_catalogs['variables']) or
+  ('units' in _definition_catalogs and _definition_catalogs['units']) or
+  ('materials' in _definition_catalogs and _definition_catalogs['materials'])
+) %}
+  {% set _create_definitions_available = true %}
+{% else %}
+  {% set _create_definitions_available = false %}
+{% endif %}
+
+{% if _options_data is mapping and 'domains' in _options_data and _options_data['domains'] is iterable and _options_data['domains'] is not string %}
+  {% set _domains = _options_data['domains'] %}
+{% else %}
+  {% set _domains = [] %}
+{% endif %}
+
+{% if _options_data is mapping and 'categories' in _options_data and _options_data['categories'] is iterable and _options_data['categories'] is not string %}
+  {% set _categories = _options_data['categories'] %}
+{% else %}
+  {% set _categories = [] %}
+{% endif %}
+
+{% if _options_data is mapping and 'subcategories' in _options_data and _options_data['subcategories'] is iterable and _options_data['subcategories'] is not string %}
+  {% set _subcategories = _options_data['subcategories'] %}
+{% else %}
+  {% set _subcategories = [] %}
+{% endif %}
+
+{% if _options_data is mapping and 'object_kinds' in _options_data and _options_data['object_kinds'] is iterable and _options_data['object_kinds'] is not string and (_options_data['object_kinds'] | length) > 0 %}
+  {% set _object_kinds = _options_data['object_kinds'] %}
+{% elif _definitions_options is mapping and 'object_kinds' in _definitions_options and _definitions_options['object_kinds'] is iterable and _definitions_options['object_kinds'] is not string and (_definitions_options['object_kinds'] | length) > 0 %}
+  {% set _object_kinds = _definitions_options['object_kinds'] %}
+{% elif _definition_catalogs is mapping and 'object_kinds' in _definition_catalogs and _definition_catalogs['object_kinds'] is iterable and _definition_catalogs['object_kinds'] is not string %}
+  {% set _object_kinds = _definition_catalogs['object_kinds'] %}
+{% elif _definitions_data is mapping and 'object_kinds' in _definitions_data and _definitions_data['object_kinds'] is iterable and _definitions_data['object_kinds'] is not string %}
+  {% set _object_kinds = _definitions_data['object_kinds'] %}
+{% else %}
+  {% set _object_kinds = [] %}
+{% endif %}
+
+{% if _options_data is mapping and 'primitive_shapes' in _options_data and _options_data['primitive_shapes'] is iterable and _options_data['primitive_shapes'] is not string %}
+  {% set _primitive_shapes = _options_data['primitive_shapes'] %}
+{% else %}
+  {% set _primitive_shapes = [] %}
+{% endif %}
+
+{% if _options_data is mapping and 'units' in _options_data and _options_data['units'] is iterable and _options_data['units'] is not string and (_options_data['units'] | length) > 0 %}
+  {% set _units = _options_data['units'] %}
+{% elif _definitions_options is mapping and 'units' in _definitions_options and _definitions_options['units'] is iterable and _definitions_options['units'] is not string and (_definitions_options['units'] | length) > 0 %}
+  {% set _units = _definitions_options['units'] %}
+{% elif _definition_catalogs is mapping and 'units' in _definition_catalogs and _definition_catalogs['units'] is iterable and _definition_catalogs['units'] is not string %}
+  {% set _units = _definition_catalogs['units'] %}
+{% elif _definitions_data is mapping and 'units' in _definitions_data and _definitions_data['units'] is iterable and _definitions_data['units'] is not string %}
+  {% set _units = _definitions_data['units'] %}
+{% else %}
+  {% set _units = [] %}
+{% endif %}
+
+{% if _options_data is mapping and 'material_classes' in _options_data and _options_data['material_classes'] is iterable and _options_data['material_classes'] is not string and (_options_data['material_classes'] | length) > 0 %}
+  {% set _material_classes = _options_data['material_classes'] %}
+{% elif _options_data is mapping and 'materials' in _options_data and _options_data['materials'] is iterable and _options_data['materials'] is not string and (_options_data['materials'] | length) > 0 %}
+  {% set _material_classes = _options_data['materials'] %}
+{% elif _definitions_options is mapping and 'materials' in _definitions_options and _definitions_options['materials'] is iterable and _definitions_options['materials'] is not string and (_definitions_options['materials'] | length) > 0 %}
+  {% set _material_classes = _definitions_options['materials'] %}
+{% elif _definition_catalogs is mapping and 'materials' in _definition_catalogs and _definition_catalogs['materials'] is iterable and _definition_catalogs['materials'] is not string %}
+  {% set _material_classes = _definition_catalogs['materials'] %}
+{% elif _definitions_data is mapping and 'materials' in _definitions_data and _definitions_data['materials'] is iterable and _definitions_data['materials'] is not string %}
+  {% set _material_classes = _definitions_data['materials'] %}
+{% else %}
+  {% set _material_classes = [] %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+   4. Write-/Health-Status
+----------------------------------------------------------------------------- #}
+
+{% if _options_data is mapping and 'write_enabled' in _options_data %}
+  {% set _write_enabled_raw = _options_data['write_enabled'] %}
+{% else %}
+  {% set _write_enabled_raw = false %}
+{% endif %}
+
+{% set _write_enabled_text = _write_enabled_raw | string | lower %}
+{% if _write_enabled_raw is sameas true or _write_enabled_text in ['true', '1', 'yes', 'ja', 'enabled', 'active', 'on'] %}
+  {% set _write_enabled = true %}
+{% else %}
+  {% set _write_enabled = false %}
+{% endif %}
+
+{% if _health is mapping and 'ok' in _health %}
+  {% set _health_ok_raw = _health['ok'] %}
+{% else %}
+  {% set _health_ok_raw = false %}
+{% endif %}
+
+{% set _health_ok_text = _health_ok_raw | string | lower %}
+{% if _health_ok_raw is sameas true or _health_ok_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy'] %}
+  {% set _health_ok = true %}
+{% else %}
+  {% set _health_ok = false %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+   5. Source Root / Versionen
+----------------------------------------------------------------------------- #}
+
+{% if _options_data is mapping and 'source_root' in _options_data and _options_data['source_root'] %}
+  {% set _source_root = _options_data['source_root'] %}
+{% else %}
+  {% set _source_root = '' %}
+{% endif %}
+
+{% if _blueprint is mapping and 'version' in _blueprint and _blueprint['version'] %}
+  {% set _blueprint_version = _blueprint['version'] %}
+{% else %}
+  {% set _blueprint_version = '0.1.0' %}
+{% endif %}
+
+{% if _options_data is mapping and 'version' in _options_data and _options_data['version'] %}
+  {% set _create_service_version = _options_data['version'] %}
+{% else %}
+  {% set _create_service_version = 'unknown' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+   6. Theme-Kontext
+----------------------------------------------------------------------------- #}
+
+{% set _create_default_theme = 'dark' %}
+{% set _create_theme_storage_key = 'vectoplan.create.wizard.theme' %}
+{% set _create_legacy_theme_storage_key = 'vectoplan.create.theme' %}
+
+
+{# -----------------------------------------------------------------------------
+   7. Optionaler Initial-Draft
+----------------------------------------------------------------------------- #}
+
+{% if create_initial_draft is defined and create_initial_draft is mapping %}
+  {% set _initial_draft = create_initial_draft %}
+{% elif draft is defined and draft is mapping %}
+  {% set _initial_draft = draft %}
+{% elif vplib_draft is defined and vplib_draft is mapping %}
+  {% set _initial_draft = vplib_draft %}
+{% else %}
+  {% set _initial_draft = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+   8. Wizard-Schritte
+
+   Wichtig:
+   - Step 3 wird sichtbar als "Variablen" geführt.
+   - Der interne key/target bleibt vorerst kompatibel:
+     key: object
+     target: object-variants
+   - Dadurch bleiben create_wizard.js, create_preview.js und Variant-Runtime
+     bis zum späteren Refactor stabil.
+----------------------------------------------------------------------------- #}
+
+{% set create_steps = [
+  {
+    "index": 1,
+    "key": "identity",
+    "label": "Grunddaten",
+    "short_label": "Daten",
+    "description": "Name und Beschreibung",
+    "hint": "Name und Beschreibung des neuen Library-Bausteins festlegen.",
+    "target": "identity"
+  },
+  {
+    "index": 2,
+    "key": "taxonomy",
+    "label": "Taxonomie",
+    "short_label": "Taxonomie",
+    "description": "Domain, Kategorie und Subkategorie",
+    "hint": "Fachliche Einordnung für Library, Scanner und spätere Navigation auswählen.",
+    "target": "taxonomy"
+  },
+  {
+    "index": 3,
+    "key": "object",
+    "label": "Variablen",
+    "short_label": "Variablen",
+    "description": "Variablen und Unterlagen",
+    "hint": "Technische Variablen, Variantenwerte und optionale Herstellerunterlagen definieren.",
+    "target": "object-variants"
+  },
+  {
+    "index": 4,
+    "key": "geometry",
+    "label": "Geometrie",
+    "short_label": "Geometrie",
+    "description": "Form, Maße, Raster und 3D-Upload",
+    "hint": "Primitive Form, reale Maße, Editor-Raster und optionalen 3D-Modellupload vorbereiten.",
+    "target": "geometry"
+  },
+  {
+    "index": 5,
+    "key": "technical",
+    "label": "Technik",
+    "short_label": "Technik",
+    "description": "Material und Kennwerte",
+    "hint": "Materialklasse und optionale technische Kennwerte ergänzen.",
+    "target": "technical"
+  },
+  {
+    "index": 6,
+    "key": "create",
+    "label": "Erzeugen",
+    "short_label": "Erzeugen",
+    "description": "Prüfen und ausgeben",
+    "hint": "Draft, Validierung, Package-Plan, Download oder Speichern ausführen.",
+    "target": "actions"
+  }
+] %}
+
+{% set create_step_count = create_steps | length %}
+
+{% if create_initial_step is defined and create_initial_step %}
+  {% set _create_initial_step_raw = create_initial_step %}
+{% else %}
+  {% set _create_initial_step_raw = 1 %}
+{% endif %}
+
+{% set create_initial_step = _create_initial_step_raw | int %}
+
+{% if create_initial_step < 1 %}
+  {% set create_initial_step = 1 %}
+{% endif %}
+
+{% if create_initial_step > create_step_count %}
+  {% set create_initial_step = create_step_count %}
+{% endif %}
+
+
+<body
+  class="vp-create-page"
+  data-create-page="true"
+  data-vp-create-page="true"
+  data-vp-create-mode="wizard"
+  data-vp-create-style="black"
+  data-vp-create-template-root="vplib"
+  data-vp-create-template-version="0.6.0"
+  data-vp-create-css-mode="single-file"
+  data-create-api-prefix="{{ _api_prefix }}"
+  data-vp-definitions-api-prefix="{{ _definitions_api_prefix }}"
+  data-create-write-enabled="{% if _write_enabled %}true{% else %}false{% endif %}"
+  data-create-health-ok="{% if _health_ok %}true{% else %}false{% endif %}"
+  data-vp-create-definitions-available="{% if _create_definitions_available %}true{% else %}false{% endif %}"
+  data-vp-create-variant-runtime="definition-managed"
+  data-vp-create-variant-runtime-version="0.1.0"
+  data-create-default-theme="{{ _create_default_theme }}"
+  data-vp-create-default-theme="{{ _create_default_theme }}"
+  data-create-theme-storage-key="{{ _create_theme_storage_key }}"
+  data-create-legacy-theme-storage-key="{{ _create_legacy_theme_storage_key }}"
+>
+  <main
+    class="vplib-create-app"
+    data-vp-create-app
+    data-vp-create-shell="wizard"
+    data-vp-create-style="black"
+    data-vp-create-template-root="vplib"
+    data-vp-create-template-version="0.6.0"
+    data-vp-create-css-mode="single-file"
+    data-create-api-prefix="{{ _api_prefix }}"
+    data-vp-definitions-api-prefix="{{ _definitions_api_prefix }}"
+    data-create-write-enabled="{% if _write_enabled %}true{% else %}false{% endif %}"
+    data-create-health-ok="{% if _health_ok %}true{% else %}false{% endif %}"
+    data-vp-create-definitions-available="{% if _create_definitions_available %}true{% else %}false{% endif %}"
+    data-vp-create-variant-runtime="definition-managed"
+    data-vp-create-variant-runtime-version="0.1.0"
+    data-create-source-root="{{ _source_root }}"
+    data-create-blueprint-version="{{ _blueprint_version }}"
+    data-create-service-version="{{ _create_service_version }}"
+    data-create-default-theme="{{ _create_default_theme }}"
+    data-vp-create-default-theme="{{ _create_default_theme }}"
+    data-create-theme-storage-key="{{ _create_theme_storage_key }}"
+    data-create-legacy-theme-storage-key="{{ _create_legacy_theme_storage_key }}"
+  >
+    <div class="vplib-create-app__shell">
+      {% include "vplib/create/_stepper.html" %}
+
+      <form
+        class="vplib-create-app__form vp-create-form"
+        id="vp-create-form"
+        data-create-form="true"
+        data-vp-create-form
+        data-create-form-state="idle"
+        data-create-api-prefix="{{ _api_prefix }}"
+        data-vp-definitions-api-prefix="{{ _definitions_api_prefix }}"
+        data-vp-create-variant-runtime="definition-managed"
+        data-vp-create-variant-runtime-version="0.1.0"
+        data-create-default-theme="{{ _create_default_theme }}"
+        data-create-theme-storage-key="{{ _create_theme_storage_key }}"
+        data-vp-current-step="{{ create_initial_step }}"
+        data-vp-step-count="{{ create_step_count }}"
+        enctype="multipart/form-data"
+        autocomplete="off"
+        novalidate
+      >
+        <div
+          class="vplib-create-app__workspace"
+          data-create-layout="true"
+          data-vp-create-workspace
+        >
+          <div
+            class="vplib-create-app__main"
+            data-create-layout-main="true"
+            data-vp-create-main
+          >
+            <div
+              class="vplib-create-steps"
+              data-vp-create-steps
+              data-vp-current-step="{{ create_initial_step }}"
+              data-vp-step-count="{{ create_step_count }}"
+            >
+              <section
+                id="vplib-create-step-1"
+                class="vplib-create-step{% if create_initial_step == 1 %} is-active{% else %} is-hidden{% endif %}"
+                data-vp-create-step
+                data-vp-step-index="1"
+                data-vp-step-key="identity"
+                data-vp-step-label="Grunddaten"
+                aria-label="Schritt 1: Grunddaten"
+                {% if create_initial_step != 1 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+              >
+                {% include "vplib/create/sections/_identity.html" %}
+              </section>
+
+              <section
+                id="vplib-create-step-2"
+                class="vplib-create-step{% if create_initial_step == 2 %} is-active{% else %} is-hidden{% endif %}"
+                data-vp-create-step
+                data-vp-step-index="2"
+                data-vp-step-key="taxonomy"
+                data-vp-step-label="Taxonomie"
+                aria-label="Schritt 2: Taxonomie"
+                {% if create_initial_step != 2 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+              >
+                {% include "vplib/create/sections/_taxonomy.html" %}
+              </section>
+
+              <section
+                id="vplib-create-step-3"
+                class="vplib-create-step{% if create_initial_step == 3 %} is-active{% else %} is-hidden{% endif %}"
+                data-vp-create-step
+                data-vp-step-index="3"
+                data-vp-step-key="object"
+                data-vp-step-label="Variablen"
+                data-vp-step-alias="variables"
+                aria-label="Schritt 3: Variablen und Unterlagen"
+                {% if create_initial_step != 3 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+              >
+                {% include [
+                  "vplib/create/sections/_variables.html",
+                  "vplib/create/sections/_object_variants.html"
+                ] ignore missing with context %}
+              </section>
+
+              <section
+                id="vplib-create-step-4"
+                class="vplib-create-step{% if create_initial_step == 4 %} is-active{% else %} is-hidden{% endif %}"
+                data-vp-create-step
+                data-vp-step-index="4"
+                data-vp-step-key="geometry"
+                data-vp-step-label="Geometrie"
+                aria-label="Schritt 4: Geometrie"
+                {% if create_initial_step != 4 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+              >
+                {% include "vplib/create/sections/_geometry.html" %}
+              </section>
+
+              <section
+                id="vplib-create-step-5"
+                class="vplib-create-step{% if create_initial_step == 5 %} is-active{% else %} is-hidden{% endif %}"
+                data-vp-create-step
+                data-vp-step-index="5"
+                data-vp-step-key="technical"
+                data-vp-step-label="Technik"
+                aria-label="Schritt 5: Technik"
+                {% if create_initial_step != 5 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+              >
+                {% include "vplib/create/sections/_technical.html" %}
+              </section>
+
+              <section
+                id="vplib-create-step-6"
+                class="vplib-create-step{% if create_initial_step == 6 %} is-active{% else %} is-hidden{% endif %}"
+                data-vp-create-step
+                data-vp-step-index="6"
+                data-vp-step-key="create"
+                data-vp-step-label="Erzeugen"
+                aria-label="Schritt 6: Prüfen und erzeugen"
+                {% if create_initial_step != 6 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+              >
+                {% include "vplib/create/sections/_actions.html" %}
+              </section>
+            </div>
+          </div>
+
+          <aside
+            class="vplib-create-app__aside"
+            data-create-layout-side="true"
+            data-vp-create-aside
+            aria-label="Vorschau"
+          >
+            {% include "vplib/create/_preview_placeholder.html" %}
+          </aside>
+        </div>
+
+        {% include "vplib/create/_wizard_nav.html" %}
+      </form>
+
+      {% include "vplib/create/_context_json.html" %}
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      try {
+        var root = document.documentElement;
+
+        root.classList.remove("vp-create-js-pending");
+        root.classList.add("vp-create-js-ready");
+
+        if (!root.getAttribute("data-theme")) {
+          root.setAttribute("data-theme", "dark");
+        }
+
+        if (!root.getAttribute("data-vp-create-theme")) {
+          root.setAttribute("data-vp-create-theme", root.getAttribute("data-theme") || "dark");
+        }
+
+        root.setAttribute("data-vp-create-shell-ready", "true");
+        root.setAttribute("data-vp-create-style", "black");
+        root.setAttribute("data-vp-create-template-root", "vplib");
+        root.setAttribute("data-vp-create-template-version", "0.6.0");
+        root.setAttribute("data-vp-create-css-mode", "single-file");
+        root.style.colorScheme = "dark";
+      } catch (error) {
+        try {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create] Shell ready marker failed.", error);
+          }
+        } catch (consoleError) {
+          /* no-op */
+        }
+      }
+    })();
+  </script>
+
+  <script>
+    (function () {
+      "use strict";
+
+      try {
+        var root = document.documentElement;
+        var loaded = [];
+        var failed = [];
+
+        window.vpCreateAssetLoaded = function (node) {
+          try {
+            if (!node) {
+              return;
+            }
+
+            var key = node.getAttribute("data-vp-create-script") || node.getAttribute("src") || "unknown";
+            var safeKey = String(key).replace(/[^a-zA-Z0-9_-]+/g, "_");
+
+            loaded.push(key);
+
+            root.setAttribute("data-vp-create-script-loaded-" + safeKey, "true");
+            root.setAttribute("data-vp-create-script-loaded-count", String(loaded.length));
+
+            if (failed.length > 0) {
+              root.setAttribute("data-vp-create-script-error-count", String(failed.length));
+            }
+          } catch (error) {
+            /* no-op */
+          }
+        };
+
+        window.vpCreateAssetLoadError = function (node) {
+          try {
+            if (!node) {
+              return;
+            }
+
+            var key = node.getAttribute("data-vp-create-script") || node.getAttribute("src") || "unknown";
+
+            failed.push(key);
+
+            root.setAttribute("data-vp-create-script-error", "true");
+            root.setAttribute("data-vp-create-script-error-count", String(failed.length));
+            root.setAttribute("data-vp-create-script-error-last", key);
+
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[VECTOPLAN Create] Script failed to load:", key);
+            }
+          } catch (error) {
+            try {
+              if (window.console && typeof window.console.warn === "function") {
+                window.console.warn("[VECTOPLAN Create] Script load error handler failed.", error);
+              }
+            } catch (consoleError) {
+              /* no-op */
+            }
+          }
+        };
+
+        window.vpCreateGetScriptLoadState = function () {
+          try {
+            return {
+              loaded: loaded.slice(),
+              failed: failed.slice()
+            };
+          } catch (error) {
+            return {
+              loaded: [],
+              failed: []
+            };
+          }
+        };
+
+        root.setAttribute("data-vp-create-script-loader-ready", "true");
+      } catch (error) {
+        try {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create] Script loader bootstrap failed.", error);
+          }
+        } catch (consoleError) {
+          /* no-op */
+        }
+      }
+    })();
+  </script>
+
+  {# ---------------------------------------------------------------------------
+     JavaScript-Ladereihenfolge
+
+     Basisschichten:
+     1. create_core.js
+        Gemeinsamer State, Selektoren, Utilities, Events und Kontext.
+
+     2. create_theme.js
+        Theme-Umschaltung. Der neue VPLIB-Create-Skin bleibt visuell schwarz.
+
+     3. create_wizard.js
+        Autorisierte Wizard-Navigation.
+
+     4. create_preview.js
+        Taxonomie-Filter, Object-Kind-Regeln, Preview und Kontext-Sync.
+
+     5. create_dynamic_rows_legacy.js
+        Legacy-Zeilenkompatibilität; delegiert Variantenanlage an Drawer.
+
+     6. create_payload.js
+        Payload-Sammlung und definition_variants_json-Brücke.
+
+     7. create_uploads.js
+        Neue vorbereitete Upload-Brücke für 3D-Modelle und Dokumentlisten.
+        Noch ohne Backend-Persistenz.
+
+     8. create_actions.js
+        Draft, Validate, Package-Plan, Download und Save.
+
+     Variant Runtime:
+     9.  create_variant_utils.js
+     10. create_variant_state.js
+     11. create_variant_profiles.js
+     12. create_variant_summary.js
+     13. create_variant_field_renderer.js
+     14. create_variant_optional_fields.js
+     15. create_variant_validation.js
+     16. create_variant_drawer.js
+     17. create_variant_table.js
+
+     Abschluss:
+     18. create.js
+         Schlanker Orchestrator und stabile Public API window.VectoplanCreate.
+
+     19. create_definitions.js
+         Bestehende Definitions-/Legacy-Bridge zuletzt.
+  --------------------------------------------------------------------------- #}
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_core.js') }}"
+    defer
+    data-vp-create-script="create_core"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_theme.js') }}"
+    defer
+    data-vp-create-script="create_theme"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_wizard.js') }}"
+    defer
+    data-vp-create-script="create_wizard"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_preview.js') }}"
+    defer
+    data-vp-create-script="create_preview"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_dynamic_rows_legacy.js') }}"
+    defer
+    data-vp-create-script="create_dynamic_rows_legacy"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_payload.js') }}"
+    defer
+    data-vp-create-script="create_payload"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_uploads.js') }}"
+    defer
+    data-vp-create-script="create_uploads"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_actions.js') }}"
+    defer
+    data-vp-create-script="create_actions"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_variant_utils.js') }}"
+    defer
+    data-vp-create-script="create_variant_utils"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_variant_state.js') }}"
+    defer
+    data-vp-create-script="create_variant_state"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_variant_profiles.js') }}"
+    defer
+    data-vp-create-script="create_variant_profiles"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_variant_summary.js') }}"
+    defer
+    data-vp-create-script="create_variant_summary"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_variant_field_renderer.js') }}"
+    defer
+    data-vp-create-script="create_variant_field_renderer"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_variant_optional_fields.js') }}"
+    defer
+    data-vp-create-script="create_variant_optional_fields"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_variant_validation.js') }}"
+    defer
+    data-vp-create-script="create_variant_validation"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_variant_drawer.js') }}"
+    defer
+    data-vp-create-script="create_variant_drawer"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_variant_table.js') }}"
+    defer
+    data-vp-create-script="create_variant_table"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create.js') }}"
+    defer
+    data-vp-create-script="create"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='library_admin/js/create_definitions.js') }}"
+    defer
+    data-vp-create-script="create_definitions"
+    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+  ></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1.0",
+  "variant_id": "default",
+  "label": "Standard",
+  "description": "",
+  "kind": "standard",
+  "overrides": {
+    "variant.label": "Standard"
+  }
+}

@@ -1,0 +1,1792 @@
+{# services/vectoplan-library/templates/vplib/create/sections/_geometry.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · VPLIB Create Wizard · Step 4: Geometry
+
+  Zweck:
+  - Erfasst technische Objektart, primitive Form, sichtbare Maße, Editor-Raster
+    und optional lokale 3D-Modell-Dateien.
+  - Direkt lesbares HTML statt langer Macro-Aufrufe.
+  - Kompakt für den Black-Fullscreen-Wizard.
+  - Preview selbst liegt global rechts in _preview_placeholder.html.
+  - Keine Hero-Inhalte.
+  - Keine Alerts als eigene Section.
+  - Keine Help-Section.
+  - Keine Result-Section.
+  - Keine Three.js-Logik.
+  - Kein Canvas.
+  - Keine API-Aufrufe.
+  - Keine Backend-Dateioperationen.
+
+  Backend-Vertrag:
+  Diese Feldnamen bleiben stabil:
+  - object_kind
+  - primitive_shape
+  - geometry_width
+  - geometry_height
+  - geometry_depth
+  - geometry_unit
+  - editor_cells_x
+  - editor_cells_y
+  - editor_cells_z
+
+  Frontend-/späterer Backend-Vertrag:
+  - geometry_model_files
+  - geometry_model_uploads_json
+
+  Wichtig:
+  - Die sichtbare Objektart-Auswahl in diesem Step hat bewusst kein name-Attribut,
+    damit kein doppeltes object_kind im FormData entsteht.
+  - JS synchronisiert die Auswahl in das vorhandene hidden field name="object_kind"
+    oder legt es defensiv an, falls es fehlt.
+
+  Version:
+  - 0.6.1
+----------------------------------------------------------------------------- #}
+
+
+{# -----------------------------------------------------------------------------
+  1. Options defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if _primitive_shapes is defined and _primitive_shapes is iterable and _primitive_shapes is not string %}
+  {% set _geometry_shapes = _primitive_shapes %}
+{% elif create_options is defined and create_options is mapping and 'primitive_shapes' in create_options and create_options['primitive_shapes'] is iterable and create_options['primitive_shapes'] is not string %}
+  {% set _geometry_shapes = create_options['primitive_shapes'] %}
+{% elif create_options is defined and create_options is mapping and 'geometry' in create_options and create_options['geometry'] is mapping and 'primitive_shapes' in create_options['geometry'] and create_options['geometry']['primitive_shapes'] is iterable and create_options['geometry']['primitive_shapes'] is not string %}
+  {% set _geometry_shapes = create_options['geometry']['primitive_shapes'] %}
+{% elif _options_data is defined and _options_data is mapping and 'primitive_shapes' in _options_data and _options_data['primitive_shapes'] is iterable and _options_data['primitive_shapes'] is not string %}
+  {% set _geometry_shapes = _options_data['primitive_shapes'] %}
+{% else %}
+  {% set _geometry_shapes = [] %}
+{% endif %}
+
+{% if _units is defined and _units is iterable and _units is not string %}
+  {% set _geometry_units = _units %}
+{% elif create_options is defined and create_options is mapping and 'units' in create_options and create_options['units'] is iterable and create_options['units'] is not string %}
+  {% set _geometry_units = create_options['units'] %}
+{% elif create_options is defined and create_options is mapping and 'geometry' in create_options and create_options['geometry'] is mapping and 'units' in create_options['geometry'] and create_options['geometry']['units'] is iterable and create_options['geometry']['units'] is not string %}
+  {% set _geometry_units = create_options['geometry']['units'] %}
+{% elif _options_data is defined and _options_data is mapping and 'units' in _options_data and _options_data['units'] is iterable and _options_data['units'] is not string %}
+  {% set _geometry_units = _options_data['units'] %}
+{% else %}
+  {% set _geometry_units = [] %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  2. Draft defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if create_initial_draft is defined and create_initial_draft is mapping %}
+  {% set _geometry_draft = create_initial_draft %}
+{% elif _initial_draft is defined and _initial_draft is mapping %}
+  {% set _geometry_draft = _initial_draft %}
+{% elif _draft is defined and _draft is mapping %}
+  {% set _geometry_draft = _draft %}
+{% elif draft is defined and draft is mapping %}
+  {% set _geometry_draft = draft %}
+{% elif vplib_draft is defined and vplib_draft is mapping %}
+  {% set _geometry_draft = vplib_draft %}
+{% else %}
+  {% set _geometry_draft = {} %}
+{% endif %}
+
+{% if _geometry_draft is mapping and 'geometry' in _geometry_draft and _geometry_draft['geometry'] is mapping %}
+  {% set _geometry_values = _geometry_draft['geometry'] %}
+{% elif _geometry_draft is mapping and 'physical' in _geometry_draft and _geometry_draft['physical'] is mapping and 'geometry' in _geometry_draft['physical'] and _geometry_draft['physical']['geometry'] is mapping %}
+  {% set _geometry_values = _geometry_draft['physical']['geometry'] %}
+{% else %}
+  {% set _geometry_values = {} %}
+{% endif %}
+
+{% if _geometry_values is mapping and 'dimensions' in _geometry_values and _geometry_values['dimensions'] is mapping %}
+  {% set _dimension_values = _geometry_values['dimensions'] %}
+{% elif _geometry_draft is mapping and 'dimensions' in _geometry_draft and _geometry_draft['dimensions'] is mapping %}
+  {% set _dimension_values = _geometry_draft['dimensions'] %}
+{% elif _geometry_draft is mapping and 'physical' in _geometry_draft and _geometry_draft['physical'] is mapping and 'dimensions' in _geometry_draft['physical'] and _geometry_draft['physical']['dimensions'] is mapping %}
+  {% set _dimension_values = _geometry_draft['physical']['dimensions'] %}
+{% else %}
+  {% set _dimension_values = {} %}
+{% endif %}
+
+{% if _geometry_draft is mapping and 'editor_block' in _geometry_draft and _geometry_draft['editor_block'] is mapping %}
+  {% set _editor_block_values = _geometry_draft['editor_block'] %}
+{% elif _geometry_values is mapping and 'editor_block' in _geometry_values and _geometry_values['editor_block'] is mapping %}
+  {% set _editor_block_values = _geometry_values['editor_block'] %}
+{% elif _geometry_draft is mapping and 'editor' in _geometry_draft and _geometry_draft['editor'] is mapping and 'block' in _geometry_draft['editor'] and _geometry_draft['editor']['block'] is mapping %}
+  {% set _editor_block_values = _geometry_draft['editor']['block'] %}
+{% else %}
+  {% set _editor_block_values = {} %}
+{% endif %}
+
+{% if _editor_block_values is mapping and 'cells' in _editor_block_values and _editor_block_values['cells'] is mapping %}
+  {% set _editor_cells_values = _editor_block_values['cells'] %}
+{% else %}
+  {% set _editor_cells_values = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  3. Werte defensiv lesen
+----------------------------------------------------------------------------- #}
+
+{% if _geometry_draft is mapping and 'object_kind' in _geometry_draft and _geometry_draft['object_kind'] %}
+  {% set _selected_object_kind = _geometry_draft['object_kind'] %}
+{% elif _geometry_values is mapping and 'object_kind' in _geometry_values and _geometry_values['object_kind'] %}
+  {% set _selected_object_kind = _geometry_values['object_kind'] %}
+{% elif _geometry_draft is mapping and 'object_class' in _geometry_draft and _geometry_draft['object_class'] %}
+  {% set _selected_object_kind = _geometry_draft['object_class'] %}
+{% else %}
+  {% set _selected_object_kind = 'cell_block' %}
+{% endif %}
+
+{% if _geometry_draft is mapping and 'primitive_shape' in _geometry_draft and _geometry_draft['primitive_shape'] %}
+  {% set _selected_shape = _geometry_draft['primitive_shape'] %}
+{% elif _geometry_values is mapping and 'primitive_shape' in _geometry_values and _geometry_values['primitive_shape'] %}
+  {% set _selected_shape = _geometry_values['primitive_shape'] %}
+{% elif _geometry_values is mapping and 'shape' in _geometry_values and _geometry_values['shape'] %}
+  {% set _selected_shape = _geometry_values['shape'] %}
+{% elif _dimension_values is mapping and 'shape' in _dimension_values and _dimension_values['shape'] %}
+  {% set _selected_shape = _dimension_values['shape'] %}
+{% else %}
+  {% set _selected_shape = 'block' %}
+{% endif %}
+
+{% if _geometry_draft is mapping and 'geometry_width' in _geometry_draft and _geometry_draft['geometry_width'] is not none %}
+  {% set _geometry_width = _geometry_draft['geometry_width'] %}
+{% elif _dimension_values is mapping and 'width' in _dimension_values and _dimension_values['width'] is not none %}
+  {% set _geometry_width = _dimension_values['width'] %}
+{% elif _geometry_values is mapping and 'width' in _geometry_values and _geometry_values['width'] is not none %}
+  {% set _geometry_width = _geometry_values['width'] %}
+{% else %}
+  {% set _geometry_width = '1.00' %}
+{% endif %}
+
+{% if _geometry_draft is mapping and 'geometry_height' in _geometry_draft and _geometry_draft['geometry_height'] is not none %}
+  {% set _geometry_height = _geometry_draft['geometry_height'] %}
+{% elif _dimension_values is mapping and 'height' in _dimension_values and _dimension_values['height'] is not none %}
+  {% set _geometry_height = _dimension_values['height'] %}
+{% elif _geometry_values is mapping and 'height' in _geometry_values and _geometry_values['height'] is not none %}
+  {% set _geometry_height = _geometry_values['height'] %}
+{% else %}
+  {% set _geometry_height = '1.00' %}
+{% endif %}
+
+{% if _geometry_draft is mapping and 'geometry_depth' in _geometry_draft and _geometry_draft['geometry_depth'] is not none %}
+  {% set _geometry_depth = _geometry_draft['geometry_depth'] %}
+{% elif _dimension_values is mapping and 'depth' in _dimension_values and _dimension_values['depth'] is not none %}
+  {% set _geometry_depth = _dimension_values['depth'] %}
+{% elif _geometry_values is mapping and 'depth' in _geometry_values and _geometry_values['depth'] is not none %}
+  {% set _geometry_depth = _geometry_values['depth'] %}
+{% else %}
+  {% set _geometry_depth = '1.00' %}
+{% endif %}
+
+{% if _geometry_draft is mapping and 'geometry_unit' in _geometry_draft and _geometry_draft['geometry_unit'] %}
+  {% set _geometry_unit = _geometry_draft['geometry_unit'] %}
+{% elif _dimension_values is mapping and 'unit' in _dimension_values and _dimension_values['unit'] %}
+  {% set _geometry_unit = _dimension_values['unit'] %}
+{% elif _geometry_values is mapping and 'unit' in _geometry_values and _geometry_values['unit'] %}
+  {% set _geometry_unit = _geometry_values['unit'] %}
+{% else %}
+  {% set _geometry_unit = 'm' %}
+{% endif %}
+
+{% if _geometry_draft is mapping and 'editor_cells_x' in _geometry_draft and _geometry_draft['editor_cells_x'] is not none %}
+  {% set _editor_cells_x = _geometry_draft['editor_cells_x'] %}
+{% elif _editor_cells_values is mapping and 'x' in _editor_cells_values and _editor_cells_values['x'] is not none %}
+  {% set _editor_cells_x = _editor_cells_values['x'] %}
+{% elif _editor_block_values is mapping and 'cells_x' in _editor_block_values and _editor_block_values['cells_x'] is not none %}
+  {% set _editor_cells_x = _editor_block_values['cells_x'] %}
+{% else %}
+  {% set _editor_cells_x = '1' %}
+{% endif %}
+
+{% if _geometry_draft is mapping and 'editor_cells_y' in _geometry_draft and _geometry_draft['editor_cells_y'] is not none %}
+  {% set _editor_cells_y = _geometry_draft['editor_cells_y'] %}
+{% elif _editor_cells_values is mapping and 'y' in _editor_cells_values and _editor_cells_values['y'] is not none %}
+  {% set _editor_cells_y = _editor_cells_values['y'] %}
+{% elif _editor_block_values is mapping and 'cells_y' in _editor_block_values and _editor_block_values['cells_y'] is not none %}
+  {% set _editor_cells_y = _editor_block_values['cells_y'] %}
+{% else %}
+  {% set _editor_cells_y = '1' %}
+{% endif %}
+
+{% if _geometry_draft is mapping and 'editor_cells_z' in _geometry_draft and _geometry_draft['editor_cells_z'] is not none %}
+  {% set _editor_cells_z = _geometry_draft['editor_cells_z'] %}
+{% elif _editor_cells_values is mapping and 'z' in _editor_cells_values and _editor_cells_values['z'] is not none %}
+  {% set _editor_cells_z = _editor_cells_values['z'] %}
+{% elif _editor_block_values is mapping and 'cells_z' in _editor_block_values and _editor_block_values['cells_z'] is not none %}
+  {% set _editor_cells_z = _editor_block_values['cells_z'] %}
+{% else %}
+  {% set _editor_cells_z = '1' %}
+{% endif %}
+
+{% if _geometry_draft is mapping and 'geometry_model_uploads_json' in _geometry_draft and _geometry_draft['geometry_model_uploads_json'] %}
+  {% set _geometry_model_uploads_json = _geometry_draft['geometry_model_uploads_json'] %}
+{% elif _geometry_values is mapping and 'geometry_model_uploads_json' in _geometry_values and _geometry_values['geometry_model_uploads_json'] %}
+  {% set _geometry_model_uploads_json = _geometry_values['geometry_model_uploads_json'] %}
+{% elif _geometry_draft is mapping and 'model_uploads_json' in _geometry_draft and _geometry_draft['model_uploads_json'] %}
+  {% set _geometry_model_uploads_json = _geometry_draft['model_uploads_json'] %}
+{% else %}
+  {% set _geometry_model_uploads_json = '{"count":0,"files":[]}' %}
+{% endif %}
+
+{% set _known_object_kinds = ['cell_block', 'multi_cell_module', 'catalog_object', 'adaptive_system'] %}
+{% set _has_shapes = _geometry_shapes | length > 0 %}
+{% set _has_units = _geometry_units | length > 0 %}
+
+
+<div
+  class="vplib-create-step__panel vp-create-card vp-create-section vp-create-section--geometry"
+  data-create-section="geometry"
+  data-vp-create-section="geometry"
+  data-create-section-required="true"
+  data-create-shape-count="{{ _geometry_shapes | length }}"
+  data-create-unit-count="{{ _geometry_units | length }}"
+  data-vp-step-panel="geometry"
+  data-vp-geometry-root="true"
+  data-vp-geometry-ready="false"
+  data-vp-geometry-version="0.6.1"
+  data-vp-geometry-upload-enabled="true"
+  data-vp-selected-object-kind="{{ _selected_object_kind }}"
+  aria-labelledby="vp-create-geometry-title"
+>
+  <header class="vplib-create-step__header">
+    <div class="vplib-create-step__header-main">
+      <h2
+        id="vp-create-geometry-title"
+        class="vplib-create-step__title"
+      >
+        Geometrie
+      </h2>
+
+      <p class="vplib-create-step__description">
+        Definiere Typ, Form, Maße und Rasterbedarf.
+      </p>
+    </div>
+  </header>
+
+  <div class="vplib-create-step__body">
+    <div class="vplib-create-step__grid">
+      <div class="vplib-create-step__field vplib-create-step__field--third">
+        <label
+          class="vp-create-field"
+          for="create-geometry-object-kind"
+          data-vp-field-wrapper="object_kind"
+        >
+          <span class="vp-create-field__label">Typ</span>
+
+          <select
+            id="create-geometry-object-kind"
+            class="vp-create-select"
+            autocomplete="off"
+            data-create-object-kind="true"
+            data-vp-geometry-object-kind-select="true"
+            data-vp-step-field="geometry.object_kind"
+            data-vp-geometry-field="object_kind"
+            aria-describedby="create-geometry-object-kind-hint"
+          >
+            <option
+              value="cell_block"
+              {% if _selected_object_kind == 'cell_block' %}selected{% endif %}
+            >
+              Raster-Bauteil
+            </option>
+
+            <option
+              value="multi_cell_module"
+              {% if _selected_object_kind == 'multi_cell_module' %}selected{% endif %}
+            >
+              Mehrblock-Modul
+            </option>
+
+            <option
+              value="catalog_object"
+              {% if _selected_object_kind == 'catalog_object' %}selected{% endif %}
+            >
+              Katalogelement
+            </option>
+
+            <option
+              value="adaptive_system"
+              {% if _selected_object_kind == 'adaptive_system' %}selected{% endif %}
+            >
+              Adaptives System
+            </option>
+
+            {% if _selected_object_kind not in _known_object_kinds %}
+              <option value="{{ _selected_object_kind }}" selected>
+                {{ _selected_object_kind }}
+              </option>
+            {% endif %}
+          </select>
+
+          <span
+            id="create-geometry-object-kind-hint"
+            class="vp-create-field__hint"
+          >
+            Mehrblock-Modul entsperrt das Editor-Raster.
+          </span>
+        </label>
+      </div>
+
+      <div class="vplib-create-step__field vplib-create-step__field--third">
+        <label
+          class="vp-create-field"
+          for="create-primitive-shape"
+          data-vp-field-wrapper="primitive_shape"
+        >
+          <span class="vp-create-field__label">Form</span>
+
+          <select
+            id="create-primitive-shape"
+            class="vp-create-select"
+            name="primitive_shape"
+            autocomplete="off"
+            data-create-field="primitive_shape"
+            data-create-preview-source="geometry"
+            data-vp-step-field="geometry.shape"
+            data-vp-geometry-field="shape"
+            aria-describedby="create-primitive-shape-hint"
+            {% if not _has_shapes %}disabled aria-disabled="true"{% endif %}
+          >
+            {% if _has_shapes %}
+              <option value="" disabled{% if not _selected_shape %} selected{% endif %}>
+                Form wählen
+              </option>
+
+              {% for item in _geometry_shapes %}
+                {% if item is mapping %}
+                  {% if 'id' in item and item['id'] %}
+                    {% set option_value = item['id'] %}
+                  {% elif 'value' in item and item['value'] %}
+                    {% set option_value = item['value'] %}
+                  {% elif 'slug' in item and item['slug'] %}
+                    {% set option_value = item['slug'] %}
+                  {% elif 'key' in item and item['key'] %}
+                    {% set option_value = item['key'] %}
+                  {% elif 'name' in item and item['name'] %}
+                    {% set option_value = item['name'] %}
+                  {% else %}
+                    {% set option_value = '' %}
+                  {% endif %}
+
+                  {% if 'label' in item and item['label'] %}
+                    {% set option_label = item['label'] %}
+                  {% elif 'name' in item and item['name'] %}
+                    {% set option_label = item['name'] %}
+                  {% elif 'title' in item and item['title'] %}
+                    {% set option_label = item['title'] %}
+                  {% else %}
+                    {% set option_label = option_value %}
+                  {% endif %}
+                {% else %}
+                  {% set option_value = item %}
+                  {% set option_label = item %}
+                {% endif %}
+
+                {% if option_value %}
+                  <option
+                    value="{{ option_value }}"
+                    data-vp-geometry-shape-option="true"
+                    {% if option_value | string == _selected_shape | string %}selected{% endif %}
+                  >
+                    {{ option_label }}
+                  </option>
+                {% endif %}
+              {% endfor %}
+            {% else %}
+              <option value="{{ _selected_shape }}" selected>
+                {{ _selected_shape }}
+              </option>
+            {% endif %}
+          </select>
+
+          {% if not _has_shapes %}
+            <input
+              type="hidden"
+              name="primitive_shape"
+              value="{{ _selected_shape }}"
+              data-create-field="primitive_shape"
+              data-create-shape-fallback="true"
+              data-create-preview-source="geometry"
+              data-vp-step-field="geometry.shape"
+              data-vp-geometry-field="shape"
+            />
+          {% endif %}
+        </label>
+      </div>
+
+      <div class="vplib-create-step__field vplib-create-step__field--third">
+        <label
+          class="vp-create-field"
+          for="create-geometry-unit"
+          data-vp-field-wrapper="geometry_unit"
+        >
+          <span class="vp-create-field__label">Einheit</span>
+
+          <select
+            id="create-geometry-unit"
+            class="vp-create-select"
+            name="geometry_unit"
+            autocomplete="off"
+            data-create-field="geometry_unit"
+            data-create-preview-source="geometry"
+            data-vp-step-field="geometry.unit"
+            data-vp-geometry-field="unit"
+            aria-describedby="create-geometry-unit-hint"
+            {% if not _has_units %}disabled aria-disabled="true"{% endif %}
+          >
+            {% if _has_units %}
+              <option value="" disabled{% if not _geometry_unit %} selected{% endif %}>
+                Einheit wählen
+              </option>
+
+              {% for item in _geometry_units %}
+                {% if item is mapping %}
+                  {% if 'id' in item and item['id'] %}
+                    {% set option_value = item['id'] %}
+                  {% elif 'value' in item and item['value'] %}
+                    {% set option_value = item['value'] %}
+                  {% elif 'slug' in item and item['slug'] %}
+                    {% set option_value = item['slug'] %}
+                  {% elif 'key' in item and item['key'] %}
+                    {% set option_value = item['key'] %}
+                  {% elif 'name' in item and item['name'] %}
+                    {% set option_value = item['name'] %}
+                  {% else %}
+                    {% set option_value = '' %}
+                  {% endif %}
+
+                  {% if 'label' in item and item['label'] %}
+                    {% set option_label = item['label'] %}
+                  {% elif 'name' in item and item['name'] %}
+                    {% set option_label = item['name'] %}
+                  {% elif 'title' in item and item['title'] %}
+                    {% set option_label = item['title'] %}
+                  {% else %}
+                    {% set option_label = option_value %}
+                  {% endif %}
+                {% else %}
+                  {% set option_value = item %}
+                  {% set option_label = item %}
+                {% endif %}
+
+                {% if option_value %}
+                  <option
+                    value="{{ option_value }}"
+                    data-vp-geometry-unit-option="true"
+                    {% if option_value | string == _geometry_unit | string %}selected{% endif %}
+                  >
+                    {{ option_label }}
+                  </option>
+                {% endif %}
+              {% endfor %}
+            {% else %}
+              <option value="{{ _geometry_unit }}" selected>
+                {{ _geometry_unit }}
+              </option>
+            {% endif %}
+          </select>
+
+          {% if not _has_units %}
+            <input
+              type="hidden"
+              name="geometry_unit"
+              value="{{ _geometry_unit }}"
+              data-create-field="geometry_unit"
+              data-create-unit-fallback="true"
+              data-create-preview-source="geometry"
+              data-vp-step-field="geometry.unit"
+              data-vp-geometry-field="unit"
+            />
+          {% endif %}
+        </label>
+      </div>
+
+      <div
+        class="vplib-create-step__field vplib-create-step__field--full vp-create-upload vp-create-upload--geometry vp-create-geometry-model-strip"
+        data-vp-upload
+        data-vp-upload-zone
+        data-create-upload-zone
+        data-vp-geometry-upload
+        data-vp-upload-kind="geometry_model"
+        data-vp-upload-purpose="geometry_model"
+        data-vp-upload-backend-enabled="false"
+        data-vp-upload-metadata-field="geometry_model_uploads_json"
+      >
+        <div class="vp-create-upload__header" data-vp-upload-header>
+          <div>
+            <strong class="vp-create-upload__title">
+              3D-Modell
+            </strong>
+
+            <p class="vp-create-upload__hint">
+              Optional lokal vormerken. Backend-Upload folgt später.
+            </p>
+          </div>
+
+          <span
+            class="vp-create-status-pill vp-create-status-pill--muted"
+            data-vp-upload-count-label
+            aria-live="polite"
+          >
+            0 Dateien
+          </span>
+        </div>
+
+        <div class="vp-create-upload__controls" data-vp-upload-controls>
+          <input
+            id="create-geometry-model-upload"
+            type="file"
+            name="geometry_model_files"
+            multiple
+            accept=".glb,.gltf,.obj,.fbx,.stl,.zip"
+            data-vp-upload-input
+            data-vp-geometry-model-upload-input="true"
+            data-vp-upload-kind="geometry_model"
+            data-vp-upload-purpose="geometry_model"
+            aria-describedby="create-geometry-model-upload-hint"
+          />
+
+          <input
+            id="create-geometry-model-upload-json"
+            type="hidden"
+            name="geometry_model_uploads_json"
+            value="{{ _geometry_model_uploads_json | string | e }}"
+            data-vp-upload-metadata
+            data-vp-geometry-model-upload-metadata="true"
+            data-vp-upload-metadata-kind="geometry_model"
+            data-create-field="geometry_model_uploads_json"
+          />
+
+
+
+          <div
+            class="vp-create-upload__file-list"
+            data-vp-upload-file-list
+            aria-live="polite"
+          ></div>
+        </div>
+      </div>
+
+      <div
+        class="vplib-create-step__field vplib-create-step__field--full vp-create-subsection vp-create-geometry-size"
+        data-create-visible-size-section="true"
+      >
+        <div class="vp-create-compact-subheader">
+          <h3 class="vp-create-compact-subheader__title">
+            Sichtbare Größe
+          </h3>
+
+          <p class="vp-create-compact-subheader__text">
+            Primitive Außenmaße, nicht zwingend alle späteren Fachmaße.
+          </p>
+        </div>
+
+        <div class="vplib-create-step__grid vp-create-field-grid vp-create-field-grid--three">
+          <div class="vplib-create-step__field vplib-create-step__field--third">
+            <label
+              class="vp-create-field"
+              for="create-geometry-width"
+              data-vp-field-wrapper="geometry_width"
+            >
+              <span class="vp-create-field__label">Breite</span>
+
+              <input
+                id="create-geometry-width"
+                class="vp-create-input"
+                type="number"
+                name="geometry_width"
+                value="{{ _geometry_width }}"
+                placeholder="1.00"
+                min="0.0001"
+                step="0.01"
+                inputmode="decimal"
+                data-create-field="geometry_width"
+                data-create-preview-source="geometry"
+                data-vp-step-field="geometry.width"
+                data-vp-geometry-field="width"
+                aria-describedby="create-geometry-width-hint"
+              />
+
+
+            </label>
+          </div>
+
+          <div class="vplib-create-step__field vplib-create-step__field--third">
+            <label
+              class="vp-create-field"
+              for="create-geometry-height"
+              data-vp-field-wrapper="geometry_height"
+            >
+              <span class="vp-create-field__label">Höhe</span>
+
+              <input
+                id="create-geometry-height"
+                class="vp-create-input"
+                type="number"
+                name="geometry_height"
+                value="{{ _geometry_height }}"
+                placeholder="1.00"
+                min="0.0001"
+                step="0.01"
+                inputmode="decimal"
+                data-create-field="geometry_height"
+                data-create-preview-source="geometry"
+                data-vp-step-field="geometry.height"
+                data-vp-geometry-field="height"
+                aria-describedby="create-geometry-height-hint"
+              />
+
+
+            </label>
+          </div>
+
+          <div class="vplib-create-step__field vplib-create-step__field--third">
+            <label
+              class="vp-create-field"
+              for="create-geometry-depth"
+              data-vp-field-wrapper="geometry_depth"
+            >
+              <span class="vp-create-field__label">Tiefe</span>
+
+              <input
+                id="create-geometry-depth"
+                class="vp-create-input"
+                type="number"
+                name="geometry_depth"
+                value="{{ _geometry_depth }}"
+                placeholder="1.00"
+                min="0.0001"
+                step="0.01"
+                inputmode="decimal"
+                data-create-field="geometry_depth"
+                data-create-preview-source="geometry"
+                data-vp-step-field="geometry.depth"
+                data-vp-geometry-field="depth"
+                aria-describedby="create-geometry-depth-hint"
+              />
+
+              <span
+                id="create-geometry-depth-hint"
+                class="vp-create-field__hint"
+              >
+                Sichtbare Tiefe.
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="vplib-create-step__field vplib-create-step__field--full vp-create-subsection vp-create-editor-block"
+        data-create-editor-block-section="true"
+      >
+        <div class="vp-create-compact-subheader">
+          <h3 class="vp-create-compact-subheader__title">
+            Editor-Raster
+          </h3>
+
+          <p class="vp-create-compact-subheader__text">
+            Bei Raster-Bauteil und Adaptivem System automatisch 1 × 1 × 1. Mehrblock-Modul ist frei editierbar.
+          </p>
+        </div>
+
+        <div class="vplib-create-step__grid vp-create-field-grid vp-create-field-grid--three">
+          <div class="vplib-create-step__field vplib-create-step__field--third">
+            <label
+              class="vp-create-field"
+              for="create-editor-cells-x"
+              data-vp-field-wrapper="editor_cells_x"
+            >
+              <span class="vp-create-field__label">Blöcke Breite</span>
+
+              <input
+                id="create-editor-cells-x"
+                class="vp-create-input"
+                type="number"
+                name="editor_cells_x"
+                value="{{ _editor_cells_x }}"
+                placeholder="1"
+                min="1"
+                step="1"
+                inputmode="numeric"
+                data-create-field="editor_cells_x"
+                data-create-preview-source="geometry"
+                data-vp-step-field="geometry.cells_x"
+                data-vp-geometry-field="cells_x"
+                aria-describedby="create-editor-cells-x-hint"
+              />
+
+
+            </label>
+          </div>
+
+          <div class="vplib-create-step__field vplib-create-step__field--third">
+            <label
+              class="vp-create-field"
+              for="create-editor-cells-y"
+              data-vp-field-wrapper="editor_cells_y"
+            >
+              <span class="vp-create-field__label">Blöcke Höhe</span>
+
+              <input
+                id="create-editor-cells-y"
+                class="vp-create-input"
+                type="number"
+                name="editor_cells_y"
+                value="{{ _editor_cells_y }}"
+                placeholder="1"
+                min="1"
+                step="1"
+                inputmode="numeric"
+                data-create-field="editor_cells_y"
+                data-create-preview-source="geometry"
+                data-vp-step-field="geometry.cells_y"
+                data-vp-geometry-field="cells_y"
+                aria-describedby="create-editor-cells-y-hint"
+              />
+
+
+            </label>
+          </div>
+
+          <div class="vplib-create-step__field vplib-create-step__field--third">
+            <label
+              class="vp-create-field"
+              for="create-editor-cells-z"
+              data-vp-field-wrapper="editor_cells_z"
+            >
+              <span class="vp-create-field__label">Blöcke Tiefe</span>
+
+              <input
+                id="create-editor-cells-z"
+                class="vp-create-input"
+                type="number"
+                name="editor_cells_z"
+                value="{{ _editor_cells_z }}"
+                placeholder="1"
+                min="1"
+                step="1"
+                inputmode="numeric"
+                data-create-field="editor_cells_z"
+                data-create-preview-source="geometry"
+                data-vp-step-field="geometry.cells_z"
+                data-vp-geometry-field="cells_z"
+                aria-describedby="create-editor-cells-z-hint"
+              />
+
+
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {% if not _has_shapes or not _has_units %}
+        <div
+          class="vplib-create-step__field vplib-create-step__field--full vp-create-inline-warning"
+          data-create-geometry-warning="true"
+          data-vp-inline-warning="geometry"
+          role="status"
+        >
+          <strong>Geometrie-Optionen unvollständig.</strong>
+          Formen oder Einheiten fehlen im Options-Payload. Fallback-Werte werden als Hidden Fields weitergegeben.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <script type="application/json" data-vp-geometry-config>
+    {
+      "component": "create.geometry",
+      "version": "0.6.1",
+      "required": true,
+      "defaults": {
+        "objectKind": {{ _selected_object_kind | tojson }},
+        "shape": {{ _selected_shape | tojson }},
+        "width": {{ _geometry_width | string | tojson }},
+        "height": {{ _geometry_height | string | tojson }},
+        "depth": {{ _geometry_depth | string | tojson }},
+        "unit": {{ _geometry_unit | tojson }},
+        "cellsX": {{ _editor_cells_x | string | tojson }},
+        "cellsY": {{ _editor_cells_y | string | tojson }},
+        "cellsZ": {{ _editor_cells_z | string | tojson }}
+      },
+      "uploads": {
+        "enabled": true,
+        "backendEnabled": false,
+        "localOnly": true,
+        "field": "geometry_model_files",
+        "metadataField": "geometry_model_uploads_json",
+        "kind": "geometry_model",
+        "purpose": "geometry_model",
+        "accept": ".glb,.gltf,.obj,.fbx,.stl,.zip"
+      },
+      "events": {
+        "ready": "vectoplan:create:geometry-ready",
+        "changed": "vectoplan:create:geometry-changed",
+        "objectKindChanged": "vectoplan:create:geometry-object-kind-changed",
+        "uploadChanged": "vectoplan:create:geometry-upload-changed",
+        "genericUploadChanged": "vectoplan:create:upload-changed"
+      }
+    }
+  </script>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    function bootGeometry() {
+      try {
+        var COMPONENT_NAME = "VECTOPLAN Create Geometry";
+        var COMPONENT_VERSION = "0.6.1";
+
+        var section = document.querySelector('[data-vp-create-section="geometry"]') ||
+          document.querySelector('[data-create-section="geometry"]') ||
+          document.querySelector("[data-vp-geometry-root='true']");
+
+        if (!section || section.getAttribute("data-vp-geometry-ready") === "true") {
+          return;
+        }
+
+        var config = {
+          component: "create.geometry",
+          version: COMPONENT_VERSION,
+          required: true,
+          defaults: {
+            objectKind: "cell_block",
+            shape: "block",
+            width: "1.00",
+            height: "1.00",
+            depth: "1.00",
+            unit: "m",
+            cellsX: "1",
+            cellsY: "1",
+            cellsZ: "1"
+          },
+          uploads: {
+            enabled: true,
+            backendEnabled: false,
+            localOnly: true,
+            field: "geometry_model_files",
+            metadataField: "geometry_model_uploads_json",
+            kind: "geometry_model",
+            purpose: "geometry_model",
+            accept: ".glb,.gltf,.obj,.fbx,.stl,.zip"
+          },
+          events: {
+            ready: "vectoplan:create:geometry-ready",
+            changed: "vectoplan:create:geometry-changed",
+            objectKindChanged: "vectoplan:create:geometry-object-kind-changed",
+            uploadChanged: "vectoplan:create:geometry-upload-changed",
+            genericUploadChanged: "vectoplan:create:upload-changed"
+          }
+        };
+
+        var configNode = section.querySelector("[data-vp-geometry-config]");
+
+        try {
+          if (configNode && configNode.textContent) {
+            var parsedConfig = JSON.parse(configNode.textContent);
+
+            if (parsedConfig && typeof parsedConfig === "object") {
+              config = Object.assign({}, config, parsedConfig);
+              config.defaults = Object.assign({}, config.defaults || {}, parsedConfig.defaults || {});
+              config.uploads = Object.assign({}, config.uploads || {}, parsedConfig.uploads || {});
+              config.events = Object.assign({}, config.events || {}, parsedConfig.events || {});
+            }
+          }
+        } catch (configError) {
+          warn("Config parse failed.", configError);
+        }
+
+        var objectKindUiField = section.querySelector("[data-vp-geometry-object-kind-select='true']");
+        var visibleSummary = section.querySelector("[data-vp-geometry-visible-summary]") ||
+          section.querySelector('[data-create-geometry-visible-summary="true"]');
+
+        var cellsSummary = section.querySelector("[data-vp-geometry-cells-summary]") ||
+          section.querySelector('[data-create-geometry-cells-summary="true"]');
+
+        var uploadSummary = section.querySelector("[data-vp-geometry-upload-summary]");
+        var uploadZone = section.querySelector("[data-vp-geometry-upload]") ||
+          section.querySelector("[data-vp-upload-zone][data-vp-upload-kind='geometry_model']");
+
+        var uploadInput = section.querySelector("[data-vp-geometry-model-upload-input='true']") ||
+          section.querySelector("[data-vp-upload-input][data-vp-upload-kind='geometry_model']");
+
+        var uploadMetaField = section.querySelector("[data-vp-geometry-model-upload-metadata='true']") ||
+          section.querySelector("[data-vp-upload-metadata][data-vp-upload-metadata-kind='geometry_model']");
+
+        var uploadFileList = section.querySelector("[data-vp-upload-file-list]");
+        var uploadEmpty = section.querySelector("[data-vp-upload-empty]");
+        var uploadCountLabel = section.querySelector("[data-vp-upload-count-label]");
+
+        function warn(message, error) {
+          try {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
+            }
+          } catch (consoleError) {
+            /* no-op */
+          }
+        }
+
+        function dispatch(node, eventName, detail, cancelable) {
+          try {
+            if (!node || !eventName) {
+              return null;
+            }
+
+            var event = new CustomEvent(eventName, {
+              bubbles: true,
+              cancelable: !!cancelable,
+              detail: detail || {}
+            });
+
+            node.dispatchEvent(event);
+            return event;
+          } catch (error) {
+            warn("Event dispatch failed: " + eventName, error);
+            return null;
+          }
+        }
+
+        function toArray(value) {
+          try {
+            return Array.prototype.slice.call(value || []);
+          } catch (error) {
+            return [];
+          }
+        }
+
+        function getField(name, fallbackSelector) {
+          try {
+            return section.querySelector('[name="' + name + '"]:not([type="hidden"])') ||
+              section.querySelector('[data-create-field="' + name + '"]:not([type="hidden"])') ||
+              section.querySelector('[data-vp-geometry-field="' + name + '"]:not([type="hidden"])') ||
+              section.querySelector(fallbackSelector || "");
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function getAnyField(name) {
+          try {
+            return section.querySelector('[name="' + name + '"]') ||
+              section.querySelector('[data-create-field="' + name + '"]') ||
+              section.querySelector('[data-vp-geometry-field="' + name + '"]');
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function getForm() {
+          try {
+            return section.closest("form") ||
+              document.querySelector("[data-vp-create-form], [data-create-form='true'], #vp-create-form");
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function normalizeObjectKind(value) {
+          try {
+            return String(value || "")
+              .trim()
+              .toLowerCase()
+              .replace(/[-\s]+/g, "_")
+              .replace(/[^a-z0-9_]/g, "") || "cell_block";
+          } catch (error) {
+            return "cell_block";
+          }
+        }
+
+        function ensureObjectKindHiddenField() {
+          try {
+            var form = getForm();
+
+            if (!form) {
+              return document.querySelector('[name="object_kind"]');
+            }
+
+            var field = form.querySelector('[name="object_kind"]');
+
+            if (!field) {
+              field = document.createElement("input");
+              field.type = "hidden";
+              field.name = "object_kind";
+              field.value = config.defaults.objectKind || "cell_block";
+              field.setAttribute("data-create-field", "object_kind");
+              field.setAttribute("data-vp-created-by", "create.geometry");
+              form.appendChild(field);
+            }
+
+            return field;
+          } catch (error) {
+            warn("object_kind hidden field could not be ensured.", error);
+            return null;
+          }
+        }
+
+        function readObjectKind() {
+          try {
+            if (objectKindUiField && objectKindUiField.value) {
+              return normalizeObjectKind(objectKindUiField.value);
+            }
+
+            var hiddenField = document.querySelector('[name="object_kind"]');
+
+            if (hiddenField && hiddenField.value) {
+              return normalizeObjectKind(hiddenField.value);
+            }
+
+            return normalizeObjectKind(config.defaults.objectKind || "cell_block");
+          } catch (error) {
+            return "cell_block";
+          }
+        }
+
+        function syncObjectKindToHidden(options) {
+          try {
+            var kind = readObjectKind();
+            var field = ensureObjectKindHiddenField();
+
+            if (field && field.value !== kind) {
+              field.value = kind;
+              field.setAttribute("data-vp-last-geometry-object-kind-sync", String(Date.now()));
+              field.setAttribute("data-vp-programmatic-event-source", COMPONENT_NAME);
+            }
+
+            section.setAttribute("data-vp-selected-object-kind", kind);
+            section.setAttribute("data-vp-current-object-kind", kind);
+
+            dispatch(section, config.events.objectKindChanged || "vectoplan:create:geometry-object-kind-changed", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              object_kind: kind,
+              objectKind: kind,
+              source: options && options.source ? options.source : "object-kind-sync"
+            });
+
+            dispatch(document, "vectoplan:create:variant-profile-resolve-requested", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              source: options && options.source ? options.source : "geometry-object-kind-sync",
+              context: {
+                object_kind: kind,
+                objectKind: kind
+              }
+            });
+
+            return kind;
+          } catch (error) {
+            warn("object_kind sync failed.", error);
+            return "cell_block";
+          }
+        }
+
+        var shapeField = getAnyField("primitive_shape");
+        var unitField = getAnyField("geometry_unit");
+        var widthField = getField("geometry_width", "#create-geometry-width");
+        var heightField = getField("geometry_height", "#create-geometry-height");
+        var depthField = getField("geometry_depth", "#create-geometry-depth");
+        var cellsXField = getField("editor_cells_x", "#create-editor-cells-x");
+        var cellsYField = getField("editor_cells_y", "#create-editor-cells-y");
+        var cellsZField = getField("editor_cells_z", "#create-editor-cells-z");
+
+        var state = {
+          objectKind: readObjectKind(),
+          shape: readValue(shapeField, config.defaults.shape || "block"),
+          unit: readValue(unitField, config.defaults.unit || "m"),
+          width: formatDimension(readValue(widthField, config.defaults.width || "1.00")),
+          height: formatDimension(readValue(heightField, config.defaults.height || "1.00")),
+          depth: formatDimension(readValue(depthField, config.defaults.depth || "1.00")),
+          cellsX: formatCells(readValue(cellsXField, config.defaults.cellsX || "1")),
+          cellsY: formatCells(readValue(cellsYField, config.defaults.cellsY || "1")),
+          cellsZ: formatCells(readValue(cellsZField, config.defaults.cellsZ || "1")),
+          uploads: {
+            count: 0,
+            files: []
+          },
+          valid: true,
+          updatedAt: "",
+          source: "initial"
+        };
+
+        function normalizeNumber(value, fallbackValue, minimumValue, integerOnly) {
+          try {
+            var raw = String(value === undefined || value === null ? "" : value)
+              .trim()
+              .replace(",", ".");
+
+            var parsed = integerOnly ? parseInt(raw, 10) : parseFloat(raw);
+
+            if (!Number.isFinite(parsed)) {
+              parsed = fallbackValue;
+            }
+
+            if (minimumValue !== undefined && minimumValue !== null && parsed < minimumValue) {
+              parsed = minimumValue;
+            }
+
+            if (integerOnly) {
+              parsed = Math.round(parsed);
+            }
+
+            return parsed;
+          } catch (error) {
+            return fallbackValue;
+          }
+        }
+
+        function formatDimension(value) {
+          try {
+            var parsed = normalizeNumber(value, 1, 0.0001, false);
+
+            return parsed
+              .toFixed(2)
+              .replace(/\.00$/, "")
+              .replace(/(\.\d)0$/, "$1");
+          } catch (error) {
+            return "1";
+          }
+        }
+
+        function formatCells(value) {
+          try {
+            return String(normalizeNumber(value, 1, 1, true));
+          } catch (error) {
+            return "1";
+          }
+        }
+
+        function readValue(field, fallbackValue) {
+          try {
+            if (!field) {
+              return fallbackValue;
+            }
+
+            if (field.value !== undefined && String(field.value).trim() !== "") {
+              return String(field.value).trim();
+            }
+
+            return fallbackValue;
+          } catch (error) {
+            return fallbackValue;
+          }
+        }
+
+        function setFieldValue(field, value) {
+          try {
+            if (!field) {
+              return;
+            }
+
+            field.value = String(value);
+            field.setAttribute("data-vp-last-geometry-sync", String(Date.now()));
+          } catch (error) {
+            /* no-op */
+          }
+        }
+
+        function maybeLockEditorCells() {
+          try {
+            var kind = readObjectKind();
+
+            if (kind !== "cell_block" && kind !== "adaptive_system") {
+              [cellsXField, cellsYField, cellsZField].forEach(function (field) {
+                try {
+                  if (!field) {
+                    return;
+                  }
+
+                  field.removeAttribute("readonly");
+                  field.removeAttribute("aria-readonly");
+                  field.removeAttribute("data-create-grid-locked");
+                } catch (fieldError) {
+                  /* no-op */
+                }
+              });
+
+              section.setAttribute("data-vp-editor-cells-locked", "false");
+              return;
+            }
+
+            [cellsXField, cellsYField, cellsZField].forEach(function (field) {
+              try {
+                if (!field) {
+                  return;
+                }
+
+                setFieldValue(field, "1");
+                field.setAttribute("readonly", "readonly");
+                field.setAttribute("aria-readonly", "true");
+                field.setAttribute("data-create-grid-locked", "true");
+              } catch (fieldError) {
+                /* no-op */
+              }
+            });
+
+            section.setAttribute("data-vp-editor-cells-locked", "true");
+          } catch (error) {
+            warn("Editor-cell lock failed.", error);
+          }
+        }
+
+        function sanitizeFields() {
+          try {
+            var width = normalizeNumber(readValue(widthField, "1.00"), 1, 0.0001, false);
+            var height = normalizeNumber(readValue(heightField, "1.00"), 1, 0.0001, false);
+            var depth = normalizeNumber(readValue(depthField, "1.00"), 1, 0.0001, false);
+            var cellsX = normalizeNumber(readValue(cellsXField, "1"), 1, 1, true);
+            var cellsY = normalizeNumber(readValue(cellsYField, "1"), 1, 1, true);
+            var cellsZ = normalizeNumber(readValue(cellsZField, "1"), 1, 1, true);
+
+            setFieldValue(widthField, width);
+            setFieldValue(heightField, height);
+            setFieldValue(depthField, depth);
+            setFieldValue(cellsXField, cellsX);
+            setFieldValue(cellsYField, cellsY);
+            setFieldValue(cellsZField, cellsZ);
+          } catch (error) {
+            warn("Field sanitizing failed.", error);
+          }
+        }
+
+        function fileSizeLabel(bytes) {
+          try {
+            var value = parseInt(bytes, 10);
+
+            if (!Number.isFinite(value) || value <= 0) {
+              return "0 B";
+            }
+
+            if (value < 1024) {
+              return value + " B";
+            }
+
+            if (value < 1024 * 1024) {
+              return (value / 1024).toFixed(1).replace(".0", "") + " KB";
+            }
+
+            return (value / (1024 * 1024)).toFixed(1).replace(".0", "") + " MB";
+          } catch (error) {
+            return "";
+          }
+        }
+
+        function readUploadFiles() {
+          try {
+            if (!uploadInput || !uploadInput.files) {
+              return [];
+            }
+
+            return toArray(uploadInput.files).map(function (file, index) {
+              try {
+                return {
+                  index: index,
+                  name: file.name || "",
+                  size: file.size || 0,
+                  size_label: fileSizeLabel(file.size || 0),
+                  sizeLabel: fileSizeLabel(file.size || 0),
+                  type: file.type || "",
+                  extension: file.name && file.name.indexOf(".") >= 0
+                    ? file.name.split(".").pop().toLowerCase()
+                    : "",
+                  last_modified: file.lastModified || null,
+                  lastModified: file.lastModified || null,
+                  kind: "geometry_model",
+                  purpose: "geometry_model",
+                  backend_stored: false,
+                  backendStored: false,
+                  local_only: true,
+                  localOnly: true
+                };
+              } catch (fileError) {
+                return {
+                  index: index,
+                  name: "",
+                  size: 0,
+                  size_label: "0 B",
+                  sizeLabel: "0 B",
+                  type: "",
+                  extension: "",
+                  last_modified: null,
+                  lastModified: null,
+                  kind: "geometry_model",
+                  purpose: "geometry_model",
+                  backend_stored: false,
+                  backendStored: false,
+                  local_only: true,
+                  localOnly: true
+                };
+              }
+            });
+          } catch (error) {
+            warn("Upload file read failed.", error);
+            return [];
+          }
+        }
+
+        function renderUploadList(files) {
+          try {
+            var countText = files.length === 1 ? "1 Datei" : files.length + " Dateien";
+
+            if (uploadCountLabel) {
+              uploadCountLabel.textContent = countText;
+            }
+
+            if (uploadSummary) {
+              uploadSummary.textContent = countText;
+            }
+
+            if (uploadEmpty) {
+              uploadEmpty.textContent = files.length
+                ? "Ausgewählte Datei wird lokal als Metadaten vorgemerkt."
+                : "Noch kein 3D-Modell ausgewählt.";
+            }
+
+            if (!uploadFileList) {
+              return;
+            }
+
+            uploadFileList.innerHTML = "";
+
+            files.forEach(function (file) {
+              try {
+                var row = document.createElement("div");
+                row.className = "vp-create-upload__file";
+                row.setAttribute("data-vp-upload-file", "true");
+
+                var copy = document.createElement("div");
+                copy.className = "vp-create-upload__file-copy";
+
+                var name = document.createElement("strong");
+                name.className = "vp-create-upload__file-name";
+                name.setAttribute("data-vp-upload-file-name", "true");
+                name.textContent = file.name || "Unbenannte Datei";
+
+                var meta = document.createElement("span");
+                meta.className = "vp-create-upload__file-meta";
+                meta.setAttribute("data-vp-upload-file-meta", "true");
+                meta.textContent = [
+                  file.size_label || file.sizeLabel || "",
+                  file.extension ? "." + file.extension : "",
+                  file.type || "unbekannter Typ"
+                ].filter(Boolean).join(" · ");
+
+                copy.appendChild(name);
+                copy.appendChild(meta);
+                row.appendChild(copy);
+                uploadFileList.appendChild(row);
+              } catch (rowError) {
+                warn("Upload row render skipped.", rowError);
+              }
+            });
+          } catch (error) {
+            warn("Upload list render failed.", error);
+          }
+        }
+
+        function syncUploadMetadata(options) {
+          try {
+            var files = readUploadFiles();
+            var updatedAt = new Date().toISOString();
+            var payload = {
+              version: COMPONENT_VERSION,
+              kind: "geometry_model",
+              purpose: "geometry_model",
+              backend_enabled: false,
+              backendEnabled: false,
+              local_only: true,
+              localOnly: true,
+              count: files.length,
+              files: files,
+              updated_at: updatedAt,
+              updatedAt: updatedAt,
+              source: options && options.source ? options.source : "upload"
+            };
+
+            if (uploadMetaField) {
+              uploadMetaField.value = JSON.stringify(payload);
+              uploadMetaField.setAttribute("data-vp-last-upload-sync", String(Date.now()));
+            }
+
+            if (uploadZone) {
+              uploadZone.setAttribute("data-vp-upload-count", String(files.length));
+              uploadZone.setAttribute("data-vp-upload-has-files", files.length > 0 ? "true" : "false");
+              uploadZone.setAttribute("data-vp-upload-last-update", String(Date.now()));
+            }
+
+            section.setAttribute("data-vp-geometry-model-count", String(files.length));
+            section.setAttribute("data-vp-geometry-model-selected", files.length > 0 ? "true" : "false");
+
+            renderUploadList(files);
+            state.uploads = payload;
+
+            dispatch(section, config.events.uploadChanged || "vectoplan:create:geometry-upload-changed", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              kind: "geometry_model",
+              purpose: "geometry_model",
+              count: files.length,
+              files: files,
+              payload: payload,
+              source: payload.source
+            });
+
+            dispatch(document, config.events.genericUploadChanged || "vectoplan:create:upload-changed", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              kind: "geometry_model",
+              purpose: "geometry_model",
+              count: files.length,
+              files: files,
+              payload: payload,
+              source: payload.source
+            });
+
+            return payload;
+          } catch (error) {
+            warn("Upload metadata sync failed.", error);
+
+            return {
+              count: 0,
+              files: []
+            };
+          }
+        }
+
+        function readState(source) {
+          try {
+            syncObjectKindToHidden({
+              source: source || "read"
+            });
+            maybeLockEditorCells();
+
+            return {
+              objectKind: readObjectKind(),
+              shape: readValue(shapeField, config.defaults.shape || "block") || "block",
+              unit: readValue(unitField, config.defaults.unit || "m") || "m",
+              width: formatDimension(readValue(widthField, config.defaults.width || "1.00")),
+              height: formatDimension(readValue(heightField, config.defaults.height || "1.00")),
+              depth: formatDimension(readValue(depthField, config.defaults.depth || "1.00")),
+              cellsX: formatCells(readValue(cellsXField, config.defaults.cellsX || "1")),
+              cellsY: formatCells(readValue(cellsYField, config.defaults.cellsY || "1")),
+              cellsZ: formatCells(readValue(cellsZField, config.defaults.cellsZ || "1")),
+              uploads: state.uploads || {
+                count: 0,
+                files: []
+              },
+              valid: true,
+              updatedAt: new Date().toISOString(),
+              source: source || "read"
+            };
+          } catch (error) {
+            warn("State read failed.", error);
+            return Object.assign({}, state);
+          }
+        }
+
+        function updateRootAttributes(nextState) {
+          try {
+            section.setAttribute("data-vp-geometry-object-kind", nextState.objectKind || "cell_block");
+            section.setAttribute("data-vp-geometry-current-shape", nextState.shape || "block");
+            section.setAttribute("data-vp-geometry-current-unit", nextState.unit || "m");
+            section.setAttribute("data-vp-geometry-current-width", String(nextState.width));
+            section.setAttribute("data-vp-geometry-current-height", String(nextState.height));
+            section.setAttribute("data-vp-geometry-current-depth", String(nextState.depth));
+            section.setAttribute("data-vp-geometry-current-cells-x", String(nextState.cellsX));
+            section.setAttribute("data-vp-geometry-current-cells-y", String(nextState.cellsY));
+            section.setAttribute("data-vp-geometry-current-cells-z", String(nextState.cellsZ));
+            section.setAttribute("data-vp-geometry-last-source", nextState.source || "unknown");
+            section.setAttribute("data-vp-geometry-last-update", String(Date.now()));
+
+            var app = document.querySelector("[data-vp-create-app]");
+            var form = document.querySelector("[data-vp-create-form], [data-create-form='true'], #vp-create-form");
+
+            [app, form].forEach(function (node) {
+              try {
+                if (!node) {
+                  return;
+                }
+
+                node.setAttribute("data-vp-object-kind", nextState.objectKind || "cell_block");
+                node.setAttribute("data-vp-geometry-shape", nextState.shape || "block");
+                node.setAttribute("data-vp-geometry-unit", nextState.unit || "m");
+                node.setAttribute("data-vp-geometry-size", nextState.width + "x" + nextState.height + "x" + nextState.depth);
+                node.setAttribute("data-vp-geometry-cells", nextState.cellsX + "x" + nextState.cellsY + "x" + nextState.cellsZ);
+              } catch (nodeError) {
+                /* no-op */
+              }
+            });
+          } catch (error) {
+            warn("Root attribute update failed.", error);
+          }
+        }
+
+        function updateSummary(options) {
+          try {
+            var previousState = Object.assign({}, state);
+            state = readState(options && options.source ? options.source : "update");
+
+            if (visibleSummary) {
+              visibleSummary.textContent = state.width + " × " + state.height + " × " + state.depth + " " + state.unit;
+            }
+
+            if (cellsSummary) {
+              cellsSummary.textContent = state.cellsX + " × " + state.cellsY + " × " + state.cellsZ + " Blöcke";
+            }
+
+            updateRootAttributes(state);
+
+            dispatch(section, config.events.changed || "vectoplan:create:geometry-changed", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              state: Object.assign({}, state),
+              previousState: previousState,
+              root: section,
+              source: state.source
+            });
+
+            return Object.assign({}, state);
+          } catch (error) {
+            warn("Summary update failed.", error);
+            return Object.assign({}, state);
+          }
+        }
+
+        function bindField(field, sourceName) {
+          try {
+            if (!field || field.getAttribute("data-vp-geometry-bound") === "true") {
+              return;
+            }
+
+            field.addEventListener("input", function () {
+              updateSummary({
+                source: sourceName + "-input"
+              });
+            });
+
+            field.addEventListener("change", function () {
+              updateSummary({
+                source: sourceName + "-change"
+              });
+            });
+
+            field.addEventListener("blur", function () {
+              sanitizeFields();
+              updateSummary({
+                source: sourceName + "-blur"
+              });
+            });
+
+            field.setAttribute("data-vp-geometry-bound", "true");
+          } catch (error) {
+            warn("Listener binding skipped.", error);
+          }
+        }
+
+        [
+          objectKindUiField,
+          shapeField,
+          unitField,
+          widthField,
+          heightField,
+          depthField,
+          cellsXField,
+          cellsYField,
+          cellsZField
+        ].forEach(function (field) {
+          bindField(field, field && (field.name || field.id) ? field.name || field.id : "field");
+        });
+
+        if (uploadInput) {
+          try {
+            uploadInput.addEventListener("change", function () {
+              syncUploadMetadata({
+                source: "geometry-upload-change"
+              });
+              updateSummary({
+                source: "geometry-upload-change"
+              });
+            });
+            uploadInput.setAttribute("data-vp-upload-bound", "true");
+          } catch (uploadBindError) {
+            warn("Upload binding failed.", uploadBindError);
+          }
+        }
+
+        document.addEventListener("change", function (event) {
+          try {
+            var target = event.target;
+
+            if (!target || target === objectKindUiField) {
+              return;
+            }
+
+            if (
+              target.matches &&
+              (
+                target.matches('[data-create-object-kind="true"]') ||
+                target.matches('[name="object_kind"]')
+              )
+            ) {
+              if (objectKindUiField && target.value && objectKindUiField.value !== target.value) {
+                objectKindUiField.value = normalizeObjectKind(target.value);
+              }
+
+              updateSummary({
+                source: "external-object-kind-change"
+              });
+            }
+          } catch (error) {
+            warn("External object-kind change handling failed.", error);
+          }
+        });
+
+        document.addEventListener("input", function (event) {
+          try {
+            var target = event.target;
+
+            if (!target || target === objectKindUiField) {
+              return;
+            }
+
+            if (
+              target.matches &&
+              (
+                target.matches('[data-create-object-kind="true"]') ||
+                target.matches('[name="object_kind"]')
+              )
+            ) {
+              if (objectKindUiField && target.value && objectKindUiField.value !== target.value) {
+                objectKindUiField.value = normalizeObjectKind(target.value);
+              }
+
+              updateSummary({
+                source: "external-object-kind-input"
+              });
+            }
+          } catch (error) {
+            warn("External object-kind input handling failed.", error);
+          }
+        });
+
+        if (objectKindUiField) {
+          objectKindUiField.value = normalizeObjectKind(readObjectKind());
+        }
+
+        sanitizeFields();
+        syncObjectKindToHidden({
+          source: "boot"
+        });
+        syncUploadMetadata({
+          source: "boot"
+        });
+        updateSummary({
+          source: "boot"
+        });
+
+        window.VectoplanCreateGeometry = Object.assign({}, window.VectoplanCreateGeometry || {}, {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          root: section,
+          update: updateSummary,
+          syncObjectKind: syncObjectKindToHidden,
+          syncUploads: syncUploadMetadata,
+          sanitize: function () {
+            try {
+              sanitizeFields();
+              return updateSummary({
+                source: "public-sanitize"
+              });
+            } catch (error) {
+              warn("Public sanitize failed.", error);
+              return Object.assign({}, state);
+            }
+          },
+          validate: function () {
+            try {
+              sanitizeFields();
+              updateSummary({
+                source: "validate"
+              });
+
+              return true;
+            } catch (error) {
+              warn("Validate failed.", error);
+              return false;
+            }
+          },
+          getState: function () {
+            try {
+              return Object.assign({}, state);
+            } catch (error) {
+              return {};
+            }
+          },
+          getUploads: function () {
+            try {
+              return Object.assign({}, state.uploads || {
+                count: 0,
+                files: []
+              });
+            } catch (error) {
+              return {
+                count: 0,
+                files: []
+              };
+            }
+          },
+          getConfig: function () {
+            try {
+              return Object.assign({}, config);
+            } catch (error) {
+              return {};
+            }
+          }
+        });
+
+        section.setAttribute("data-vp-geometry-ready", "true");
+        section.setAttribute("data-vp-geometry-version", COMPONENT_VERSION);
+
+        dispatch(section, config.events.ready || "vectoplan:create:geometry-ready", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          state: Object.assign({}, state),
+          root: section
+        });
+      } catch (error) {
+        try {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Geometry] Defensive initialization failed.", error);
+          }
+        } catch (consoleError) {
+          /* no-op */
+        }
+      }
+    }
+
+    try {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", bootGeometry, {
+          once: true
+        });
+      } else {
+        bootGeometry();
+      }
+    } catch (error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Geometry] Boot scheduling failed.", error);
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+  })();
+</script>

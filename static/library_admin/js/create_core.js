@@ -5,42 +5,49 @@
 
   Zweck:
   - Gemeinsame Basisschicht für den /create Fullscreen-Wizard.
-  - Entlastet die bisher zu große create.js.
+  - Entlastet create.js.
   - Stellt zentrale Konstanten, Selektoren, State, Utility-Funktionen,
     Kontextauflösung, Logging, Locking, Events und robuste DOM-Helfer bereit.
   - Enthält bewusst keine fachliche Wizard-Navigation, keine Actions,
     keine Preview-Logik und keine VPLIB-Erzeugung.
   - Die Datei darf mehrfach geladen werden, ohne bestehende Runtime hart zu brechen.
+  - Kennt die neuen Upload-Metadatenfelder, verarbeitet aber keine Datei-Bytes.
+  - Setzt Step 3 sichtbar auf Variablen, hält den technischen key/target aber
+    kompatibel bei object / object-variants.
 
-  Geplante Modulaufteilung:
+  Modulaufteilung:
   - create_core.js                 diese Basisschicht
   - create_wizard.js               Schrittlogik, Navigation, Reentrancy-Schutz
-  - create_payload.js              Form-/Variant-Payload-Brücke
+  - create_payload.js              Form-/Variant-/Upload-Payload-Brücke
   - create_actions.js              Draft, Validate, Package-Plan, Download, Save
-  - create_preview.js              Taxonomie/Object-Kind/Preview/UI-Summaries
+  - create_uploads.js              lokale Upload-Metadaten
+  - create_preview.js              Platzhalter-/Summary-Sync
   - create_dynamic_rows_legacy.js  Legacy-Tabellenkompatibilität
   - create.js                      schlanker Orchestrator/Public API
 
   Architekturregeln:
   - Backend bleibt Source of Truth.
   - Browser erzeugt keine VPLIB-Dateien.
+  - Browser speichert keine Upload-Dateien.
   - Variant Runtime bleibt definition-managed.
-  - Navigation wird später ausschließlich in create_wizard.js gesteuert.
+  - Navigation wird ausschließlich von create_wizard.js gesteuert.
 ----------------------------------------------------------------------------- */
 
 (function () {
   "use strict";
 
   var GLOBAL_NAME = "VectoplanCreateCore";
-  var CORE_VERSION = "0.4.0";
+  var CORE_VERSION = "0.6.0";
   var DEFAULT_API_PREFIX = "/api/v1/vplib/create";
   var DEFAULT_THEME_STORAGE_KEY = "vectoplan.create.theme";
   var DEFAULT_LOCK_TIMEOUT_MS = 2500;
 
-  if (window[GLOBAL_NAME] && window[GLOBAL_NAME].version) {
+  var existingRuntime = window[GLOBAL_NAME] || null;
+
+  if (existingRuntime && existingRuntime.version === CORE_VERSION && existingRuntime.state) {
     try {
-      window[GLOBAL_NAME].log("create_core.js already initialized; keeping existing runtime.", {
-        existingVersion: window[GLOBAL_NAME].version,
+      existingRuntime.log("create_core.js already initialized; keeping existing runtime.", {
+        existingVersion: existingRuntime.version,
         incomingVersion: CORE_VERSION
       });
     } catch (error) {
@@ -53,7 +60,7 @@
   var SELECTORS = {
     page: "[data-create-page='true'], [data-vp-create-page='true']",
     app: "[data-vp-create-app]",
-    form: "[data-vp-create-form], [data-create-form='true'], #vp-create-form",
+    form: "[data-vp-create-form], [data-create-form='true'], #vp-create-form, form[data-create-form]",
 
     stepper: "[data-vp-create-stepper]",
     stepperButton: "[data-vp-step-button]",
@@ -75,37 +82,47 @@
     step: "[data-vp-create-step]",
     activeStep: "[data-vp-create-step].is-active",
 
-    actionSection: "[data-vp-create-section='actions'], [data-create-actions-card='true']",
+    section: "[data-vp-create-section], [data-create-section]",
+    identitySection: "[data-vp-create-section='identity'], [data-create-section='identity']",
+    taxonomySection: "[data-vp-create-section='taxonomy'], [data-create-section='taxonomy']",
+    variablesSection: "[data-vp-create-section='object-variants'], [data-vp-create-section-alias='variables'], [data-create-section='object-variants']",
+    geometrySection: "[data-vp-create-section='geometry'], [data-create-section='geometry']",
+    technicalSection: "[data-vp-create-section='technical'], [data-create-section='technical']",
+    actionSection: "[data-vp-create-section='actions'], [data-create-actions-card='true'], [data-vp-actions-root='true']",
+
     actionButton: "[data-create-action]",
     status: "[data-vp-action-status], [data-create-action-status='true']",
 
+    resultSection: "[data-vp-actions-result], [data-create-result-section='true']",
     resultOutput: "[data-vp-actions-result-output], [data-create-result-output='true'], [data-create-output='true']",
     resultCode: "[data-vp-actions-result-code]",
     resultSummary: "[data-vp-actions-result-summary], [data-create-result-summary='true']",
     resultCopy: "[data-vp-actions-result-copy], [data-create-copy-result='true'], [data-create-result-copy='true']",
     resultClear: "[data-vp-actions-result-clear], [data-create-clear-result='true'], [data-create-result-clear='true']",
-    resultLastAction: "[data-create-result-last-action='true']",
-    resultStatus: "[data-create-result-status='true']",
-    resultHttpStatus: "[data-create-result-http-status='true']",
-    resultErrorCount: "[data-create-result-error-count='true']",
-    resultWarningCount: "[data-create-result-warning-count='true']",
+    resultLastAction: "[data-create-result-last-action='true'], [data-vp-result-last-action]",
+    resultStatus: "[data-create-result-status='true'], [data-vp-result-status]",
+    resultHttpStatus: "[data-create-result-http-status='true'], [data-vp-result-http-status]",
+    resultErrorCount: "[data-create-result-error-count='true'], [data-vp-result-error-count]",
+    resultWarningCount: "[data-create-result-warning-count='true'], [data-vp-result-warning-count]",
 
-    addVariant: "[data-create-add-variant='true']",
-    addVariable: "[data-create-add-variable='true']",
+    addVariant: "[data-create-add-variant='true'], [data-vp-add-definition-variant='true']",
+    addVariable: "[data-create-add-variable='true'], [data-vp-add-variable]",
     removeRow: "[data-create-remove-row='true']",
     clearVariable: "[data-create-clear-variable='true']",
 
-    variantTable: "[data-create-variant-table='true']",
-    variantRow: "[data-create-variant-row='true']",
-    variantTemplate: "[data-create-variant-row-template='true']",
+    variantWorkspace: "[data-vp-variant-workspace-root='true'], [data-vp-variant-workspace='true']",
+    variantTable: "[data-create-variant-table='true'], [data-vp-variant-table-root='true']",
+    variantRow: "[data-vp-variant-row='true'], [data-create-variant-row='true']",
+    variantTemplate: "[data-vp-variant-row-template='true'], [data-create-variant-row-template='true']",
+    variantDrawer: "[data-vp-variant-drawer-root='true'], [data-vp-variant-drawer='true']",
 
-    variableTable: "[data-create-variable-table='true']",
-    variableRow: "[data-create-variable-row='true']",
+    variableTable: "[data-create-variable-table='true'], [data-vp-variable-table]",
+    variableRow: "[data-create-variable-row='true'], [data-vp-variable-row]",
     variableTemplate: "[data-create-variable-row-template='true']",
 
-    domainSelect: "[data-create-taxonomy-select='domain']",
-    categorySelect: "[data-create-taxonomy-select='category']",
-    subcategorySelect: "[data-create-taxonomy-select='subcategory']",
+    domainSelect: "[data-create-taxonomy-select='domain'], [name='domain'], [data-vp-taxonomy-domain]",
+    categorySelect: "[data-create-taxonomy-select='category'], [name='category'], [data-vp-taxonomy-category]",
+    subcategorySelect: "[data-create-taxonomy-select='subcategory'], [name='subcategory'], [data-vp-taxonomy-subcategory]",
     taxonomyPathDomain: "[data-vp-taxonomy-path-domain]",
     taxonomyPathCategory: "[data-vp-taxonomy-path-category]",
     taxonomyPathFamily: "[data-vp-taxonomy-path-family]",
@@ -125,9 +142,16 @@
     editorCellsY: "[data-create-field='editor_cells_y'], [name='editor_cells_y']",
     editorCellsZ: "[data-create-field='editor_cells_z'], [name='editor_cells_z']",
 
+    uploadZone: "[data-vp-upload-zone], [data-create-upload-zone], [data-vp-upload]",
+    uploadInput: "[data-vp-upload-input], input[type='file'][data-vp-upload-kind], input[type='file'][name='geometry_model_files'], input[type='file'][name='technical_document_files'], input[type='file'][name^='variant_document_files']",
+    uploadMetadata: "[data-vp-upload-metadata], [name='geometry_model_uploads_json'], [name='technical_document_uploads_json'], [name='variant_document_uploads_json'], [name^='variant_document_uploads[']",
+    geometryUpload: "[data-vp-geometry-upload], [data-vp-upload-kind='geometry_model']",
+    technicalUpload: "[data-vp-technical-upload], [data-vp-upload-kind='technical_documents']",
+    variantDocumentUpload: "[data-vp-field-document-list-upload='true'], [data-vp-upload-kind='variant_documents']",
+
     previewPlaceholder: "[data-vp-create-preview], [data-create-preview-placeholder='true']",
     previewStage: "[data-vp-preview-stage], [data-create-preview-stage='true']",
-    previewCube: "[data-vp-preview-primitive], [data-create-preview-cube='true']",
+    previewPrimitive: "[data-vp-preview-primitive], [data-create-preview-cube='true']",
     previewShape: "[data-vp-preview-shape], [data-create-preview-shape='true']",
     previewObjectKind: "[data-vp-preview-object-kind], [data-create-preview-object-kind='true']",
     previewDimensions: "[data-vp-preview-dimensions], [data-create-preview-dimensions='true']",
@@ -142,11 +166,13 @@
     themeToggle: "[data-create-theme-toggle='true']",
     themeLabel: "[data-create-theme-label='true']",
 
-    contextJson: "[data-create-context-json='true'], #vp-create-context-json",
-    optionsJson: "[data-create-options-json='true'], #vp-create-options-json",
-    healthJson: "[data-create-health-json='true'], #vp-create-health-json",
-    uiStateJson: "[data-create-ui-state-json='true'], #vp-create-ui-state-json",
-    wizardJson: "[data-create-wizard-json='true'], #vp-create-wizard-json"
+    contextJson: "[data-vp-create-context-json], [data-create-context-json='true'], #vp-create-context-json",
+    optionsJson: "[data-vp-create-options-json], [data-create-options-json='true'], #vp-create-options-json",
+    healthJson: "[data-vp-create-health-json], [data-create-health-json='true'], #vp-create-health-json",
+    uiStateJson: "[data-vp-create-ui-state-json], [data-create-ui-state-json='true'], #vp-create-ui-state-json",
+    wizardJson: "[data-vp-create-wizard-json], [data-create-wizard-json='true'], #vp-create-wizard-json",
+    uploadsJson: "[data-vp-create-upload-config-json], [data-create-upload-config-json='true'], #vp-create-upload-config-json",
+    definitionsJson: "[data-vp-create-definitions-json], [data-create-definitions-json='true'], #vp-create-definitions-json"
   };
 
   var STATE_CLASSES = {
@@ -182,12 +208,25 @@
     "vp-create-preview-cube--sphere"
   ];
 
+  var DEFAULT_ROUTES = {
+    health: "/health",
+    options: "/options",
+    draft: "/draft",
+    validate: "/validate",
+    package_plan: "/package-plan",
+    packagePlan: "/package-plan",
+    "package-plan": "/package-plan",
+    download: "/download",
+    save: "/save"
+  };
+
   var DEFAULT_STEPS = [
     {
       index: 1,
       key: "identity",
       label: "Grunddaten",
       short_label: "Daten",
+      shortLabel: "Daten",
       hint: "Name und Beschreibung des neuen Library-Bausteins festlegen.",
       target: "identity"
     },
@@ -196,15 +235,18 @@
       key: "taxonomy",
       label: "Taxonomie",
       short_label: "Taxonomie",
+      shortLabel: "Taxonomie",
       hint: "Fachliche Einordnung auswählen.",
       target: "taxonomy"
     },
     {
       index: 3,
       key: "object",
-      label: "Objekt",
-      short_label: "Objekt",
-      hint: "Objektklasse und Varianten festlegen.",
+      alias: "variables",
+      label: "Variablen",
+      short_label: "Variablen",
+      shortLabel: "Variablen",
+      hint: "Variablen, Varianten und Unterlagen definieren.",
       target: "object-variants"
     },
     {
@@ -212,7 +254,8 @@
       key: "geometry",
       label: "Geometrie",
       short_label: "Geometrie",
-      hint: "Form, Maße und Editor-Raster definieren.",
+      shortLabel: "Geometrie",
+      hint: "Form, Maße, Editor-Raster und optionales 3D-Modell definieren.",
       target: "geometry"
     },
     {
@@ -220,7 +263,8 @@
       key: "technical",
       label: "Technik",
       short_label: "Technik",
-      hint: "Optionale technische Kennwerte ergänzen.",
+      shortLabel: "Technik",
+      hint: "Optionale technische Kennwerte und Unterlagen ergänzen.",
       target: "technical"
     },
     {
@@ -228,10 +272,13 @@
       key: "create",
       label: "Erzeugen",
       short_label: "Erzeugen",
+      shortLabel: "Erzeugen",
       hint: "Draft, Validierung, Package-Plan, Download oder Save ausführen.",
       target: "actions"
     }
   ];
+
+  var previousState = existingRuntime && existingRuntime.state ? existingRuntime.state : {};
 
   var state = {
     initialized: false,
@@ -247,6 +294,9 @@
     health: {},
     uiState: {},
     wizard: {},
+    uploads: {},
+    definitions: {},
+    routes: cloneObject(DEFAULT_ROUTES),
 
     steps: clone(DEFAULT_STEPS),
     currentStep: 1,
@@ -266,12 +316,12 @@
     theme: "system",
     previewUpdateTimer: null,
 
-    locks: {},
-    modules: {},
-    moduleOrder: [],
-    bindings: {},
-    diagnostics: [],
-    navigationTrace: []
+    locks: previousState.locks && typeof previousState.locks === "object" ? previousState.locks : {},
+    modules: previousState.modules && typeof previousState.modules === "object" ? previousState.modules : {},
+    moduleOrder: Array.isArray(previousState.moduleOrder) ? previousState.moduleOrder.slice() : [],
+    bindings: previousState.bindings && typeof previousState.bindings === "object" ? previousState.bindings : {},
+    diagnostics: Array.isArray(previousState.diagnostics) ? previousState.diagnostics.slice(-100) : [],
+    navigationTrace: Array.isArray(previousState.navigationTrace) ? previousState.navigationTrace.slice(-50) : []
   };
 
   function nowIso() {
@@ -310,11 +360,11 @@
     }
   }
 
-  function warn(message, error) {
+  function warn(message, err) {
     try {
       if (window.console && typeof window.console.warn === "function") {
-        if (typeof error !== "undefined") {
-          window.console.warn("[VPLIB Create Core] " + message, error);
+        if (typeof err !== "undefined") {
+          window.console.warn("[VPLIB Create Core] " + message, err);
         } else {
           window.console.warn("[VPLIB Create Core] " + message);
         }
@@ -323,7 +373,7 @@
       /* no-op */
     }
 
-    pushDiagnostic("warning", message, error);
+    pushDiagnostic("warning", message, err);
   }
 
   function error(message, err) {
@@ -394,6 +444,9 @@
       state.health = resolveContextBundle("health");
       state.uiState = resolveContextBundle("uiState");
       state.wizard = resolveContextBundle("wizard");
+      state.uploads = resolveContextBundle("uploads");
+      state.definitions = resolveContextBundle("definitions");
+      state.routes = resolveRoutesBundle(page, app, form, state.context);
 
       state.apiPrefix = resolveApiPrefix(page, app, form, state.context);
       state.themeStorageKey = getNested(
@@ -402,17 +455,29 @@
         getNested(state.context, ["theme", "storageKey"], DEFAULT_THEME_STORAGE_KEY)
       );
 
+      state.theme = normalizeTheme(
+        getNested(state.uiState, ["theme"], "") ||
+        getNested(state.context, ["theme", "current"], "") ||
+        getPageTheme(page, app) ||
+        safeLocalStorageGet(state.themeStorageKey) ||
+        "system"
+      );
+
       refreshWizardConfig(app, form);
 
       state.coreReady = true;
 
       safeSetAttribute(document.documentElement, "data-vp-create-core-ready", "true");
       safeSetAttribute(document.documentElement, "data-vp-create-core-version", CORE_VERSION);
+      safeSetAttribute(document.documentElement, "data-vp-create-theme", state.theme);
 
       dispatch("vectoplan:create:core-context-refreshed", {
         apiPrefix: state.apiPrefix,
+        routes: cloneObject(state.routes),
         stepCount: state.stepCount,
-        currentStep: state.currentStep
+        currentStep: state.currentStep,
+        theme: state.theme,
+        writeEnabled: isWriteEnabled()
       });
 
       return snapshot();
@@ -477,26 +542,54 @@
 
   function resolveContextBundle(name) {
     try {
-      if (window.VectoplanCreateContext && typeof window.VectoplanCreateContext === "object") {
-        if (name === "context" && window.VectoplanCreateContext.context) {
-          return cloneObject(window.VectoplanCreateContext.context);
+      var contextObject = window.VectoplanCreateContext && typeof window.VectoplanCreateContext === "object"
+        ? window.VectoplanCreateContext
+        : null;
+
+      if (contextObject) {
+        if (name === "context" && contextObject.context) {
+          return cloneObject(contextObject.context);
         }
 
-        if (name === "options" && window.VectoplanCreateContext.options) {
-          return cloneObject(window.VectoplanCreateContext.options);
+        if (name === "context") {
+          return cloneObject(contextObject);
         }
 
-        if (name === "health" && window.VectoplanCreateContext.health) {
-          return cloneObject(window.VectoplanCreateContext.health);
+        if (name === "options" && contextObject.options) {
+          return cloneObject(contextObject.options);
         }
 
-        if (name === "uiState" && window.VectoplanCreateContext.uiState) {
-          return cloneObject(window.VectoplanCreateContext.uiState);
+        if (name === "health" && contextObject.health) {
+          return cloneObject(contextObject.health);
         }
 
-        if (name === "wizard" && window.VectoplanCreateContext.wizard) {
-          return cloneObject(window.VectoplanCreateContext.wizard);
+        if (name === "uiState" && contextObject.uiState) {
+          return cloneObject(contextObject.uiState);
         }
+
+        if (name === "uiState" && contextObject.ui_state) {
+          return cloneObject(contextObject.ui_state);
+        }
+
+        if (name === "wizard" && contextObject.wizard) {
+          return cloneObject(contextObject.wizard);
+        }
+
+        if (name === "uploads" && contextObject.uploads) {
+          return cloneObject(contextObject.uploads);
+        }
+
+        if (name === "definitions" && contextObject.definitions) {
+          return cloneObject(contextObject.definitions);
+        }
+      }
+
+      if (name === "uploads" && window.VectoplanCreateUploadConfig) {
+        return cloneObject(window.VectoplanCreateUploadConfig);
+      }
+
+      if (name === "definitions" && window.VectoplanCreateDefinitions) {
+        return cloneObject(window.VectoplanCreateDefinitions);
       }
 
       if (name === "context") {
@@ -519,6 +612,14 @@
         return readJsonScript(SELECTORS.wizardJson, {});
       }
 
+      if (name === "uploads") {
+        return readJsonScript(SELECTORS.uploadsJson, {});
+      }
+
+      if (name === "definitions") {
+        return readJsonScript(SELECTORS.definitionsJson, {});
+      }
+
       return {};
     } catch (err) {
       warn("Context bundle resolution failed: " + name, err);
@@ -526,14 +627,53 @@
     }
   }
 
+  function resolveRoutesBundle(page, app, form, context) {
+    try {
+      var routes = cloneObject(DEFAULT_ROUTES);
+      var contextRoutes = context && context.routes && typeof context.routes === "object" ? context.routes : {};
+      var createRoutes = window.VectoplanCreateRoutes && typeof window.VectoplanCreateRoutes === "object" ? window.VectoplanCreateRoutes : {};
+
+      routes = Object.assign(routes, cloneObject(contextRoutes), cloneObject(createRoutes));
+
+      ["health", "options", "draft", "validate", "download", "save"].forEach(function (key) {
+        try {
+          var dataName = "data-vp-route-" + key.replace(/_/g, "-");
+          var dataNameLegacy = "data-create-route-" + key.replace(/_/g, "-");
+          var value = "";
+
+          [form, app, page].some(function (node) {
+            if (!node) {
+              return false;
+            }
+
+            value = node.getAttribute(dataName) || node.getAttribute(dataNameLegacy) || "";
+            return !!value;
+          });
+
+          if (value) {
+            routes[key] = value;
+          }
+        } catch (routeError) {
+          warn("Route data attribute read skipped: " + key, routeError);
+        }
+      });
+
+      return routes;
+    } catch (err) {
+      warn("Routes bundle resolution failed.", err);
+      return cloneObject(DEFAULT_ROUTES);
+    }
+  }
+
   function resolveApiPrefix(page, app, form, context) {
     try {
       var fromContext = context && (context.api_prefix || context.apiPrefix) || "";
-      var fromForm = form ? form.getAttribute("data-create-api-prefix") || "" : "";
-      var fromApp = app ? app.getAttribute("data-create-api-prefix") || "" : "";
-      var fromPage = page ? page.getAttribute("data-create-api-prefix") || "" : "";
+      var fromWindow = window.VectoplanCreateApiPrefix || "";
+      var fromForm = form ? form.getAttribute("data-create-api-prefix") || form.getAttribute("data-vp-api-prefix") || "" : "";
+      var fromApp = app ? app.getAttribute("data-create-api-prefix") || app.getAttribute("data-vp-api-prefix") || "" : "";
+      var fromPage = page ? page.getAttribute("data-create-api-prefix") || page.getAttribute("data-vp-api-prefix") || "" : "";
 
-      return trimTrailingSlash(fromContext || fromForm || fromApp || fromPage || DEFAULT_API_PREFIX);
+      return trimTrailingSlash(fromContext || fromWindow || fromForm || fromApp || fromPage || DEFAULT_API_PREFIX);
     } catch (err) {
       warn("API prefix resolution failed.", err);
       return DEFAULT_API_PREFIX;
@@ -553,14 +693,33 @@
         stepIndex = fallbackIndex;
       }
 
+      var key = step.key || "step-" + stepIndex;
+      var target = step.target || step.panel || key || "step-" + stepIndex;
+
+      if (stepIndex === 3 && (key === "object" || target === "object-variants")) {
+        return {
+          index: stepIndex,
+          key: "object",
+          alias: "variables",
+          label: step.label && step.label !== "Objekt" ? step.label : "Variablen",
+          short_label: step.short_label && step.short_label !== "Objekt" ? step.short_label : "Variablen",
+          shortLabel: step.shortLabel && step.shortLabel !== "Objekt" ? step.shortLabel : "Variablen",
+          description: step.description || "",
+          hint: step.hint || step.description || "Variablen, Varianten und Unterlagen definieren.",
+          target: "object-variants"
+        };
+      }
+
       return {
         index: stepIndex,
-        key: step.key || "step-" + stepIndex,
+        key: key,
+        alias: step.alias || "",
         label: step.label || "Schritt " + stepIndex,
         short_label: step.short_label || step.shortLabel || step.label || String(stepIndex),
+        shortLabel: step.shortLabel || step.short_label || step.label || String(stepIndex),
         description: step.description || "",
         hint: step.hint || step.description || "",
-        target: step.target || step.key || "step-" + stepIndex
+        target: target
       };
     } catch (err) {
       warn("Step normalization failed.", err);
@@ -605,7 +764,9 @@
         key: "step-" + parsed,
         label: "Schritt " + parsed,
         short_label: String(parsed),
-        hint: ""
+        shortLabel: String(parsed),
+        hint: "",
+        target: "step-" + parsed
       };
     } catch (err) {
       return {
@@ -613,7 +774,9 @@
         key: "step-" + stepIndex,
         label: "Schritt " + stepIndex,
         short_label: String(stepIndex || ""),
-        hint: ""
+        shortLabel: String(stepIndex || ""),
+        hint: "",
+        target: "step-" + stepIndex
       };
     }
   }
@@ -732,32 +895,39 @@
 
   function setStatus(message, stateName) {
     try {
-      var statusNode = qs(SELECTORS.status);
+      var nodes = qsa(SELECTORS.status);
 
-      if (!statusNode) {
-        return;
-      }
+      nodes.forEach(function (statusNode) {
+        try {
+          statusNode.textContent = message || "";
 
-      statusNode.textContent = message || "";
+          statusNode.classList.remove(
+            STATE_CLASSES.loading,
+            STATE_CLASSES.ok,
+            STATE_CLASSES.warning,
+            STATE_CLASSES.error
+          );
 
-      statusNode.classList.remove(
-        STATE_CLASSES.loading,
-        STATE_CLASSES.ok,
-        STATE_CLASSES.warning,
-        STATE_CLASSES.error
-      );
+          if (stateName === "loading" || stateName === "running") {
+            statusNode.classList.add(STATE_CLASSES.loading);
+          } else if (stateName === "ok") {
+            statusNode.classList.add(STATE_CLASSES.ok);
+          } else if (stateName === "warning") {
+            statusNode.classList.add(STATE_CLASSES.warning);
+          } else if (stateName === "error") {
+            statusNode.classList.add(STATE_CLASSES.error);
+          }
 
-      if (stateName === "loading" || stateName === "running") {
-        statusNode.classList.add(STATE_CLASSES.loading);
-      } else if (stateName === "ok") {
-        statusNode.classList.add(STATE_CLASSES.ok);
-      } else if (stateName === "warning") {
-        statusNode.classList.add(STATE_CLASSES.warning);
-      } else if (stateName === "error") {
-        statusNode.classList.add(STATE_CLASSES.error);
-      }
+          safeSetAttribute(statusNode, "data-vp-status-state", stateName || "idle");
+        } catch (nodeError) {
+          warn("Set status node failed.", nodeError);
+        }
+      });
 
-      safeSetAttribute(statusNode, "data-vp-status-state", stateName || "idle");
+      dispatch("vectoplan:create:core-status-changed", {
+        message: message || "",
+        state: stateName || "idle"
+      });
     } catch (err) {
       warn("Set status failed.", err);
     }
@@ -866,6 +1036,10 @@
 
   function qs(selector, root) {
     try {
+      if (!selector) {
+        return null;
+      }
+
       var scope = root || document;
       return scope.querySelector(selector);
     } catch (err) {
@@ -876,6 +1050,10 @@
 
   function qsa(selector, root) {
     try {
+      if (!selector) {
+        return [];
+      }
+
       var scope = root || document;
       return Array.prototype.slice.call(scope.querySelectorAll(selector));
     } catch (err) {
@@ -911,8 +1089,11 @@
       if (node) {
         node.textContent = typeof value === "undefined" || value === null ? "" : String(value);
       }
+
+      return !!node;
     } catch (err) {
       warn("Set text failed.", err);
+      return false;
     }
   }
 
@@ -930,9 +1111,12 @@
     try {
       if (node && name) {
         node.setAttribute(name, typeof value === "undefined" || value === null ? "" : String(value));
+        return true;
       }
+
+      return false;
     } catch (err) {
-      /* no-op */
+      return false;
     }
   }
 
@@ -940,9 +1124,12 @@
     try {
       if (node && name) {
         node.removeAttribute(name);
+        return true;
       }
+
+      return false;
     } catch (err) {
-      /* no-op */
+      return false;
     }
   }
 
@@ -1076,6 +1263,10 @@
         return field.value || "";
       }
 
+      if (field.length && !field.nodeType && typeof field.value === "undefined") {
+        return field[0] && typeof field[0].value !== "undefined" ? String(field[0].value) : "";
+      }
+
       return typeof field.value !== "undefined" ? String(field.value) : "";
     } catch (err) {
       return "";
@@ -1121,6 +1312,7 @@
         field = document.createElement("input");
         field.type = "hidden";
         field.name = name;
+        field.setAttribute("data-vp-created-by", GLOBAL_NAME);
         form.appendChild(field);
       }
 
@@ -1169,8 +1361,14 @@
       var text = String(value || "")
         .trim()
         .toLowerCase()
+        .replace(/ä/g, "ae")
+        .replace(/ö/g, "oe")
+        .replace(/ü/g, "ue")
+        .replace(/ß/g, "ss")
         .replace(/[-\s]+/g, "_")
-        .replace(/[^a-z0-9_]/g, "");
+        .replace(/[^a-z0-9_./[\]-]/g, "")
+        .replace(/_{2,}/g, "_")
+        .replace(/^_+|_+$/g, "");
 
       return text || fallback || "";
     } catch (err) {
@@ -1182,8 +1380,8 @@
     try {
       var text = String(value || "").trim().toLowerCase();
 
-      if (text === "dark" || text === "light" || text === "system") {
-        return text;
+      if (text === "dark" || text === "light" || text === "system" || text === "black") {
+        return text === "black" ? "dark" : text;
       }
 
       return "system";
@@ -1267,7 +1465,7 @@
 
       var text = String(value || "").trim().toLowerCase();
 
-      if (["true", "1", "yes", "ja", "on", "enabled", "active"].indexOf(text) !== -1) {
+      if (["true", "1", "yes", "ja", "on", "enabled", "active", "ok", "healthy", "default", "selected"].indexOf(text) !== -1) {
         return true;
       }
 
@@ -1516,11 +1714,19 @@
           textarea.setAttribute("readonly", "readonly");
           textarea.style.position = "fixed";
           textarea.style.left = "-9999px";
+          textarea.style.top = "0";
           document.body.appendChild(textarea);
+          textarea.focus();
           textarea.select();
-          document.execCommand("copy");
+
+          var ok = document.execCommand("copy");
           textarea.remove();
-          resolve();
+
+          if (ok) {
+            resolve();
+          } else {
+            reject(new Error("execCommand copy failed"));
+          }
         } catch (err) {
           reject(err);
         }
@@ -1568,18 +1774,42 @@
     return labels[action] || action || "Aktion";
   }
 
+  function getPageTheme(page, app) {
+    try {
+      var fromApp = app ? app.getAttribute("data-vp-theme") || app.getAttribute("data-create-theme") || "" : "";
+      var fromPage = page ? page.getAttribute("data-vp-theme") || page.getAttribute("data-create-theme") || "" : "";
+
+      return fromApp || fromPage || "";
+    } catch (err) {
+      return "";
+    }
+  }
+
   function isWriteEnabled() {
     try {
       if (state.context && typeof state.context.write_enabled !== "undefined") {
-        return Boolean(state.context.write_enabled);
+        return toBoolean(state.context.write_enabled, false);
       }
 
       if (state.context && typeof state.context.writeEnabled !== "undefined") {
-        return Boolean(state.context.writeEnabled);
+        return toBoolean(state.context.writeEnabled, false);
       }
 
+      if (state.options && typeof state.options.write_enabled !== "undefined") {
+        return toBoolean(state.options.write_enabled, false);
+      }
+
+      if (state.options && state.options.write && typeof state.options.write.enabled !== "undefined") {
+        return toBoolean(state.options.write.enabled, false);
+      }
+
+      var actionSection = qs(SELECTORS.actionSection);
       var app = qs(SELECTORS.app);
       var page = qs(SELECTORS.page);
+
+      if (actionSection && actionSection.getAttribute("data-create-write-enabled") === "true") {
+        return true;
+      }
 
       if (app && app.getAttribute("data-create-write-enabled") === "true") {
         return true;
@@ -1597,32 +1827,18 @@
 
   function resolveRouteUrl(action, fallbackPath) {
     try {
-      var routes = state.context.routes || {};
+      var routes = state.routes || {};
       var normalizedAction = action === "package-plan" ? "package_plan" : action;
-      var candidate = routes[normalizedAction] || routes[action] || "";
+      var dashAction = action === "package_plan" ? "package-plan" : action;
+      var camelAction = normalizedAction === "package_plan" ? "packagePlan" : normalizedAction;
+      var candidate = routes[normalizedAction] || routes[dashAction] || routes[camelAction] || "";
 
-      if (!candidate && normalizedAction === "package_plan") {
-        candidate = routes.packagePlan || "";
-      }
-
-      if (!candidate && action === "download") {
-        candidate = routes.download || "";
-      }
-
-      if (!candidate && action === "save") {
-        candidate = routes.save || "";
-      }
-
-      if (!candidate && action === "draft") {
-        candidate = routes.draft || "";
-      }
-
-      if (!candidate && action === "validate") {
-        candidate = routes.validate || "";
+      if (candidate && typeof candidate === "object") {
+        candidate = candidate.url || candidate.path || candidate.href || "";
       }
 
       if (!candidate) {
-        candidate = state.apiPrefix + (fallbackPath || "");
+        candidate = DEFAULT_ROUTES[normalizedAction] || DEFAULT_ROUTES[dashAction] || fallbackPath || "";
       }
 
       if (/^https?:\/\//i.test(candidate)) {
@@ -1630,12 +1846,16 @@
       }
 
       if (candidate.charAt(0) === "/") {
+        if (candidate.indexOf(state.apiPrefix + "/") === 0 || candidate === state.apiPrefix) {
+          return candidate;
+        }
+
         return candidate;
       }
 
-      return state.apiPrefix + "/" + candidate.replace(/^\/+/, "");
+      return trimTrailingSlash(state.apiPrefix) + "/" + String(candidate || "").replace(/^\/+/, "");
     } catch (err) {
-      return state.apiPrefix + (fallbackPath || "");
+      return trimTrailingSlash(state.apiPrefix || DEFAULT_API_PREFIX) + (fallbackPath || "");
     }
   }
 
@@ -1667,6 +1887,13 @@
 
   function normalizeIssueFieldName(fieldName) {
     var mapping = {
+      "identity.name": "family_name",
+      "family.name": "family_name",
+      "identity.description": "family_description",
+      "family.description": "family_description",
+      "taxonomy.domain": "domain",
+      "taxonomy.category": "category",
+      "taxonomy.subcategory": "subcategory",
       "geometry.width": "geometry_width",
       "geometry.height": "geometry_height",
       "geometry.depth": "geometry_depth",
@@ -1678,6 +1905,9 @@
       "editor_block.cells.x": "editor_cells_x",
       "editor_block.cells.y": "editor_cells_y",
       "editor_block.cells.z": "editor_cells_z",
+      "uploads.geometry_model": "geometry_model_uploads_json",
+      "uploads.technical_documents": "technical_document_uploads_json",
+      "uploads.variant_documents": "variant_document_uploads_json",
       "default_variant_id": "variants",
       "documents": "family_name",
       "draft": "family_name",
@@ -1686,7 +1916,12 @@
       "write_enabled": "save"
     };
 
-    return mapping[fieldName] || fieldName;
+    try {
+      var key = String(fieldName || "").trim();
+      return mapping[key] || key;
+    } catch (err) {
+      return fieldName;
+    }
   }
 
   function snapshot() {
@@ -1697,6 +1932,7 @@
         coreReady: state.coreReady,
         domReady: state.domReady,
         apiPrefix: state.apiPrefix,
+        routes: cloneObject(state.routes),
         writeEnabled: isWriteEnabled(),
         pending: state.pending,
         theme: state.theme,
@@ -1711,6 +1947,7 @@
           lockFutureSteps: state.lockFutureSteps,
           steps: clone(state.steps)
         },
+        uploads: cloneObject(state.uploads),
         modules: state.moduleOrder.slice(),
         locks: Object.keys(state.locks || {}),
         diagnostics: clone(state.diagnostics),
@@ -1755,6 +1992,7 @@
     classes: STATE_CLASSES,
     previewShapeClasses: PREVIEW_SHAPE_CLASSES,
     defaultSteps: DEFAULT_STEPS,
+    defaultRoutes: DEFAULT_ROUTES,
     state: state,
 
     onReady: onReady,

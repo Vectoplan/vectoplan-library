@@ -1,0 +1,37 @@
+{
+  "schema_version": "0.1.0",
+  "modules": {
+    "family": true,
+    "variants": true,
+    "editor": true,
+    "render": true,
+    "physical": true,
+    "material": false,
+    "calculation": false,
+    "analysis": false,
+    "dynamic": false,
+    "manufacturer": true,
+    "docs": true,
+    "tests": false
+  },
+  "active_modules": [
+    "family",
+    "variants",
+    "editor",
+    "render",
+    "physical",
+    "manufacturer",
+    "docs"
+  ],
+  "required_documents": [
+    "vplib.manifest.json",
+    "vplib.modules.json",
+    "family/identity.json",
+    "family/classification.json",
+    "variants/index.json",
+    "variants/default.json",
+    "editor/inventory.json",
+    "editor/placement.json",
+    "manufacturer/contract.json"
+  ]
+}
