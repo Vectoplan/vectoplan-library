@@ -18,22 +18,16 @@
   - Validiert nur sichtbare Pflichtfelder des aktuellen Schritts.
   - Führt keine automatische Weiterleitung nach Profilauflösung aus.
   - Erzeugt keine VPLIB-Dateien.
+  - Step 3 wird sichtbar als „Variablen“ geführt; technische Kompatibilität
+    bleibt über key="object" und target="object-variants" erhalten.
 
-  Fix in dieser Fassung:
-  - Der Button-Klick wird nicht mehr nur abgefangen, sondern zuverlässig
-    in einen echten Step-Wechsel umgesetzt.
-  - Wenn externe Nav-Fallbacks nur Footer-State ändern, setzt diese Datei
-    Panels und Stepper wieder synchron.
-  - goToStep() aktualisiert immer:
-      - core.state.currentStep
-      - [data-vp-create-step]
-      - [data-vp-create-stepper]
-      - [data-vp-wizard-nav]
-      - Form/App/StepsRoot Attribute
-  - Validierung ist bewusst pragmatisch:
-      - blockiert nur sichtbare leere required-Felder
-      - ignoriert hidden/inert/disabled Felder
-      - keine aggressive HTML-checkValidity-Blockade
+  Verhalten:
+  - Vorwärts immer nur einen Schritt.
+  - Rückwärts frei.
+  - Direkter Stepper-Klick auf mehr als einen zukünftigen Schritt wird blockiert.
+  - Finaler Submit wird abgefangen und als Event gemeldet, aber nicht nativ
+    abgeschickt.
+  - Drawer-/Editor-Overlays blockieren Keyboard-Navigation.
 ----------------------------------------------------------------------------- */
 
 (function () {
@@ -41,7 +35,7 @@
 
   var GLOBAL_NAME = "VectoplanCreateWizard";
   var MODULE_NAME = "wizard";
-  var WIZARD_VERSION = "0.4.2";
+  var WIZARD_VERSION = "0.6.0";
   var CORE_NAME = "VectoplanCreateCore";
   var BOOT_RETRY_MS = 40;
   var BOOT_MAX_ATTEMPTS = 80;
@@ -49,9 +43,10 @@
 
   var SELECTORS = {
     app: "[data-vp-create-app]",
-    form: "[data-vp-create-form], [data-create-form='true'], #vp-create-form",
+    form: "[data-vp-create-form], [data-create-form='true'], #vp-create-form, form[data-create-form]",
     stepsRoot: "[data-vp-create-steps]",
     step: "[data-vp-create-step]",
+    stepSection: "[data-vp-create-section], [data-create-section], [data-vp-step-panel]",
     stepper: "[data-vp-create-stepper]",
     stepperButton: "[data-vp-step-button], [data-vp-step-target], [data-step-target], [data-step]",
     stepperItem: "[data-vp-step-item]",
@@ -103,9 +98,21 @@
     ].join(","),
 
     wizardNextLabel: "[data-vp-wizard-next-label]",
+    wizardPrevLabel: "[data-vp-wizard-prev-label]",
     wizardProgressText: "[data-vp-wizard-progress-text], [data-create-wizard-progress-text='true']",
     wizardStepLabel: "[data-vp-wizard-step-label], [data-create-wizard-step-label='true']",
-    wizardHint: "[data-vp-wizard-hint], [data-create-wizard-hint='true']"
+    wizardHint: "[data-vp-wizard-hint], [data-create-wizard-hint='true']",
+
+    variantDrawerOpen: [
+      "[data-vp-variant-drawer][aria-hidden='false']",
+      "[data-vp-variant-drawer-root][aria-hidden='false']",
+      "[data-vp-variant-drawer-state='open']",
+      "[data-vp-variant-editor-state='open']",
+      ".vp-create-variant-drawer.is-open",
+      "[role='dialog'][aria-modal='true']"
+    ].join(","),
+
+    requiredField: "input[required], select[required], textarea[required], [data-create-required='true']"
   };
 
   var DEFAULT_STEPS = [
@@ -114,42 +121,55 @@
       key: "identity",
       label: "Grunddaten",
       short_label: "Daten",
-      hint: "Name und Beschreibung des neuen Library-Bausteins festlegen."
+      shortLabel: "Daten",
+      hint: "Name und Beschreibung des neuen Library-Bausteins festlegen.",
+      target: "identity"
     },
     {
       index: 2,
       key: "taxonomy",
       label: "Taxonomie",
       short_label: "Taxonomie",
-      hint: "Fachliche Einordnung für Library, Scanner und spätere Navigation auswählen."
+      shortLabel: "Taxonomie",
+      hint: "Fachliche Einordnung für Library, Scanner und spätere Navigation auswählen.",
+      target: "taxonomy"
     },
     {
       index: 3,
       key: "object",
-      label: "Objekt",
-      short_label: "Objekt",
-      hint: "Objektklasse festlegen und Varianten vorbereiten."
+      alias: "variables",
+      label: "Variablen",
+      short_label: "Variablen",
+      shortLabel: "Variablen",
+      hint: "Variablen, Varianten und Unterlagen definieren.",
+      target: "object-variants"
     },
     {
       index: 4,
       key: "geometry",
       label: "Geometrie",
       short_label: "Geometrie",
-      hint: "Primitive Form, reale Maße und Editor-Raster definieren."
+      shortLabel: "Geometrie",
+      hint: "Primitive Form, reale Maße, Editor-Raster und optionales 3D-Modell definieren.",
+      target: "geometry"
     },
     {
       index: 5,
       key: "technical",
       label: "Technik",
       short_label: "Technik",
-      hint: "Materialklasse und optionale technische Kennwerte ergänzen."
+      shortLabel: "Technik",
+      hint: "Materialklasse, technische Kennwerte und optionale Unterlagen ergänzen.",
+      target: "technical"
     },
     {
       index: 6,
       key: "create",
       label: "Erzeugen",
       short_label: "Erzeugen",
-      hint: "Draft, Validierung, Package-Plan, Download oder Speichern ausführen."
+      shortLabel: "Erzeugen",
+      hint: "Draft, Validierung, Package-Plan, Download oder Speichern ausführen.",
+      target: "actions"
     }
   ];
 
@@ -171,7 +191,9 @@
     blockedCount: 0,
     clickCaptureEnabled: true,
     keyboardNavigationEnabled: true,
-    submitNavigatesNext: true
+    submitNavigatesNext: true,
+    directStepClickEnabled: true,
+    preventSkipForward: true
   };
 
   function boot(attempt) {
@@ -244,12 +266,17 @@
       var app = qs(SELECTORS.app);
       var form = qs(SELECTORS.form);
 
+      var coreState = core && core.state ? core.state : {};
+      var coreSteps = Array.isArray(coreState.steps) && coreState.steps.length
+        ? coreState.steps
+        : null;
+
       var stepCount =
         toInt(attr(stepsRoot, "data-vp-step-count", "")) ||
         toInt(attr(nav, "data-vp-step-count", "")) ||
         toInt(attr(app, "data-vp-step-count", "")) ||
         toInt(attr(form, "data-vp-step-count", "")) ||
-        (core && core.state && core.state.stepCount) ||
+        coreState.stepCount ||
         DEFAULT_STEPS.length;
 
       var currentStep =
@@ -257,18 +284,28 @@
         toInt(attr(nav, "data-vp-current-step", "")) ||
         toInt(attr(app, "data-vp-current-step", "")) ||
         toInt(attr(form, "data-vp-current-step", "")) ||
-        (core && core.state && core.state.currentStep) ||
+        coreState.currentStep ||
         1;
 
-      state.stepCount = stepCount;
+      if (coreSteps) {
+        state.steps = coreSteps.map(normalizeStep).filter(Boolean);
+      } else {
+        state.steps = DEFAULT_STEPS.map(normalizeStep).filter(Boolean);
+      }
+
+      if (!state.steps.length) {
+        state.steps = DEFAULT_STEPS.slice();
+      }
+
+      state.stepCount = stepCount || state.steps.length || DEFAULT_STEPS.length;
       state.currentStep = clampStep(currentStep);
       state.maxReachedStep = Math.max(state.maxReachedStep || 1, state.currentStep);
 
-      if (core && core.state) {
-        if (Array.isArray(core.state.steps) && core.state.steps.length) {
-          state.steps = core.state.steps.slice();
-        }
+      state.directStepClickEnabled = readWizardBoolean("allowDirectStepClick", true);
+      state.preventSkipForward = readWizardBoolean("preventSkipForward", true);
 
+      if (core && core.state) {
+        core.state.steps = state.steps.slice();
         core.state.currentStep = state.currentStep;
         core.state.stepCount = state.stepCount;
         core.state.maxReachedStep = state.maxReachedStep;
@@ -277,6 +314,30 @@
       state.currentStep = 1;
       state.stepCount = DEFAULT_STEPS.length;
       state.maxReachedStep = 1;
+      state.steps = DEFAULT_STEPS.slice();
+    }
+  }
+
+  function readWizardBoolean(name, fallback) {
+    try {
+      var coreState = core && core.state ? core.state : {};
+      var context = coreState.context || {};
+      var wizard = coreState.wizard || context.wizard || {};
+      var snakeName = String(name || "").replace(/[A-Z]/g, function (letter) {
+        return "_" + letter.toLowerCase();
+      });
+
+      if (Object.prototype.hasOwnProperty.call(wizard, name)) {
+        return toBoolean(wizard[name], fallback);
+      }
+
+      if (Object.prototype.hasOwnProperty.call(wizard, snakeName)) {
+        return toBoolean(wizard[snakeName], fallback);
+      }
+
+      return !!fallback;
+    } catch (error) {
+      return !!fallback;
     }
   }
 
@@ -304,7 +365,8 @@
             nextStep({
               source: detail.source || "step-request",
               validate: detail.validate !== false,
-              focus: detail.focus !== false
+              focus: detail.focus !== false,
+              force: detail.force === true
             });
             return;
           }
@@ -319,7 +381,8 @@
           ) {
             previousStep({
               source: detail.source || "step-request",
-              focus: detail.focus !== false
+              focus: detail.focus !== false,
+              force: detail.force === true
             });
             return;
           }
@@ -369,6 +432,38 @@
           warn("Previous-step event failed.", error);
         }
       });
+
+      document.addEventListener("vectoplan:create:core-context-refreshed", function () {
+        try {
+          syncFromCore();
+        } catch (error) {
+          warn("Core context refresh sync failed.", error);
+        }
+      });
+
+      document.addEventListener("vectoplan:create:stepper-ready", function () {
+        try {
+          updateWizardUi(state.currentStep, {
+            source: "stepper-ready",
+            focus: false,
+            announce: false
+          });
+        } catch (error) {
+          warn("Stepper ready sync failed.", error);
+        }
+      });
+
+      document.addEventListener("vectoplan:create:wizard-nav-ready", function () {
+        try {
+          updateWizardUi(state.currentStep, {
+            source: "wizard-nav-ready",
+            focus: false,
+            announce: false
+          });
+        } catch (error) {
+          warn("Wizard nav ready sync failed.", error);
+        }
+      });
     } catch (error) {
       warn("Wizard event binding failed.", error);
     }
@@ -414,6 +509,11 @@
       }
 
       if (stepButton && !isDisabled(stepButton)) {
+        if (!state.directStepClickEnabled) {
+          blockNavigation("stepper-disabled", state.currentStep, resolveStepTarget(stepButton), "stepper-click");
+          return;
+        }
+
         var targetStep = resolveStepTarget(stepButton);
 
         if (targetStep) {
@@ -452,6 +552,15 @@
         previousStep({
           source: "form-submit-prev",
           focus: true
+        });
+        return;
+      }
+
+      if (state.currentStep >= state.stepCount) {
+        dispatchDocument("vectoplan:create:final-submit-requested", {
+          currentStep: state.currentStep,
+          stepCount: state.stepCount,
+          source: "form-submit-final"
         });
         return;
       }
@@ -525,6 +634,11 @@
         return current;
       }
 
+      if (!config.force && state.preventSkipForward && target > current + 1) {
+        blockNavigation("skip-forward-blocked", current, target, source);
+        return current;
+      }
+
       navLockUntil = Date.now() + NAVIGATION_LOCK_MS;
 
       if (target > current && config.validate !== false) {
@@ -573,7 +687,18 @@
         step: target,
         source: source,
         stepCount: state.stepCount,
-        maxReachedStep: state.maxReachedStep
+        maxReachedStep: state.maxReachedStep,
+        stepMeta: getStepMeta(target)
+      });
+
+      dispatchDocument("vectoplan:create:wizard-step-changed", {
+        currentStep: target,
+        previousStep: current,
+        step: target,
+        source: source,
+        stepCount: state.stepCount,
+        maxReachedStep: state.maxReachedStep,
+        stepMeta: getStepMeta(target)
       });
 
       return target;
@@ -633,6 +758,8 @@
 
   function updateRootAttributes(step) {
     try {
+      var meta = getStepMeta(step);
+
       [qs(SELECTORS.app), qs(SELECTORS.form), qs(SELECTORS.stepsRoot)].forEach(function (node) {
         if (!node) {
           return;
@@ -640,6 +767,9 @@
 
         node.setAttribute("data-vp-current-step", String(step));
         node.setAttribute("data-vp-step-count", String(state.stepCount));
+        node.setAttribute("data-vp-current-step-key", meta.key || "");
+        node.setAttribute("data-vp-current-step-target", meta.target || "");
+        node.setAttribute("data-vp-current-step-label", meta.label || "");
       });
     } catch (error) {
       /* no-op */
@@ -648,7 +778,9 @@
 
   function updatePanels(step) {
     try {
-      qsa(SELECTORS.step).forEach(function (panel) {
+      var panels = qsa(SELECTORS.step);
+
+      panels.forEach(function (panel) {
         var panelStep = resolvePanelStep(panel);
         var active = panelStep === step;
 
@@ -659,7 +791,10 @@
 
         if (active) {
           panel.removeAttribute("inert");
+          panel.setAttribute("data-vp-step-active", "true");
         } else {
+          panel.setAttribute("data-vp-step-active", "false");
+
           try {
             panel.setAttribute("inert", "");
           } catch (error) {
@@ -667,124 +802,241 @@
           }
         }
       });
+
+      if (!panels.length) {
+        updateSectionFallback(step);
+      }
     } catch (error) {
       warn("Panel update failed.", error);
     }
   }
 
+  function updateSectionFallback(step) {
+    try {
+      var meta = getStepMeta(step);
+      var target = meta.target || meta.key || "";
+      var sections = qsa(SELECTORS.stepSection);
+
+      sections.forEach(function (section) {
+        try {
+          var sectionKey = attr(section, "data-vp-create-section", "") ||
+            attr(section, "data-create-section", "") ||
+            attr(section, "data-vp-step-panel", "");
+          var alias = attr(section, "data-vp-create-section-alias", "");
+          var active = sectionKey === target || alias === target || (target === "object-variants" && alias === "variables");
+
+          section.classList.toggle("is-active", active);
+          section.classList.toggle("is-hidden", !active);
+          section.hidden = !active;
+          section.setAttribute("aria-hidden", active ? "false" : "true");
+
+          if (active) {
+            section.removeAttribute("inert");
+          } else {
+            section.setAttribute("inert", "");
+          }
+        } catch (sectionError) {
+          warn("Section fallback update skipped.", sectionError);
+        }
+      });
+    } catch (error) {
+      warn("Section fallback update failed.", error);
+    }
+  }
+
   function updateStepper(step, meta) {
     try {
-      var stepper = qs(SELECTORS.stepper);
+      var steppers = qsa(SELECTORS.stepper);
 
-      if (!stepper) {
-        return;
-      }
+      steppers.forEach(function (stepper) {
+        try {
+          stepper.setAttribute("data-vp-current-step", String(step));
+          stepper.setAttribute("data-vp-step-count", String(state.stepCount));
+          stepper.setAttribute("data-vp-max-reached-step", String(state.maxReachedStep));
+          stepper.style.setProperty("--vp-create-current-step", String(step));
+          stepper.style.setProperty("--vp-create-step-count", String(state.stepCount));
 
-      stepper.setAttribute("data-vp-current-step", String(step));
-      stepper.setAttribute("data-vp-step-count", String(state.stepCount));
-      stepper.setAttribute("data-vp-max-reached-step", String(state.maxReachedStep));
-      stepper.style.setProperty("--vp-create-current-step", String(step));
-      stepper.style.setProperty("--vp-create-step-count", String(state.stepCount));
+          var currentLabel = qs(SELECTORS.stepperCurrentLabel, stepper);
+          var totalLabel = qs(SELECTORS.stepperTotalLabel, stepper);
+          var progressFill = qs(SELECTORS.stepperProgressFill, stepper);
+          var liveRegion = qs(SELECTORS.stepperLiveRegion, stepper);
 
-      var currentLabel = qs(SELECTORS.stepperCurrentLabel, stepper);
-      var totalLabel = qs(SELECTORS.stepperTotalLabel, stepper);
-      var progressFill = qs(SELECTORS.stepperProgressFill, stepper);
-      var liveRegion = qs(SELECTORS.stepperLiveRegion, stepper);
+          if (currentLabel) {
+            currentLabel.textContent = String(step);
+          }
 
-      if (currentLabel) {
-        currentLabel.textContent = String(step);
-      }
+          if (totalLabel) {
+            totalLabel.textContent = String(state.stepCount);
+          }
 
-      if (totalLabel) {
-        totalLabel.textContent = String(state.stepCount);
-      }
+          if (progressFill) {
+            var progress = state.stepCount > 1
+              ? ((step - 1) / (state.stepCount - 1)) * 100
+              : 100;
 
-      if (progressFill) {
-        var progress = state.stepCount > 1
-          ? ((step - 1) / (state.stepCount - 1)) * 100
-          : 100;
+            progressFill.style.width = Math.max(0, Math.min(100, progress)) + "%";
+          }
 
-        progressFill.style.width = Math.max(0, Math.min(100, progress)) + "%";
-      }
+          qsa(SELECTORS.stepperButton, stepper).forEach(function (button) {
+            updateStepperButton(button, step);
+          });
 
-      qsa(SELECTORS.stepperButton, stepper).forEach(function (button) {
-        var targetStep = resolveStepTarget(button);
-        var item = closest(button, SELECTORS.stepperItem);
-        var active = targetStep === step;
-        var complete = targetStep > 0 && targetStep < step;
-        var locked = false;
-
-        if (item) {
-          item.classList.toggle("is-active", active);
-          item.classList.toggle("is-complete", complete);
-          item.classList.toggle("is-locked", locked);
+          if (liveRegion) {
+            liveRegion.textContent = "Schritt " + step + " von " + state.stepCount + ": " + (meta.label || "Schritt") + ".";
+          }
+        } catch (stepperError) {
+          warn("Single stepper update failed.", stepperError);
         }
-
-        if (active) {
-          button.setAttribute("aria-current", "step");
-        } else {
-          button.removeAttribute("aria-current");
-        }
-
-        button.setAttribute("aria-disabled", locked ? "true" : "false");
-        button.disabled = locked;
       });
-
-      if (liveRegion) {
-        liveRegion.textContent = "Schritt " + step + " von " + state.stepCount + ": " + (meta.label || "Schritt") + ".";
-      }
     } catch (error) {
       warn("Stepper update failed.", error);
     }
   }
 
-  function updateNav(step, meta) {
+  function updateStepperButton(button, step) {
     try {
-      var nav = qs(SELECTORS.wizardNav);
+      var targetStep = resolveStepTarget(button);
+      var item = closest(button, SELECTORS.stepperItem);
+      var targetMeta = targetStep ? getStepMeta(targetStep) : {};
+      var active = targetStep === step;
+      var complete = targetStep > 0 && targetStep < step;
+      var locked = isStepLocked(targetStep, step);
 
-      if (!nav) {
+      if (item) {
+        item.classList.toggle("is-active", active);
+        item.classList.toggle("is-complete", complete);
+        item.classList.toggle("is-locked", locked);
+        item.setAttribute("data-vp-step-state", active ? "active" : complete ? "complete" : locked ? "locked" : "available");
+      }
+
+      button.classList.toggle("is-active", active);
+      button.classList.toggle("is-complete", complete);
+      button.classList.toggle("is-locked", locked);
+
+      if (active) {
+        button.setAttribute("aria-current", "step");
+      } else {
+        button.removeAttribute("aria-current");
+      }
+
+      button.setAttribute("aria-disabled", locked ? "true" : "false");
+      button.disabled = locked;
+      button.setAttribute("data-vp-step-state", active ? "active" : complete ? "complete" : locked ? "locked" : "available");
+
+      if (targetMeta && targetMeta.label) {
+        button.setAttribute("aria-label", "Schritt " + targetStep + ": " + targetMeta.label);
+      }
+
+      updateVisibleStepperText(button, targetMeta);
+    } catch (error) {
+      warn("Stepper button update failed.", error);
+    }
+  }
+
+  function updateVisibleStepperText(button, meta) {
+    try {
+      if (!button || !meta) {
         return;
       }
 
-      var prevButton = qs(SELECTORS.wizardPrev, nav);
-      var nextButton = qs(SELECTORS.wizardNext, nav);
-      var nextLabel = qs(SELECTORS.wizardNextLabel, nav);
-      var progressText = qs(SELECTORS.wizardProgressText, nav);
-      var stepLabel = qs(SELECTORS.wizardStepLabel, nav);
-      var stepHint = qs(SELECTORS.wizardHint, nav);
+      var labelNode = qs("[data-vp-step-label], [data-vp-step-title]", button);
+      var shortLabelNode = qs("[data-vp-step-short-label]", button);
+      var hintNode = qs("[data-vp-step-hint]", button);
 
-      nav.setAttribute("data-vp-current-step", String(step));
-      nav.setAttribute("data-vp-step-count", String(state.stepCount));
-      nav.classList.toggle("is-first-step", step <= 1);
-      nav.classList.toggle("is-final-step", step >= state.stepCount);
-
-      if (prevButton) {
-        prevButton.disabled = step <= 1;
-        prevButton.setAttribute("aria-disabled", step <= 1 ? "true" : "false");
-        prevButton.setAttribute("type", "button");
+      if (labelNode && meta.label) {
+        labelNode.textContent = meta.label;
       }
 
-      if (nextButton) {
-        nextButton.disabled = step >= state.stepCount;
-        nextButton.setAttribute("aria-disabled", step >= state.stepCount ? "true" : "false");
-        nextButton.setAttribute("type", "button");
+      if (shortLabelNode && (meta.short_label || meta.shortLabel || meta.label)) {
+        shortLabelNode.textContent = meta.short_label || meta.shortLabel || meta.label;
       }
 
-      if (nextLabel) {
-        nextLabel.textContent = step >= state.stepCount ? "Aktionen ausführen" : "Weiter";
+      if (hintNode && meta.hint) {
+        hintNode.textContent = meta.hint;
+      }
+    } catch (error) {
+      /* no-op */
+    }
+  }
+
+  function isStepLocked(targetStep, currentStep) {
+    try {
+      if (!targetStep || targetStep < 1) {
+        return false;
       }
 
-      if (progressText) {
-        progressText.textContent = "Schritt " + step + " von " + state.stepCount;
+      if (!state.directStepClickEnabled) {
+        return true;
       }
 
-      if (stepLabel) {
-        stepLabel.textContent = meta.label || "Schritt " + step;
+      if (targetStep <= currentStep) {
+        return false;
       }
 
-      if (stepHint) {
-        stepHint.textContent = meta.hint || meta.description || "Führe den aktuellen Schritt aus und gehe anschließend weiter.";
+      if (state.preventSkipForward && targetStep > currentStep + 1) {
+        return true;
       }
+
+      return false;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function updateNav(step, meta) {
+    try {
+      qsa(SELECTORS.wizardNav).forEach(function (nav) {
+        try {
+          var prevButton = qs(SELECTORS.wizardPrev, nav);
+          var nextButton = qs(SELECTORS.wizardNext, nav);
+          var nextLabel = qs(SELECTORS.wizardNextLabel, nav);
+          var prevLabel = qs(SELECTORS.wizardPrevLabel, nav);
+          var progressText = qs(SELECTORS.wizardProgressText, nav);
+          var stepLabel = qs(SELECTORS.wizardStepLabel, nav);
+          var stepHint = qs(SELECTORS.wizardHint, nav);
+
+          nav.setAttribute("data-vp-current-step", String(step));
+          nav.setAttribute("data-vp-step-count", String(state.stepCount));
+          nav.setAttribute("data-vp-current-step-key", meta.key || "");
+          nav.setAttribute("data-vp-current-step-target", meta.target || "");
+          nav.classList.toggle("is-first-step", step <= 1);
+          nav.classList.toggle("is-final-step", step >= state.stepCount);
+
+          if (prevButton) {
+            prevButton.disabled = step <= 1;
+            prevButton.setAttribute("aria-disabled", step <= 1 ? "true" : "false");
+            prevButton.setAttribute("type", "button");
+          }
+
+          if (nextButton) {
+            nextButton.disabled = step >= state.stepCount;
+            nextButton.setAttribute("aria-disabled", step >= state.stepCount ? "true" : "false");
+            nextButton.setAttribute("type", "button");
+          }
+
+          if (prevLabel) {
+            prevLabel.textContent = "Zurück";
+          }
+
+          if (nextLabel) {
+            nextLabel.textContent = step >= state.stepCount ? "Aktionen ausführen" : "Weiter";
+          }
+
+          if (progressText) {
+            progressText.textContent = "Schritt " + step + " von " + state.stepCount;
+          }
+
+          if (stepLabel) {
+            stepLabel.textContent = meta.label || "Schritt " + step;
+          }
+
+          if (stepHint) {
+            stepHint.textContent = meta.hint || meta.description || "Führe den aktuellen Schritt aus und gehe anschließend weiter.";
+          }
+        } catch (navError) {
+          warn("Single nav update failed.", navError);
+        }
+      });
     } catch (error) {
       warn("Nav update failed.", error);
     }
@@ -802,7 +1054,7 @@
 
       clearFieldIssues(panel);
 
-      qsa("input[required], select[required], textarea[required], [data-create-required='true']", panel).forEach(function (field) {
+      qsa(SELECTORS.requiredField, panel).forEach(function (field) {
         try {
           if (!field || field.disabled || field.type === "hidden" || isHidden(field)) {
             return;
@@ -957,49 +1209,170 @@
   }
 
   function findPanel(stepIndex) {
-    return qs('[data-vp-create-step][data-vp-step-index="' + String(stepIndex) + '"]') ||
-      qs('[data-vp-create-step][data-step="' + String(stepIndex) + '"]');
+    try {
+      var direct = qs('[data-vp-create-step][data-vp-step-index="' + String(stepIndex) + '"]') ||
+        qs('[data-vp-create-step][data-step="' + String(stepIndex) + '"]');
+
+      if (direct) {
+        return direct;
+      }
+
+      var meta = getStepMeta(stepIndex);
+      var target = meta.target || meta.key || "";
+
+      if (!target) {
+        return null;
+      }
+
+      return qs('[data-vp-create-step][data-vp-step-target="' + cssEscape(target) + '"]') ||
+        qs('[data-vp-step-panel="' + cssEscape(target) + '"]') ||
+        qs('[data-vp-create-section="' + cssEscape(target) + '"]') ||
+        qs('[data-create-section="' + cssEscape(target) + '"]') ||
+        (target === "object-variants" ? qs("[data-vp-create-section-alias='variables']") : null);
+    } catch (error) {
+      return null;
+    }
   }
 
   function resolvePanelStep(panel) {
-    return toInt(attr(panel, "data-vp-step-index", "")) ||
-      toInt(attr(panel, "data-step", "")) ||
-      0;
+    try {
+      var direct = toInt(attr(panel, "data-vp-step-index", "")) ||
+        toInt(attr(panel, "data-step", ""));
+
+      if (direct) {
+        return direct;
+      }
+
+      var target = attr(panel, "data-vp-step-target", "") ||
+        attr(panel, "data-vp-step-panel", "") ||
+        attr(panel, "data-vp-create-section", "") ||
+        attr(panel, "data-create-section", "");
+
+      if (!target && attr(panel, "data-vp-create-section-alias", "") === "variables") {
+        target = "object-variants";
+      }
+
+      for (var index = 0; index < state.steps.length; index += 1) {
+        if (state.steps[index].target === target || state.steps[index].key === target || state.steps[index].alias === target) {
+          return toInt(state.steps[index].index);
+        }
+      }
+
+      return 0;
+    } catch (error) {
+      return 0;
+    }
   }
 
   function resolveStepTarget(button) {
-    return toInt(attr(button, "data-vp-step-target", "")) ||
-      toInt(attr(button, "data-create-step-target", "")) ||
-      toInt(attr(button, "data-step-target", "")) ||
-      toInt(attr(button, "data-step", "")) ||
-      0;
+    try {
+      var explicit = toInt(attr(button, "data-vp-step-target", "")) ||
+        toInt(attr(button, "data-create-step-target", "")) ||
+        toInt(attr(button, "data-step-target", "")) ||
+        toInt(attr(button, "data-step", ""));
+
+      if (explicit) {
+        return explicit;
+      }
+
+      var key = attr(button, "data-vp-step-key", "") ||
+        attr(button, "data-step-key", "") ||
+        attr(button, "data-vp-step-panel", "") ||
+        attr(button, "data-vp-step-target-key", "");
+
+      if (!key) {
+        return 0;
+      }
+
+      for (var index = 0; index < state.steps.length; index += 1) {
+        if (
+          state.steps[index].key === key ||
+          state.steps[index].target === key ||
+          state.steps[index].alias === key
+        ) {
+          return toInt(state.steps[index].index);
+        }
+      }
+
+      return 0;
+    } catch (error) {
+      return 0;
+    }
   }
 
   function getStepMeta(stepIndex) {
     try {
       var list = state.steps && state.steps.length ? state.steps : DEFAULT_STEPS;
+      var parsed = toInt(stepIndex);
 
       for (var index = 0; index < list.length; index += 1) {
-        if (toInt(list[index].index) === stepIndex) {
-          return list[index];
+        if (toInt(list[index].index) === parsed) {
+          return normalizeStep(list[index], index) || list[index];
         }
       }
 
       return {
-        index: stepIndex,
-        key: "step-" + stepIndex,
-        label: "Schritt " + stepIndex,
-        short_label: String(stepIndex),
-        hint: ""
+        index: parsed,
+        key: "step-" + parsed,
+        label: "Schritt " + parsed,
+        short_label: String(parsed),
+        shortLabel: String(parsed),
+        hint: "",
+        target: "step-" + parsed
       };
     } catch (error) {
       return {
         index: stepIndex,
         key: "step-" + stepIndex,
         label: "Schritt " + stepIndex,
-        short_label: String(stepIndex),
-        hint: ""
+        short_label: String(stepIndex || ""),
+        shortLabel: String(stepIndex || ""),
+        hint: "",
+        target: "step-" + stepIndex
       };
+    }
+  }
+
+  function normalizeStep(step, index) {
+    try {
+      var fallbackIndex = typeof index === "number" ? index + 1 : toInt(step && step.index) || 1;
+      var stepIndex = toInt(step && step.index) || fallbackIndex;
+
+      if (!step || typeof step !== "object") {
+        return null;
+      }
+
+      var key = step.key || "step-" + stepIndex;
+      var target = step.target || step.panel || key;
+      var alias = step.alias || "";
+
+      if (stepIndex === 3 && (key === "object" || key === "variables" || target === "object-variants" || alias === "variables")) {
+        return {
+          index: 3,
+          key: "object",
+          alias: "variables",
+          label: step.label && step.label !== "Objekt" ? step.label : "Variablen",
+          short_label: step.short_label && step.short_label !== "Objekt" ? step.short_label : "Variablen",
+          shortLabel: step.shortLabel && step.shortLabel !== "Objekt" ? step.shortLabel : "Variablen",
+          hint: step.hint || step.description || "Variablen, Varianten und Unterlagen definieren.",
+          description: step.description || "",
+          target: "object-variants"
+        };
+      }
+
+      return {
+        index: stepIndex,
+        key: key,
+        alias: alias,
+        label: step.label || "Schritt " + stepIndex,
+        short_label: step.short_label || step.shortLabel || step.label || String(stepIndex),
+        shortLabel: step.shortLabel || step.short_label || step.label || String(stepIndex),
+        hint: step.hint || step.description || "",
+        description: step.description || "",
+        target: target
+      };
+    } catch (error) {
+      return null;
     }
   }
 
@@ -1040,6 +1413,34 @@
       status: status || "changed",
       timestamp: timestamp()
     };
+
+    if (core && typeof core.traceNavigation === "function") {
+      core.traceNavigation(state.lastNavigation);
+    }
+  }
+
+  function syncFromCore() {
+    try {
+      if (!core || !core.state) {
+        return;
+      }
+
+      if (Array.isArray(core.state.steps) && core.state.steps.length) {
+        state.steps = core.state.steps.map(normalizeStep).filter(Boolean);
+      }
+
+      state.stepCount = core.state.stepCount || state.steps.length || DEFAULT_STEPS.length;
+      state.currentStep = clampStep(core.state.currentStep || state.currentStep || 1);
+      state.maxReachedStep = Math.max(state.maxReachedStep, core.state.maxReachedStep || state.currentStep);
+
+      updateWizardUi(state.currentStep, {
+        source: "sync-from-core",
+        focus: false,
+        announce: false
+      });
+    } catch (error) {
+      warn("Sync from core failed.", error);
+    }
   }
 
   function isDisabled(node) {
@@ -1070,7 +1471,7 @@
 
   function isDrawerOpen() {
     try {
-      return !!qs("[data-vp-variant-drawer][aria-hidden='false'], [data-vp-variant-drawer-root].is-open, .vp-create-variant-drawer.is-open, [role='dialog'][aria-modal='true']");
+      return !!qs(SELECTORS.variantDrawerOpen);
     } catch (error) {
       return false;
     }
@@ -1116,7 +1517,9 @@
       blockedCount: state.blockedCount,
       clickCaptureEnabled: state.clickCaptureEnabled,
       keyboardNavigationEnabled: state.keyboardNavigationEnabled,
-      submitNavigatesNext: state.submitNavigatesNext
+      submitNavigatesNext: state.submitNavigatesNext,
+      directStepClickEnabled: state.directStepClickEnabled,
+      preventSkipForward: state.preventSkipForward
     };
   }
 
@@ -1140,6 +1543,26 @@
     return state.submitNavigatesNext;
   }
 
+  function setDirectStepClickEnabled(enabled) {
+    state.directStepClickEnabled = !!enabled;
+    updateWizardUi(state.currentStep, {
+      source: "set-direct-step-click",
+      focus: false,
+      announce: false
+    });
+    return state.directStepClickEnabled;
+  }
+
+  function setPreventSkipForward(enabled) {
+    state.preventSkipForward = !!enabled;
+    updateWizardUi(state.currentStep, {
+      source: "set-prevent-skip-forward",
+      focus: false,
+      announce: false
+    });
+    return state.preventSkipForward;
+  }
+
   function update() {
     resolveInitialState();
     normalizeButtons();
@@ -1154,6 +1577,10 @@
 
   function qs(selector, root) {
     try {
+      if (!selector) {
+        return null;
+      }
+
       return (root || document).querySelector(selector);
     } catch (error) {
       return null;
@@ -1162,6 +1589,10 @@
 
   function qsa(selector, root) {
     try {
+      if (!selector) {
+        return [];
+      }
+
       return Array.prototype.slice.call((root || document).querySelectorAll(selector));
     } catch (error) {
       return [];
@@ -1202,6 +1633,32 @@
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
+  function toBoolean(value, fallback) {
+    try {
+      if (core && typeof core.toBoolean === "function") {
+        return core.toBoolean(value, fallback);
+      }
+
+      if (value === true || value === false) {
+        return value;
+      }
+
+      var text = String(value || "").trim().toLowerCase();
+
+      if (["true", "1", "yes", "ja", "on", "enabled", "active"].indexOf(text) >= 0) {
+        return true;
+      }
+
+      if (["false", "0", "no", "nein", "off", "disabled", "inactive"].indexOf(text) >= 0) {
+        return false;
+      }
+
+      return !!fallback;
+    } catch (error) {
+      return !!fallback;
+    }
+  }
+
   function timestamp() {
     try {
       return new Date().toISOString();
@@ -1234,6 +1691,22 @@
       return event;
     } catch (error) {
       return null;
+    }
+  }
+
+  function cssEscape(value) {
+    try {
+      if (core && typeof core.cssEscape === "function") {
+        return core.cssEscape(value);
+      }
+
+      if (window.CSS && typeof window.CSS.escape === "function") {
+        return window.CSS.escape(String(value || ""));
+      }
+
+      return String(value || "").replace(/["\\]/g, "\\$&");
+    } catch (error) {
+      return String(value || "");
     }
   }
 
@@ -1270,6 +1743,8 @@
     setClickCaptureEnabled: setClickCaptureEnabled,
     setPreventNativeSubmit: setPreventNativeSubmit,
     setSubmitNavigatesNext: setSubmitNavigatesNext,
+    setDirectStepClickEnabled: setDirectStepClickEnabled,
+    setPreventSkipForward: setPreventSkipForward,
 
     getState: getState
   };

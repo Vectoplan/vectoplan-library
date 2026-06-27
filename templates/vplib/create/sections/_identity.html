@@ -1,0 +1,692 @@
+{# services/vectoplan-library/templates/vplib/create/sections/_identity.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · VPLIB Create Wizard · Step 1: Identity
+
+  Zweck:
+  - Erfasst die Grunddaten für ein neues VPLIB-Family-Package.
+  - Bewusst direkt lesbares HTML statt langer Macro-Aufrufe.
+  - Text, Label, Placeholder, Hint und Attribute stehen dort, wo sie sichtbar
+    und fachlich gemeint sind.
+  - Keine Hero-Inhalte.
+  - Keine Alerts.
+  - Keine Help-Section.
+  - Keine Result-Section.
+  - Keine technische ID-Eingabe.
+  - Keine Dateioperation.
+  - Keine API-Aufrufe.
+  - Kompakt genug für Schritt 1 ohne unnötiges Scrollen.
+
+  Backend-Vertrag:
+  Diese Feldnamen bleiben stabil:
+  - family_name
+  - family_description
+
+  Server-seitig abgeleitet:
+  - slug
+  - family_id
+  - package_id
+
+  Bestehende Frontend-Hooks bleiben stabil:
+  - data-create-slug-source="true"
+  - data-create-preview-source="identity"
+  - data-vp-step-field="identity.name"
+  - data-vp-step-field="identity.description"
+
+  Defensive Draft-Quellen:
+  - create_initial_draft
+  - _initial_draft
+  - _draft
+  - draft
+  - vplib_draft
+----------------------------------------------------------------------------- #}
+
+
+{# -----------------------------------------------------------------------------
+  1. Draft defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if create_initial_draft is defined and create_initial_draft is mapping %}
+  {% set _identity_draft = create_initial_draft %}
+{% elif _initial_draft is defined and _initial_draft is mapping %}
+  {% set _identity_draft = _initial_draft %}
+{% elif _draft is defined and _draft is mapping %}
+  {% set _identity_draft = _draft %}
+{% elif draft is defined and draft is mapping %}
+  {% set _identity_draft = draft %}
+{% elif vplib_draft is defined and vplib_draft is mapping %}
+  {% set _identity_draft = vplib_draft %}
+{% else %}
+  {% set _identity_draft = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  2. Identity-Werte defensiv lesen
+
+  Unterstützte Formen:
+  - root:
+      family_name
+      family_description
+
+  - identity:
+      identity.family_name
+      identity.family_description
+      identity.name
+      identity.description
+
+  - family:
+      family.family_name
+      family.family_description
+      family.name
+      family.label
+      family.description
+----------------------------------------------------------------------------- #}
+
+{% if _identity_draft is mapping and 'identity' in _identity_draft and _identity_draft['identity'] is mapping %}
+  {% set _identity_values = _identity_draft['identity'] %}
+{% elif _identity_draft is mapping and 'family' in _identity_draft and _identity_draft['family'] is mapping %}
+  {% set _identity_values = _identity_draft['family'] %}
+{% elif _identity_draft is mapping %}
+  {% set _identity_values = _identity_draft %}
+{% else %}
+  {% set _identity_values = {} %}
+{% endif %}
+
+
+{% if _identity_values is mapping and 'family_name' in _identity_values and _identity_values['family_name'] %}
+  {% set _identity_family_name = _identity_values['family_name'] %}
+{% elif _identity_values is mapping and 'name' in _identity_values and _identity_values['name'] %}
+  {% set _identity_family_name = _identity_values['name'] %}
+{% elif _identity_values is mapping and 'label' in _identity_values and _identity_values['label'] %}
+  {% set _identity_family_name = _identity_values['label'] %}
+{% elif _identity_draft is mapping and 'family_name' in _identity_draft and _identity_draft['family_name'] %}
+  {% set _identity_family_name = _identity_draft['family_name'] %}
+{% else %}
+  {% set _identity_family_name = '' %}
+{% endif %}
+
+
+{% if _identity_values is mapping and 'family_description' in _identity_values and _identity_values['family_description'] %}
+  {% set _identity_family_description = _identity_values['family_description'] %}
+{% elif _identity_values is mapping and 'description' in _identity_values and _identity_values['description'] %}
+  {% set _identity_family_description = _identity_values['description'] %}
+{% elif _identity_values is mapping and 'text' in _identity_values and _identity_values['text'] %}
+  {% set _identity_family_description = _identity_values['text'] %}
+{% elif _identity_draft is mapping and 'family_description' in _identity_draft and _identity_draft['family_description'] %}
+  {% set _identity_family_description = _identity_draft['family_description'] %}
+{% else %}
+  {% set _identity_family_description = '' %}
+{% endif %}
+
+
+<div
+  class="vplib-create-step__panel vp-create-card vp-create-section vp-create-section--identity"
+  data-create-section="identity"
+  data-vp-create-section="identity"
+  data-create-section-required="true"
+  data-vp-step-panel="identity"
+  data-vp-identity-root="true"
+  data-vp-identity-version="0.6.0"
+  aria-labelledby="vp-create-identity-title"
+>
+  <header class="vplib-create-step__header">
+    <div class="vplib-create-step__header-main">
+
+
+      <h2
+        id="vp-create-identity-title"
+        class="vplib-create-step__title"
+      >
+        Grunddaten
+      </h2>
+
+      <p class="vplib-create-step__description">
+        Lege Name und Beschreibung der neuen Library-Family fest.
+      </p>
+    </div>
+
+
+  </header>
+
+  <div class="vplib-create-step__body">
+    <div class="vplib-create-step__grid vp-create-field-grid">
+      <div class="vplib-create-step__field vplib-create-step__field--full">
+        <label
+          class="vp-create-field vp-create-field--wide"
+          for="create-family-name"
+          data-vp-field-wrapper="family_name"
+        >
+          <span class="vp-create-field__label">
+            Name
+            <span class="vp-create-field__required" aria-hidden="true">*</span>
+          </span>
+
+          <input
+            id="create-family-name"
+            class="vp-create-input"
+            type="text"
+            name="family_name"
+            value="{{ _identity_family_name }}"
+            placeholder="z. B. Basic Wall Block"
+            required
+            maxlength="160"
+            autocomplete="off"
+            spellcheck="false"
+            inputmode="text"
+            data-create-field="family_name"
+            data-vp-create-field="family_name"
+            data-create-slug-source="true"
+            data-create-preview-source="identity"
+            data-vp-step-field="identity.name"
+            data-vp-identity-field="name"
+            data-vp-required-field="true"
+            aria-describedby="create-family-name-hint create-family-name-status"
+          />
+
+
+
+          <span
+            id="create-family-name-status"
+            class="vp-create-sr-only"
+            data-vp-identity-name-status
+            aria-live="polite"
+          ></span>
+        </label>
+      </div>
+
+      <div class="vplib-create-step__field vplib-create-step__field--full">
+        <label
+          class="vp-create-field vp-create-field--wide"
+          for="create-family-description"
+          data-vp-field-wrapper="family_description"
+        >
+          <span class="vp-create-field__label">
+            Beschreibung
+            <span class="vp-create-field__required" aria-hidden="true">*</span>
+          </span>
+
+          <textarea
+            id="create-family-description"
+            class="vp-create-textarea"
+            name="family_description"
+            rows="5"
+            maxlength="2400"
+            required
+            placeholder="Kurz beschreiben, wofür diese Family gedacht ist."
+            data-create-field="family_description"
+            data-vp-create-field="family_description"
+            data-create-preview-source="identity"
+            data-vp-step-field="identity.description"
+            data-vp-identity-field="description"
+            data-vp-required-field="true"
+            aria-describedby="create-family-description-hint create-family-description-status"
+          >{{ _identity_family_description }}</textarea>
+
+
+
+          <span
+            id="create-family-description-status"
+            class="vp-create-sr-only"
+            data-vp-identity-description-status
+            aria-live="polite"
+          ></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" data-vp-identity-config>
+    {
+      "component": "create.identity",
+      "version": "0.6.0",
+      "required": true,
+      "fields": {
+        "name": {
+          "name": "family_name",
+          "id": "create-family-name",
+          "required": true,
+          "maxlength": 160,
+          "slugSource": true,
+          "previewSource": true
+        },
+        "description": {
+          "name": "family_description",
+          "id": "create-family-description",
+          "required": true,
+          "maxlength": 2400,
+          "previewSource": true
+        }
+      },
+      "derived": {
+        "slug": true,
+        "family_id": true,
+        "familyId": true,
+        "package_id": true,
+        "packageId": true
+      },
+      "events": {
+        "ready": "vectoplan:create:identity-ready",
+        "changed": "vectoplan:create:identity-changed",
+        "validityChanged": "vectoplan:create:identity-validity-changed"
+      }
+    }
+  </script>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    function bootIdentity() {
+      try {
+        var COMPONENT_NAME = "VECTOPLAN Create Identity";
+        var COMPONENT_VERSION = "0.6.0";
+
+        var root = document.querySelector("[data-vp-create-section='identity']") ||
+          document.querySelector("[data-create-section='identity']") ||
+          document.querySelector("[data-vp-identity-root='true']");
+
+        if (!root) {
+          return;
+        }
+
+        if (root.getAttribute("data-vp-identity-ready") === "true") {
+          return;
+        }
+
+        var config = {
+          component: "create.identity",
+          version: COMPONENT_VERSION,
+          required: true,
+          fields: {
+            name: {
+              name: "family_name",
+              id: "create-family-name",
+              required: true,
+              maxlength: 160
+            },
+            description: {
+              name: "family_description",
+              id: "create-family-description",
+              required: true,
+              maxlength: 2400
+            }
+          },
+          events: {
+            ready: "vectoplan:create:identity-ready",
+            changed: "vectoplan:create:identity-changed",
+            validityChanged: "vectoplan:create:identity-validity-changed"
+          }
+        };
+
+        var configNode = root.querySelector("[data-vp-identity-config]");
+
+        try {
+          if (configNode && configNode.textContent) {
+            var parsedConfig = JSON.parse(configNode.textContent);
+
+            if (parsedConfig && typeof parsedConfig === "object") {
+              config = Object.assign({}, config, parsedConfig);
+              config.fields = Object.assign({}, config.fields || {}, parsedConfig.fields || {});
+              config.events = Object.assign({}, config.events || {}, parsedConfig.events || {});
+            }
+          }
+        } catch (configError) {
+          warn("Config parse failed.", configError);
+        }
+
+        var nameField = root.querySelector('[name="family_name"]') ||
+          root.querySelector("[data-vp-identity-field='name']") ||
+          document.getElementById("create-family-name");
+
+        var descriptionField = root.querySelector('[name="family_description"]') ||
+          root.querySelector("[data-vp-identity-field='description']") ||
+          document.getElementById("create-family-description");
+
+        var nameStatus = root.querySelector("[data-vp-identity-name-status]");
+        var descriptionStatus = root.querySelector("[data-vp-identity-description-status]");
+
+        var state = {
+          name: readValue(nameField),
+          description: readValue(descriptionField),
+          slugPreview: "",
+          valid: false,
+          nameValid: false,
+          descriptionValid: false,
+          touched: false,
+          updatedAt: ""
+        };
+
+        function warn(message, error) {
+          try {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
+            }
+          } catch (consoleError) {
+            /* no-op */
+          }
+        }
+
+        function dispatch(eventName, detail) {
+          try {
+            root.dispatchEvent(new CustomEvent(eventName, {
+              bubbles: true,
+              cancelable: false,
+              detail: detail || {}
+            }));
+          } catch (error) {
+            warn("Event dispatch failed: " + eventName, error);
+          }
+        }
+
+        function readValue(field) {
+          try {
+            if (!field || field.value === undefined || field.value === null) {
+              return "";
+            }
+
+            return String(field.value).trim();
+          } catch (error) {
+            return "";
+          }
+        }
+
+        function slugify(value) {
+          try {
+            return String(value || "")
+              .trim()
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/ä/g, "ae")
+              .replace(/ö/g, "oe")
+              .replace(/ü/g, "ue")
+              .replace(/ß/g, "ss")
+              .replace(/[^a-z0-9]+/g, "_")
+              .replace(/^_+|_+$/g, "")
+              .replace(/_{2,}/g, "_");
+          } catch (error) {
+            return "";
+          }
+        }
+
+        function setStatus(node, text) {
+          try {
+            if (node) {
+              node.textContent = text || "";
+            }
+          } catch (error) {
+            /* no-op */
+          }
+        }
+
+        function setFieldValidity(field, valid, message) {
+          try {
+            if (!field) {
+              return;
+            }
+
+            field.setAttribute("data-vp-field-valid", valid ? "true" : "false");
+
+            if (valid) {
+              field.removeAttribute("aria-invalid");
+            } else {
+              field.setAttribute("aria-invalid", "true");
+            }
+
+            if (typeof field.setCustomValidity === "function") {
+              field.setCustomValidity(valid ? "" : (message || "Dieses Feld ist erforderlich."));
+            }
+          } catch (error) {
+            warn("Field validity update failed.", error);
+          }
+        }
+
+        function readState(source) {
+          try {
+            var nextName = readValue(nameField);
+            var nextDescription = readValue(descriptionField);
+            var nameValid = nextName.length > 0;
+            var descriptionValid = nextDescription.length > 0;
+            var nextState = {
+              name: nextName,
+              description: nextDescription,
+              slugPreview: slugify(nextName),
+              valid: nameValid && descriptionValid,
+              nameValid: nameValid,
+              descriptionValid: descriptionValid,
+              touched: true,
+              updatedAt: new Date().toISOString(),
+              source: source || "read"
+            };
+
+            return nextState;
+          } catch (error) {
+            warn("State read failed.", error);
+            return Object.assign({}, state);
+          }
+        }
+
+        function updateRootAttributes(nextState) {
+          try {
+            root.setAttribute("data-vp-identity-valid", nextState.valid ? "true" : "false");
+            root.setAttribute("data-vp-identity-name-valid", nextState.nameValid ? "true" : "false");
+            root.setAttribute("data-vp-identity-description-valid", nextState.descriptionValid ? "true" : "false");
+            root.setAttribute("data-vp-identity-slug-preview", nextState.slugPreview || "");
+            root.setAttribute("data-vp-identity-last-source", nextState.source || "unknown");
+            root.setAttribute("data-vp-identity-last-update", String(Date.now()));
+
+            var app = document.querySelector("[data-vp-create-app]");
+            var form = document.querySelector("[data-vp-create-form], [data-create-form='true'], #vp-create-form");
+
+            [app, form].forEach(function (node) {
+              try {
+                if (!node) {
+                  return;
+                }
+
+                node.setAttribute("data-vp-identity-valid", nextState.valid ? "true" : "false");
+                node.setAttribute("data-vp-identity-slug-preview", nextState.slugPreview || "");
+              } catch (nodeError) {
+                /* no-op */
+              }
+            });
+          } catch (error) {
+            warn("Root attribute update failed.", error);
+          }
+        }
+
+        function updateStatus(nextState) {
+          try {
+            setStatus(
+              nameStatus,
+              nextState.nameValid
+                ? "Name gesetzt. Vorschau-Slug: " + (nextState.slugPreview || "—") + "."
+                : "Name ist erforderlich."
+            );
+
+            setStatus(
+              descriptionStatus,
+              nextState.descriptionValid
+                ? "Beschreibung gesetzt."
+                : "Beschreibung ist erforderlich."
+            );
+          } catch (error) {
+            warn("Status update failed.", error);
+          }
+        }
+
+        function updateValidity(nextState, previousState) {
+          try {
+            setFieldValidity(nameField, nextState.nameValid, "Bitte einen Namen angeben.");
+            setFieldValidity(descriptionField, nextState.descriptionValid, "Bitte eine Beschreibung angeben.");
+
+            if (!previousState || previousState.valid !== nextState.valid) {
+              dispatch(config.events.validityChanged || "vectoplan:create:identity-validity-changed", {
+                component: COMPONENT_NAME,
+                version: COMPONENT_VERSION,
+                valid: nextState.valid,
+                nameValid: nextState.nameValid,
+                descriptionValid: nextState.descriptionValid,
+                state: Object.assign({}, nextState),
+                root: root
+              });
+            }
+          } catch (error) {
+            warn("Validity update failed.", error);
+          }
+        }
+
+        function updateIdentity(options) {
+          try {
+            var updateOptions = options || {};
+            var previousState = Object.assign({}, state);
+
+            state = readState(updateOptions.source || "update");
+
+            updateRootAttributes(state);
+            updateStatus(state);
+            updateValidity(state, previousState);
+
+            dispatch(config.events.changed || "vectoplan:create:identity-changed", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              state: Object.assign({}, state),
+              previousState: previousState,
+              root: root,
+              source: state.source
+            });
+
+            return Object.assign({}, state);
+          } catch (error) {
+            warn("Identity update failed.", error);
+            return Object.assign({}, state);
+          }
+        }
+
+        function bindField(field, sourceName) {
+          try {
+            if (!field || field.getAttribute("data-vp-identity-bound") === "true") {
+              return;
+            }
+
+            field.addEventListener("input", function () {
+              updateIdentity({
+                source: sourceName + "-input"
+              });
+            });
+
+            field.addEventListener("change", function () {
+              updateIdentity({
+                source: sourceName + "-change"
+              });
+            });
+
+            field.addEventListener("blur", function () {
+              updateIdentity({
+                source: sourceName + "-blur"
+              });
+            });
+
+            field.setAttribute("data-vp-identity-bound", "true");
+          } catch (error) {
+            warn("Field binding failed.", error);
+          }
+        }
+
+        function focusFirstInvalid() {
+          try {
+            if (!state.nameValid && nameField && typeof nameField.focus === "function") {
+              nameField.focus();
+              return true;
+            }
+
+            if (!state.descriptionValid && descriptionField && typeof descriptionField.focus === "function") {
+              descriptionField.focus();
+              return true;
+            }
+
+            return false;
+          } catch (error) {
+            return false;
+          }
+        }
+
+        bindField(nameField, "name");
+        bindField(descriptionField, "description");
+
+        updateIdentity({
+          source: "boot"
+        });
+
+        window.VectoplanCreateIdentity = Object.assign({}, window.VectoplanCreateIdentity || {}, {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          root: root,
+          update: updateIdentity,
+          validate: function () {
+            try {
+              updateIdentity({
+                source: "validate"
+              });
+
+              return state.valid;
+            } catch (error) {
+              warn("Validate failed.", error);
+              return false;
+            }
+          },
+          focusFirstInvalid: focusFirstInvalid,
+          getState: function () {
+            try {
+              return Object.assign({}, state);
+            } catch (error) {
+              return {};
+            }
+          },
+          getConfig: function () {
+            try {
+              return Object.assign({}, config);
+            } catch (error) {
+              return {};
+            }
+          }
+        });
+
+        root.setAttribute("data-vp-identity-ready", "true");
+        root.setAttribute("data-vp-identity-version", COMPONENT_VERSION);
+
+        dispatch(config.events.ready || "vectoplan:create:identity-ready", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          state: Object.assign({}, state),
+          root: root
+        });
+      } catch (error) {
+        try {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Identity] Defensive initialization failed.", error);
+          }
+        } catch (consoleError) {
+          /* no-op */
+        }
+      }
+    }
+
+    try {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", bootIdentity, { once: true });
+      } else {
+        bootIdentity();
+      }
+    } catch (error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Identity] Boot scheduling failed.", error);
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+  })();
+</script>

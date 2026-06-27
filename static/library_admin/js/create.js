@@ -6,11 +6,14 @@
   Zweck:
   - Schlanker Orchestrator für /create.
   - Ersetzt die alte große create.js.
-  - Initialisiert und verbindet die neuen Teilmodule.
+  - Initialisiert und verbindet die Teilmodule.
   - Stellt die stabile öffentliche API window.VectoplanCreate bereit.
   - Enthält keine große Fachlogik mehr.
-  - Delegiert Wizard, Payload, Actions, Preview, Theme und Legacy-Rows an Module.
+  - Delegiert Wizard, Uploads, Payload, Actions, Preview, Theme und Legacy-Rows
+    an Module.
   - Verhindert, dass Legacy-Code wieder direkte Step-Sprünge auslöst.
+  - Browser erzeugt keine VPLIB-Dateien.
+  - Browser liest keine Upload-Datei-Inhalte.
 
   Erwartete Moduldateien:
   - create_core.js
@@ -18,28 +21,20 @@
   - create_wizard.js
   - create_preview.js
   - create_dynamic_rows_legacy.js
+  - create_uploads.js
   - create_payload.js
   - create_actions.js
-
-  Empfohlene spätere Ladereihenfolge im Template:
-  1. create_core.js
-  2. create_theme.js
-  3. create_wizard.js
-  4. create_preview.js
-  5. create_dynamic_rows_legacy.js
-  6. create_payload.js
-  7. create_actions.js
-  8. create_variant_utils.js
-  9. create_variant_state.js
-  10. create_variant_profiles.js
-  11. create_variant_summary.js
-  12. create_variant_field_renderer.js
-  13. create_variant_optional_fields.js
-  14. create_variant_validation.js
-  15. create_variant_drawer.js
-  16. create_variant_table.js
-  17. create_definitions.js
-  18. create.js
+  - create_variant_utils.js
+  - create_variant_state.js
+  - create_variant_profiles.js
+  - create_variant_summary.js
+  - create_variant_field_renderer.js
+  - create_variant_optional_fields.js
+  - create_variant_validation.js
+  - create_variant_drawer.js
+  - create_variant_table.js
+  - create_definitions.js
+  - create.js
 
   Öffentliche API:
   - window.VectoplanCreate.getState()
@@ -54,17 +49,21 @@
   - window.VectoplanCreate.updatePreview()
   - window.VectoplanCreate.refresh()
   - window.VectoplanCreate.syncVariants()
+  - window.VectoplanCreate.syncUploads()
   - window.VectoplanCreate.getDefinitionVariants()
+  - window.VectoplanCreate.getDefinitionVariantsJson()
+  - window.VectoplanCreate.getUploadMetadata()
 ----------------------------------------------------------------------------- */
 
 (function () {
   "use strict";
 
   var GLOBAL_NAME = "VectoplanCreate";
-  var CREATE_VERSION = "0.4.0";
+  var CREATE_VERSION = "0.6.0";
   var CORE_NAME = "VectoplanCreateCore";
   var BOOT_RETRY_MS = 40;
   var BOOT_MAX_ATTEMPTS = 100;
+  var REFRESH_DEBOUNCE_MS = 80;
 
   var MODULES = {
     core: "VectoplanCreateCore",
@@ -72,6 +71,7 @@
     wizard: "VectoplanCreateWizard",
     preview: "VectoplanCreatePreview",
     dynamicRowsLegacy: "VectoplanCreateDynamicRowsLegacy",
+    uploads: "VectoplanCreateUploads",
     payload: "VectoplanCreatePayload",
     actions: "VectoplanCreateActions",
 
@@ -82,8 +82,10 @@
     variantFieldRenderer: "VectoplanCreateVariantFieldRenderer",
     variantOptionalFields: "VectoplanCreateVariantOptionalFields",
     variantValidation: "VectoplanCreateVariantValidation",
+    variantDrawerShell: "VectoplanCreateVariantDrawerShell",
     variantDrawer: "VectoplanCreateVariantDrawer",
     variantTable: "VectoplanCreateVariantTable",
+    variantWorkspace: "VectoplanCreateVariantWorkspace",
 
     definitionsRuntime: "VectoplanCreateDefinitionsRuntime"
   };
@@ -94,16 +96,20 @@
     "wizard",
     "preview",
     "dynamicRowsLegacy",
+    "uploads",
     "payload",
     "actions",
+    "variantUtils",
     "variantState",
     "variantProfiles",
     "variantSummary",
     "variantFieldRenderer",
     "variantOptionalFields",
     "variantValidation",
+    "variantDrawerShell",
     "variantDrawer",
     "variantTable",
+    "variantWorkspace",
     "definitionsRuntime"
   ];
 
@@ -111,17 +117,65 @@
     version: CREATE_VERSION,
     initialized: false,
     ready: false,
+    degraded: false,
     bootAttempts: 0,
     bootStartedAt: "",
     bootFinishedAt: "",
     lastRefreshAt: "",
+    lastLightRefreshAt: "",
     lastError: null,
     moduleStatus: {},
     publicApiExposed: false,
     refreshCount: 0,
+    lightRefreshCount: 0,
     actionCount: 0,
     payloadCollectCount: 0,
-    variantSyncCount: 0
+    variantSyncCount: 0,
+    uploadSyncCount: 0,
+    finalSubmitCount: 0,
+    compatibilityEventsBound: false,
+    pendingRefreshTimer: null
+  };
+
+  var api = {
+    version: CREATE_VERSION,
+
+    initialize: initialize,
+    boot: boot,
+    refresh: refresh,
+    refreshLight: refreshLight,
+
+    getState: getState,
+    getModulesState: getModulesState,
+    getModule: getModule,
+    getCore: getCore,
+
+    collectPayload: collectPayload,
+    collectFormPayload: collectPayload,
+
+    runAction: runAction,
+
+    goToStep: goToStep,
+    nextStep: nextStep,
+    prevStep: previousStep,
+    previousStep: previousStep,
+
+    setTheme: setTheme,
+    cycleTheme: cycleTheme,
+    getTheme: getTheme,
+
+    updatePreview: updatePreview,
+
+    syncVariants: syncVariants,
+    syncVariantRuntimeToForm: syncVariants,
+    syncUploads: syncUploads,
+    syncUploadsRuntimeToForm: syncUploads,
+
+    getDefinitionVariants: getDefinitionVariants,
+    getDefinitionVariantsJson: getDefinitionVariantsJson,
+    getUploadMetadata: getUploadMetadata,
+
+    getCurrentStep: getCurrentStep
   };
 
   exposePublicApi();
@@ -151,8 +205,11 @@
         }
 
         state.lastError = normalizeError(new Error("VectoplanCreateCore is not available."));
+        state.degraded = true;
         fallbackWarn("Core runtime missing; create orchestrator initialized in degraded mode.");
+        wireCompatibilityEvents();
         markRuntimeReady(false);
+        dispatch("vectoplan:create:degraded-ready", getState());
         return;
       }
 
@@ -182,6 +239,7 @@
 
       initializeModules();
       wireCompatibilityEvents();
+
       refresh({
         source: "initialize",
         silent: true
@@ -189,6 +247,7 @@
 
       state.initialized = true;
       state.ready = true;
+      state.degraded = false;
       state.bootFinishedAt = timestamp();
 
       safeSetRootAttribute("data-vp-create-runtime-ready", "true");
@@ -204,6 +263,7 @@
     } catch (error) {
       state.initialized = false;
       state.ready = false;
+      state.degraded = true;
       state.lastError = normalizeError(error);
 
       fallbackWarn("Create orchestrator initialization failed.", error);
@@ -225,6 +285,12 @@
             initialized: false,
             error: ""
           };
+
+          if (moduleKey === "core") {
+            status.initialized = !!moduleApi;
+            state.moduleStatus[moduleKey] = status;
+            return;
+          }
 
           if (moduleApi && typeof moduleApi.initialize === "function") {
             try {
@@ -256,13 +322,13 @@
 
   function wireCompatibilityEvents() {
     try {
-      var core = getCore();
-
-      if (!core || typeof core.bindOnce !== "function") {
+      if (state.compatibilityEventsBound) {
         return;
       }
 
-      core.bindOnce("create-orchestrator-profile-context-sync", function () {
+      state.compatibilityEventsBound = true;
+
+      bindOnce("create-orchestrator-profile-context-sync", function () {
         document.addEventListener("vectoplan:create:variant-profile-context-changed", function () {
           try {
             syncVariants({
@@ -274,29 +340,105 @@
         });
       });
 
-      core.bindOnce("create-orchestrator-step-changed-refresh", function () {
-        document.addEventListener("vectoplan:create:step-changed", function () {
-          try {
-            refresh({
-              source: "step-changed",
+      bindOnce("create-orchestrator-step-changed-refresh", function () {
+        [
+          "vectoplan:create:step-changed",
+          "vectoplan:create:wizard-step-changed",
+          "vectoplan:create:wizard-ui-updated"
+        ].forEach(function (eventName) {
+          document.addEventListener(eventName, function () {
+            scheduleRefresh({
+              source: eventName,
               silent: true,
               light: true
             });
+          });
+        });
+      });
+
+      bindOnce("create-orchestrator-variant-state-sync", function () {
+        [
+          "vectoplan:create:variant-state-changed",
+          "vectoplan:create:variant-state-synced",
+          "vectoplan:create:variant-added",
+          "vectoplan:create:variant-updated",
+          "vectoplan:create:variant-removed"
+        ].forEach(function (eventName) {
+          document.addEventListener(eventName, function () {
+            try {
+              syncVariants({
+                source: eventName
+              });
+              scheduleRefresh({
+                source: eventName,
+                silent: true,
+                light: true
+              });
+            } catch (error) {
+              warn("Variant state sync failed: " + eventName, error);
+            }
+          });
+        });
+      });
+
+      bindOnce("create-orchestrator-upload-sync", function () {
+        [
+          "vectoplan:create:uploads-runtime-ready",
+          "vectoplan:create:upload-changed",
+          "vectoplan:create:upload-cleared",
+          "vectoplan:create:geometry-upload-changed",
+          "vectoplan:create:technical-upload-changed",
+          "vectoplan:create:variables-upload-changed"
+        ].forEach(function (eventName) {
+          document.addEventListener(eventName, function () {
+            try {
+              syncUploads({
+                source: eventName
+              });
+              scheduleRefresh({
+                source: eventName,
+                silent: true,
+                light: true
+              });
+            } catch (error) {
+              warn("Upload sync failed: " + eventName, error);
+            }
+          });
+        });
+      });
+
+      bindOnce("create-orchestrator-final-submit", function () {
+        document.addEventListener("vectoplan:create:final-submit-requested", function (event) {
+          try {
+            state.finalSubmitCount += 1;
+
+            dispatch("vectoplan:create:final-step-ready", {
+              source: event && event.detail ? event.detail.source || "final-submit" : "final-submit",
+              state: getState()
+            });
+
+            setStatus("Finaler Schritt. Aktion auswählen.", "ok");
           } catch (error) {
-            warn("Refresh after step change failed.", error);
+            warn("Final submit handling failed.", error);
           }
         });
       });
 
-      core.bindOnce("create-orchestrator-variant-state-sync", function () {
-        document.addEventListener("vectoplan:create:variant-state-changed", function () {
-          try {
-            syncVariants({
-              source: "variant-state-changed"
+      bindOnce("create-orchestrator-context-refresh", function () {
+        [
+          "vectoplan:create:context-ready",
+          "vectoplan:create:uploads-ready",
+          "vectoplan:create:definitions-ready",
+          "vectoplan:create:core-ready",
+          "vectoplan:create:core-context-refreshed"
+        ].forEach(function (eventName) {
+          document.addEventListener(eventName, function () {
+            scheduleRefresh({
+              source: eventName,
+              silent: true,
+              light: true
             });
-          } catch (error) {
-            warn("Variant state changed sync failed.", error);
-          }
+          });
         });
       });
     } catch (error) {
@@ -313,7 +455,9 @@
 
       if (payloadModule && typeof payloadModule.collectPayload === "function") {
         return payloadModule.collectPayload(form, Object.assign({
-          source: "public-api"
+          source: "public-api",
+          syncVariants: true,
+          syncUploads: true
         }, options || {}));
       }
 
@@ -325,7 +469,7 @@
     }
   }
 
-  function runAction(action) {
+  function runAction(action, sourceButton) {
     try {
       state.actionCount += 1;
 
@@ -333,7 +477,7 @@
       var form = resolveForm();
 
       if (actionsModule && typeof actionsModule.runAction === "function") {
-        return actionsModule.runAction(action, form, null);
+        return actionsModule.runAction(action, form, sourceButton || null);
       }
 
       var result = {
@@ -530,6 +674,35 @@
     }
   }
 
+  function syncUploads(options) {
+    try {
+      state.uploadSyncCount += 1;
+
+      var uploadsModule = getModule("uploads");
+      var payloadModule = getModule("payload");
+      var form = resolveForm();
+      var ok = false;
+
+      if (uploadsModule && typeof uploadsModule.syncAll === "function") {
+        uploadsModule.syncAll(form || document);
+        ok = true;
+      }
+
+      if (payloadModule && typeof payloadModule.syncUploadsRuntimeToForm === "function") {
+        payloadModule.syncUploadsRuntimeToForm(form, Object.assign({
+          source: "public-api"
+        }, options || {}));
+        ok = true;
+      }
+
+      return ok;
+    } catch (error) {
+      state.lastError = normalizeError(error);
+      warn("syncUploads failed.", error);
+      return false;
+    }
+  }
+
   function getDefinitionVariants() {
     try {
       var payloadModule = getModule("payload");
@@ -568,6 +741,46 @@
     }
   }
 
+  function getUploadMetadata() {
+    try {
+      var payloadModule = getModule("payload");
+      var uploadsModule = getModule("uploads");
+      var form = resolveForm();
+
+      if (payloadModule && typeof payloadModule.getUploadMetadata === "function") {
+        return payloadModule.getUploadMetadata(form, {
+          source: "public-api"
+        });
+      }
+
+      if (uploadsModule && typeof uploadsModule.getSummary === "function") {
+        return uploadsModule.getSummary(form || document);
+      }
+
+      return {
+        byKind: {},
+        summary: {
+          fileCount: 0,
+          errorCount: 0,
+          ok: true
+        }
+      };
+    } catch (error) {
+      state.lastError = normalizeError(error);
+      warn("getUploadMetadata failed.", error);
+
+      return {
+        byKind: {},
+        summary: {
+          fileCount: 0,
+          errorCount: 1,
+          ok: false
+        },
+        error: normalizeError(error)
+      };
+    }
+  }
+
   function refresh(options) {
     try {
       var safeOptions = options || {};
@@ -583,6 +796,9 @@
       callModule("theme", "updateControls");
 
       if (!safeOptions.light) {
+        callModule("uploads", "initialize", resolveForm() || document);
+        callModule("uploads", "syncAll", resolveForm() || document);
+
         callModule("preview", "refresh", {
           source: safeOptions.source || "public-api",
           animate: safeOptions.animate === true
@@ -593,15 +809,18 @@
           silent: true
         });
       } else {
-        callModule("preview", "updatePreview", resolveForm(), {
-          source: safeOptions.source || "public-api",
-          animate: false
-        });
+        refreshLight(Object.assign({}, safeOptions, {
+          nested: true
+        }));
       }
 
       callModule("payload", "ensureDefinitionVariantHiddenFields", resolveForm());
+      callModule("payload", "ensureUploadHiddenFields", resolveForm());
       callModule("payload", "syncProfileIdsIntoForm", resolveForm());
       callModule("payload", "syncVariantRuntimeToForm", resolveForm(), {
+        source: safeOptions.source || "public-api"
+      });
+      callModule("payload", "syncUploadsRuntimeToForm", resolveForm(), {
         source: safeOptions.source || "public-api"
       });
 
@@ -622,6 +841,72 @@
     }
   }
 
+  function refreshLight(options) {
+    try {
+      var safeOptions = options || {};
+
+      if (!safeOptions.nested) {
+        state.lightRefreshCount += 1;
+        state.lastLightRefreshAt = timestamp();
+      }
+
+      callModule("preview", "updatePreview", resolveForm(), {
+        source: safeOptions.source || "public-api",
+        animate: false
+      });
+
+      callModule("uploads", "syncAll", resolveForm() || document);
+
+      callModule("payload", "syncVariantRuntimeToForm", resolveForm(), {
+        source: safeOptions.source || "public-api-light"
+      });
+
+      callModule("payload", "syncUploadsRuntimeToForm", resolveForm(), {
+        source: safeOptions.source || "public-api-light"
+      });
+
+      callModule("actions", "enforceStaticDisabledButtons", resolveForm());
+
+      if (!safeOptions.silent) {
+        setStatus("Create Runtime aktualisiert.", "ok");
+      }
+
+      dispatch("vectoplan:create:light-refreshed", getState());
+
+      return getState();
+    } catch (error) {
+      state.lastError = normalizeError(error);
+      warn("refreshLight failed.", error);
+      return getState();
+    }
+  }
+
+  function scheduleRefresh(options) {
+    try {
+      var safeOptions = options || {};
+
+      if (state.pendingRefreshTimer) {
+        window.clearTimeout(state.pendingRefreshTimer);
+      }
+
+      state.pendingRefreshTimer = window.setTimeout(function () {
+        try {
+          state.pendingRefreshTimer = null;
+
+          if (safeOptions.light) {
+            refreshLight(safeOptions);
+          } else {
+            refresh(safeOptions);
+          }
+        } catch (error) {
+          warn("Scheduled refresh failed.", error);
+        }
+      }, REFRESH_DEBOUNCE_MS);
+    } catch (error) {
+      warn("scheduleRefresh failed.", error);
+    }
+  }
+
   function getState() {
     try {
       var core = getCore();
@@ -630,15 +915,20 @@
         version: CREATE_VERSION,
         initialized: state.initialized,
         ready: state.ready,
+        degraded: state.degraded,
         publicApiExposed: state.publicApiExposed,
         bootAttempts: state.bootAttempts,
         bootStartedAt: state.bootStartedAt,
         bootFinishedAt: state.bootFinishedAt,
         lastRefreshAt: state.lastRefreshAt,
+        lastLightRefreshAt: state.lastLightRefreshAt,
         refreshCount: state.refreshCount,
+        lightRefreshCount: state.lightRefreshCount,
         actionCount: state.actionCount,
         payloadCollectCount: state.payloadCollectCount,
         variantSyncCount: state.variantSyncCount,
+        uploadSyncCount: state.uploadSyncCount,
+        finalSubmitCount: state.finalSubmitCount,
         lastError: state.lastError,
         writeEnabled: core && typeof core.isWriteEnabled === "function" ? core.isWriteEnabled() : false,
         theme: getTheme(),
@@ -755,7 +1045,9 @@
         return core.state.theme;
       }
 
-      return document.documentElement.getAttribute("data-theme") || "system";
+      return document.documentElement.getAttribute("data-vp-theme") ||
+        document.documentElement.getAttribute("data-theme") ||
+        "system";
     } catch (error) {
       return "system";
     }
@@ -807,7 +1099,7 @@
         return core.qs(core.selectors.form);
       }
 
-      return document.querySelector("[data-vp-create-form], [data-create-form='true'], #vp-create-form");
+      return document.querySelector("[data-vp-create-form], [data-create-form='true'], #vp-create-form, form[data-create-form]");
     } catch (error) {
       return null;
     }
@@ -826,27 +1118,23 @@
 
       formData.forEach(function (value, key) {
         try {
-          if (value instanceof File) {
+          if (isFileValue(value)) {
             if (value.name) {
-              payload[key] = {
+              assignPayloadValue(payload, key, {
                 name: value.name,
                 size: value.size,
-                type: value.type || ""
-              };
+                type: value.type || "",
+                extension: extensionFromName(value.name || ""),
+                last_modified: value.lastModified || null,
+                backend_stored: false,
+                local_only: true
+              });
             }
 
             return;
           }
 
-          if (Object.prototype.hasOwnProperty.call(payload, key)) {
-            if (!Array.isArray(payload[key])) {
-              payload[key] = [payload[key]];
-            }
-
-            payload[key].push(value);
-          } else {
-            payload[key] = value;
-          }
+          assignPayloadValue(payload, key, value);
         } catch (entryError) {
           warn("Fallback payload entry skipped: " + key, entryError);
         }
@@ -860,10 +1148,86 @@
         payload.default_variant_id = "default";
       }
 
+      if (!payload.geometry_model_uploads_json) {
+        payload.geometry_model_uploads_json = emptyUploadJson("geometry_model");
+      }
+
+      if (!payload.technical_document_uploads_json) {
+        payload.technical_document_uploads_json = emptyUploadJson("technical_documents");
+      }
+
+      if (!payload.variant_document_uploads_json) {
+        payload.variant_document_uploads_json = emptyUploadJson("variant_documents");
+      }
+
       return payload;
     } catch (error) {
       warn("collectPayloadFallback failed.", error);
       return {};
+    }
+  }
+
+  function assignPayloadValue(payload, key, value) {
+    try {
+      if (!payload || !key) {
+        return;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(payload, key)) {
+        if (!Array.isArray(payload[key])) {
+          payload[key] = [payload[key]];
+        }
+
+        payload[key].push(value);
+      } else {
+        payload[key] = value;
+      }
+    } catch (error) {
+      warn("assignPayloadValue failed.", error);
+    }
+  }
+
+  function isFileValue(value) {
+    try {
+      return typeof File !== "undefined" && value instanceof File;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function extensionFromName(fileName) {
+    try {
+      var text = String(fileName || "");
+
+      if (text.indexOf(".") < 0) {
+        return "";
+      }
+
+      return text.split(".").pop().toLowerCase();
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function emptyUploadJson(kind) {
+    try {
+      return JSON.stringify({
+        version: CREATE_VERSION,
+        kind: kind || "generic_upload",
+        backend_enabled: false,
+        backendEnabled: false,
+        local_only: true,
+        localOnly: true,
+        count: 0,
+        files: [],
+        errors: [],
+        ok: true,
+        source: "orchestrator_fallback",
+        updated_at: timestamp(),
+        updatedAt: timestamp()
+      });
+    } catch (error) {
+      return '{"count":0,"files":[]}';
     }
   }
 
@@ -900,11 +1264,38 @@
     }
   }
 
+  function bindOnce(key, callback) {
+    try {
+      var core = getCore();
+
+      if (core && typeof core.bindOnce === "function") {
+        core.bindOnce(key, callback);
+        return;
+      }
+
+      var attr = "data-vp-" + String(key || "bind-once").replace(/[^a-z0-9_-]/gi, "-");
+
+      if (document.documentElement.getAttribute(attr) === "true") {
+        return;
+      }
+
+      document.documentElement.setAttribute(attr, "true");
+
+      if (typeof callback === "function") {
+        callback();
+      }
+    } catch (error) {
+      warn("bindOnce failed: " + key, error);
+    }
+  }
+
   function markRuntimeReady(isReady) {
     try {
       state.ready = !!isReady;
       safeSetRootAttribute("data-vp-create-runtime-ready", isReady ? "true" : "false");
       safeSetRootAttribute("data-vp-create-orchestrator-ready", isReady ? "true" : "false");
+      safeSetRootAttribute("data-vp-create-version", CREATE_VERSION);
+      safeSetRootAttribute("data-vp-create-orchestrator-version", CREATE_VERSION);
     } catch (error) {
       /* no-op */
     }
@@ -993,10 +1384,6 @@
 
   function exposePublicApi() {
     try {
-      if (state.publicApiExposed && window[GLOBAL_NAME]) {
-        return window[GLOBAL_NAME];
-      }
-
       window[GLOBAL_NAME] = api;
       state.publicApiExposed = true;
 
@@ -1006,38 +1393,4 @@
       return api;
     }
   }
-
-  var api = {
-    version: CREATE_VERSION,
-
-    initialize: initialize,
-    refresh: refresh,
-
-    getState: getState,
-    getModulesState: getModulesState,
-    getModule: getModule,
-
-    collectPayload: collectPayload,
-    collectFormPayload: collectPayload,
-
-    runAction: runAction,
-
-    goToStep: goToStep,
-    nextStep: nextStep,
-    prevStep: previousStep,
-    previousStep: previousStep,
-
-    setTheme: setTheme,
-    cycleTheme: cycleTheme,
-
-    updatePreview: updatePreview,
-
-    syncVariants: syncVariants,
-    syncVariantRuntimeToForm: syncVariants,
-    getDefinitionVariants: getDefinitionVariants,
-    getDefinitionVariantsJson: getDefinitionVariantsJson,
-
-    getCurrentStep: getCurrentStep,
-    getTheme: getTheme
-  };
 })();

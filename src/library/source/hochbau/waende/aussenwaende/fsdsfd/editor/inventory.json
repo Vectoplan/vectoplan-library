@@ -1,0 +1,23 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "0d6e6372-e69a-4cd8-ba1d-98ac6089321d",
+  "family_id": "vp.hochbau.waende.aussenwaende.fsdsfd",
+  "default_variant_id": "default",
+  "label": "fsdsfd",
+  "description": "dsffsd",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "waende",
+  "subcategory": "aussenwaende",
+  "classification_path": "hochbau/waende/aussenwaende",
+  "source_path": "hochbau/waende/aussenwaende/fsdsfd",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Wände",
+    "subcategory": "Außenwände"
+  },
+  "object_kind": "cell_block",
+  "tags": []
+}

@@ -18,40 +18,17 @@
  * - Der Drawer bearbeitet Werte und schreibt sie über diese State-Schicht.
  * - `definition_variants_json` ist der zentrale Payload.
  *
- * Wichtiger Fix in dieser Fassung:
- * - Hidden Fields werden idempotent und standardmäßig still synchronisiert.
- * - sync() besitzt Reentrancy-Guard und dispatcht variant-state-synced nur bei echter Änderung.
- * - Native input/change Events werden nur noch explizit mit emitNativeEvents=true ausgelöst.
+ * Version 0.6.1:
+ * - Idempotente Initialisierung.
+ * - Hidden Fields werden standardmäßig still synchronisiert.
+ * - sync() besitzt Reentrancy-Guard.
+ * - variant-state-synced wird nur bei echter Änderung, neuer Revision oder forceEvent dispatcht.
+ * - Native input/change Events werden nur explizit mit emitNativeEvents=true ausgelöst.
  * - additional_field_keys bleiben beim Normalisieren und Serialisieren erhalten.
- *
- * Diese Datei:
- * - rendert keine Felder
- * - resolved keine Profile
- * - validiert keine Fachwerte
- * - erzeugt keine VPLIB-Dateien
- * - schreibt keine Packages
+ * - Verhindert Event-Schleifen mit Payload-/Table-/Drawer-Runtimes.
  *
  * Global:
  * - window.VectoplanCreateVariantState
- *
- * Benötigt, falls vorhanden:
- * - window.VectoplanCreateVariantUtils
- *
- * Events:
- * - dispatch: vectoplan:create:variant-state-ready
- * - dispatch: vectoplan:create:variant-state-changed
- * - dispatch: vectoplan:create:variant-state-synced
- * - dispatch: vectoplan:create:variant-added
- * - dispatch: vectoplan:create:variant-updated
- * - dispatch: vectoplan:create:variant-removed
- * - dispatch: vectoplan:create:variant-remove-blocked
- *
- * - listen: vectoplan:create:variant-state-upsert-requested
- * - listen: vectoplan:create:variant-state-remove-requested
- * - listen: vectoplan:create:variant-remove-requested
- * - listen: vectoplan:create:variant-profile-resolved
- * - listen: vectoplan:create:variant-workspace-ready
- * - listen: vectoplan:create:variant-table-ready
  * -------------------------------------------------------------------------- */
 
 (function () {
@@ -59,29 +36,26 @@
 
   var GLOBAL_NAME = "VectoplanCreateVariantState";
   var COMPONENT_NAME = "VECTOPLAN Create Variant State";
-  var COMPONENT_VERSION = "0.1.1";
+  var COMPONENT_VERSION = "0.6.1";
   var READY_ATTR = "data-vp-create-variant-state-ready";
 
   var WORKSPACE_SELECTOR = "[data-vp-variant-workspace-root='true'], [data-vp-variant-workspace='true']";
-  var TABLE_SELECTOR = "[data-vp-variant-table-root='true'], [data-vp-variant-table='true']";
+  var TABLE_SELECTOR = "[data-vp-variant-table-root='true'], [data-vp-variant-table='true'], [data-create-variant-table='true']";
   var ROW_SELECTOR = "[data-vp-variant-row='true'], [data-create-variant-row='true']";
-  var JSON_FIELD_SELECTOR = "[data-vp-definition-variants-json='true']";
-  var DEFAULT_ID_FIELD_SELECTOR = "[data-vp-definition-variants-default-id='true']";
-  var COUNT_LABEL_SELECTOR = "[data-vp-variant-count-label='true']";
+  var JSON_FIELD_SELECTOR = "[data-vp-definition-variants-json='true'], [name='definition_variants_json']";
+  var DEFAULT_ID_FIELD_SELECTOR = "[data-vp-definition-variants-default-id='true'], [name='default_variant_id'], [name='definition_variants_default_variant_id']";
+  var COUNT_LABEL_SELECTOR = "[data-vp-variant-count-label='true'], [data-vp-variant-count-label]";
 
-  if (window[GLOBAL_NAME] && window[GLOBAL_NAME].__version) {
+  if (window[GLOBAL_NAME] && window[GLOBAL_NAME].__version === COMPONENT_VERSION) {
     try {
       document.documentElement.setAttribute(READY_ATTR, "true");
+      document.documentElement.setAttribute("data-vp-create-variant-state-version", COMPONENT_VERSION);
     } catch (alreadyReadyError) {
       /* no-op */
     }
 
     return;
   }
-
-  /* ---------------------------------------------------------------------------
-   * Utils / fallback
-   * ------------------------------------------------------------------------ */
 
   function getUtils() {
     if (window.VectoplanCreateVariantUtils && window.VectoplanCreateVariantUtils.__version) {
@@ -124,7 +98,7 @@
 
     qs: function (selector, root) {
       try {
-        return (root || document).querySelector(selector);
+        return selector ? (root || document).querySelector(selector) : null;
       } catch (error) {
         return null;
       }
@@ -132,9 +106,17 @@
 
     qsa: function (selector, root) {
       try {
-        return Array.prototype.slice.call((root || document).querySelectorAll(selector));
+        return selector ? Array.prototype.slice.call((root || document).querySelectorAll(selector)) : [];
       } catch (error) {
         return [];
+      }
+    },
+
+    closest: function (node, selector) {
+      try {
+        return node && node.closest ? node.closest(selector) : null;
+      } catch (error) {
+        return null;
       }
     },
 
@@ -153,12 +135,22 @@
           return false;
         }
 
-        if (value === null || value === undefined) {
-          node.removeAttribute(name);
-        } else {
-          node.setAttribute(name, String(value));
+        var next = value === null || value === undefined ? null : String(value);
+
+        if (next === null) {
+          if (node.hasAttribute(name)) {
+            node.removeAttribute(name);
+            return true;
+          }
+
+          return false;
         }
 
+        if (node.getAttribute(name) === next) {
+          return false;
+        }
+
+        node.setAttribute(name, next);
         return true;
       } catch (error) {
         return false;
@@ -173,11 +165,11 @@
 
         var text = String(value === null || value === undefined ? "" : value).trim().toLowerCase();
 
-        if (["true", "1", "yes", "ja", "on", "ok"].indexOf(text) !== -1) {
+        if (["true", "1", "yes", "ja", "on", "ok", "enabled", "active", "default", "selected"].indexOf(text) !== -1) {
           return true;
         }
 
-        if (["false", "0", "no", "nein", "off", ""].indexOf(text) !== -1) {
+        if (["false", "0", "no", "nein", "off", "disabled", "inactive", ""].indexOf(text) !== -1) {
           return false;
         }
 
@@ -364,8 +356,8 @@
     buildVariantId: function (options) {
       try {
         var config = options || {};
-        var profile = config.variantProfileId || config.variant_profile_id || "variant";
-        var base = fallbackUtils.slugify(profile.replace(/\./g, "_"), "variant");
+        var profile = config.variantProfileId || config.variant_profile_id || config.label || "variant";
+        var base = fallbackUtils.slugify(String(profile).replace(/\./g, "_"), "variant");
         var index = config.index || 1;
         return fallbackUtils.ensureUniqueId(base + "_" + String(index), config.existingIds || []);
       } catch (error) {
@@ -382,6 +374,30 @@
       return fallbackUtils.safeJsonStringify(value || {}, "{}");
     },
 
+    normalizeAdditionalFieldKeys: function (value) {
+      try {
+        var raw = value;
+
+        if (typeof raw === "string") {
+          var parsed = fallbackUtils.safeJsonParse(raw, null);
+
+          if (Array.isArray(parsed)) {
+            raw = parsed;
+          } else {
+            raw = raw.split(",");
+          }
+        }
+
+        return fallbackUtils.toArray(raw).map(function (item) {
+          return String(item || "").trim();
+        }).filter(function (item, index, array) {
+          return item && array.indexOf(item) === index;
+        });
+      } catch (error) {
+        return [];
+      }
+    },
+
     normalizeVariant: function (raw, options) {
       var variant = raw || {};
       var config = options || {};
@@ -389,22 +405,27 @@
 
       if (variant.definition_values_json) {
         values = fallbackUtils.valuesFromJson(variant.definition_values_json);
+      } else if (variant.definitionValuesJson) {
+        values = fallbackUtils.valuesFromJson(variant.definitionValuesJson);
       } else if (variant.values_json) {
         values = fallbackUtils.valuesFromJson(variant.values_json);
       } else if (variant.definition_values && typeof variant.definition_values === "object") {
         values = fallbackUtils.deepClone(variant.definition_values, {});
+      } else if (variant.definitionValues && typeof variant.definitionValues === "object") {
+        values = fallbackUtils.deepClone(variant.definitionValues, {});
       } else if (variant.values && typeof variant.values === "object") {
         values = fallbackUtils.deepClone(variant.values, {});
       }
 
       var id = variant.variant_id || variant.variantId || variant.slug || variant.id || values["variant.variant_id"] || "";
       var label = variant.label || variant.name || values["variant.label"] || "";
-      var isDefault = fallbackUtils.bool(variant.is_default || variant.default, false) || id === "default";
+      var description = variant.description || values["variant.description"] || "";
+      var isDefault = fallbackUtils.bool(variant.is_default || variant.isDefault || variant.default, false) || id === "default";
 
       if (!id) {
         id = isDefault ? "default" : fallbackUtils.buildVariantId({
           label: label,
-          variantProfileId: variant.variant_profile_id || config.variantProfileId || "",
+          variantProfileId: variant.variant_profile_id || variant.variantProfileId || config.variantProfileId || "",
           existingIds: config.existingIds || [],
           index: config.index || 1
         });
@@ -417,24 +438,43 @@
       values["variant.variant_id"] = id;
       values["variant.label"] = label;
 
-      if (variant.description || values["variant.description"]) {
-        values["variant.description"] = variant.description || values["variant.description"];
+      if (description) {
+        values["variant.description"] = description;
       }
+
+      var additionalFieldKeys = fallbackUtils.normalizeAdditionalFieldKeys(
+        variant.additional_field_keys ||
+        variant.additionalFieldKeys ||
+        variant.additional_fields ||
+        variant.additionalFields ||
+        []
+      );
 
       return {
         variant_id: id,
+        variantId: id,
         label: label,
         name: label,
         slug: id,
-        kind: variant.kind || variant.variant_kind || (isDefault ? "standard" : "profile"),
-        description: variant.description || values["variant.description"] || "",
+        kind: variant.kind || variant.variant_kind || variant.type || (isDefault ? "standard" : "profile"),
+        description: description,
         is_default: isDefault,
+        isDefault: isDefault,
         variant_profile_id: variant.variant_profile_id || variant.variantProfileId || config.variantProfileId || "",
+        variantProfileId: variant.variant_profile_id || variant.variantProfileId || config.variantProfileId || "",
         family_profile_id: variant.family_profile_id || variant.familyProfileId || config.familyProfileId || "",
-        definition_managed: fallbackUtils.bool(variant.definition_managed, !!Object.keys(values).length),
+        familyProfileId: variant.family_profile_id || variant.familyProfileId || config.familyProfileId || "",
+        definition_managed: fallbackUtils.bool(variant.definition_managed || variant.definitionManaged, !!Object.keys(values).length),
+        definitionManaged: fallbackUtils.bool(variant.definition_managed || variant.definitionManaged, !!Object.keys(values).length),
         definition_values: values,
+        definitionValues: values,
         definition_values_json: fallbackUtils.valuesToJson(values),
-        definition_summary: variant.definition_summary || variant.summary || "",
+        definitionValuesJson: fallbackUtils.valuesToJson(values),
+        additional_field_keys: additionalFieldKeys,
+        additionalFieldKeys: additionalFieldKeys.slice(),
+        definition_summary: variant.definition_summary || variant.definitionSummary || variant.summary || "",
+        definitionSummary: variant.definition_summary || variant.definitionSummary || variant.summary || "",
+        validation: variant.validation || null,
         raw: variant
       };
     },
@@ -451,8 +491,10 @@
 
         if (index === 0) {
           normalized.variant_id = "default";
+          normalized.variantId = "default";
           normalized.slug = "default";
           normalized.is_default = true;
+          normalized.isDefault = true;
           normalized.kind = "standard";
           normalized.definition_values["variant.variant_id"] = "default";
 
@@ -461,6 +503,9 @@
             normalized.name = "Standard";
             normalized.definition_values["variant.label"] = "Standard";
           }
+
+          normalized.definition_values_json = fallbackUtils.valuesToJson(normalized.definition_values);
+          normalized.definitionValuesJson = normalized.definition_values_json;
         }
 
         existing.push(normalized.variant_id);
@@ -496,10 +541,6 @@
     U().warn(message, error);
   }
 
-  /* ---------------------------------------------------------------------------
-   * Runtime state
-   * ------------------------------------------------------------------------ */
-
   var runtime = {
     initialized: false,
     globalEventsBound: false,
@@ -508,11 +549,13 @@
     syncInProgress: false,
     notifyInProgress: false,
     suppressedSyncCount: 0,
+    suppressedNotifyCount: 0,
     lastPayloadJson: "",
     lastDefaultVariantId: "",
     lastCount: -1,
     lastContextSignature: "",
     lastSyncedRevision: -1,
+    lastSyncSignature: "",
     lastSyncSnapshot: null,
     state: createEmptyState()
   };
@@ -540,15 +583,32 @@
       sync_meta: {
         last_synced_at: "",
         last_payload_json_length: 0,
-        suppressed_sync_count: 0
+        suppressed_sync_count: 0,
+        suppressed_notify_count: 0
       },
       variants: []
     };
   }
 
-  /* ---------------------------------------------------------------------------
-   * DOM cache / context
-   * ------------------------------------------------------------------------ */
+  function getFormRoot(explicitRoot) {
+    try {
+      if (explicitRoot && explicitRoot.nodeType === 1 && explicitRoot.tagName && explicitRoot.tagName.toLowerCase() === "form") {
+        return explicitRoot;
+      }
+
+      if (explicitRoot && explicitRoot.closest) {
+        var form = explicitRoot.closest("form");
+
+        if (form) {
+          return form;
+        }
+      }
+
+      return U().qs("[data-vp-create-form], [data-create-form='true'], #vp-create-form, form[data-create-form]");
+    } catch (error) {
+      return null;
+    }
+  }
 
   function getWorkspaceRoot(explicitRoot) {
     try {
@@ -562,6 +622,12 @@
         if (closest) {
           return closest;
         }
+
+        var nested = U().qs(WORKSPACE_SELECTOR, explicitRoot);
+
+        if (nested) {
+          return nested;
+        }
       }
 
       return U().qs(WORKSPACE_SELECTOR);
@@ -573,6 +639,10 @@
   function getTableRoot(root) {
     try {
       if (root) {
+        if (root.matches && root.matches(TABLE_SELECTOR)) {
+          return root;
+        }
+
         var table = U().qs(TABLE_SELECTOR, root);
 
         if (table) {
@@ -586,22 +656,84 @@
     }
   }
 
+  function ensureHiddenField(form, name, defaultValue, attrName) {
+    try {
+      if (!form || !name) {
+        return null;
+      }
+
+      var field = form.elements ? form.elements[name] : null;
+
+      if (!field || field.nodeType !== 1) {
+        field = U().qs("[name='" + cssEscape(name) + "']", form);
+      }
+
+      if (!field) {
+        field = document.createElement("input");
+        field.type = "hidden";
+        field.name = name;
+        field.value = defaultValue || "";
+        field.setAttribute("data-vp-created-by", GLOBAL_NAME);
+
+        if (attrName) {
+          field.setAttribute(attrName, "true");
+        }
+
+        form.appendChild(field);
+      }
+
+      if (field.value === "" && defaultValue !== undefined && defaultValue !== null) {
+        field.value = String(defaultValue);
+      }
+
+      return field;
+    } catch (error) {
+      warn("Could not ensure hidden field: " + name, error);
+      return null;
+    }
+  }
+
   function cacheDom(explicitRoot) {
     try {
       var workspace = getWorkspaceRoot(explicitRoot);
       var table = getTableRoot(workspace || explicitRoot);
+      var form = getFormRoot(workspace || table || explicitRoot);
+      var rows = table ? U().qsa(ROW_SELECTOR, table).filter(isUsableRow) : [];
+
+      var jsonField = workspace
+        ? U().qs(JSON_FIELD_SELECTOR, workspace)
+        : null;
+
+      if (!jsonField && form) {
+        jsonField = U().qs(JSON_FIELD_SELECTOR, form) ||
+          ensureHiddenField(form, "definition_variants_json", "[]", "data-vp-definition-variants-json");
+      }
+
+      if (!jsonField) {
+        jsonField = U().qs(JSON_FIELD_SELECTOR);
+      }
+
+      var defaultIdField = workspace
+        ? U().qs(DEFAULT_ID_FIELD_SELECTOR, workspace)
+        : null;
+
+      if (!defaultIdField && form) {
+        defaultIdField = U().qs(DEFAULT_ID_FIELD_SELECTOR, form) ||
+          ensureHiddenField(form, "default_variant_id", "default", "data-vp-definition-variants-default-id");
+      }
+
+      if (!defaultIdField) {
+        defaultIdField = U().qs(DEFAULT_ID_FIELD_SELECTOR);
+      }
 
       var cache = {
+        form: form,
         workspace: workspace,
         table: table,
-        tableBody: table ? U().qs("[data-vp-variant-table-body='true']", table) : null,
-        rows: table ? U().qsa(ROW_SELECTOR, table) : [],
-        jsonField: workspace
-          ? U().qs(JSON_FIELD_SELECTOR, workspace)
-          : U().qs(JSON_FIELD_SELECTOR),
-        defaultIdField: workspace
-          ? U().qs(DEFAULT_ID_FIELD_SELECTOR, workspace)
-          : U().qs(DEFAULT_ID_FIELD_SELECTOR),
+        tableBody: table ? U().qs("[data-vp-variant-table-body='true'], tbody", table) : null,
+        rows: rows,
+        jsonField: jsonField,
+        defaultIdField: defaultIdField,
         countLabel: workspace
           ? U().qs(COUNT_LABEL_SELECTOR, workspace)
           : U().qs(COUNT_LABEL_SELECTOR)
@@ -613,6 +745,7 @@
       warn("Could not cache variant state DOM.", error);
 
       runtime.cache = {
+        form: null,
         workspace: null,
         table: null,
         tableBody: null,
@@ -626,22 +759,47 @@
     }
   }
 
+  function isUsableRow(row) {
+    try {
+      if (!row) {
+        return false;
+      }
+
+      if (U().attr(row, "data-vp-variant-row-template", "") === "true") {
+        return false;
+      }
+
+      if (U().attr(row, "data-vp-row-template", "") === "true") {
+        return false;
+      }
+
+      if (U().attr(row, "data-create-variant-row-template", "") === "true") {
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   function readContext(cache) {
     try {
       var c = cache || runtime.cache || cacheDom();
       var workspace = c.workspace;
       var table = c.table;
+      var form = c.form;
 
       return {
         workspace_id: U().attr(workspace, "id", ""),
         table_id: U().attr(table, "id", ""),
-        domain: U().attr(workspace, "data-vp-current-domain", ""),
-        category: U().attr(workspace, "data-vp-current-category", ""),
-        subcategory: U().attr(workspace, "data-vp-current-subcategory", ""),
-        object_kind: U().attr(workspace, "data-vp-current-object-kind", "cell_block"),
-        family_profile_id: U().attr(workspace, "data-vp-current-family-profile-id", "") || U().attr(table, "data-vp-family-profile-id", ""),
-        variant_profile_id: U().attr(workspace, "data-vp-current-variant-profile-id", "") || U().attr(table, "data-vp-variant-profile-id", ""),
-        default_variant_id: U().attr(workspace, "data-vp-default-variant-id", "default") || U().attr(table, "data-vp-default-variant-id", "default") || "default"
+        domain: U().attr(workspace, "data-vp-current-domain", "") || getFieldByName(form, "domain", ""),
+        category: U().attr(workspace, "data-vp-current-category", "") || getFieldByName(form, "category", ""),
+        subcategory: U().attr(workspace, "data-vp-current-subcategory", "") || getFieldByName(form, "subcategory", ""),
+        object_kind: U().attr(workspace, "data-vp-current-object-kind", "cell_block") || getFieldByName(form, "object_kind", "cell_block") || "cell_block",
+        family_profile_id: U().attr(workspace, "data-vp-current-family-profile-id", "") || U().attr(table, "data-vp-family-profile-id", "") || getFieldByName(form, "family_profile_id", ""),
+        variant_profile_id: U().attr(workspace, "data-vp-current-variant-profile-id", "") || U().attr(table, "data-vp-variant-profile-id", "") || getFieldByName(form, "variant_profile_id", ""),
+        default_variant_id: U().attr(workspace, "data-vp-default-variant-id", "default") || U().attr(table, "data-vp-default-variant-id", "default") || getFieldByName(form, "default_variant_id", "default") || "default"
       };
     } catch (error) {
       warn("Could not read variant context.", error);
@@ -660,9 +818,40 @@
     }
   }
 
-  function getFieldValue(root, selector, fallback) {
+  function getFieldByName(form, name, fallback) {
     try {
-      var node = U().qs(selector, root);
+      if (!form || !name) {
+        return fallback || "";
+      }
+
+      var field = form.elements ? form.elements[name] : null;
+
+      if (!field || field.nodeType !== 1) {
+        field = U().qs("[name='" + cssEscape(name) + "']", form);
+      }
+
+      if (!field || typeof field.value === "undefined") {
+        return fallback || "";
+      }
+
+      return field.value || fallback || "";
+    } catch (error) {
+      return fallback || "";
+    }
+  }
+
+  function getFieldValue(root, selectors, fallback) {
+    try {
+      var selectorList = U().toArray(selectors);
+      var node = null;
+
+      for (var index = 0; index < selectorList.length; index += 1) {
+        node = U().qs(selectorList[index], root);
+
+        if (node) {
+          break;
+        }
+      }
 
       if (!node) {
         return fallback || "";
@@ -685,42 +874,91 @@
   function readRows(cache) {
     try {
       var c = cache || runtime.cache || cacheDom();
-      var rows = c.rows && c.rows.length ? c.rows : U().qsa(ROW_SELECTOR, c.table || document);
+      var rows = c.rows && c.rows.length ? c.rows : U().qsa(ROW_SELECTOR, c.table || document).filter(isUsableRow);
 
       return rows.map(function (row, index) {
         var variantId = U().attr(row, "data-vp-variant-id", "") ||
           U().attr(row, "data-vp-definition-variant-id", "") ||
-          getFieldValue(row, "[data-vp-variant-slug]", "");
+          getFieldValue(row, [
+            "[data-vp-variant-slug]",
+            "[data-vp-row-variant-id]",
+            "[data-vp-row-variant-slug]",
+            "[name$='[variant_id]']",
+            "[name$='[slug]']"
+          ], "");
 
         var label = U().attr(row, "data-vp-variant-label", "") ||
-          getFieldValue(row, "[data-vp-variant-name]", "") ||
-          getFieldValue(row, "[data-vp-variant-row-display-name='true']", "");
+          getFieldValue(row, [
+            "[data-vp-variant-name]",
+            "[data-vp-variant-row-display-name='true']",
+            "[data-vp-row-display-name]",
+            "[name$='[name]']",
+            "[name$='[label]']"
+          ], "");
 
         var profileId = U().attr(row, "data-vp-variant-profile-id", "") ||
           U().attr(row, "data-vp-definition-variant-profile-id", "") ||
-          getFieldValue(row, "[data-vp-row-variant-profile-id]", "");
+          getFieldValue(row, [
+            "[data-vp-row-variant-profile-id]",
+            "[name$='[variant_profile_id]']"
+          ], "");
 
-        var valuesJson = getFieldValue(row, "[data-vp-row-definition-values-json]", "");
-        var summary = getFieldValue(row, "[data-vp-row-definition-summary-input]", "") ||
-          getFieldValue(row, "[data-vp-row-definition-summary='true']", "");
+        var valuesJson = getFieldValue(row, [
+          "[data-vp-row-definition-values-json]",
+          "[name$='[definition_values_json]']"
+        ], "");
+
+        var summary = getFieldValue(row, [
+          "[data-vp-row-definition-summary-input]",
+          "[data-vp-row-definition-summary='true']",
+          "[name$='[definition_summary]']"
+        ], "");
+
+        var additionalFieldKeys = getFieldValue(row, [
+          "[data-vp-row-additional-field-keys]",
+          "[name$='[additional_field_keys]']"
+        ], "");
+
+        var isDefault = U().bool(U().attr(row, "data-vp-is-default", ""), false) ||
+          getFieldValue(row, [
+            "[data-vp-row-is-default]",
+            "[name$='[is_default]']"
+          ], "") === "true" ||
+          index === 0;
 
         return {
-          variant_id: variantId || (index === 0 ? "default" : "variant_" + String(index)),
+          variant_id: variantId || (index === 0 ? "default" : "variant_" + String(index + 1)),
+          variantId: variantId || (index === 0 ? "default" : "variant_" + String(index + 1)),
           label: label || (index === 0 ? "Standard" : "Neue Variante"),
           name: label || (index === 0 ? "Standard" : "Neue Variante"),
-          slug: variantId || (index === 0 ? "default" : "variant_" + String(index)),
-          kind: getFieldValue(row, "[data-vp-row-variant-kind]", index === 0 ? "standard" : "profile"),
-          description: getFieldValue(row, "[data-vp-row-variant-description]", ""),
-          is_default: U().bool(U().attr(row, "data-vp-is-default", ""), false) ||
-            getFieldValue(row, "[data-vp-row-is-default]", "") === "true" ||
-            index === 0,
+          slug: variantId || (index === 0 ? "default" : "variant_" + String(index + 1)),
+          kind: getFieldValue(row, [
+            "[data-vp-row-variant-kind]",
+            "[name$='[kind]']"
+          ], index === 0 ? "standard" : "profile"),
+          description: getFieldValue(row, [
+            "[data-vp-row-variant-description]",
+            "[name$='[description]']"
+          ], ""),
+          is_default: isDefault,
+          isDefault: isDefault,
           variant_profile_id: profileId,
+          variantProfileId: profileId,
           family_profile_id: U().attr(row, "data-vp-family-profile-id", ""),
+          familyProfileId: U().attr(row, "data-vp-family-profile-id", ""),
           definition_values_json: valuesJson,
+          definitionValuesJson: valuesJson,
           definition_values: U().valuesFromJson(valuesJson),
+          definitionValues: U().valuesFromJson(valuesJson),
           definition_summary: summary || (index === 0 ? "Standardvariante" : ""),
+          definitionSummary: summary || (index === 0 ? "Standardvariante" : ""),
           definition_managed: U().bool(U().attr(row, "data-vp-definition-managed", ""), false) ||
-            getFieldValue(row, "[data-vp-row-definition-managed]", "") === "true"
+            getFieldValue(row, [
+              "[data-vp-row-definition-managed]",
+              "[name$='[definition_managed]']"
+            ], "") === "true",
+          additional_field_keys: normalizeAdditionalFieldKeys(additionalFieldKeys),
+          additionalFieldKeys: normalizeAdditionalFieldKeys(additionalFieldKeys)
         };
       });
     } catch (error) {
@@ -752,6 +990,14 @@
         return parsed.variants;
       }
 
+      if (parsed && Array.isArray(parsed.definition_variants)) {
+        return parsed.definition_variants;
+      }
+
+      if (parsed && Array.isArray(parsed.definitionVariants)) {
+        return parsed.definitionVariants;
+      }
+
       return [];
     } catch (error) {
       warn("Could not read definition_variants_json.", error);
@@ -780,10 +1026,6 @@
     }
   }
 
-  /* ---------------------------------------------------------------------------
-   * Normalization / serialization
-   * ------------------------------------------------------------------------ */
-
   function getExistingIds(exceptVariantId) {
     try {
       return runtime.state.variants
@@ -798,13 +1040,44 @@
     }
   }
 
+  function normalizeAdditionalFieldKeys(value) {
+    try {
+      if (U().normalizeAdditionalFieldKeys) {
+        return U().normalizeAdditionalFieldKeys(value);
+      }
+
+      var raw = value;
+
+      if (typeof raw === "string") {
+        var parsed = U().safeJsonParse(raw, null);
+
+        if (Array.isArray(parsed)) {
+          raw = parsed;
+        } else {
+          raw = raw.split(",");
+        }
+      }
+
+      return U().toArray(raw).map(function (item) {
+        return String(item || "").trim();
+      }).filter(function (item, index, array) {
+        return item && array.indexOf(item) === index;
+      });
+    } catch (error) {
+      return [];
+    }
+  }
+
   function normalizeVariant(raw, options) {
     try {
       var context = runtime.state.context || {};
+      var rawId = raw && (raw.variant_id || raw.variantId || raw.slug || raw.id);
       var config = U().safeMerge({
         familyProfileId: context.family_profile_id,
+        family_profile_id: context.family_profile_id,
         variantProfileId: context.variant_profile_id,
-        existingIds: getExistingIds(raw && (raw.variant_id || raw.variantId || raw.slug || raw.id)),
+        variant_profile_id: context.variant_profile_id,
+        existingIds: getExistingIds(rawId),
         index: runtime.state.variants.length + 1
       }, options || {});
 
@@ -812,14 +1085,16 @@
 
       if (!variant.variant_profile_id && context.variant_profile_id) {
         variant.variant_profile_id = context.variant_profile_id;
+        variant.variantProfileId = context.variant_profile_id;
       }
 
       if (!variant.family_profile_id && context.family_profile_id) {
         variant.family_profile_id = context.family_profile_id;
+        variant.familyProfileId = context.family_profile_id;
       }
 
       if (!variant.definition_values || typeof variant.definition_values !== "object") {
-        variant.definition_values = {};
+        variant.definition_values = U().valuesFromJson(variant.definition_values_json);
       }
 
       variant.definition_values["variant.variant_id"] = variant.variant_id;
@@ -829,18 +1104,20 @@
         variant.definition_values["variant.description"] = variant.description;
       }
 
+      variant.definitionValues = variant.definition_values;
       variant.additional_field_keys = normalizeAdditionalFieldKeys(
         variant.additional_field_keys ||
         variant.additionalFieldKeys ||
-        raw.additional_field_keys ||
-        raw.additionalFieldKeys ||
-        raw.additional_fields ||
-        raw.additionalFields ||
+        raw && raw.additional_field_keys ||
+        raw && raw.additionalFieldKeys ||
+        raw && raw.additional_fields ||
+        raw && raw.additionalFields ||
         []
       );
       variant.additionalFieldKeys = variant.additional_field_keys.slice();
 
       variant.definition_values_json = U().valuesToJson(variant.definition_values);
+      variant.definitionValuesJson = variant.definition_values_json;
 
       return variant;
     } catch (error) {
@@ -857,7 +1134,9 @@
     try {
       var options = {
         familyProfileId: context && context.family_profile_id ? context.family_profile_id : "",
-        variantProfileId: context && context.variant_profile_id ? context.variant_profile_id : ""
+        family_profile_id: context && context.family_profile_id ? context.family_profile_id : "",
+        variantProfileId: context && context.variant_profile_id ? context.variant_profile_id : "",
+        variant_profile_id: context && context.variant_profile_id ? context.variant_profile_id : ""
       };
 
       var variants = U().normalizeVariants(rawVariants || [], options);
@@ -884,10 +1163,13 @@
           slug: "default",
           kind: "standard",
           is_default: true,
+          isDefault: true,
           definition_values: {
             "variant.variant_id": "default",
             "variant.label": "Standard"
           },
+          additional_field_keys: [],
+          additionalFieldKeys: [],
           definition_summary: "Standardvariante"
         });
       }
@@ -895,17 +1177,19 @@
       list.forEach(function (variant, index) {
         var normalized = U().deepClone(variant, {});
 
-        if (index === 0 || normalized.variant_id === "default" || normalized.is_default === true) {
+        if (index === 0 || normalized.variant_id === "default" || normalized.is_default === true || normalized.isDefault === true) {
           if (!defaultSeen) {
             normalized.variant_id = "default";
+            normalized.variantId = "default";
             normalized.slug = "default";
             normalized.is_default = true;
+            normalized.isDefault = true;
             normalized.kind = "standard";
             normalized.label = normalized.label || normalized.name || "Standard";
             normalized.name = normalized.label;
 
             if (!normalized.definition_values || typeof normalized.definition_values !== "object") {
-              normalized.definition_values = {};
+              normalized.definition_values = U().valuesFromJson(normalized.definition_values_json);
             }
 
             normalized.definition_values["variant.variant_id"] = "default";
@@ -914,23 +1198,31 @@
             defaultSeen = true;
           } else {
             normalized.is_default = false;
+            normalized.isDefault = false;
 
             if (normalized.variant_id === "default") {
               normalized.variant_id = U().ensureUniqueId("variant", output.map(function (item) {
                 return item.variant_id;
               }));
+              normalized.variantId = normalized.variant_id;
               normalized.slug = normalized.variant_id;
             }
           }
         } else {
           normalized.is_default = false;
+          normalized.isDefault = false;
         }
 
         if (!normalized.variant_id) {
           normalized.variant_id = U().ensureUniqueId("variant_" + String(index + 1), output.map(function (item) {
             return item.variant_id;
           }));
+          normalized.variantId = normalized.variant_id;
           normalized.slug = normalized.variant_id;
+        }
+
+        if (!normalized.variantId) {
+          normalized.variantId = normalized.variant_id;
         }
 
         if (!normalized.slug) {
@@ -956,6 +1248,7 @@
           normalized.definition_values["variant.description"] = normalized.description;
         }
 
+        normalized.definitionValues = normalized.definition_values;
         normalized.additional_field_keys = normalizeAdditionalFieldKeys(
           normalized.additional_field_keys ||
           normalized.additionalFieldKeys ||
@@ -966,14 +1259,17 @@
         normalized.additionalFieldKeys = normalized.additional_field_keys.slice();
 
         normalized.definition_values_json = U().valuesToJson(normalized.definition_values);
+        normalized.definitionValuesJson = normalized.definition_values_json;
 
         output.push(normalized);
       });
 
       if (!defaultSeen && output.length) {
         output[0].variant_id = "default";
+        output[0].variantId = "default";
         output[0].slug = "default";
         output[0].is_default = true;
+        output[0].isDefault = true;
         output[0].kind = "standard";
         output[0].label = output[0].label || "Standard";
         output[0].name = output[0].label;
@@ -984,9 +1280,11 @@
 
         output[0].definition_values["variant.variant_id"] = "default";
         output[0].definition_values["variant.label"] = output[0].label;
+        output[0].definitionValues = output[0].definition_values;
         output[0].additional_field_keys = normalizeAdditionalFieldKeys(output[0].additional_field_keys || output[0].additionalFieldKeys || []);
         output[0].additionalFieldKeys = output[0].additional_field_keys.slice();
         output[0].definition_values_json = U().valuesToJson(output[0].definition_values);
+        output[0].definitionValuesJson = output[0].definition_values_json;
       }
 
       return output;
@@ -995,22 +1293,33 @@
 
       return [{
         variant_id: "default",
+        variantId: "default",
         label: "Standard",
         name: "Standard",
         slug: "default",
         kind: "standard",
         is_default: true,
+        isDefault: true,
         variant_profile_id: "",
+        variantProfileId: "",
         family_profile_id: "",
+        familyProfileId: "",
         definition_managed: false,
+        definitionManaged: false,
         definition_values: {
           "variant.variant_id": "default",
           "variant.label": "Standard"
         },
+        definitionValues: {
+          "variant.variant_id": "default",
+          "variant.label": "Standard"
+        },
         definition_values_json: "{\"variant.variant_id\":\"default\",\"variant.label\":\"Standard\"}",
+        definitionValuesJson: "{\"variant.variant_id\":\"default\",\"variant.label\":\"Standard\"}",
         additional_field_keys: [],
         additionalFieldKeys: [],
-        definition_summary: "Standardvariante"
+        definition_summary: "Standardvariante",
+        definitionSummary: "Standardvariante"
       }];
     }
   }
@@ -1060,7 +1369,8 @@
         additional_field_keys: additionalFieldKeys,
         additionalFieldKeys: additionalFieldKeys.slice(),
         definition_summary: copy.definition_summary || "",
-        definitionSummary: copy.definition_summary || ""
+        definitionSummary: copy.definition_summary || "",
+        validation: copy.validation || null
       };
     } catch (error) {
       warn("Could not serialize variant.", error);
@@ -1070,7 +1380,9 @@
 
   function serializeVariants(variants) {
     try {
-      return U().toArray(variants).map(serializeVariant);
+      return U().toArray(variants).map(serializeVariant).filter(function (variant) {
+        return !!variant.variant_id;
+      });
     } catch (error) {
       return [];
     }
@@ -1092,10 +1404,6 @@
       return "[]";
     }
   }
-
-  /* ---------------------------------------------------------------------------
-   * State mutation
-   * ------------------------------------------------------------------------ */
 
   function bumpRevision(source) {
     try {
@@ -1131,7 +1439,8 @@
         notify("context", {
           context: next
         }, {
-          source: config.source || "context"
+          source: config.source || "context",
+          forceEvent: config.forceEvent === true
         });
       }
 
@@ -1146,6 +1455,17 @@
     try {
       var config = options || {};
       var normalized = normalizeVariants(variants || [], runtime.state.context || {});
+      var previousSignature = variantsSignature(runtime.state.variants);
+      var nextSignature = variantsSignature(normalized);
+
+      if (previousSignature === nextSignature && config.force !== true) {
+        sync({
+          source: config.source || "set_variants_noop",
+          emitNativeEvents: false,
+          forceEvent: false
+        });
+        return runtime.state.variants;
+      }
 
       runtime.state.variants = normalized;
 
@@ -1161,6 +1481,9 @@
 
       notify("set_variants", {
         variants: getPayload()
+      }, {
+        source: config.source || "set_variants",
+        forceEvent: config.forceEvent === true
       });
 
       return runtime.state.variants;
@@ -1197,7 +1520,7 @@
       for (var index = 0; index < runtime.state.variants.length; index += 1) {
         var variant = runtime.state.variants[index];
 
-        if (variant.variant_id === id || variant.slug === id || variant.id === id) {
+        if (variant.variant_id === id || variant.variantId === id || variant.slug === id || variant.id === id) {
           return index;
         }
       }
@@ -1243,16 +1566,21 @@
         existingIds: existingIds,
         index: runtime.state.variants.length + 1,
         familyProfileId: runtime.state.context.family_profile_id,
-        variantProfileId: runtime.state.context.variant_profile_id
+        family_profile_id: runtime.state.context.family_profile_id,
+        variantProfileId: runtime.state.context.variant_profile_id,
+        variant_profile_id: runtime.state.context.variant_profile_id
       });
 
       if (!runtime.state.variants.length) {
         variant.variant_id = "default";
+        variant.variantId = "default";
         variant.slug = "default";
         variant.is_default = true;
+        variant.isDefault = true;
         variant.kind = "standard";
       } else {
         variant.is_default = false;
+        variant.isDefault = false;
 
         if (!variant.variant_id || existingIds.indexOf(variant.variant_id) !== -1) {
           variant.variant_id = U().buildVariantId({
@@ -1261,13 +1589,18 @@
             existingIds: existingIds,
             index: runtime.state.variants.length + 1
           });
+          variant.variantId = variant.variant_id;
           variant.slug = variant.variant_id;
         }
       }
 
       variant.definition_values["variant.variant_id"] = variant.variant_id;
       variant.definition_values["variant.label"] = variant.label;
+      variant.definitionValues = variant.definition_values;
       variant.definition_values_json = U().valuesToJson(variant.definition_values);
+      variant.definitionValuesJson = variant.definition_values_json;
+      variant.additional_field_keys = normalizeAdditionalFieldKeys(variant.additional_field_keys || variant.additionalFieldKeys || []);
+      variant.additionalFieldKeys = variant.additional_field_keys.slice();
 
       runtime.state.variants.push(variant);
       runtime.state.variants = ensureDefaultVariant(runtime.state.variants);
@@ -1275,7 +1608,8 @@
       bumpRevision(config.source || "add_variant");
       sync({
         source: config.source || "add_variant",
-        emitNativeEvents: config.emitNativeEvents === true
+        emitNativeEvents: config.emitNativeEvents === true,
+        forceEvent: config.forceEvent === true
       });
 
       var payload = serializeVariant(variant);
@@ -1283,6 +1617,9 @@
       notify("add_variant", {
         variant: payload,
         variants: getPayload()
+      }, {
+        source: config.source || "add_variant",
+        forceEvent: config.forceEvent === true
       });
 
       U().dispatchDocument("vectoplan:create:variant-added", {
@@ -1312,7 +1649,7 @@
       if (index < 0) {
         if (config.upsert !== false) {
           return addVariant(patch || target || {}, U().safeMerge(config, {
-            source: "upsert_add"
+            source: config.source || "upsert_add"
           }));
         }
 
@@ -1324,6 +1661,14 @@
 
       if (update.definition_values_json && !update.definition_values) {
         update.definition_values = U().valuesFromJson(update.definition_values_json);
+      }
+
+      if (update.definitionValuesJson && !update.definition_values) {
+        update.definition_values = U().valuesFromJson(update.definitionValuesJson);
+      }
+
+      if (update.definitionValues && !update.definition_values) {
+        update.definition_values = update.definitionValues;
       }
 
       var mergedValues = U().safeMerge(
@@ -1348,26 +1693,42 @@
 
       if (index === 0 || current.variant_id === "default") {
         next.variant_id = "default";
+        next.variantId = "default";
         next.slug = "default";
         next.is_default = true;
+        next.isDefault = true;
         next.kind = "standard";
       } else if (update.variant_id && config.allowIdChange === true) {
         next.variant_id = U().ensureUniqueId(update.variant_id, getExistingIds(current.variant_id));
+        next.variantId = next.variant_id;
         next.slug = next.variant_id;
       } else {
         next.variant_id = current.variant_id;
+        next.variantId = current.variant_id;
         next.slug = current.slug || current.variant_id;
       }
 
       next.definition_values["variant.variant_id"] = next.variant_id;
       next.definition_values["variant.label"] = next.label || "Neue Variante";
+
+      next.additional_field_keys = normalizeAdditionalFieldKeys(
+        update.additional_field_keys ||
+        update.additionalFieldKeys ||
+        next.additional_field_keys ||
+        next.additionalFieldKeys ||
+        []
+      );
+      next.additionalFieldKeys = next.additional_field_keys.slice();
       next.definition_values_json = U().valuesToJson(next.definition_values);
+      next.definitionValuesJson = next.definition_values_json;
 
       runtime.state.variants[index] = normalizeVariant(next, {
         existingIds: getExistingIds(next.variant_id),
         index: index + 1,
         familyProfileId: runtime.state.context.family_profile_id,
-        variantProfileId: runtime.state.context.variant_profile_id
+        family_profile_id: runtime.state.context.family_profile_id,
+        variantProfileId: runtime.state.context.variant_profile_id,
+        variant_profile_id: runtime.state.context.variant_profile_id
       });
 
       runtime.state.variants = ensureDefaultVariant(runtime.state.variants);
@@ -1375,7 +1736,8 @@
       bumpRevision(config.source || "update_variant");
       sync({
         source: config.source || "update_variant",
-        emitNativeEvents: config.emitNativeEvents === true
+        emitNativeEvents: config.emitNativeEvents === true,
+        forceEvent: config.forceEvent === true
       });
 
       var payload = serializeVariant(runtime.state.variants[index]);
@@ -1383,6 +1745,9 @@
       notify("update_variant", {
         variant: payload,
         variants: getPayload()
+      }, {
+        source: config.source || "update_variant",
+        forceEvent: config.forceEvent === true
       });
 
       U().dispatchDocument("vectoplan:create:variant-updated", {
@@ -1412,12 +1777,12 @@
       if (index >= 0) {
         return updateVariant(index, data, U().safeMerge(options || {}, {
           upsert: false,
-          source: "upsert_update"
+          source: options && options.source ? options.source : "upsert_update"
         }));
       }
 
       return addVariant(data, U().safeMerge(options || {}, {
-        source: "upsert_add"
+        source: options && options.source ? options.source : "upsert_add"
       }));
     } catch (error) {
       warn("Could not upsert variant.", error);
@@ -1461,12 +1826,16 @@
       bumpRevision(config.source || "remove_variant");
       sync({
         source: config.source || "remove_variant",
-        emitNativeEvents: config.emitNativeEvents === true
+        emitNativeEvents: config.emitNativeEvents === true,
+        forceEvent: config.forceEvent === true
       });
 
       notify("remove_variant", {
         variant: serializeVariant(variant),
         variants: getPayload()
+      }, {
+        source: config.source || "remove_variant",
+        forceEvent: config.forceEvent === true
       });
 
       U().dispatchDocument("vectoplan:create:variant-removed", {
@@ -1551,59 +1920,38 @@
 
       runtime.state.variants.forEach(function (variant, variantIndex) {
         variant.is_default = variantIndex === index;
+        variant.isDefault = variantIndex === index;
       });
 
       runtime.state.variants[index].variant_id = "default";
+      runtime.state.variants[index].variantId = "default";
       runtime.state.variants[index].slug = "default";
       runtime.state.variants[index].kind = "standard";
       runtime.state.variants[index].definition_values["variant.variant_id"] = "default";
       runtime.state.variants[index].definition_values_json = U().valuesToJson(runtime.state.variants[index].definition_values);
+      runtime.state.variants[index].definitionValuesJson = runtime.state.variants[index].definition_values_json;
 
       runtime.state.variants = ensureDefaultVariant(runtime.state.variants);
 
       bumpRevision("set_default_variant");
       sync({
         source: "set_default_variant",
-        emitNativeEvents: config.emitNativeEvents === true
+        emitNativeEvents: config.emitNativeEvents === true,
+        forceEvent: config.forceEvent === true
       });
 
       notify("set_default_variant", {
         variant: serializeVariant(runtime.state.variants[index]),
         variants: getPayload()
+      }, {
+        source: "set_default_variant",
+        forceEvent: config.forceEvent === true
       });
 
       return true;
     } catch (error) {
       warn("Could not set default variant.", error);
       return false;
-    }
-  }
-
-  /* ---------------------------------------------------------------------------
-   * Sync
-   * ------------------------------------------------------------------------ */
-
-  function normalizeAdditionalFieldKeys(value) {
-    try {
-      var raw = value;
-
-      if (typeof raw === "string") {
-        var parsed = U().safeJsonParse(raw, null);
-
-        if (Array.isArray(parsed)) {
-          raw = parsed;
-        } else {
-          raw = raw.split(",");
-        }
-      }
-
-      return U().toArray(raw).map(function (item) {
-        return String(item || "").trim();
-      }).filter(function (item, index, array) {
-        return item && array.indexOf(item) === index;
-      });
-    } catch (error) {
-      return [];
     }
   }
 
@@ -1627,6 +1975,23 @@
     }
   }
 
+  function variantsSignature(variants) {
+    try {
+      return U().safeJsonStringify(serializeVariants(variants || []), "[]", 0);
+    } catch (error) {
+      return String(Date.now());
+    }
+  }
+
+  function syncSignature(payloadJson, contextSignatureValue, count, defaultId) {
+    return [
+      payloadJson || "",
+      contextSignatureValue || "",
+      String(count || 0),
+      defaultId || ""
+    ].join("::::");
+  }
+
   function syncJsonField(cache, options) {
     try {
       var config = options || {};
@@ -1648,6 +2013,7 @@
 
       U().setAttr(field, "data-vp-last-state-sync", Date.now());
       U().setAttr(field, "data-vp-last-state-sync-source", config.source || "variant_state");
+      U().setAttr(field, "data-vp-state-sync-version", COMPONENT_VERSION);
 
       if (config.emitNativeEvents === true) {
         U().dispatchNative(field, "input", {
@@ -1763,32 +2129,31 @@
       runtime.lastContextSignature = signature;
 
       if (c.workspace) {
-        if (U().attr(c.workspace, "data-vp-current-family-profile-id", "") !== (context.family_profile_id || "")) {
-          U().setAttr(c.workspace, "data-vp-current-family-profile-id", context.family_profile_id || "");
-          changed = true;
-        }
-
-        if (U().attr(c.workspace, "data-vp-current-variant-profile-id", "") !== (context.variant_profile_id || "")) {
-          U().setAttr(c.workspace, "data-vp-current-variant-profile-id", context.variant_profile_id || "");
-          changed = true;
-        }
-
-        if (U().attr(c.workspace, "data-vp-current-object-kind", "") !== (context.object_kind || "cell_block")) {
-          U().setAttr(c.workspace, "data-vp-current-object-kind", context.object_kind || "cell_block");
-          changed = true;
-        }
+        [
+          ["data-vp-current-domain", context.domain || ""],
+          ["data-vp-current-category", context.category || ""],
+          ["data-vp-current-subcategory", context.subcategory || ""],
+          ["data-vp-current-family-profile-id", context.family_profile_id || ""],
+          ["data-vp-current-variant-profile-id", context.variant_profile_id || ""],
+          ["data-vp-current-object-kind", context.object_kind || "cell_block"]
+        ].forEach(function (item) {
+          if (U().attr(c.workspace, item[0], "") !== item[1]) {
+            U().setAttr(c.workspace, item[0], item[1]);
+            changed = true;
+          }
+        });
       }
 
       if (c.table) {
-        if (U().attr(c.table, "data-vp-family-profile-id", "") !== (context.family_profile_id || "")) {
-          U().setAttr(c.table, "data-vp-family-profile-id", context.family_profile_id || "");
-          changed = true;
-        }
-
-        if (U().attr(c.table, "data-vp-variant-profile-id", "") !== (context.variant_profile_id || "")) {
-          U().setAttr(c.table, "data-vp-variant-profile-id", context.variant_profile_id || "");
-          changed = true;
-        }
+        [
+          ["data-vp-family-profile-id", context.family_profile_id || ""],
+          ["data-vp-variant-profile-id", context.variant_profile_id || ""]
+        ].forEach(function (item) {
+          if (U().attr(c.table, item[0], "") !== item[1]) {
+            U().setAttr(c.table, item[0], item[1]);
+            changed = true;
+          }
+        });
       }
 
       return changed;
@@ -1811,16 +2176,25 @@
       runtime.syncInProgress = true;
 
       var cache = cacheDom(config.root || null);
+      var payloadJsonBefore = runtime.lastPayloadJson || "";
       var changedJson = syncJsonField(cache, config);
       var changedDefault = syncDefaultIdField(cache, config);
       var changedCount = syncCounts(cache);
       var changedContext = syncContextAttrs(cache);
-      var changed = !!(changedJson || changedDefault || changedCount || changedContext);
-      var shouldDispatch = config.forceEvent === true || changed || runtime.lastSyncedRevision !== runtime.state.revision;
+      var payloadJson = runtime.lastPayloadJson || getPayloadJson();
+      var contextSig = runtime.lastContextSignature || contextSignature(runtime.state.context);
+      var defaultId = runtime.lastDefaultVariantId || "default";
+      var signature = syncSignature(payloadJson, contextSig, runtime.state.variants.length, defaultId);
+      var changed = !!(changedJson || changedDefault || changedCount || changedContext || payloadJsonBefore !== payloadJson || runtime.lastSyncSignature !== signature);
+      var shouldDispatch = config.forceEvent === true ||
+        changed ||
+        runtime.lastSyncedRevision !== runtime.state.revision;
 
+      runtime.lastSyncSignature = signature;
       runtime.state.sync_meta.last_synced_at = U().nowIso ? U().nowIso() : "";
-      runtime.state.sync_meta.last_payload_json_length = runtime.lastPayloadJson ? runtime.lastPayloadJson.length : 0;
+      runtime.state.sync_meta.last_payload_json_length = payloadJson ? payloadJson.length : 0;
       runtime.state.sync_meta.suppressed_sync_count = runtime.suppressedSyncCount;
+      runtime.state.sync_meta.suppressed_notify_count = runtime.suppressedNotifyCount;
 
       if (shouldDispatch && config.dispatchEvent !== false) {
         runtime.lastSyncedRevision = runtime.state.revision;
@@ -1860,10 +2234,6 @@
     }
   }
 
-  /* ---------------------------------------------------------------------------
-   * Notify / subscriptions
-   * ------------------------------------------------------------------------ */
-
   function getState() {
     try {
       return U().deepClone(runtime.state, {});
@@ -1877,6 +2247,8 @@
       var config = options || {};
 
       if (runtime.notifyInProgress) {
+        runtime.suppressedNotifyCount += 1;
+        runtime.state.sync_meta.suppressed_notify_count = runtime.suppressedNotifyCount;
         return false;
       }
 
@@ -1938,15 +2310,28 @@
     }
   }
 
-  /* ---------------------------------------------------------------------------
-   * Initialization
-   * ------------------------------------------------------------------------ */
-
   function initialize(explicitRoot, options) {
     try {
       var config = options || {};
       var cache = cacheDom(explicitRoot || null);
       var context = readContext(cache);
+
+      if (runtime.initialized && config.force !== true && config.reinitialize !== true) {
+        runtime.cache = cache;
+        setContext(context, {
+          source: config.source || "initialize_existing",
+          emitNativeEvents: false,
+          forceEvent: false
+        });
+        sync({
+          root: explicitRoot || null,
+          source: config.source || "initialize_existing",
+          emitNativeEvents: false,
+          forceEvent: false
+        });
+        return getState();
+      }
+
       var initialVariants = readInitialVariants(cache);
       var variants = normalizeVariants(initialVariants, context);
 
@@ -1957,14 +2342,13 @@
       runtime.state.source = config.source || "dom";
       runtime.state.context = context;
       runtime.state.variants = variants;
-
       runtime.initialized = true;
 
       sync({
         root: explicitRoot || null,
         source: config.source || "initialize",
         emitNativeEvents: config.emitNativeEvents === true,
-        forceEvent: false
+        forceEvent: config.forceEvent === true
       });
 
       document.documentElement.setAttribute(READY_ATTR, "true");
@@ -2004,17 +2388,14 @@
   function reload(options) {
     try {
       return initialize(null, U().safeMerge(options || {}, {
-        source: "reload"
+        source: "reload",
+        force: true
       }));
     } catch (error) {
       warn("Could not reload variant state.", error);
       return getState();
     }
   }
-
-  /* ---------------------------------------------------------------------------
-   * Event handling
-   * ------------------------------------------------------------------------ */
 
   function extractVariantFromEvent(detail) {
     try {
@@ -2055,7 +2436,8 @@
           var variant = extractVariantFromEvent(detail);
 
           upsertVariant(variant, {
-            source: "event_upsert"
+            source: detail.source || "event_upsert",
+            forceEvent: detail.forceEvent === true
           });
         } catch (error) {
           warn("Upsert event failed.", error);
@@ -2073,7 +2455,8 @@
           var target = detail.variant_id || detail.variantId || detail.slug || detail.id || detail.rowIndex || detail;
 
           removeVariant(target, {
-            source: "event_remove"
+            source: detail.source || "event_remove",
+            forceEvent: detail.forceEvent === true
           });
         } catch (error) {
           warn("Remove event failed.", error);
@@ -2091,7 +2474,8 @@
           var target = detail.variant_id || detail.variantId || detail.slug || detail.id || detail.rowIndex || detail;
 
           removeVariant(target, {
-            source: "table_remove_request"
+            source: detail.source || "table_remove_request",
+            forceEvent: detail.forceEvent === true
           });
         } catch (error) {
           warn("Table remove request failed.", error);
@@ -2117,8 +2501,9 @@
               family_profile_id: familyProfileId || runtime.state.context.family_profile_id,
               variant_profile_id: variantProfileId || runtime.state.context.variant_profile_id
             }, {
-              source: "profile_resolved",
-              emitNativeEvents: false
+              source: detail.source || "profile_resolved",
+              emitNativeEvents: false,
+              forceEvent: false
             });
           }
         } catch (error) {
@@ -2126,19 +2511,43 @@
         }
       });
 
+      document.addEventListener("vectoplan:create:context-synced", function (event) {
+        try {
+          var detail = event && event.detail ? event.detail : {};
+          var context = detail.context || {};
+
+          if (!context || detail.__vp_variant_state_event) {
+            return;
+          }
+
+          setContext({
+            domain: context.domain || runtime.state.context.domain,
+            category: context.category || runtime.state.context.category,
+            subcategory: context.subcategory || runtime.state.context.subcategory,
+            object_kind: context.object_kind || context.objectKind || runtime.state.context.object_kind,
+            family_profile_id: context.family_profile_id || context.familyProfileId || runtime.state.context.family_profile_id,
+            variant_profile_id: context.variant_profile_id || context.variantProfileId || runtime.state.context.variant_profile_id
+          }, {
+            source: detail.source || "context_synced",
+            emitNativeEvents: false,
+            forceEvent: false
+          });
+        } catch (error) {
+          warn("Context synced update failed.", error);
+        }
+      });
+
       document.addEventListener("vectoplan:create:variant-workspace-ready", function (event) {
         try {
-          if (!runtime.initialized) {
-            var detail = event && event.detail ? event.detail : {};
-            var root = detail && detail.context && detail.context.id
-              ? document.getElementById(detail.context.id)
-              : null;
+          var detail = event && event.detail ? event.detail : {};
+          var root = detail && detail.context && detail.context.id
+            ? document.getElementById(detail.context.id)
+            : null;
 
-            initialize(root, {
-              source: "workspace_ready",
-              emitNativeEvents: false
-            });
-          }
+          initialize(root, {
+            source: "workspace_ready",
+            emitNativeEvents: false
+          });
         } catch (error) {
           warn("Workspace ready initialization failed.", error);
         }
@@ -2148,7 +2557,8 @@
         try {
           sync({
             source: "variant_table_ready",
-            emitNativeEvents: false
+            emitNativeEvents: false,
+            forceEvent: false
           });
         } catch (error) {
           warn("Table ready sync failed.", error);
@@ -2161,13 +2571,22 @@
     }
   }
 
-  /* ---------------------------------------------------------------------------
-   * Public API
-   * ------------------------------------------------------------------------ */
+  function cssEscape(value) {
+    try {
+      if (window.CSS && typeof window.CSS.escape === "function") {
+        return window.CSS.escape(String(value || ""));
+      }
+
+      return String(value || "").replace(/["\\]/g, "\\$&");
+    } catch (error) {
+      return String(value || "");
+    }
+  }
 
   var api = {
     __name: COMPONENT_NAME,
     __version: COMPONENT_VERSION,
+    version: COMPONENT_VERSION,
 
     initialize: initialize,
     reload: reload,

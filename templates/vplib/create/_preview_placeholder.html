@@ -1,0 +1,1069 @@
+{# services/vectoplan-library/templates/vplib/create/_preview_placeholder.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · VPLIB Create Wizard · Empty Dev Preview
+
+  Zweck:
+  - Globale Vorschaufläche für den neuen schwarzen VPLIB-Create-Wizard.
+  - Bewusst minimal und rot als Entwicklungsbereich.
+  - Keine sichtbaren Status-Pills.
+  - Keine sichtbaren Metriken.
+  - Kein sichtbarer Erklärungstext.
+  - Kein Three.js.
+  - Kein WebGL.
+  - Kein Canvas.
+  - Kein Backend-Call.
+  - Keine Dateioperation.
+  - Keine Upload-Verarbeitung.
+  - Nur HTML, data-Hooks und defensive JS-Brücke.
+
+  Bestehende JS-/CSS-Hooks bleiben erhalten:
+  - data-create-preview-placeholder="true"
+  - data-create-preview-stage="true"
+  - data-create-preview-cube="true"
+  - data-create-preview-shape="true"
+  - data-create-preview-object-kind="true"
+  - data-create-preview-dimensions="true"
+  - data-create-preview-cells="true"
+
+  Neue defensive Hooks:
+  - data-vp-create-preview
+  - data-vp-preview-ready
+  - data-vp-preview-mode="dev-empty"
+  - window.VectoplanCreatePreview.update()
+  - window.VectoplanCreatePreview.getState()
+  - window.VectoplanCreatePreview.setState()
+  - window.VectoplanCreatePreview.reset()
+----------------------------------------------------------------------------- #}
+
+
+{# -----------------------------------------------------------------------------
+  1. Draft defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if create_initial_draft is defined and create_initial_draft is mapping %}
+  {% set _preview_draft = create_initial_draft %}
+{% elif _initial_draft is defined and _initial_draft is mapping %}
+  {% set _preview_draft = _initial_draft %}
+{% elif _draft is defined and _draft is mapping %}
+  {% set _preview_draft = _draft %}
+{% elif draft is defined and draft is mapping %}
+  {% set _preview_draft = draft %}
+{% elif vplib_draft is defined and vplib_draft is mapping %}
+  {% set _preview_draft = vplib_draft %}
+{% else %}
+  {% set _preview_draft = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  2. Objektart defensiv lesen
+----------------------------------------------------------------------------- #}
+
+{% if _preview_draft is mapping and 'object_kind' in _preview_draft and _preview_draft['object_kind'] %}
+  {% set _preview_object_kind_value = _preview_draft['object_kind'] %}
+{% elif _preview_draft is mapping and 'object_class' in _preview_draft and _preview_draft['object_class'] %}
+  {% set _preview_object_kind_value = _preview_draft['object_class'] %}
+{% elif _preview_draft is mapping and 'family' in _preview_draft and _preview_draft['family'] is mapping and 'object_kind' in _preview_draft['family'] and _preview_draft['family']['object_kind'] %}
+  {% set _preview_object_kind_value = _preview_draft['family']['object_kind'] %}
+{% elif _preview_draft is mapping and 'family' in _preview_draft and _preview_draft['family'] is mapping and 'object_class' in _preview_draft['family'] and _preview_draft['family']['object_class'] %}
+  {% set _preview_object_kind_value = _preview_draft['family']['object_class'] %}
+{% else %}
+  {% set _preview_object_kind_value = 'cell_block' %}
+{% endif %}
+
+{% set _preview_object_kind_normalized = _preview_object_kind_value | string | lower | replace('-', '_') | replace(' ', '_') %}
+
+{% if _preview_object_kind_normalized == 'cell_block' %}
+  {% set _preview_object_kind_label = 'Raster-Bauteil' %}
+{% elif _preview_object_kind_normalized == 'multi_cell_module' %}
+  {% set _preview_object_kind_label = 'Mehrblock-Modul' %}
+{% elif _preview_object_kind_normalized == 'catalog_object' %}
+  {% set _preview_object_kind_label = 'Katalogobjekt' %}
+{% elif _preview_object_kind_normalized == 'adaptive_system' %}
+  {% set _preview_object_kind_label = 'Adaptives System' %}
+{% else %}
+  {% set _preview_object_kind_label = _preview_object_kind_value %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  3. Geometrie defensiv lesen
+----------------------------------------------------------------------------- #}
+
+{% if _preview_draft is mapping and 'geometry' in _preview_draft and _preview_draft['geometry'] is mapping %}
+  {% set _preview_geometry = _preview_draft['geometry'] %}
+{% elif _preview_draft is mapping and 'physical' in _preview_draft and _preview_draft['physical'] is mapping and 'geometry' in _preview_draft['physical'] and _preview_draft['physical']['geometry'] is mapping %}
+  {% set _preview_geometry = _preview_draft['physical']['geometry'] %}
+{% else %}
+  {% set _preview_geometry = {} %}
+{% endif %}
+
+{% if _preview_geometry is mapping and 'dimensions' in _preview_geometry and _preview_geometry['dimensions'] is mapping %}
+  {% set _preview_dimensions = _preview_geometry['dimensions'] %}
+{% elif _preview_draft is mapping and 'dimensions' in _preview_draft and _preview_draft['dimensions'] is mapping %}
+  {% set _preview_dimensions = _preview_draft['dimensions'] %}
+{% elif _preview_draft is mapping and 'physical' in _preview_draft and _preview_draft['physical'] is mapping and 'dimensions' in _preview_draft['physical'] and _preview_draft['physical']['dimensions'] is mapping %}
+  {% set _preview_dimensions = _preview_draft['physical']['dimensions'] %}
+{% else %}
+  {% set _preview_dimensions = {} %}
+{% endif %}
+
+{% if _preview_draft is mapping and 'primitive_shape' in _preview_draft and _preview_draft['primitive_shape'] %}
+  {% set _preview_shape_value = _preview_draft['primitive_shape'] %}
+{% elif _preview_geometry is mapping and 'primitive_shape' in _preview_geometry and _preview_geometry['primitive_shape'] %}
+  {% set _preview_shape_value = _preview_geometry['primitive_shape'] %}
+{% elif _preview_geometry is mapping and 'shape' in _preview_geometry and _preview_geometry['shape'] %}
+  {% set _preview_shape_value = _preview_geometry['shape'] %}
+{% elif _preview_dimensions is mapping and 'shape' in _preview_dimensions and _preview_dimensions['shape'] %}
+  {% set _preview_shape_value = _preview_dimensions['shape'] %}
+{% else %}
+  {% set _preview_shape_value = 'block' %}
+{% endif %}
+
+{% set _preview_shape_normalized = _preview_shape_value | string | lower | replace('-', '_') | replace(' ', '_') %}
+
+{% if _preview_shape_normalized in ['block', 'box', 'cuboid', 'rectangular_prism'] %}
+  {% set _preview_shape_label = 'Block / Quader' %}
+{% elif _preview_shape_normalized == 'cube' %}
+  {% set _preview_shape_label = 'Würfel' %}
+{% elif _preview_shape_normalized in ['wall', 'wall_block'] %}
+  {% set _preview_shape_label = 'Wandkörper' %}
+{% elif _preview_shape_normalized in ['slab', 'plate'] %}
+  {% set _preview_shape_label = 'Platte' %}
+{% elif _preview_shape_normalized == 'cylinder' %}
+  {% set _preview_shape_label = 'Zylinder' %}
+{% elif _preview_shape_normalized == 'pipe' %}
+  {% set _preview_shape_label = 'Rohr' %}
+{% elif _preview_shape_normalized == 'sphere' %}
+  {% set _preview_shape_label = 'Kugel' %}
+{% else %}
+  {% set _preview_shape_label = _preview_shape_value %}
+{% endif %}
+
+{% if _preview_draft is mapping and 'geometry_width' in _preview_draft and _preview_draft['geometry_width'] is not none %}
+  {% set _preview_width = _preview_draft['geometry_width'] %}
+{% elif _preview_dimensions is mapping and 'width' in _preview_dimensions and _preview_dimensions['width'] is not none %}
+  {% set _preview_width = _preview_dimensions['width'] %}
+{% elif _preview_geometry is mapping and 'width' in _preview_geometry and _preview_geometry['width'] is not none %}
+  {% set _preview_width = _preview_geometry['width'] %}
+{% else %}
+  {% set _preview_width = '1.00' %}
+{% endif %}
+
+{% if _preview_draft is mapping and 'geometry_height' in _preview_draft and _preview_draft['geometry_height'] is not none %}
+  {% set _preview_height = _preview_draft['geometry_height'] %}
+{% elif _preview_dimensions is mapping and 'height' in _preview_dimensions and _preview_dimensions['height'] is not none %}
+  {% set _preview_height = _preview_dimensions['height'] %}
+{% elif _preview_geometry is mapping and 'height' in _preview_geometry and _preview_geometry['height'] is not none %}
+  {% set _preview_height = _preview_geometry['height'] %}
+{% else %}
+  {% set _preview_height = '1.00' %}
+{% endif %}
+
+{% if _preview_draft is mapping and 'geometry_depth' in _preview_draft and _preview_draft['geometry_depth'] is not none %}
+  {% set _preview_depth = _preview_draft['geometry_depth'] %}
+{% elif _preview_dimensions is mapping and 'depth' in _preview_dimensions and _preview_dimensions['depth'] is not none %}
+  {% set _preview_depth = _preview_dimensions['depth'] %}
+{% elif _preview_geometry is mapping and 'depth' in _preview_geometry and _preview_geometry['depth'] is not none %}
+  {% set _preview_depth = _preview_geometry['depth'] %}
+{% else %}
+  {% set _preview_depth = '1.00' %}
+{% endif %}
+
+{% if _preview_draft is mapping and 'geometry_unit' in _preview_draft and _preview_draft['geometry_unit'] %}
+  {% set _preview_unit = _preview_draft['geometry_unit'] %}
+{% elif _preview_dimensions is mapping and 'unit' in _preview_dimensions and _preview_dimensions['unit'] %}
+  {% set _preview_unit = _preview_dimensions['unit'] %}
+{% elif _preview_geometry is mapping and 'unit' in _preview_geometry and _preview_geometry['unit'] %}
+  {% set _preview_unit = _preview_geometry['unit'] %}
+{% else %}
+  {% set _preview_unit = 'm' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  4. Editor-Raster defensiv lesen
+----------------------------------------------------------------------------- #}
+
+{% if _preview_draft is mapping and 'editor_block' in _preview_draft and _preview_draft['editor_block'] is mapping %}
+  {% set _preview_editor_block = _preview_draft['editor_block'] %}
+{% elif _preview_geometry is mapping and 'editor_block' in _preview_geometry and _preview_geometry['editor_block'] is mapping %}
+  {% set _preview_editor_block = _preview_geometry['editor_block'] %}
+{% elif _preview_draft is mapping and 'editor' in _preview_draft and _preview_draft['editor'] is mapping and 'block' in _preview_draft['editor'] and _preview_draft['editor']['block'] is mapping %}
+  {% set _preview_editor_block = _preview_draft['editor']['block'] %}
+{% else %}
+  {% set _preview_editor_block = {} %}
+{% endif %}
+
+{% if _preview_editor_block is mapping and 'cells' in _preview_editor_block and _preview_editor_block['cells'] is mapping %}
+  {% set _preview_editor_cells = _preview_editor_block['cells'] %}
+{% else %}
+  {% set _preview_editor_cells = {} %}
+{% endif %}
+
+{% if _preview_draft is mapping and 'editor_cells_x' in _preview_draft and _preview_draft['editor_cells_x'] is not none %}
+  {% set _preview_cells_x = _preview_draft['editor_cells_x'] %}
+{% elif _preview_editor_cells is mapping and 'x' in _preview_editor_cells and _preview_editor_cells['x'] is not none %}
+  {% set _preview_cells_x = _preview_editor_cells['x'] %}
+{% elif _preview_editor_block is mapping and 'cells_x' in _preview_editor_block and _preview_editor_block['cells_x'] is not none %}
+  {% set _preview_cells_x = _preview_editor_block['cells_x'] %}
+{% else %}
+  {% set _preview_cells_x = '1' %}
+{% endif %}
+
+{% if _preview_draft is mapping and 'editor_cells_y' in _preview_draft and _preview_draft['editor_cells_y'] is not none %}
+  {% set _preview_cells_y = _preview_draft['editor_cells_y'] %}
+{% elif _preview_editor_cells is mapping and 'y' in _preview_editor_cells and _preview_editor_cells['y'] is not none %}
+  {% set _preview_cells_y = _preview_editor_cells['y'] %}
+{% elif _preview_editor_block is mapping and 'cells_y' in _preview_editor_block and _preview_editor_block['cells_y'] is not none %}
+  {% set _preview_cells_y = _preview_editor_block['cells_y'] %}
+{% else %}
+  {% set _preview_cells_y = '1' %}
+{% endif %}
+
+{% if _preview_draft is mapping and 'editor_cells_z' in _preview_draft and _preview_draft['editor_cells_z'] is not none %}
+  {% set _preview_cells_z = _preview_draft['editor_cells_z'] %}
+{% elif _preview_editor_cells is mapping and 'z' in _preview_editor_cells and _preview_editor_cells['z'] is not none %}
+  {% set _preview_cells_z = _preview_editor_cells['z'] %}
+{% elif _preview_editor_block is mapping and 'cells_z' in _preview_editor_block and _preview_editor_block['cells_z'] is not none %}
+  {% set _preview_cells_z = _preview_editor_block['cells_z'] %}
+{% else %}
+  {% set _preview_cells_z = '1' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  5. Health / Write defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if _health_ok is defined %}
+  {% set _preview_health_ok_raw = _health_ok %}
+{% elif create_health is defined and create_health is mapping and 'ok' in create_health %}
+  {% set _preview_health_ok_raw = create_health['ok'] %}
+{% else %}
+  {% set _preview_health_ok_raw = false %}
+{% endif %}
+
+{% set _preview_health_ok_text = _preview_health_ok_raw | string | lower %}
+{% if _preview_health_ok_raw is sameas true or _preview_health_ok_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy'] %}
+  {% set _preview_health_ok = true %}
+{% else %}
+  {% set _preview_health_ok = false %}
+{% endif %}
+
+
+{% if _write_enabled is defined %}
+  {% set _preview_write_enabled_raw = _write_enabled %}
+{% elif create_options is defined and create_options is mapping and 'write_enabled' in create_options %}
+  {% set _preview_write_enabled_raw = create_options['write_enabled'] %}
+{% else %}
+  {% set _preview_write_enabled_raw = false %}
+{% endif %}
+
+{% set _preview_write_enabled_text = _preview_write_enabled_raw | string | lower %}
+{% if _preview_write_enabled_raw is sameas true or _preview_write_enabled_text in ['true', '1', 'yes', 'ja', 'enabled', 'active', 'on'] %}
+  {% set _preview_write_enabled = true %}
+{% else %}
+  {% set _preview_write_enabled = false %}
+{% endif %}
+
+
+<section
+  class="vplib-create-preview vp-create-card vp-create-preview-card"
+  data-vp-create-preview
+  data-vp-preview-ready="false"
+  data-vp-preview-mode="dev-empty"
+  data-vp-preview-template-root="vplib"
+  data-vp-preview-version="0.6.0"
+  data-create-preview-placeholder="true"
+  data-create-preview-primitive-shape="{{ _preview_shape_normalized }}"
+  data-create-preview-object-kind-value="{{ _preview_object_kind_normalized }}"
+  data-create-preview-unit-value="{{ _preview_unit }}"
+  data-create-preview-width-value="{{ _preview_width }}"
+  data-create-preview-height-value="{{ _preview_height }}"
+  data-create-preview-depth-value="{{ _preview_depth }}"
+  data-create-preview-cells-x-value="{{ _preview_cells_x }}"
+  data-create-preview-cells-y-value="{{ _preview_cells_y }}"
+  data-create-preview-cells-z-value="{{ _preview_cells_z }}"
+  data-create-health-ok="{% if _preview_health_ok %}true{% else %}false{% endif %}"
+  data-create-write-enabled="{% if _preview_write_enabled %}true{% else %}false{% endif %}"
+  aria-labelledby="vp-create-preview-title"
+  aria-describedby="vp-create-preview-description"
+>
+  <h2
+    id="vp-create-preview-title"
+    class="vp-create-sr-only"
+  >
+    Vorschau
+  </h2>
+
+  <p
+    id="vp-create-preview-description"
+    class="vp-create-sr-only"
+  >
+    Entwicklungsfläche für die spätere 3D-, Mesh- und Upload-Vorschau.
+  </p>
+
+  <div
+    class="vp-create-preview-stage"
+    data-create-preview-stage="true"
+    data-vp-preview-stage
+    role="img"
+    aria-label="VPLIB Entwicklungs-Vorschau"
+  >
+    <div
+      class="vp-create-preview-cube vp-create-preview-cube--{{ _preview_shape_normalized }}"
+      data-create-preview-cube="true"
+      data-create-preview-cube-shape="{{ _preview_shape_normalized }}"
+      data-vp-preview-primitive
+      aria-hidden="true"
+    >
+      <span class="vp-create-preview-cube__face vp-create-preview-cube__face--front"></span>
+      <span class="vp-create-preview-cube__face vp-create-preview-cube__face--top"></span>
+      <span class="vp-create-preview-cube__face vp-create-preview-cube__face--side"></span>
+    </div>
+  </div>
+
+  <div
+    class="vp-create-sr-only"
+    data-create-preview-summary="true"
+    data-vp-preview-summary
+    aria-hidden="true"
+  >
+    <span
+      data-create-preview-shape="true"
+      data-vp-preview-shape
+    >
+      {{ _preview_shape_label }}
+    </span>
+
+    <span
+      data-create-preview-object-kind="true"
+      data-vp-preview-object-kind
+    >
+      {{ _preview_object_kind_label }}
+    </span>
+
+    <span
+      data-create-preview-dimensions="true"
+      data-vp-preview-dimensions
+    >
+      {{ _preview_width }} × {{ _preview_height }} × {{ _preview_depth }} {{ _preview_unit }}
+    </span>
+
+    <span
+      data-create-preview-cells="true"
+      data-vp-preview-cells
+    >
+      {{ _preview_cells_x }} × {{ _preview_cells_y }} × {{ _preview_cells_z }}
+    </span>
+  </div>
+
+  <script type="application/json" data-vp-preview-config>
+    {
+      "component": "create.preview",
+      "version": "0.6.0",
+      "mode": "dev-empty",
+      "visibleText": false,
+      "backend": false,
+      "threejs": false,
+      "webgl": false,
+      "canvas": false,
+      "shapeLabels": {
+        "block": "Block / Quader",
+        "box": "Block / Quader",
+        "cuboid": "Block / Quader",
+        "rectangular_prism": "Block / Quader",
+        "cube": "Würfel",
+        "wall": "Wandkörper",
+        "wall_block": "Wandkörper",
+        "slab": "Platte",
+        "plate": "Platte",
+        "cylinder": "Zylinder",
+        "pipe": "Rohr",
+        "sphere": "Kugel"
+      },
+      "objectKindLabels": {
+        "cell_block": "Raster-Bauteil",
+        "multi_cell_module": "Mehrblock-Modul",
+        "catalog_object": "Katalogobjekt",
+        "adaptive_system": "Adaptives System"
+      },
+      "defaults": {
+        "shape": {{ _preview_shape_normalized | tojson }},
+        "shapeLabel": {{ _preview_shape_label | tojson }},
+        "objectKind": {{ _preview_object_kind_normalized | tojson }},
+        "objectKindLabel": {{ _preview_object_kind_label | tojson }},
+        "width": {{ _preview_width | string | tojson }},
+        "height": {{ _preview_height | string | tojson }},
+        "depth": {{ _preview_depth | string | tojson }},
+        "unit": {{ _preview_unit | tojson }},
+        "cellsX": {{ _preview_cells_x | string | tojson }},
+        "cellsY": {{ _preview_cells_y | string | tojson }},
+        "cellsZ": {{ _preview_cells_z | string | tojson }}
+      }
+    }
+  </script>
+</section>
+
+<script>
+  (function () {
+    "use strict";
+
+    function bootPreview() {
+      try {
+        var COMPONENT_NAME = "VECTOPLAN Create Preview";
+        var COMPONENT_VERSION = "0.6.0";
+
+        var root = document.querySelector("[data-vp-create-preview]") ||
+          document.querySelector('[data-create-preview-placeholder="true"]');
+
+        if (!root) {
+          return;
+        }
+
+        if (root.getAttribute("data-vp-preview-ready") === "true") {
+          try {
+            if (
+              window.VectoplanCreatePreview &&
+              typeof window.VectoplanCreatePreview.update === "function"
+            ) {
+              window.VectoplanCreatePreview.update({
+                source: "already-ready"
+              });
+            }
+          } catch (alreadyReadyError) {
+            /* no-op */
+          }
+
+          return;
+        }
+
+        var configScript = root.querySelector("[data-vp-preview-config]");
+        var config = {
+          component: "create.preview",
+          version: COMPONENT_VERSION,
+          mode: "dev-empty",
+          visibleText: false,
+          backend: false,
+          threejs: false,
+          webgl: false,
+          canvas: false,
+          shapeLabels: {},
+          objectKindLabels: {},
+          defaults: {
+            shape: "block",
+            shapeLabel: "Block / Quader",
+            objectKind: "cell_block",
+            objectKindLabel: "Raster-Bauteil",
+            width: "1.00",
+            height: "1.00",
+            depth: "1.00",
+            unit: "m",
+            cellsX: "1",
+            cellsY: "1",
+            cellsZ: "1"
+          }
+        };
+
+        try {
+          if (configScript && configScript.textContent) {
+            var parsedConfig = JSON.parse(configScript.textContent);
+
+            if (parsedConfig && typeof parsedConfig === "object") {
+              config = Object.assign({}, config, parsedConfig);
+              config.shapeLabels = Object.assign({}, parsedConfig.shapeLabels || {});
+              config.objectKindLabels = Object.assign({}, parsedConfig.objectKindLabels || {});
+              config.defaults = Object.assign({}, config.defaults || {}, parsedConfig.defaults || {});
+            }
+          }
+        } catch (configError) {
+          warn("Config parse failed.", configError);
+        }
+
+        var form = document.getElementById("vp-create-form") ||
+          document.querySelector("[data-vp-create-form]") ||
+          document.querySelector('[data-create-form="true"]') ||
+          document;
+
+        var stage = root.querySelector("[data-vp-preview-stage]") ||
+          root.querySelector('[data-create-preview-stage="true"]');
+
+        var primitive = root.querySelector("[data-vp-preview-primitive]") ||
+          root.querySelector('[data-create-preview-cube="true"]');
+
+        var shapeOutput = root.querySelector("[data-vp-preview-shape]") ||
+          root.querySelector('[data-create-preview-shape="true"]');
+
+        var objectKindOutput = root.querySelector("[data-vp-preview-object-kind]") ||
+          root.querySelector('[data-create-preview-object-kind="true"]');
+
+        var dimensionsOutput = root.querySelector("[data-vp-preview-dimensions]") ||
+          root.querySelector('[data-create-preview-dimensions="true"]');
+
+        var cellsOutput = root.querySelector("[data-vp-preview-cells]") ||
+          root.querySelector('[data-create-preview-cells="true"]');
+
+        var state = {
+          shape: config.defaults.shape || "block",
+          shapeLabel: config.defaults.shapeLabel || "Block / Quader",
+          objectKind: config.defaults.objectKind || "cell_block",
+          objectKindLabel: config.defaults.objectKindLabel || "Raster-Bauteil",
+          width: config.defaults.width || "1.00",
+          height: config.defaults.height || "1.00",
+          depth: config.defaults.depth || "1.00",
+          unit: config.defaults.unit || "m",
+          cellsX: config.defaults.cellsX || "1",
+          cellsY: config.defaults.cellsY || "1",
+          cellsZ: config.defaults.cellsZ || "1",
+          updatedAt: "",
+          source: "initial"
+        };
+
+        function warn(message, error) {
+          try {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
+            }
+          } catch (consoleError) {
+            /* no-op */
+          }
+        }
+
+        function dispatch(eventName, detail) {
+          try {
+            root.dispatchEvent(new CustomEvent(eventName, {
+              bubbles: true,
+              cancelable: false,
+              detail: detail || {}
+            }));
+          } catch (error) {
+            warn("Event dispatch failed: " + eventName, error);
+          }
+        }
+
+        function normalizeToken(value, fallbackValue) {
+          try {
+            var normalized = String(value || "")
+              .trim()
+              .toLowerCase()
+              .replace(/[-\s]+/g, "_")
+              .replace(/[^a-z0-9_]/g, "");
+
+            return normalized || fallbackValue || "";
+          } catch (error) {
+            return fallbackValue || "";
+          }
+        }
+
+        function normalizeNumber(value, fallbackValue, minimumValue, integerOnly) {
+          try {
+            var raw = String(value === undefined || value === null ? "" : value)
+              .trim()
+              .replace(",", ".");
+
+            var parsed = integerOnly ? parseInt(raw, 10) : parseFloat(raw);
+
+            if (!Number.isFinite(parsed)) {
+              parsed = fallbackValue;
+            }
+
+            if (minimumValue !== undefined && minimumValue !== null && parsed < minimumValue) {
+              parsed = minimumValue;
+            }
+
+            if (integerOnly) {
+              parsed = Math.round(parsed);
+            }
+
+            return parsed;
+          } catch (error) {
+            return fallbackValue;
+          }
+        }
+
+        function formatDimension(value) {
+          try {
+            var parsed = normalizeNumber(value, 1, 0.0001, false);
+
+            return parsed
+              .toFixed(2)
+              .replace(/\.00$/, "")
+              .replace(/(\.\d)0$/, "$1");
+          } catch (error) {
+            return "1";
+          }
+        }
+
+        function formatCells(value) {
+          try {
+            return String(normalizeNumber(value, 1, 1, true));
+          } catch (error) {
+            return "1";
+          }
+        }
+
+        function getField(name) {
+          try {
+            if (!name || !form || !form.querySelector) {
+              return null;
+            }
+
+            return form.querySelector('[name="' + name + '"]:not([type="hidden"])') ||
+              form.querySelector('[data-create-field="' + name + '"]:not([type="hidden"])') ||
+              form.querySelector('[data-vp-step-field="' + name + '"]:not([type="hidden"])') ||
+              form.querySelector('[name="' + name + '"]') ||
+              form.querySelector('[data-create-field="' + name + '"]') ||
+              form.querySelector('[data-vp-step-field="' + name + '"]');
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function readField(name, fallbackValue) {
+          try {
+            var field = getField(name);
+
+            if (!field) {
+              return fallbackValue;
+            }
+
+            if (field.value !== undefined && String(field.value).trim() !== "") {
+              return String(field.value).trim();
+            }
+
+            return fallbackValue;
+          } catch (error) {
+            return fallbackValue;
+          }
+        }
+
+        function getOptionLabel(field, fallbackValue) {
+          try {
+            if (!field || !field.options || field.selectedIndex < 0) {
+              return fallbackValue;
+            }
+
+            var option = field.options[field.selectedIndex];
+
+            if (!option) {
+              return fallbackValue;
+            }
+
+            return String(option.textContent || option.label || option.value || fallbackValue).trim() || fallbackValue;
+          } catch (error) {
+            return fallbackValue;
+          }
+        }
+
+        function labelFor(map, key, fallbackValue, fieldName) {
+          try {
+            var normalized = normalizeToken(key, "");
+
+            if (map && normalized && map[normalized]) {
+              return map[normalized];
+            }
+
+            var field = getField(fieldName);
+            var optionLabel = getOptionLabel(field, "");
+
+            if (optionLabel) {
+              return optionLabel;
+            }
+
+            return fallbackValue || key || "—";
+          } catch (error) {
+            return fallbackValue || key || "—";
+          }
+        }
+
+        function updatePrimitiveClass(shape) {
+          try {
+            if (!primitive) {
+              return;
+            }
+
+            var safeShape = normalizeToken(shape, "block");
+            var classes = Array.prototype.slice.call(primitive.classList || []);
+
+            classes.forEach(function (className) {
+              if (
+                className.indexOf("vp-create-preview-cube--") === 0 &&
+                className !== "vp-create-preview-cube"
+              ) {
+                primitive.classList.remove(className);
+              }
+            });
+
+            primitive.classList.add("vp-create-preview-cube--" + safeShape);
+            primitive.setAttribute("data-create-preview-cube-shape", safeShape);
+            primitive.setAttribute("data-vp-preview-primitive-shape", safeShape);
+          } catch (error) {
+            warn("Primitive class update failed.", error);
+          }
+        }
+
+        function updateRootAttributes(nextState) {
+          try {
+            root.setAttribute("data-create-preview-primitive-shape", nextState.shape);
+            root.setAttribute("data-create-preview-object-kind-value", nextState.objectKind);
+            root.setAttribute("data-create-preview-unit-value", nextState.unit);
+            root.setAttribute("data-create-preview-width-value", nextState.width);
+            root.setAttribute("data-create-preview-height-value", nextState.height);
+            root.setAttribute("data-create-preview-depth-value", nextState.depth);
+            root.setAttribute("data-create-preview-cells-x-value", nextState.cellsX);
+            root.setAttribute("data-create-preview-cells-y-value", nextState.cellsY);
+            root.setAttribute("data-create-preview-cells-z-value", nextState.cellsZ);
+
+            root.setAttribute("data-vp-preview-shape", nextState.shape);
+            root.setAttribute("data-vp-preview-shape-label", nextState.shapeLabel);
+            root.setAttribute("data-vp-preview-object-kind", nextState.objectKind);
+            root.setAttribute("data-vp-preview-object-kind-label", nextState.objectKindLabel);
+            root.setAttribute("data-vp-preview-dimensions", nextState.width + "x" + nextState.height + "x" + nextState.depth + nextState.unit);
+            root.setAttribute("data-vp-preview-cells", nextState.cellsX + "x" + nextState.cellsY + "x" + nextState.cellsZ);
+            root.setAttribute("data-vp-preview-last-source", nextState.source || "unknown");
+          } catch (error) {
+            warn("Root attribute update failed.", error);
+          }
+        }
+
+        function readState(source) {
+          try {
+            var shape = normalizeToken(readField("primitive_shape", state.shape), "block");
+            var objectKind = normalizeToken(readField("object_kind", state.objectKind), "cell_block");
+            var unit = readField("geometry_unit", state.unit || "m") || "m";
+
+            var nextState = {
+              shape: shape,
+              shapeLabel: labelFor(config.shapeLabels, shape, shape, "primitive_shape"),
+              objectKind: objectKind,
+              objectKindLabel: labelFor(config.objectKindLabels, objectKind, objectKind, "object_kind"),
+              width: formatDimension(readField("geometry_width", state.width)),
+              height: formatDimension(readField("geometry_height", state.height)),
+              depth: formatDimension(readField("geometry_depth", state.depth)),
+              unit: unit,
+              cellsX: formatCells(readField("editor_cells_x", state.cellsX)),
+              cellsY: formatCells(readField("editor_cells_y", state.cellsY)),
+              cellsZ: formatCells(readField("editor_cells_z", state.cellsZ)),
+              updatedAt: new Date().toISOString(),
+              source: source || "read"
+            };
+
+            return nextState;
+          } catch (error) {
+            warn("State read failed.", error);
+            return Object.assign({}, state);
+          }
+        }
+
+        function writeHiddenOutputs(nextState) {
+          try {
+            var dimensionsText = nextState.width + " × " + nextState.height + " × " + nextState.depth + " " + nextState.unit;
+            var cellsText = nextState.cellsX + " × " + nextState.cellsY + " × " + nextState.cellsZ;
+
+            if (shapeOutput) {
+              shapeOutput.textContent = nextState.shapeLabel;
+            }
+
+            if (objectKindOutput) {
+              objectKindOutput.textContent = nextState.objectKindLabel;
+            }
+
+            if (dimensionsOutput) {
+              dimensionsOutput.textContent = dimensionsText;
+            }
+
+            if (cellsOutput) {
+              cellsOutput.textContent = cellsText;
+            }
+
+            if (stage) {
+              stage.setAttribute(
+                "aria-label",
+                "VPLIB Entwicklungs-Vorschau: " +
+                nextState.shapeLabel +
+                ", " +
+                nextState.objectKindLabel +
+                ", " +
+                dimensionsText +
+                ", Raster " +
+                cellsText
+              );
+            }
+          } catch (error) {
+            warn("Hidden output write failed.", error);
+          }
+        }
+
+        function updatePreview(options) {
+          try {
+            var updateOptions = options || {};
+            state = readState(updateOptions.source || "update");
+
+            writeHiddenOutputs(state);
+            updatePrimitiveClass(state.shape);
+            updateRootAttributes(state);
+
+            root.setAttribute("data-vp-preview-ready", "true");
+            root.setAttribute("data-vp-preview-last-update", String(Date.now()));
+
+            dispatch("vectoplan:create:preview-updated", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              state: Object.assign({}, state),
+              root: root,
+              source: state.source
+            });
+
+            return Object.assign({}, state);
+          } catch (error) {
+            warn("Update failed.", error);
+            return Object.assign({}, state);
+          }
+        }
+
+        function setPreviewState(partialState, options) {
+          try {
+            var next = Object.assign({}, state, partialState || {});
+            var source = options && options.source ? options.source : "set-state";
+
+            next.shape = normalizeToken(next.shape, state.shape || "block");
+            next.objectKind = normalizeToken(next.objectKind, state.objectKind || "cell_block");
+            next.width = formatDimension(next.width);
+            next.height = formatDimension(next.height);
+            next.depth = formatDimension(next.depth);
+            next.unit = next.unit || state.unit || "m";
+            next.cellsX = formatCells(next.cellsX);
+            next.cellsY = formatCells(next.cellsY);
+            next.cellsZ = formatCells(next.cellsZ);
+            next.shapeLabel = labelFor(config.shapeLabels, next.shape, next.shapeLabel || next.shape, "primitive_shape");
+            next.objectKindLabel = labelFor(config.objectKindLabels, next.objectKind, next.objectKindLabel || next.objectKind, "object_kind");
+            next.updatedAt = new Date().toISOString();
+            next.source = source;
+
+            state = next;
+
+            writeHiddenOutputs(state);
+            updatePrimitiveClass(state.shape);
+            updateRootAttributes(state);
+
+            root.setAttribute("data-vp-preview-ready", "true");
+            root.setAttribute("data-vp-preview-last-update", String(Date.now()));
+
+            dispatch("vectoplan:create:preview-updated", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              state: Object.assign({}, state),
+              root: root,
+              source: source
+            });
+
+            return Object.assign({}, state);
+          } catch (error) {
+            warn("setState failed.", error);
+            return Object.assign({}, state);
+          }
+        }
+
+        function resetPreview() {
+          try {
+            return setPreviewState(config.defaults || {}, {
+              source: "reset"
+            });
+          } catch (error) {
+            warn("Reset failed.", error);
+            return Object.assign({}, state);
+          }
+        }
+
+        function bindField(field) {
+          try {
+            if (!field || field.getAttribute("data-vp-preview-bound") === "true") {
+              return;
+            }
+
+            field.addEventListener("input", function () {
+              updatePreview({
+                source: "field-input"
+              });
+            });
+
+            field.addEventListener("change", function () {
+              updatePreview({
+                source: "field-change"
+              });
+            });
+
+            field.setAttribute("data-vp-preview-bound", "true");
+          } catch (error) {
+            warn("Field binding skipped.", error);
+          }
+        }
+
+        function bindKnownFields() {
+          try {
+            [
+              "primitive_shape",
+              "object_kind",
+              "geometry_width",
+              "geometry_height",
+              "geometry_depth",
+              "geometry_unit",
+              "editor_cells_x",
+              "editor_cells_y",
+              "editor_cells_z"
+            ].forEach(function (fieldName) {
+              bindField(getField(fieldName));
+            });
+          } catch (error) {
+            warn("Known field binding failed.", error);
+          }
+        }
+
+        function shouldUpdateFromTarget(target) {
+          try {
+            if (!target || !target.matches) {
+              return false;
+            }
+
+            return Boolean(
+              target.matches("[data-create-preview-source]") ||
+              target.matches("[data-vp-preview-source]") ||
+              target.matches('[name="primitive_shape"]') ||
+              target.matches('[name="object_kind"]') ||
+              target.matches('[name="geometry_width"]') ||
+              target.matches('[name="geometry_height"]') ||
+              target.matches('[name="geometry_depth"]') ||
+              target.matches('[name="geometry_unit"]') ||
+              target.matches('[name="editor_cells_x"]') ||
+              target.matches('[name="editor_cells_y"]') ||
+              target.matches('[name="editor_cells_z"]')
+            );
+          } catch (error) {
+            return false;
+          }
+        }
+
+        document.addEventListener("input", function (event) {
+          try {
+            if (shouldUpdateFromTarget(event.target)) {
+              updatePreview({
+                source: "delegated-input"
+              });
+            }
+          } catch (error) {
+            warn("Delegated input handling failed.", error);
+          }
+        });
+
+        document.addEventListener("change", function (event) {
+          try {
+            if (shouldUpdateFromTarget(event.target)) {
+              updatePreview({
+                source: "delegated-change"
+              });
+            }
+          } catch (error) {
+            warn("Delegated change handling failed.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:preview-update", function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+
+            if (detail.state && typeof detail.state === "object") {
+              setPreviewState(detail.state, {
+                source: detail.source || "custom-event"
+              });
+            } else {
+              updatePreview({
+                source: detail.source || "custom-event"
+              });
+            }
+          } catch (error) {
+            warn("Custom preview event failed.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:upload-changed", function (event) {
+          try {
+            updatePreview({
+              source: "upload-changed"
+            });
+
+            if (event && event.detail) {
+              root.setAttribute("data-vp-preview-last-upload-kind", String(event.detail.kind || event.detail.purpose || "unknown"));
+            }
+          } catch (error) {
+            warn("Upload change preview sync failed.", error);
+          }
+        });
+
+        bindKnownFields();
+        updatePreview({
+          source: "boot"
+        });
+
+        window.VectoplanCreatePreview = {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          root: root,
+          update: updatePreview,
+          setState: setPreviewState,
+          reset: resetPreview,
+          bind: bindKnownFields,
+          getState: function () {
+            try {
+              return Object.assign({}, state);
+            } catch (error) {
+              return {};
+            }
+          },
+          getConfig: function () {
+            try {
+              return Object.assign({}, config);
+            } catch (error) {
+              return {};
+            }
+          }
+        };
+
+        root.setAttribute("data-vp-preview-ready", "true");
+        root.setAttribute("data-vp-preview-version", COMPONENT_VERSION);
+
+        dispatch("vectoplan:create:preview-ready", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          state: Object.assign({}, state),
+          root: root,
+          config: Object.assign({}, config)
+        });
+      } catch (error) {
+        try {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Preview] Defensive initialization failed.", error);
+          }
+        } catch (consoleError) {
+          /* no-op */
+        }
+      }
+    }
+
+    try {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", bootPreview, { once: true });
+      } else {
+        bootPreview();
+      }
+    } catch (error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Preview] Boot scheduling failed.", error);
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+  })();
+</script>

@@ -1,0 +1,833 @@
+{# services/vectoplan-library/templates/vplib/create/_macros.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · VPLIB Create Wizard · UI Macros
+
+  Zweck:
+  - Stabile Jinja-Makros für die /create-Wizard-Oberfläche.
+  - Neuer Template-Pfad unter templates/vplib/create.
+  - Kompatibilität für alte und neue Partials.
+  - Keine Business-Logik.
+  - Keine API-Aufrufe.
+  - Keine Dateierzeugung.
+  - Keine Taxonomie-Wahrheit.
+  - Keine Three.js-/Viewer-Logik.
+  - Keine Abhängigkeit zu gelöschten Partials:
+      - _hero.html
+      - _alerts.html
+      - sections/_help.html
+      - sections/_result.html
+
+  Grundsätze:
+  - Makros müssen mit Mapping, String, Zahl, None und leeren Werten umgehen.
+  - Keine komplexen externen Includes.
+  - Keine Annahme, dass Backend-Options vollständig vorhanden sind.
+  - Jinja hat kein try/catch; Robustheit entsteht durch defensive Guards.
+  - data-create-* Hooks bleiben stabil.
+  - data-vp-* Hooks können zusätzlich über attrs ergänzt werden.
+  - Attribute aus attrs werden bewusst per safe ausgegeben, weil diese Makros
+    ausschließlich aus kontrollierten Template-Quellen verwendet werden sollen.
+
+  Verwendung:
+    {% import "vplib/create/_macros.html" as create_ui %}
+
+  Aktiv genutzte Kompatibilitätsmakros:
+  - render_field
+  - render_select
+  - render_sr_only
+
+  Weitere stabile Helfer:
+  - render_option
+  - render_options
+  - render_status_pill
+  - render_alert
+  - render_section_header
+  - render_subsection_header
+  - render_button
+  - render_status_card
+  - render_empty_state
+  - render_json_script
+  - render_icon_placeholder
+  - render_mobile_hint
+----------------------------------------------------------------------------- #}
+
+
+{# -----------------------------------------------------------------------------
+  render_option
+
+  Rendert ein robustes <option>-Element.
+
+  Unterstützte item-Formen:
+  - Mapping mit value/key/slug/id/name + label/title/name
+  - String
+  - Zahl
+  - None
+
+  Unterstützte optionale Metadaten:
+  - domain
+  - category
+  - subcategory
+  - path
+  - description / hint
+  - enabled
+  - default / is_default / default_selected
+----------------------------------------------------------------------------- #}
+{% macro render_option(item, selected_value='', fallback_value='', fallback_label='') -%}
+  {% if item is mapping %}
+    {% if 'value' in item and item['value'] is not none and item['value'] != '' %}
+      {% set _value = item['value'] | string %}
+    {% elif 'key' in item and item['key'] is not none and item['key'] != '' %}
+      {% set _value = item['key'] | string %}
+    {% elif 'slug' in item and item['slug'] is not none and item['slug'] != '' %}
+      {% set _value = item['slug'] | string %}
+    {% elif 'id' in item and item['id'] is not none and item['id'] != '' %}
+      {% set _value = item['id'] | string %}
+    {% elif 'name' in item and item['name'] is not none and item['name'] != '' %}
+      {% set _value = item['name'] | string %}
+    {% elif fallback_value is not none and fallback_value != '' %}
+      {% set _value = fallback_value | string %}
+    {% else %}
+      {% set _value = '' %}
+    {% endif %}
+
+    {% if 'label' in item and item['label'] is not none and item['label'] != '' %}
+      {% set _label = item['label'] | string %}
+    {% elif 'title' in item and item['title'] is not none and item['title'] != '' %}
+      {% set _label = item['title'] | string %}
+    {% elif 'name' in item and item['name'] is not none and item['name'] != '' %}
+      {% set _label = item['name'] | string %}
+    {% elif fallback_label is not none and fallback_label != '' %}
+      {% set _label = fallback_label | string %}
+    {% else %}
+      {% set _label = _value %}
+    {% endif %}
+
+    {% if 'description' in item and item['description'] is not none and item['description'] != '' %}
+      {% set _description = item['description'] | string %}
+    {% elif 'hint' in item and item['hint'] is not none and item['hint'] != '' %}
+      {% set _description = item['hint'] | string %}
+    {% else %}
+      {% set _description = '' %}
+    {% endif %}
+
+    {% if 'domain' in item and item['domain'] is not none and item['domain'] != '' %}
+      {% set _domain = item['domain'] | string %}
+    {% elif 'domain_slug' in item and item['domain_slug'] is not none and item['domain_slug'] != '' %}
+      {% set _domain = item['domain_slug'] | string %}
+    {% elif 'parent_domain' in item and item['parent_domain'] is not none and item['parent_domain'] != '' %}
+      {% set _domain = item['parent_domain'] | string %}
+    {% else %}
+      {% set _domain = '' %}
+    {% endif %}
+
+    {% if 'category' in item and item['category'] is not none and item['category'] != '' %}
+      {% set _category = item['category'] | string %}
+    {% elif 'category_slug' in item and item['category_slug'] is not none and item['category_slug'] != '' %}
+      {% set _category = item['category_slug'] | string %}
+    {% elif 'parent_category' in item and item['parent_category'] is not none and item['parent_category'] != '' %}
+      {% set _category = item['parent_category'] | string %}
+    {% else %}
+      {% set _category = '' %}
+    {% endif %}
+
+    {% if 'subcategory' in item and item['subcategory'] is not none and item['subcategory'] != '' %}
+      {% set _subcategory = item['subcategory'] | string %}
+    {% elif 'subcategory_slug' in item and item['subcategory_slug'] is not none and item['subcategory_slug'] != '' %}
+      {% set _subcategory = item['subcategory_slug'] | string %}
+    {% elif 'parent_subcategory' in item and item['parent_subcategory'] is not none and item['parent_subcategory'] != '' %}
+      {% set _subcategory = item['parent_subcategory'] | string %}
+    {% else %}
+      {% set _subcategory = '' %}
+    {% endif %}
+
+    {% if 'path' in item and item['path'] is not none and item['path'] != '' %}
+      {% set _path = item['path'] | string %}
+    {% else %}
+      {% set _path = '' %}
+    {% endif %}
+
+    {% if 'enabled' in item %}
+      {% set _enabled_raw = item['enabled'] %}
+    {% elif 'disabled' in item %}
+      {% set _enabled_raw = not item['disabled'] %}
+    {% else %}
+      {% set _enabled_raw = true %}
+    {% endif %}
+
+    {% if 'default' in item %}
+      {% set _default_raw = item['default'] %}
+    {% elif 'is_default' in item %}
+      {% set _default_raw = item['is_default'] %}
+    {% elif 'default_selected' in item %}
+      {% set _default_raw = item['default_selected'] %}
+    {% elif 'selected' in item %}
+      {% set _default_raw = item['selected'] %}
+    {% else %}
+      {% set _default_raw = false %}
+    {% endif %}
+  {% elif item is not none and item != '' %}
+    {% set _value = item | string %}
+
+    {% if fallback_label is not none and fallback_label != '' %}
+      {% set _label = fallback_label | string %}
+    {% else %}
+      {% set _label = item | string %}
+    {% endif %}
+
+    {% set _description = '' %}
+    {% set _domain = '' %}
+    {% set _category = '' %}
+    {% set _subcategory = '' %}
+    {% set _path = '' %}
+    {% set _enabled_raw = true %}
+    {% set _default_raw = false %}
+  {% else %}
+    {% if fallback_value is not none and fallback_value != '' %}
+      {% set _value = fallback_value | string %}
+    {% else %}
+      {% set _value = '' %}
+    {% endif %}
+
+    {% if fallback_label is not none and fallback_label != '' %}
+      {% set _label = fallback_label | string %}
+    {% else %}
+      {% set _label = _value %}
+    {% endif %}
+
+    {% set _description = '' %}
+    {% set _domain = '' %}
+    {% set _category = '' %}
+    {% set _subcategory = '' %}
+    {% set _path = '' %}
+    {% set _enabled_raw = false %}
+    {% set _default_raw = false %}
+  {% endif %}
+
+  {% set _enabled_text = _enabled_raw | string | lower %}
+  {% if _enabled_raw is sameas false or _enabled_text in ['false', '0', 'no', 'nein', 'off', 'disabled', 'inactive', 'deaktiviert'] %}
+    {% set _enabled = false %}
+  {% else %}
+    {% set _enabled = true %}
+  {% endif %}
+
+  {% set _default_text = _default_raw | string | lower %}
+  {% if _default_raw is sameas true or _default_text in ['true', '1', 'yes', 'ja', 'default', 'selected', 'active'] %}
+    {% set _is_default = true %}
+  {% else %}
+    {% set _is_default = false %}
+  {% endif %}
+
+  {% if selected_value is not none and selected_value != '' %}
+    {% set _selected_value = selected_value | string %}
+  {% else %}
+    {% set _selected_value = '' %}
+  {% endif %}
+
+  {% if _value %}
+    <option
+      value="{{ _value }}"
+      {% if _selected_value and _selected_value == _value %}selected{% elif not _selected_value and _is_default %}selected{% endif %}
+      {% if not _enabled %}disabled{% endif %}
+      {% if _domain %}data-domain="{{ _domain }}"{% endif %}
+      {% if _domain %}data-vp-parent-domain="{{ _domain }}"{% endif %}
+      {% if _category %}data-category="{{ _category }}"{% endif %}
+      {% if _category %}data-vp-parent-category="{{ _category }}"{% endif %}
+      {% if _subcategory %}data-subcategory="{{ _subcategory }}"{% endif %}
+      {% if _subcategory %}data-vp-parent-subcategory="{{ _subcategory }}"{% endif %}
+      {% if _path %}data-path="{{ _path }}"{% endif %}
+      {% if _description %}data-description="{{ _description }}"{% endif %}
+      data-option-enabled="{% if _enabled %}true{% else %}false{% endif %}"
+      data-option-default="{% if _is_default %}true{% else %}false{% endif %}"
+    >{{ _label }}{% if not _enabled %} · deaktiviert{% endif %}</option>
+  {% endif %}
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_options
+
+  Rendert mehrere Optionen plus optionalen Placeholder.
+----------------------------------------------------------------------------- #}
+{% macro render_options(options, selected_value='', empty_label='', empty_value='') -%}
+  {% if empty_label %}
+    <option value="{{ empty_value }}">{{ empty_label }}</option>
+  {% endif %}
+
+  {% if options is iterable and options is not string and options is not mapping %}
+    {% for item in options %}
+      {{ render_option(item, selected_value) }}
+    {% endfor %}
+  {% endif %}
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_status_pill
+
+  Rendert einen kompakten Status-Pill.
+
+  state:
+  - ok
+  - warning
+  - error
+  - danger
+  - info
+  - muted
+  - active
+  - disabled
+----------------------------------------------------------------------------- #}
+{% macro render_status_pill(label, state='muted', attrs='') -%}
+  {% set _label = label | default('', true) | string %}
+  {% set _state = state | default('muted', true) | string | lower | replace(' ', '-') | replace('_', '-') %}
+  {% set _attrs = attrs | default('', true) | string %}
+
+  {% if not _state %}
+    {% set _state = 'muted' %}
+  {% endif %}
+
+  {% if _state == 'error' %}
+    {% set _state = 'danger' %}
+  {% endif %}
+
+  <span
+    class="vp-create-pill vp-create-status-pill vp-create-status-pill--{{ _state }} is-{{ _state }}"
+    data-create-pill="{{ _state }}"
+    data-vp-status-pill="{{ _state }}"
+    {% if _attrs %}{{ _attrs | safe }}{% endif %}
+  >{{ _label }}</span>
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_alert
+
+  Rendert eine kompakte Inline-Hinweisbox.
+  Keine große Alert-Section.
+
+  state:
+  - info
+  - warning
+  - danger
+  - error
+  - success
+  - muted
+----------------------------------------------------------------------------- #}
+{% macro render_alert(title, text='', state='info', role='status', attrs='') -%}
+  {% set _title = title | default('', true) | string %}
+  {% set _text = text | default('', true) | string %}
+  {% set _state = state | default('info', true) | string | lower | replace(' ', '-') | replace('_', '-') %}
+  {% set _role = role | default('status', true) | string %}
+  {% set _attrs = attrs | default('', true) | string %}
+
+  {% if not _state %}
+    {% set _state = 'info' %}
+  {% endif %}
+
+  {% if _state == 'error' %}
+    {% set _state = 'danger' %}
+  {% endif %}
+
+  <aside
+    class="vp-create-alert vp-create-alert--{{ _state }}"
+    role="{{ _role }}"
+    data-create-alert="{{ _state }}"
+    data-vp-inline-alert="{{ _state }}"
+    {% if _attrs %}{{ _attrs | safe }}{% endif %}
+  >
+    {% if _title %}
+      <strong>{{ _title }}</strong>
+    {% endif %}
+    {% if _text %}
+      <span>{{ _text }}</span>
+    {% endif %}
+  </aside>
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_section_header
+
+  Legacy-kompatibler Header für Cards/Sections.
+  Im neuen Wizard werden Step-Header meist direkt im Partial geschrieben.
+----------------------------------------------------------------------------- #}
+{% macro render_section_header(eyebrow, title, text='', badge_label='', badge_state='muted', title_id='') -%}
+  {% set _eyebrow = eyebrow | default('', true) | string %}
+  {% set _title = title | default('', true) | string %}
+  {% set _text = text | default('', true) | string %}
+  {% set _badge_label = badge_label | default('', true) | string %}
+  {% set _badge_state = badge_state | default('muted', true) | string %}
+  {% set _title_id = title_id | default('', true) | string %}
+
+  <header class="vp-create-card__header" data-vp-section-header>
+    <div class="vp-create-card__header-copy">
+      {% if _eyebrow %}
+        <p class="vp-create-eyebrow">{{ _eyebrow }}</p>
+      {% endif %}
+
+      {% if _title %}
+        <h2
+          class="vp-create-card__title"
+          {% if _title_id %}id="{{ _title_id }}"{% endif %}
+        >{{ _title }}</h2>
+      {% endif %}
+
+      {% if _text %}
+        <p class="vp-create-card__text">{{ _text }}</p>
+      {% endif %}
+    </div>
+
+    {% if _badge_label %}
+      <div class="vp-create-card__header-aside">
+        {{ render_status_pill(_badge_label, _badge_state) }}
+      </div>
+    {% endif %}
+  </header>
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_subsection_header
+
+  Kompakter Header für Unterbereiche innerhalb eines Wizard-Steps.
+----------------------------------------------------------------------------- #}
+{% macro render_subsection_header(title, text='', action_label='', action_attr='', action_state='secondary') -%}
+  {% set _title = title | default('', true) | string %}
+  {% set _text = text | default('', true) | string %}
+  {% set _action_label = action_label | default('', true) | string %}
+  {% set _action_attr = action_attr | default('', true) | string %}
+  {% set _action_state = action_state | default('secondary', true) | string | lower | replace(' ', '-') | replace('_', '-') %}
+
+  {% if not _action_state %}
+    {% set _action_state = 'secondary' %}
+  {% endif %}
+
+  <div class="vp-create-subsection__header vp-create-compact-subheader" data-vp-subsection-header>
+    <div class="vp-create-subsection__copy vp-create-compact-subheader__copy">
+      {% if _title %}
+        <h3 class="vp-create-subsection__title vp-create-compact-subheader__title">{{ _title }}</h3>
+      {% endif %}
+      {% if _text %}
+        <p class="vp-create-subsection__text vp-create-compact-subheader__text">{{ _text }}</p>
+      {% endif %}
+    </div>
+
+    {% if _action_label %}
+      <div class="vp-create-subsection__action">
+        <button
+          class="vp-create-button vp-create-button--{{ _action_state }}"
+          type="button"
+          {% if _action_attr %}{{ _action_attr | safe }}{% endif %}
+        >{{ _action_label }}</button>
+      </div>
+    {% endif %}
+  </div>
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_field
+
+  Rendert Standard-Input oder Textarea.
+
+  type:
+  - text
+  - number
+  - hidden
+  - textarea
+  - file
+  - email
+  - url
+  - search
+  - password
+
+  Wichtig:
+  - attrs kann zusätzliche data-vp-* oder data-create-* Hooks liefern.
+  - Falls attrs bereits data-create-field enthält, wird es nicht doppelt gesetzt.
+----------------------------------------------------------------------------- #}
+{% macro render_field(
+  name,
+  label,
+  value='',
+  type='text',
+  placeholder='',
+  hint='',
+  required=false,
+  disabled=false,
+  readonly=false,
+  wide=false,
+  compact=false,
+  mono=false,
+  id='',
+  rows=5,
+  maxlength='',
+  min='',
+  max='',
+  step='',
+  inputmode='',
+  attrs=''
+) -%}
+  {% set _name = name | default('', true) | string %}
+  {% set _label = label | default('', true) | string %}
+
+  {% if value is not none %}
+    {% set _value = value %}
+  {% else %}
+    {% set _value = '' %}
+  {% endif %}
+
+  {% set _type = type | default('text', true) | string | lower %}
+  {% set _placeholder = placeholder | default('', true) | string %}
+  {% set _hint = hint | default('', true) | string %}
+  {% set _id = id | default('', true) | string %}
+  {% set _attrs = attrs | default('', true) | string %}
+  {% set _rows = rows | default(5, true) %}
+  {% set _maxlength = maxlength | default('', true) %}
+  {% set _min = min | default('', true) %}
+  {% set _max = max | default('', true) %}
+  {% set _step = step | default('', true) %}
+  {% set _inputmode = inputmode | default('', true) | string %}
+
+  {% if not _id and _name %}
+    {% set _id = 'create-' ~ (_name | replace('[', '-') | replace(']', '') | replace('_', '-') | replace('.', '-')) %}
+  {% endif %}
+
+  {% if _hint and _id %}
+    {% set _hint_id = _id ~ '-hint' %}
+  {% else %}
+    {% set _hint_id = '' %}
+  {% endif %}
+
+  {% if required %}
+    {% set _required = true %}
+  {% else %}
+    {% set _required = false %}
+  {% endif %}
+
+  {% if disabled %}
+    {% set _disabled = true %}
+  {% else %}
+    {% set _disabled = false %}
+  {% endif %}
+
+  {% if readonly %}
+    {% set _readonly = true %}
+  {% else %}
+    {% set _readonly = false %}
+  {% endif %}
+
+  {% if _type == 'hidden' %}
+    <input
+      {% if _id %}id="{{ _id }}"{% endif %}
+      name="{{ _name }}"
+      type="hidden"
+      value="{{ _value }}"
+      {% if 'data-create-field' not in _attrs %}data-create-field="{{ _name }}"{% endif %}
+      {% if _attrs %}{{ _attrs | safe }}{% endif %}
+    />
+  {% else %}
+    <label
+      class="vp-create-field{% if wide %} vp-create-field--wide{% endif %}{% if compact %} vp-create-field--compact{% endif %}"
+      {% if _id %}for="{{ _id }}"{% endif %}
+    >
+      {% if _label %}
+        <span class="vp-create-field__label">
+          {{ _label }}{% if _required %}<span class="vp-create-field__required" aria-hidden="true"> *</span>{% endif %}
+        </span>
+      {% endif %}
+
+      {% if _type == 'textarea' %}
+        <textarea
+          class="vp-create-textarea{% if mono %} vp-create-textarea--mono vp-create-input--mono{% endif %}"
+          {% if _id %}id="{{ _id }}"{% endif %}
+          name="{{ _name }}"
+          rows="{{ _rows }}"
+          {% if _maxlength is not none and _maxlength != '' %}maxlength="{{ _maxlength }}"{% endif %}
+          {% if _placeholder %}placeholder="{{ _placeholder }}"{% endif %}
+          {% if _hint_id %}aria-describedby="{{ _hint_id }}"{% endif %}
+          {% if 'data-create-field' not in _attrs %}data-create-field="{{ _name }}"{% endif %}
+          {% if _required %}data-create-required="true" required{% endif %}
+          {% if _disabled %}disabled aria-disabled="true"{% endif %}
+          {% if _readonly %}readonly aria-readonly="true"{% endif %}
+          {% if _attrs %}{{ _attrs | safe }}{% endif %}
+        >{{ _value }}</textarea>
+      {% else %}
+        <input
+          class="vp-create-input{% if mono %} vp-create-input--mono{% endif %}"
+          {% if _id %}id="{{ _id }}"{% endif %}
+          name="{{ _name }}"
+          type="{{ _type }}"
+          {% if _type != 'file' %}value="{{ _value }}"{% endif %}
+          {% if _placeholder %}placeholder="{{ _placeholder }}"{% endif %}
+          {% if _maxlength is not none and _maxlength != '' %}maxlength="{{ _maxlength }}"{% endif %}
+          {% if _min is not none and _min != '' %}min="{{ _min }}"{% endif %}
+          {% if _max is not none and _max != '' %}max="{{ _max }}"{% endif %}
+          {% if _step is not none and _step != '' %}step="{{ _step }}"{% endif %}
+          {% if _inputmode %}inputmode="{{ _inputmode }}"{% endif %}
+          {% if _hint_id %}aria-describedby="{{ _hint_id }}"{% endif %}
+          {% if 'data-create-field' not in _attrs %}data-create-field="{{ _name }}"{% endif %}
+          {% if _required %}data-create-required="true" required{% endif %}
+          {% if _disabled %}disabled aria-disabled="true"{% endif %}
+          {% if _readonly %}readonly aria-readonly="true"{% endif %}
+          {% if _attrs %}{{ _attrs | safe }}{% endif %}
+        />
+      {% endif %}
+
+      {% if _hint %}
+        <span
+          class="vp-create-field__hint"
+          {% if _hint_id %}id="{{ _hint_id }}"{% endif %}
+        >{{ _hint }}</span>
+      {% endif %}
+    </label>
+  {% endif %}
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_select
+
+  Rendert ein Standard-Select.
+
+  Wichtig:
+  - attrs kann zusätzliche data-vp-* oder data-create-* Hooks liefern.
+  - Falls attrs bereits data-create-field enthält, wird es nicht doppelt gesetzt.
+----------------------------------------------------------------------------- #}
+{% macro render_select(
+  name,
+  label,
+  options,
+  selected_value='',
+  empty_label='',
+  hint='',
+  required=false,
+  disabled=false,
+  wide=false,
+  compact=false,
+  id='',
+  attrs=''
+) -%}
+  {% set _name = name | default('', true) | string %}
+  {% set _label = label | default('', true) | string %}
+  {% set _hint = hint | default('', true) | string %}
+  {% set _id = id | default('', true) | string %}
+  {% set _attrs = attrs | default('', true) | string %}
+
+  {% if not _id and _name %}
+    {% set _id = 'create-' ~ (_name | replace('[', '-') | replace(']', '') | replace('_', '-') | replace('.', '-')) %}
+  {% endif %}
+
+  {% if _hint and _id %}
+    {% set _hint_id = _id ~ '-hint' %}
+  {% else %}
+    {% set _hint_id = '' %}
+  {% endif %}
+
+  {% if required %}
+    {% set _required = true %}
+  {% else %}
+    {% set _required = false %}
+  {% endif %}
+
+  {% if disabled %}
+    {% set _disabled = true %}
+  {% else %}
+    {% set _disabled = false %}
+  {% endif %}
+
+  <label
+    class="vp-create-field{% if wide %} vp-create-field--wide{% endif %}{% if compact %} vp-create-field--compact{% endif %}"
+    {% if _id %}for="{{ _id }}"{% endif %}
+  >
+    {% if _label %}
+      <span class="vp-create-field__label">
+        {{ _label }}{% if _required %}<span class="vp-create-field__required" aria-hidden="true"> *</span>{% endif %}
+      </span>
+    {% endif %}
+
+    <select
+      class="vp-create-select"
+      {% if _id %}id="{{ _id }}"{% endif %}
+      name="{{ _name }}"
+      {% if _hint_id %}aria-describedby="{{ _hint_id }}"{% endif %}
+      {% if 'data-create-field' not in _attrs %}data-create-field="{{ _name }}"{% endif %}
+      {% if _required %}data-create-required="true" required{% endif %}
+      {% if _disabled %}disabled aria-disabled="true"{% endif %}
+      {% if _attrs %}{{ _attrs | safe }}{% endif %}
+    >
+      {% if empty_label %}
+        <option value="">{{ empty_label }}</option>
+      {% endif %}
+
+      {% if options is iterable and options is not string and options is not mapping %}
+        {% for item in options %}
+          {{ render_option(item, selected_value) }}
+        {% endfor %}
+      {% endif %}
+    </select>
+
+    {% if _hint %}
+      <span
+        class="vp-create-field__hint"
+        {% if _hint_id %}id="{{ _hint_id }}"{% endif %}
+      >{{ _hint }}</span>
+    {% endif %}
+  </label>
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_button
+
+  Rendert einen generischen Button.
+
+  state:
+  - primary
+  - secondary
+  - danger
+  - ghost
+  - muted
+----------------------------------------------------------------------------- #}
+{% macro render_button(label, state='secondary', type='button', disabled=false, attrs='') -%}
+  {% set _label = label | default('', true) | string %}
+  {% set _state = state | default('secondary', true) | string | lower | replace(' ', '-') | replace('_', '-') %}
+  {% set _type = type | default('button', true) | string %}
+  {% set _attrs = attrs | default('', true) | string %}
+
+  {% if not _state %}
+    {% set _state = 'secondary' %}
+  {% endif %}
+
+  <button
+    class="vp-create-button vp-create-button--{{ _state }}"
+    type="{{ _type }}"
+    {% if disabled %}disabled aria-disabled="true"{% endif %}
+    {% if _attrs %}{{ _attrs | safe }}{% endif %}
+  >{{ _label }}</button>
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_status_card
+
+  Legacy-kompatibel.
+  Statuskarten werden im neuen Wizard nicht mehr als eigener Block genutzt.
+----------------------------------------------------------------------------- #}
+{% macro render_status_card(label, value, code=false, attrs='') -%}
+  {% set _label = label | default('', true) | string %}
+  {% set _value = value | default('', true) | string %}
+  {% set _attrs = attrs | default('', true) | string %}
+
+  <article class="vp-create-status-card" {% if _attrs %}{{ _attrs | safe }}{% endif %}>
+    {% if _label %}
+      <span class="vp-create-status-card__label">{{ _label }}</span>
+    {% endif %}
+
+    {% if code %}
+      <code class="vp-create-status-card__value">{{ _value }}</code>
+    {% else %}
+      <span class="vp-create-status-card__value">{{ _value }}</span>
+    {% endif %}
+  </article>
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_empty_state
+
+  Kompakter Empty-/Pending-State.
+----------------------------------------------------------------------------- #}
+{% macro render_empty_state(title='Keine Daten verfügbar', text='', state='empty', attrs='') -%}
+  {% set _title = title | default('Keine Daten verfügbar', true) | string %}
+  {% set _text = text | default('', true) | string %}
+  {% set _state = state | default('empty', true) | string | lower | replace(' ', '-') | replace('_', '-') %}
+  {% set _attrs = attrs | default('', true) | string %}
+
+  {% if not _state %}
+    {% set _state = 'empty' %}
+  {% endif %}
+
+  <article
+    class="vp-create-empty-state is-{{ _state }}"
+    data-create-empty-state="{{ _state }}"
+    {% if _attrs %}{{ _attrs | safe }}{% endif %}
+  >
+    <strong>{{ _title }}</strong>
+    {% if _text %}
+      <span>{{ _text }}</span>
+    {% endif %}
+  </article>
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_json_script
+
+  Rendert ein application/json Script.
+----------------------------------------------------------------------------- #}
+{% macro render_json_script(id, data, attrs='') -%}
+  {% set _id = id | default('', true) | string %}
+  {% set _attrs = attrs | default('', true) | string %}
+
+  <script
+    type="application/json"
+    {% if _id %}id="{{ _id }}"{% endif %}
+    {% if _attrs %}{{ _attrs | safe }}{% endif %}
+  >
+{{ data | default({}, true) | tojson }}
+  </script>
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_icon_placeholder
+
+  Kleiner dekorativer Platzhalter ohne externe Icon-Abhängigkeit.
+----------------------------------------------------------------------------- #}
+{% macro render_icon_placeholder(kind='box', label='') -%}
+  {% set _kind = kind | default('box', true) | string | lower | replace(' ', '-') | replace('_', '-') %}
+  {% set _label = label | default('', true) | string %}
+
+  {% if not _kind %}
+    {% set _kind = 'box' %}
+  {% endif %}
+
+  <span
+    class="vp-create-icon-placeholder vp-create-icon-placeholder--{{ _kind }}"
+    data-create-icon-placeholder="{{ _kind }}"
+    {% if _label %}aria-label="{{ _label }}"{% else %}aria-hidden="true"{% endif %}
+  >
+    <span class="vp-create-icon-placeholder__mark"></span>
+  </span>
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_mobile_hint
+
+  Kleiner Hinweis für mobile Bedienung oder Touch-Flächen.
+----------------------------------------------------------------------------- #}
+{% macro render_mobile_hint(text, attrs='') -%}
+  {% set _text = text | default('', true) | string %}
+  {% set _attrs = attrs | default('', true) | string %}
+
+  {% if _text %}
+    <p
+      class="vp-create-mobile-hint"
+      data-create-mobile-hint="true"
+      {% if _attrs %}{{ _attrs | safe }}{% endif %}
+    >{{ _text }}</p>
+  {% endif %}
+{%- endmacro %}
+
+
+{# -----------------------------------------------------------------------------
+  render_sr_only
+
+  Screenreader-only Text.
+----------------------------------------------------------------------------- #}
+{% macro render_sr_only(text) -%}
+  {% set _text = text | default('', true) | string %}
+
+  {% if _text %}
+    <span class="vp-create-sr-only">{{ _text }}</span>
+  {% endif %}
+{%- endmacro %}

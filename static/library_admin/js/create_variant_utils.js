@@ -5,7 +5,7 @@
  *
  * Zweck:
  * - Zentrale Utility-Schicht für den definition-managed Varianten-Flow.
- * - Wird von späteren Dateien verwendet:
+ * - Wird von den Variant-Runtime-Dateien genutzt:
  *     - create_variant_state.js
  *     - create_variant_profiles.js
  *     - create_variant_field_renderer.js
@@ -23,7 +23,7 @@
  *     - Dot-Key-Zugriff
  *     - Werte-/Typ-Konvertierung
  *     - HTML-/Attribut-Sicherheit
- *     - kleine Runtime-Diagnose
+ *     - Runtime-Diagnose
  *
  * Architekturregel:
  * - Diese Datei trifft keine fachlichen Entscheidungen.
@@ -32,20 +32,13 @@
  * - Sie erzeugt keine VPLIB-Packages.
  * - Sie ist eine reine Hilfsbibliothek.
  *
- * Wichtiger Fix in dieser Fassung:
- * - Native Event Guard ist jetzt event-spezifisch.
- * - input und change blockieren sich nicht mehr gegenseitig.
- * - Unterdrückte native Events werden standardmäßig nicht mehr als warn geloggt.
+ * Version 0.6.1:
+ * - Event-Guards sind event-spezifisch.
+ * - input und change blockieren sich nicht gegenseitig.
  * - setValue() ist idempotent und feuert nur bei echter Wertänderung Events.
- * - Programmatic Events bleiben markiert, lösen aber keine Warnlawine mehr aus.
- *
- * Global:
- * - window.VectoplanCreateVariantUtils
- *
- * Stabilität:
- * - Defensive try/catch-Strategie.
- * - Keine harten Abhängigkeiten zu anderen VECTOPLAN-Modulen.
- * - Idempotente Initialisierung.
+ * - Rekursive Custom-Events werden still unterdrückt, außer Debug ist aktiv.
+ * - Programmatic Events werden markiert, lösen aber keine Warnlawine aus.
+ * - document_list/document/documente bleiben als Werttypen robust normalisiert.
  * -------------------------------------------------------------------------- */
 
 (function () {
@@ -53,12 +46,13 @@
 
   var GLOBAL_NAME = "VectoplanCreateVariantUtils";
   var COMPONENT_NAME = "VECTOPLAN Create Variant Utils";
-  var COMPONENT_VERSION = "0.1.2";
+  var COMPONENT_VERSION = "0.6.1";
   var READY_ATTR = "data-vp-create-variant-utils-ready";
 
-  if (window[GLOBAL_NAME] && window[GLOBAL_NAME].__version) {
+  if (window[GLOBAL_NAME] && window[GLOBAL_NAME].__version === COMPONENT_VERSION) {
     try {
       document.documentElement.setAttribute(READY_ATTR, "true");
+      document.documentElement.setAttribute("data-vp-create-variant-utils-version", COMPONENT_VERSION);
     } catch (alreadyReadyError) {
       /* no-op */
     }
@@ -73,6 +67,8 @@
     nativeFallbackLock: {},
     suppressedCustomCount: 0,
     suppressedNativeCount: 0,
+    dispatchedCustomCount: 0,
+    dispatchedNativeCount: 0,
     maxCustomDepth: 24,
     nativeCooldownMs: 8,
     debugNativeEvents: false,
@@ -86,12 +82,32 @@
     "vectoplan:create:variant-table-rendered": true,
     "vectoplan:create:definition-variants-synced": true,
     "vectoplan:create:definitions-variants-synced": true,
-    "vectoplan:create:payload-variants-synced": true
+    "vectoplan:create:payload-variants-synced": true,
+    "vectoplan:create:payload-uploads-synced": true,
+    "vectoplan:create:upload-changed": true,
+    "vectoplan:create:upload-cleared": true
   };
 
   var SYNC_NATIVE_EVENTS = {
     input: true,
     change: true
+  };
+
+  var SYSTEM_VARIANT_KEYS = {
+    "variant.variant_id": true,
+    "variant.variantId": true,
+    "variant.id": true,
+    "variant_id": true,
+    "variantId": true,
+    "id": true
+  };
+
+  var DOCUMENT_VALUE_TYPES = {
+    document: true,
+    documents: true,
+    document_list: true,
+    file: true,
+    file_list: true
   };
 
   /* ---------------------------------------------------------------------------
@@ -283,7 +299,7 @@
 
       var text = lower(value);
 
-      if (["true", "1", "yes", "ja", "y", "on", "ok", "enabled", "active"].indexOf(text) !== -1) {
+      if (["true", "1", "yes", "ja", "y", "on", "ok", "enabled", "active", "selected", "default"].indexOf(text) !== -1) {
         return true;
       }
 
@@ -361,7 +377,7 @@
         return value.slice();
       }
 
-      if (typeof value.length === "number" && !isString(value)) {
+      if (typeof value.length === "number" && !isString(value) && !isFunction(value)) {
         return Array.prototype.slice.call(value);
       }
 
@@ -434,7 +450,7 @@
   }
 
   /* ---------------------------------------------------------------------------
-   * JSON
+   * JSON / Clone / Merge
    * ------------------------------------------------------------------------ */
 
   function safeJsonParse(value, fallback) {
@@ -552,6 +568,8 @@
             output[key] = deepMerge(output[key], value);
           } else if (isArray(value)) {
             output[key] = value.slice();
+          } else if (isPlainObject(value)) {
+            output[key] = deepMerge(value);
           } else {
             output[key] = value;
           }
@@ -998,9 +1016,9 @@
 
   function htmlToElement(html) {
     try {
-      var wrapper = document.createElement("div");
-      wrapper.innerHTML = String(html || "").trim();
-      return wrapper.firstElementChild;
+      var template = document.createElement("template");
+      template.innerHTML = String(html || "").trim();
+      return template.content.firstElementChild;
     } catch (error) {
       return null;
     }
@@ -1045,18 +1063,18 @@
     }
   }
 
-  function cache(root, selectors) {
+  function cache(root, selectorMap) {
     try {
       var output = {
         root: root || document
       };
 
-      if (!isObject(selectors)) {
+      if (!isObject(selectorMap)) {
         return output;
       }
 
-      Object.keys(selectors).forEach(function (key) {
-        var selector = selectors[key];
+      Object.keys(selectorMap).forEach(function (key) {
+        var selector = selectorMap[key];
 
         if (isArray(selector)) {
           output[key] = qsa(selector[0], root);
@@ -1318,11 +1336,12 @@
         };
       }
 
+      var safeDetail = isObject(detail) ? detail : {};
       var event = new CustomEvent(safeEventName, {
         bubbles: config.bubbles !== false,
         cancelable: !!config.cancelable,
-        detail: safeMerge(detail || {}, {
-          __vp_dispatch_source: detail && detail.__vp_dispatch_source ? detail.__vp_dispatch_source : "variant-utils",
+        detail: safeMerge(safeDetail, {
+          __vp_dispatch_source: safeDetail.__vp_dispatch_source || config.source || "variant-utils",
           __vp_dispatch_timestamp: nowIso()
         })
       });
@@ -1331,6 +1350,7 @@
 
       try {
         node.dispatchEvent(event);
+        EVENT_GUARD.dispatchedCustomCount += 1;
       } finally {
         popCustomEvent(safeEventName);
       }
@@ -1382,12 +1402,14 @@
           cancelable: false
         }));
 
+        EVENT_GUARD.dispatchedNativeCount += 1;
         return true;
       } catch (modernError) {
         try {
           var event = document.createEvent("Event");
           event.initEvent(safeEventName, true, false);
           node.dispatchEvent(event);
+          EVENT_GUARD.dispatchedNativeCount += 1;
           return true;
         } catch (legacyError) {
           return false;
@@ -2085,8 +2107,11 @@
       });
 
       toArray(profile && profile.all_fields).forEach(add);
+      toArray(profile && profile.allFields).forEach(add);
       toArray(profile && profile.required_fields).forEach(add);
+      toArray(profile && profile.requiredFields).forEach(add);
       toArray(profile && profile.optional_fields).forEach(add);
+      toArray(profile && profile.optionalFields).forEach(add);
 
       return keys;
     } catch (error) {
@@ -2147,7 +2172,8 @@
 
   function isFieldRequired(profile, fieldKey) {
     try {
-      return toArray(profile && profile.required_fields).indexOf(fieldKey) !== -1;
+      return toArray(profile && profile.required_fields).indexOf(fieldKey) !== -1 ||
+        toArray(profile && profile.requiredFields).indexOf(fieldKey) !== -1;
     } catch (error) {
       return false;
     }
@@ -2161,7 +2187,7 @@
 
       var key = variable.key || variable.id || "";
 
-      if (key === "variant.variant_id" || key === "variant_id" || key === "variantId" || key === "variant.id") {
+      if (SYSTEM_VARIANT_KEYS[key]) {
         return true;
       }
 
@@ -2173,7 +2199,9 @@
       var ui = variable.ui || {};
 
       return bool(metadata.system_managed, false) ||
+        bool(metadata.systemManaged, false) ||
         bool(metadata.hide_in_create_drawer, false) ||
+        bool(metadata.hideInCreateDrawer, false) ||
         ui.hidden === true ||
         ui.visible === false;
     } catch (error) {
@@ -2189,7 +2217,7 @@
 
       var key = variable.key || variable.id || "";
 
-      if (key === "variant.variant_id" || key === "variant_id" || key === "variantId" || key === "variant.id") {
+      if (SYSTEM_VARIANT_KEYS[key]) {
         return true;
       }
 
@@ -2201,6 +2229,7 @@
       var ui = variable.ui || {};
 
       return bool(metadata.hide_in_create_drawer, false) ||
+        bool(metadata.hideInCreateDrawer, false) ||
         ui.hidden === true ||
         ui.visible === false ||
         ui.expose_in_optional_picker === false ||
@@ -2270,6 +2299,14 @@
    * Values / Variables
    * ------------------------------------------------------------------------ */
 
+  function valueType(variable) {
+    try {
+      return lower(variable && (variable.value_type || variable.valueType || variable.type) ? variable.value_type || variable.valueType || variable.type : "string");
+    } catch (error) {
+      return "string";
+    }
+  }
+
   function defaultValueForVariable(variable) {
     try {
       if (!variable) {
@@ -2284,7 +2321,7 @@
         return deepClone(variable.defaultValue);
       }
 
-      var type = variable.value_type || variable.valueType || variable.type || "string";
+      var type = valueType(variable);
 
       if (type === "boolean") {
         return false;
@@ -2294,7 +2331,7 @@
         return null;
       }
 
-      if (type === "document_list" || type === "array" || type === "multi_enum") {
+      if (DOCUMENT_VALUE_TYPES[type] || type === "array" || type === "multi_enum" || type === "multi-enum") {
         return [];
       }
 
@@ -2310,7 +2347,7 @@
 
   function normalizeValueForVariable(value, variable) {
     try {
-      var type = variable && (variable.value_type || variable.valueType || variable.type) ? String(variable.value_type || variable.valueType || variable.type) : "";
+      var type = valueType(variable);
 
       if (!type) {
         return value;
@@ -2336,15 +2373,15 @@
         return floatValue(value, null);
       }
 
-      if (type === "document_list" || type === "array" || type === "multi_enum") {
+      if (DOCUMENT_VALUE_TYPES[type] || type === "array" || type === "multi_enum" || type === "multi-enum") {
         if (isArray(value)) {
           return value;
         }
 
-        var parsed = safeJsonParse(value, null);
+        var parsedArray = safeJsonParse(value, null);
 
-        if (isArray(parsed)) {
-          return parsed;
+        if (isArray(parsedArray)) {
+          return parsedArray;
         }
 
         return [];
@@ -2491,7 +2528,9 @@
       var label = variant.label || variant.name || values["variant.label"] || "";
       var description = variant.description || values["variant.description"] || "";
       var profileId = variant.variant_profile_id || variant.variantProfileId || variant.profile_id || config.variantProfileId || config.variant_profile_id || "";
+      var familyProfileId = variant.family_profile_id || variant.familyProfileId || config.familyProfileId || config.family_profile_id || "";
       var isDefault = bool(variant.is_default || variant.isDefault || variant.default, false) || id === "default";
+
       var additionalFieldKeys = normalizeAdditionalFieldKeys(
         variant.additional_field_keys ||
         variant.additionalFieldKeys ||
@@ -2533,8 +2572,8 @@
         isDefault: isDefault,
         variant_profile_id: profileId,
         variantProfileId: profileId,
-        family_profile_id: variant.family_profile_id || variant.familyProfileId || config.familyProfileId || config.family_profile_id || "",
-        familyProfileId: variant.family_profile_id || variant.familyProfileId || config.familyProfileId || config.family_profile_id || "",
+        family_profile_id: familyProfileId,
+        familyProfileId: familyProfileId,
         definition_managed: bool(variant.definition_managed || variant.definitionManaged, !!profileId || !!Object.keys(values).length),
         definitionManaged: bool(variant.definition_managed || variant.definitionManaged, !!profileId || !!Object.keys(values).length),
         definition_values: values,
@@ -2545,6 +2584,7 @@
         additionalFieldKeys: additionalFieldKeys.slice(),
         definition_summary: variant.definition_summary || variant.definitionSummary || variant.summary || "",
         definitionSummary: variant.definition_summary || variant.definitionSummary || variant.summary || "",
+        validation: variant.validation || null,
         raw: variant
       };
     } catch (error) {
@@ -2609,6 +2649,19 @@
 
           variant.definition_values_json = valuesToJson(variant.definition_values);
           variant.definitionValuesJson = variant.definition_values_json;
+        } else if (variant.variant_id === "default") {
+          variant.variant_id = ensureUniqueId("variant_" + (index + 1), existingIds, {
+            fallback: "variant",
+            start: 1
+          });
+          variant.variantId = variant.variant_id;
+          variant.slug = variant.variant_id;
+          variant.definition_values["variant.variant_id"] = variant.variant_id;
+          variant.definitionValues = variant.definition_values;
+          variant.definition_values_json = valuesToJson(variant.definition_values);
+          variant.definitionValuesJson = variant.definition_values_json;
+          variant.is_default = false;
+          variant.isDefault = false;
         }
 
         existingIds.push(variant.variant_id);
@@ -2662,7 +2715,7 @@
         return "";
       }
 
-      var type = variable && (variable.value_type || variable.valueType || variable.type) ? variable.value_type || variable.valueType || variable.type : "";
+      var type = valueType(variable);
 
       if (type === "boolean") {
         return bool(value, false) ? "Ja" : "Nein";
@@ -2684,9 +2737,13 @@
         }
       }
 
-      if (type === "document_list") {
+      if (DOCUMENT_VALUE_TYPES[type]) {
         var list = isArray(value) ? value : safeJsonParse(value, []);
         return list.length === 1 ? "1 Dokument" : String(list.length) + " Dokumente";
+      }
+
+      if (type === "object") {
+        return safeJsonStringify(value, "{}", 0);
       }
 
       return String(value);
@@ -2699,7 +2756,7 @@
     try {
       var defs = normalizeDefinitions(definitions);
       var maps = buildDefinitionMaps(defs);
-      var fields = toArray(profile && profile.summary_fields);
+      var fields = toArray(profile && profile.summary_fields || profile && profile.summaryFields);
       var parts = [];
 
       fields.forEach(function (fieldKey) {
@@ -2777,6 +2834,8 @@
           customDepthByName: shallowClone(EVENT_GUARD.customDepthByName),
           suppressedCustomCount: EVENT_GUARD.suppressedCustomCount,
           suppressedNativeCount: EVENT_GUARD.suppressedNativeCount,
+          dispatchedCustomCount: EVENT_GUARD.dispatchedCustomCount,
+          dispatchedNativeCount: EVENT_GUARD.dispatchedNativeCount,
           nativeCooldownMs: EVENT_GUARD.nativeCooldownMs,
           debugNativeEvents: EVENT_GUARD.debugNativeEvents,
           debugCustomEvents: EVENT_GUARD.debugCustomEvents
@@ -2787,7 +2846,9 @@
           hasDefinitionsRuntime: !!window.VectoplanCreateDefinitionsRuntime,
           hasVariantWorkspace: !!window.VectoplanCreateVariantWorkspace,
           hasVariantTable: !!window.VectoplanCreateVariantTable,
-          hasVariantDrawerShell: !!window.VectoplanCreateVariantDrawerShell
+          hasVariantDrawerShell: !!window.VectoplanCreateVariantDrawerShell,
+          hasUploadsRuntime: !!window.VectoplanCreateUploads,
+          hasPayloadRuntime: !!window.VectoplanCreatePayload
         }
       };
     } catch (error) {
@@ -2806,6 +2867,7 @@
   var api = {
     __name: COMPONENT_NAME,
     __version: COMPONENT_VERSION,
+    version: COMPONENT_VERSION,
 
     log: log,
     warn: warn,

@@ -52,7 +52,7 @@ CREATE_BLUEPRINT_COMPONENT = "create-blueprint"
 CREATE_PAGE_ROUTE = "/create"
 CREATE_API_PREFIX = "/api/v1/vplib/create"
 
-CREATE_TEMPLATE = "library_admin/create.html"
+CREATE_TEMPLATE = "vplib/create.html"
 FALLBACK_TEMPLATE_TITLE = "VPLIB erstellen"
 
 

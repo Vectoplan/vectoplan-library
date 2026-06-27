@@ -1,0 +1,1364 @@
+{# services/vectoplan-library/templates/vplib/create/sections/_taxonomy.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · VPLIB Create Wizard · Step 2: Taxonomy
+
+  Zweck:
+  - Erfasst die fachliche Einordnung eines neuen VPLIB-Family-Package.
+  - Direkt lesbares HTML statt langer Macro-Aufrufe.
+  - Kompakt genug für Schritt 2 ohne unnötiges Scrollen.
+  - Keine Hero-Inhalte.
+  - Keine Alerts als eigene Section.
+  - Keine Help-Section.
+  - Keine Result-Section.
+  - Keine Dateioperation.
+  - Keine API-Aufrufe.
+  - Keine lokale Taxonomie-Wahrheit als fachliche Quelle.
+
+  Backend-Vertrag:
+  Diese Feldnamen bleiben stabil:
+  - domain
+  - category
+  - subcategory
+
+  Defensive Defaults:
+  - domain: hochbau
+  - category: bloecke
+  - subcategory: basis
+
+  Bestehende Frontend-Hooks bleiben stabil:
+  - data-create-taxonomy-select="domain"
+  - data-create-taxonomy-select="category"
+  - data-create-taxonomy-select="subcategory"
+  - data-create-preview-source="taxonomy"
+  - data-vp-step-field="taxonomy.domain"
+  - data-vp-step-field="taxonomy.category"
+  - data-vp-step-field="taxonomy.subcategory"
+
+  Neue defensive Hooks:
+  - data-vp-taxonomy-root
+  - data-vp-taxonomy-ready
+  - data-vp-taxonomy-section-ready
+  - window.VectoplanCreateTaxonomy
+----------------------------------------------------------------------------- #}
+
+
+{# -----------------------------------------------------------------------------
+  1. Options defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if _domains is defined and _domains is iterable and _domains is not string %}
+  {% set _taxonomy_domains = _domains %}
+{% elif create_options is defined and create_options is mapping and 'domains' in create_options and create_options['domains'] is iterable and create_options['domains'] is not string %}
+  {% set _taxonomy_domains = create_options['domains'] %}
+{% elif _options_data is defined and _options_data is mapping and 'domains' in _options_data and _options_data['domains'] is iterable and _options_data['domains'] is not string %}
+  {% set _taxonomy_domains = _options_data['domains'] %}
+{% else %}
+  {% set _taxonomy_domains = [] %}
+{% endif %}
+
+{% if _categories is defined and _categories is iterable and _categories is not string %}
+  {% set _taxonomy_categories = _categories %}
+{% elif create_options is defined and create_options is mapping and 'categories' in create_options and create_options['categories'] is iterable and create_options['categories'] is not string %}
+  {% set _taxonomy_categories = create_options['categories'] %}
+{% elif _options_data is defined and _options_data is mapping and 'categories' in _options_data and _options_data['categories'] is iterable and _options_data['categories'] is not string %}
+  {% set _taxonomy_categories = _options_data['categories'] %}
+{% else %}
+  {% set _taxonomy_categories = [] %}
+{% endif %}
+
+{% if _subcategories is defined and _subcategories is iterable and _subcategories is not string %}
+  {% set _taxonomy_subcategories = _subcategories %}
+{% elif create_options is defined and create_options is mapping and 'subcategories' in create_options and create_options['subcategories'] is iterable and create_options['subcategories'] is not string %}
+  {% set _taxonomy_subcategories = create_options['subcategories'] %}
+{% elif _options_data is defined and _options_data is mapping and 'subcategories' in _options_data and _options_data['subcategories'] is iterable and _options_data['subcategories'] is not string %}
+  {% set _taxonomy_subcategories = _options_data['subcategories'] %}
+{% else %}
+  {% set _taxonomy_subcategories = [] %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  2. Draft defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if create_initial_draft is defined and create_initial_draft is mapping %}
+  {% set _taxonomy_draft = create_initial_draft %}
+{% elif _initial_draft is defined and _initial_draft is mapping %}
+  {% set _taxonomy_draft = _initial_draft %}
+{% elif _draft is defined and _draft is mapping %}
+  {% set _taxonomy_draft = _draft %}
+{% elif draft is defined and draft is mapping %}
+  {% set _taxonomy_draft = draft %}
+{% elif vplib_draft is defined and vplib_draft is mapping %}
+  {% set _taxonomy_draft = vplib_draft %}
+{% else %}
+  {% set _taxonomy_draft = {} %}
+{% endif %}
+
+{% if _taxonomy_draft is mapping and 'taxonomy' in _taxonomy_draft and _taxonomy_draft['taxonomy'] is mapping %}
+  {% set _taxonomy_values = _taxonomy_draft['taxonomy'] %}
+{% elif _taxonomy_draft is mapping and 'classification' in _taxonomy_draft and _taxonomy_draft['classification'] is mapping %}
+  {% set _taxonomy_values = _taxonomy_draft['classification'] %}
+{% elif _taxonomy_draft is mapping and 'family' in _taxonomy_draft and _taxonomy_draft['family'] is mapping and 'classification' in _taxonomy_draft['family'] and _taxonomy_draft['family']['classification'] is mapping %}
+  {% set _taxonomy_values = _taxonomy_draft['family']['classification'] %}
+{% elif _taxonomy_draft is mapping %}
+  {% set _taxonomy_values = _taxonomy_draft %}
+{% else %}
+  {% set _taxonomy_values = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  3. Ausgewählte Werte defensiv lesen
+----------------------------------------------------------------------------- #}
+
+{% if _taxonomy_values is mapping and 'domain' in _taxonomy_values and _taxonomy_values['domain'] %}
+  {% set _selected_domain = _taxonomy_values['domain'] %}
+{% elif _taxonomy_values is mapping and 'domain_slug' in _taxonomy_values and _taxonomy_values['domain_slug'] %}
+  {% set _selected_domain = _taxonomy_values['domain_slug'] %}
+{% elif _taxonomy_values is mapping and 'domain_id' in _taxonomy_values and _taxonomy_values['domain_id'] %}
+  {% set _selected_domain = _taxonomy_values['domain_id'] %}
+{% elif _taxonomy_draft is mapping and 'domain' in _taxonomy_draft and _taxonomy_draft['domain'] %}
+  {% set _selected_domain = _taxonomy_draft['domain'] %}
+{% else %}
+  {% set _selected_domain = 'hochbau' %}
+{% endif %}
+
+{% if _taxonomy_values is mapping and 'category' in _taxonomy_values and _taxonomy_values['category'] %}
+  {% set _selected_category = _taxonomy_values['category'] %}
+{% elif _taxonomy_values is mapping and 'category_slug' in _taxonomy_values and _taxonomy_values['category_slug'] %}
+  {% set _selected_category = _taxonomy_values['category_slug'] %}
+{% elif _taxonomy_values is mapping and 'category_id' in _taxonomy_values and _taxonomy_values['category_id'] %}
+  {% set _selected_category = _taxonomy_values['category_id'] %}
+{% elif _taxonomy_draft is mapping and 'category' in _taxonomy_draft and _taxonomy_draft['category'] %}
+  {% set _selected_category = _taxonomy_draft['category'] %}
+{% else %}
+  {% set _selected_category = 'bloecke' %}
+{% endif %}
+
+{% if _taxonomy_values is mapping and 'subcategory' in _taxonomy_values and _taxonomy_values['subcategory'] %}
+  {% set _selected_subcategory = _taxonomy_values['subcategory'] %}
+{% elif _taxonomy_values is mapping and 'subcategory_slug' in _taxonomy_values and _taxonomy_values['subcategory_slug'] %}
+  {% set _selected_subcategory = _taxonomy_values['subcategory_slug'] %}
+{% elif _taxonomy_values is mapping and 'subcategory_id' in _taxonomy_values and _taxonomy_values['subcategory_id'] %}
+  {% set _selected_subcategory = _taxonomy_values['subcategory_id'] %}
+{% elif _taxonomy_draft is mapping and 'subcategory' in _taxonomy_draft and _taxonomy_draft['subcategory'] %}
+  {% set _selected_subcategory = _taxonomy_draft['subcategory'] %}
+{% else %}
+  {% set _selected_subcategory = 'basis' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  4. Status ableiten
+----------------------------------------------------------------------------- #}
+
+{% if _taxonomy_domains | length > 0 %}
+  {% set _has_domains = true %}
+{% else %}
+  {% set _has_domains = false %}
+{% endif %}
+
+{% if _taxonomy_categories | length > 0 %}
+  {% set _has_categories = true %}
+{% else %}
+  {% set _has_categories = false %}
+{% endif %}
+
+{% if _taxonomy_subcategories | length > 0 %}
+  {% set _has_subcategories = true %}
+{% else %}
+  {% set _has_subcategories = false %}
+{% endif %}
+
+{% if _has_domains and _has_categories %}
+  {% set _taxonomy_ready = true %}
+{% else %}
+  {% set _taxonomy_ready = false %}
+{% endif %}
+
+
+<div
+  class="vplib-create-step__panel vp-create-card vp-create-section vp-create-section--taxonomy"
+  data-create-section="taxonomy"
+  data-vp-create-section="taxonomy"
+  data-create-section-required="true"
+  data-create-taxonomy-ready="{% if _taxonomy_ready %}true{% else %}false{% endif %}"
+  data-create-domain-count="{{ _taxonomy_domains | length }}"
+  data-create-category-count="{{ _taxonomy_categories | length }}"
+  data-create-subcategory-count="{{ _taxonomy_subcategories | length }}"
+  data-vp-step-panel="taxonomy"
+  data-vp-taxonomy-root="true"
+  data-vp-taxonomy-ready="{% if _taxonomy_ready %}true{% else %}false{% endif %}"
+  data-vp-taxonomy-section-ready="false"
+  data-vp-taxonomy-version="0.6.0"
+  data-vp-taxonomy-current-domain="{{ _selected_domain }}"
+  data-vp-taxonomy-current-category="{{ _selected_category }}"
+  data-vp-taxonomy-current-subcategory="{{ _selected_subcategory }}"
+  aria-labelledby="vp-create-taxonomy-title"
+>
+  <header class="vplib-create-step__header">
+    <div class="vplib-create-step__header-main">
+
+
+      <h2
+        id="vp-create-taxonomy-title"
+        class="vplib-create-step__title"
+      >
+        Taxonomie
+      </h2>
+
+      <p class="vplib-create-step__description">
+        Ordne die Family fachlich ein. Daraus entstehen Source-Pfad, Filter und Navigation.
+      </p>
+    </div>
+
+
+  </header>
+
+  <div class="vplib-create-step__body">
+    <div
+      class="vplib-create-step__grid vp-create-field-grid vp-create-field-grid--three"
+      data-create-taxonomy-fields="true"
+      data-vp-taxonomy-fields
+    >
+      <div class="vplib-create-step__field vplib-create-step__field--third">
+        <label
+          class="vp-create-field"
+          for="create-domain"
+          data-vp-field-wrapper="domain"
+        >
+          <span class="vp-create-field__label">
+            Domain / Reiter
+            <span class="vp-create-field__required" aria-hidden="true">*</span>
+          </span>
+
+          <select
+            id="create-domain"
+            class="vp-create-select"
+            name="domain"
+            required
+            autocomplete="off"
+            data-create-field="domain"
+            data-vp-create-field="domain"
+            data-create-taxonomy-select="domain"
+            data-create-preview-source="taxonomy"
+            data-vp-step-field="taxonomy.domain"
+            data-vp-taxonomy-field="domain"
+            data-vp-required-field="true"
+            aria-describedby="create-domain-hint create-domain-status"
+          >
+            <option value="" disabled{% if not _selected_domain %} selected{% endif %}>
+              Domain wählen
+            </option>
+
+            {% if _has_domains %}
+              {% for item in _taxonomy_domains %}
+                {% if item is mapping %}
+                  {% if 'id' in item and item['id'] %}
+                    {% set option_value = item['id'] %}
+                  {% elif 'value' in item and item['value'] %}
+                    {% set option_value = item['value'] %}
+                  {% elif 'slug' in item and item['slug'] %}
+                    {% set option_value = item['slug'] %}
+                  {% elif 'key' in item and item['key'] %}
+                    {% set option_value = item['key'] %}
+                  {% elif 'name' in item and item['name'] %}
+                    {% set option_value = item['name'] %}
+                  {% else %}
+                    {% set option_value = '' %}
+                  {% endif %}
+
+                  {% if 'label' in item and item['label'] %}
+                    {% set option_label = item['label'] %}
+                  {% elif 'name' in item and item['name'] %}
+                    {% set option_label = item['name'] %}
+                  {% elif 'title' in item and item['title'] %}
+                    {% set option_label = item['title'] %}
+                  {% elif 'value' in item and item['value'] %}
+                    {% set option_label = item['value'] %}
+                  {% elif 'id' in item and item['id'] %}
+                    {% set option_label = item['id'] %}
+                  {% else %}
+                    {% set option_label = option_value %}
+                  {% endif %}
+                {% else %}
+                  {% set option_value = item %}
+                  {% set option_label = item %}
+                {% endif %}
+
+                {% if option_value %}
+                  <option
+                    value="{{ option_value }}"
+                    data-vp-taxonomy-option="domain"
+                    {% if option_value | string == _selected_domain | string %}selected{% endif %}
+                  >
+                    {{ option_label }}
+                  </option>
+                {% endif %}
+              {% endfor %}
+            {% else %}
+              <option
+                value="{{ _selected_domain }}"
+                selected
+                data-vp-taxonomy-option="domain"
+                data-vp-taxonomy-option-fallback="true"
+              >
+                {{ _selected_domain }}
+              </option>
+            {% endif %}
+          </select>
+
+
+
+          <span
+            id="create-domain-status"
+            class="vp-create-sr-only"
+            data-vp-taxonomy-domain-status
+            aria-live="polite"
+          ></span>
+        </label>
+      </div>
+
+      <div class="vplib-create-step__field vplib-create-step__field--third">
+        <label
+          class="vp-create-field"
+          for="create-category"
+          data-vp-field-wrapper="category"
+        >
+          <span class="vp-create-field__label">
+            Kategorie
+            <span class="vp-create-field__required" aria-hidden="true">*</span>
+          </span>
+
+          <select
+            id="create-category"
+            class="vp-create-select"
+            name="category"
+            required
+            autocomplete="off"
+            data-create-field="category"
+            data-vp-create-field="category"
+            data-create-taxonomy-select="category"
+            data-create-preview-source="taxonomy"
+            data-vp-step-field="taxonomy.category"
+            data-vp-taxonomy-field="category"
+            data-vp-required-field="true"
+            aria-describedby="create-category-hint create-category-status"
+          >
+            <option value="" disabled{% if not _selected_category %} selected{% endif %}>
+              Kategorie wählen
+            </option>
+
+            {% if _has_categories %}
+              {% for item in _taxonomy_categories %}
+                {% if item is mapping %}
+                  {% if 'id' in item and item['id'] %}
+                    {% set option_value = item['id'] %}
+                  {% elif 'value' in item and item['value'] %}
+                    {% set option_value = item['value'] %}
+                  {% elif 'slug' in item and item['slug'] %}
+                    {% set option_value = item['slug'] %}
+                  {% elif 'key' in item and item['key'] %}
+                    {% set option_value = item['key'] %}
+                  {% elif 'name' in item and item['name'] %}
+                    {% set option_value = item['name'] %}
+                  {% else %}
+                    {% set option_value = '' %}
+                  {% endif %}
+
+                  {% if 'label' in item and item['label'] %}
+                    {% set option_label = item['label'] %}
+                  {% elif 'name' in item and item['name'] %}
+                    {% set option_label = item['name'] %}
+                  {% elif 'title' in item and item['title'] %}
+                    {% set option_label = item['title'] %}
+                  {% elif 'value' in item and item['value'] %}
+                    {% set option_label = item['value'] %}
+                  {% elif 'id' in item and item['id'] %}
+                    {% set option_label = item['id'] %}
+                  {% else %}
+                    {% set option_label = option_value %}
+                  {% endif %}
+
+                  {% if 'domain' in item and item['domain'] %}
+                    {% set option_domain = item['domain'] %}
+                  {% elif 'domain_id' in item and item['domain_id'] %}
+                    {% set option_domain = item['domain_id'] %}
+                  {% elif 'domain_slug' in item and item['domain_slug'] %}
+                    {% set option_domain = item['domain_slug'] %}
+                  {% elif 'parent_domain' in item and item['parent_domain'] %}
+                    {% set option_domain = item['parent_domain'] %}
+                  {% else %}
+                    {% set option_domain = '' %}
+                  {% endif %}
+                {% else %}
+                  {% set option_value = item %}
+                  {% set option_label = item %}
+                  {% set option_domain = '' %}
+                {% endif %}
+
+                {% if option_value %}
+                  <option
+                    value="{{ option_value }}"
+                    data-vp-taxonomy-option="category"
+                    {% if option_domain %}data-vp-parent-domain="{{ option_domain }}"{% endif %}
+                    {% if option_value | string == _selected_category | string %}selected{% endif %}
+                  >
+                    {{ option_label }}
+                  </option>
+                {% endif %}
+              {% endfor %}
+            {% else %}
+              <option
+                value="{{ _selected_category }}"
+                selected
+                data-vp-taxonomy-option="category"
+                data-vp-taxonomy-option-fallback="true"
+                data-vp-parent-domain="{{ _selected_domain }}"
+              >
+                {{ _selected_category }}
+              </option>
+            {% endif %}
+          </select>
+
+
+
+          <span
+            id="create-category-status"
+            class="vp-create-sr-only"
+            data-vp-taxonomy-category-status
+            aria-live="polite"
+          ></span>
+        </label>
+      </div>
+
+      <div class="vplib-create-step__field vplib-create-step__field--third">
+        <label
+          class="vp-create-field"
+          for="create-subcategory"
+          data-vp-field-wrapper="subcategory"
+        >
+          <span class="vp-create-field__label">
+            Subkategorie
+            <span class="vp-create-field__required" aria-hidden="true">*</span>
+          </span>
+
+          <select
+            id="create-subcategory"
+            class="vp-create-select"
+            name="subcategory"
+            required
+            autocomplete="off"
+            data-create-field="subcategory"
+            data-vp-create-field="subcategory"
+            data-create-taxonomy-select="subcategory"
+            data-create-preview-source="taxonomy"
+            data-vp-step-field="taxonomy.subcategory"
+            data-vp-taxonomy-field="subcategory"
+            data-vp-required-field="true"
+            aria-describedby="create-subcategory-hint create-subcategory-status"
+          >
+            <option value="" disabled{% if not _selected_subcategory %} selected{% endif %}>
+              Subkategorie wählen
+            </option>
+
+            {% if _has_subcategories %}
+              {% for item in _taxonomy_subcategories %}
+                {% if item is mapping %}
+                  {% if 'id' in item and item['id'] %}
+                    {% set option_value = item['id'] %}
+                  {% elif 'value' in item and item['value'] %}
+                    {% set option_value = item['value'] %}
+                  {% elif 'slug' in item and item['slug'] %}
+                    {% set option_value = item['slug'] %}
+                  {% elif 'key' in item and item['key'] %}
+                    {% set option_value = item['key'] %}
+                  {% elif 'name' in item and item['name'] %}
+                    {% set option_value = item['name'] %}
+                  {% else %}
+                    {% set option_value = '' %}
+                  {% endif %}
+
+                  {% if 'label' in item and item['label'] %}
+                    {% set option_label = item['label'] %}
+                  {% elif 'name' in item and item['name'] %}
+                    {% set option_label = item['name'] %}
+                  {% elif 'title' in item and item['title'] %}
+                    {% set option_label = item['title'] %}
+                  {% elif 'value' in item and item['value'] %}
+                    {% set option_label = item['value'] %}
+                  {% elif 'id' in item and item['id'] %}
+                    {% set option_label = item['id'] %}
+                  {% else %}
+                    {% set option_label = option_value %}
+                  {% endif %}
+
+                  {% if 'domain' in item and item['domain'] %}
+                    {% set option_domain = item['domain'] %}
+                  {% elif 'domain_id' in item and item['domain_id'] %}
+                    {% set option_domain = item['domain_id'] %}
+                  {% elif 'domain_slug' in item and item['domain_slug'] %}
+                    {% set option_domain = item['domain_slug'] %}
+                  {% elif 'parent_domain' in item and item['parent_domain'] %}
+                    {% set option_domain = item['parent_domain'] %}
+                  {% else %}
+                    {% set option_domain = '' %}
+                  {% endif %}
+
+                  {% if 'category' in item and item['category'] %}
+                    {% set option_category = item['category'] %}
+                  {% elif 'category_id' in item and item['category_id'] %}
+                    {% set option_category = item['category_id'] %}
+                  {% elif 'category_slug' in item and item['category_slug'] %}
+                    {% set option_category = item['category_slug'] %}
+                  {% elif 'parent_category' in item and item['parent_category'] %}
+                    {% set option_category = item['parent_category'] %}
+                  {% else %}
+                    {% set option_category = '' %}
+                  {% endif %}
+                {% else %}
+                  {% set option_value = item %}
+                  {% set option_label = item %}
+                  {% set option_domain = '' %}
+                  {% set option_category = '' %}
+                {% endif %}
+
+                {% if option_value %}
+                  <option
+                    value="{{ option_value }}"
+                    data-vp-taxonomy-option="subcategory"
+                    {% if option_domain %}data-vp-parent-domain="{{ option_domain }}"{% endif %}
+                    {% if option_category %}data-vp-parent-category="{{ option_category }}"{% endif %}
+                    {% if option_value | string == _selected_subcategory | string %}selected{% endif %}
+                  >
+                    {{ option_label }}
+                  </option>
+                {% endif %}
+              {% endfor %}
+            {% else %}
+              <option
+                value="{{ _selected_subcategory }}"
+                selected
+                data-vp-taxonomy-option="subcategory"
+                data-vp-taxonomy-option-fallback="true"
+                data-vp-parent-domain="{{ _selected_domain }}"
+                data-vp-parent-category="{{ _selected_category }}"
+              >
+                {{ _selected_subcategory }}
+              </option>
+            {% endif %}
+          </select>
+
+
+
+          <span
+            id="create-subcategory-status"
+            class="vp-create-sr-only"
+            data-vp-taxonomy-subcategory-status
+            aria-live="polite"
+          ></span>
+        </label>
+      </div>
+
+
+
+      {% if not _taxonomy_ready %}
+        <div
+          class="vplib-create-step__field vplib-create-step__field--full vp-create-inline-warning"
+          data-create-taxonomy-warning="true"
+          data-vp-inline-warning="taxonomy"
+          role="status"
+        >
+          <strong>Taxonomie-Optionen unvollständig.</strong>
+          Die Felder bleiben nutzbar und senden Fallbackwerte. Sobald <code>/api/v1/vplib/create/options</code> vollständige Daten liefert, werden die Auswahlwerte automatisch aus dem Backend-Katalog verwendet.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <script type="application/json" data-vp-taxonomy-config>
+    {
+      "component": "create.taxonomy",
+      "version": "0.6.0",
+      "required": true,
+      "ready": {{ _taxonomy_ready | tojson }},
+      "fallback": {
+        "domain": "hochbau",
+        "category": "bloecke",
+        "subcategory": "basis"
+      },
+      "selected": {
+        "domain": {{ _selected_domain | tojson }},
+        "category": {{ _selected_category | tojson }},
+        "subcategory": {{ _selected_subcategory | tojson }}
+      },
+      "counts": {
+        "domains": {{ (_taxonomy_domains | length) | tojson }},
+        "categories": {{ (_taxonomy_categories | length) | tojson }},
+        "subcategories": {{ (_taxonomy_subcategories | length) | tojson }}
+      },
+      "events": {
+        "ready": "vectoplan:create:taxonomy-ready",
+        "changed": "vectoplan:create:taxonomy-changed",
+        "validityChanged": "vectoplan:create:taxonomy-validity-changed"
+      }
+    }
+  </script>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    function bootTaxonomy() {
+      try {
+        var COMPONENT_NAME = "VECTOPLAN Create Taxonomy";
+        var COMPONENT_VERSION = "0.6.0";
+
+        var section = document.querySelector('[data-vp-create-section="taxonomy"]') ||
+          document.querySelector('[data-create-section="taxonomy"]') ||
+          document.querySelector("[data-vp-taxonomy-root='true']");
+
+        if (!section) {
+          return;
+        }
+
+        if (section.getAttribute("data-vp-taxonomy-section-ready") === "true") {
+          return;
+        }
+
+        var config = {
+          component: "create.taxonomy",
+          version: COMPONENT_VERSION,
+          required: true,
+          ready: section.getAttribute("data-vp-taxonomy-ready") === "true",
+          fallback: {
+            domain: "hochbau",
+            category: "bloecke",
+            subcategory: "basis"
+          },
+          selected: {
+            domain: section.getAttribute("data-vp-taxonomy-current-domain") || "hochbau",
+            category: section.getAttribute("data-vp-taxonomy-current-category") || "bloecke",
+            subcategory: section.getAttribute("data-vp-taxonomy-current-subcategory") || "basis"
+          },
+          events: {
+            ready: "vectoplan:create:taxonomy-ready",
+            changed: "vectoplan:create:taxonomy-changed",
+            validityChanged: "vectoplan:create:taxonomy-validity-changed"
+          }
+        };
+
+        var configNode = section.querySelector("[data-vp-taxonomy-config]");
+
+        try {
+          if (configNode && configNode.textContent) {
+            var parsedConfig = JSON.parse(configNode.textContent);
+
+            if (parsedConfig && typeof parsedConfig === "object") {
+              config = Object.assign({}, config, parsedConfig);
+              config.fallback = Object.assign({}, config.fallback || {}, parsedConfig.fallback || {});
+              config.selected = Object.assign({}, config.selected || {}, parsedConfig.selected || {});
+              config.events = Object.assign({}, config.events || {}, parsedConfig.events || {});
+            }
+          }
+        } catch (configError) {
+          warn("Config parse failed.", configError);
+        }
+
+        var domainSelect = section.querySelector('[data-create-taxonomy-select="domain"]') ||
+          section.querySelector('[name="domain"]');
+
+        var categorySelect = section.querySelector('[data-create-taxonomy-select="category"]') ||
+          section.querySelector('[name="category"]');
+
+        var subcategorySelect = section.querySelector('[data-create-taxonomy-select="subcategory"]') ||
+          section.querySelector('[name="subcategory"]');
+
+        var pathDomain = section.querySelector("[data-vp-taxonomy-path-domain]");
+        var pathCategory = section.querySelector("[data-vp-taxonomy-path-category]");
+        var pathSubcategory = section.querySelector("[data-vp-taxonomy-path-subcategory]");
+        var pathFamily = section.querySelector("[data-vp-taxonomy-path-family]");
+
+        var domainStatus = section.querySelector("[data-vp-taxonomy-domain-status]");
+        var categoryStatus = section.querySelector("[data-vp-taxonomy-category-status]");
+        var subcategoryStatus = section.querySelector("[data-vp-taxonomy-subcategory-status]");
+
+        var state = {
+          domain: readValue(domainSelect, config.selected.domain || config.fallback.domain),
+          category: readValue(categorySelect, config.selected.category || config.fallback.category),
+          subcategory: readValue(subcategorySelect, config.selected.subcategory || config.fallback.subcategory),
+          familySlug: "family_slug",
+          valid: false,
+          domainValid: false,
+          categoryValid: false,
+          subcategoryValid: false,
+          taxonomyPath: "",
+          updatedAt: "",
+          source: "initial"
+        };
+
+        function warn(message, error) {
+          try {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
+            }
+          } catch (consoleError) {
+            /* no-op */
+          }
+        }
+
+        function dispatch(eventName, detail) {
+          try {
+            section.dispatchEvent(new CustomEvent(eventName, {
+              bubbles: true,
+              cancelable: false,
+              detail: detail || {}
+            }));
+          } catch (error) {
+            warn("Event dispatch failed: " + eventName, error);
+          }
+        }
+
+        function toArray(value) {
+          try {
+            return Array.prototype.slice.call(value || []);
+          } catch (error) {
+            return [];
+          }
+        }
+
+        function normalizeToken(value, fallbackValue) {
+          try {
+            var normalized = String(value || "")
+              .trim()
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/ä/g, "ae")
+              .replace(/ö/g, "oe")
+              .replace(/ü/g, "ue")
+              .replace(/ß/g, "ss")
+              .replace(/[-\s]+/g, "_")
+              .replace(/[^a-z0-9_]/g, "")
+              .replace(/^_+|_+$/g, "")
+              .replace(/_{2,}/g, "_");
+
+            return normalized || fallbackValue || "";
+          } catch (error) {
+            return fallbackValue || "";
+          }
+        }
+
+        function slugify(value) {
+          return normalizeToken(value, "family_slug");
+        }
+
+        function readValue(selectElement, fallbackValue) {
+          try {
+            if (!selectElement) {
+              return fallbackValue || "";
+            }
+
+            if (selectElement.value && String(selectElement.value).trim()) {
+              return String(selectElement.value).trim();
+            }
+
+            return fallbackValue || "";
+          } catch (error) {
+            return fallbackValue || "";
+          }
+        }
+
+        function getOptionLabel(selectElement, value, fallbackValue) {
+          try {
+            if (!selectElement || !selectElement.options) {
+              return fallbackValue || value || "";
+            }
+
+            var options = toArray(selectElement.options);
+
+            for (var index = 0; index < options.length; index += 1) {
+              if (String(options[index].value || "") === String(value || "")) {
+                return String(options[index].textContent || options[index].label || value || fallbackValue || "").trim();
+              }
+            }
+
+            return fallbackValue || value || "";
+          } catch (error) {
+            return fallbackValue || value || "";
+          }
+        }
+
+        function optionHasParentData(selectElement, attributeName) {
+          try {
+            if (!selectElement || !selectElement.options) {
+              return false;
+            }
+
+            return toArray(selectElement.options).some(function (option) {
+              return Boolean(option && option.getAttribute && option.getAttribute(attributeName));
+            });
+          } catch (error) {
+            return false;
+          }
+        }
+
+        function optionMatchesParent(option, attributeName, expectedValue) {
+          try {
+            if (!option || !option.getAttribute) {
+              return true;
+            }
+
+            if (!expectedValue) {
+              return true;
+            }
+
+            var parentValue = option.getAttribute(attributeName);
+
+            if (!parentValue) {
+              return true;
+            }
+
+            return normalizeToken(parentValue, "") === normalizeToken(expectedValue, "");
+          } catch (error) {
+            return true;
+          }
+        }
+
+        function setOptionHidden(option, hidden) {
+          try {
+            if (!option) {
+              return;
+            }
+
+            if (!option.value) {
+              option.hidden = false;
+              option.disabled = true;
+              return;
+            }
+
+            option.hidden = !!hidden;
+            option.disabled = !!hidden;
+          } catch (error) {
+            /* no-op */
+          }
+        }
+
+        function firstAvailableValue(selectElement, fallbackValue) {
+          try {
+            if (!selectElement || !selectElement.options) {
+              return fallbackValue || "";
+            }
+
+            var options = toArray(selectElement.options);
+
+            for (var index = 0; index < options.length; index += 1) {
+              var option = options[index];
+
+              if (
+                option &&
+                option.value &&
+                !option.disabled &&
+                !option.hidden
+              ) {
+                return option.value;
+              }
+            }
+
+            return fallbackValue || "";
+          } catch (error) {
+            return fallbackValue || "";
+          }
+        }
+
+        function ensureSelectValue(selectElement, fallbackValue) {
+          try {
+            if (!selectElement) {
+              return fallbackValue || "";
+            }
+
+            var value = readValue(selectElement, "");
+
+            if (value) {
+              var selectedOption = selectElement.options[selectElement.selectedIndex];
+
+              if (selectedOption && !selectedOption.disabled && !selectedOption.hidden) {
+                return value;
+              }
+            }
+
+            var nextValue = firstAvailableValue(selectElement, fallbackValue);
+
+            if (nextValue) {
+              selectElement.value = nextValue;
+            }
+
+            return readValue(selectElement, fallbackValue);
+          } catch (error) {
+            return fallbackValue || "";
+          }
+        }
+
+        function filterCategoryOptions(domainValue) {
+          try {
+            if (!categorySelect) {
+              return;
+            }
+
+            var hasParentData = optionHasParentData(categorySelect, "data-vp-parent-domain");
+
+            if (!hasParentData) {
+              return;
+            }
+
+            toArray(categorySelect.options).forEach(function (option) {
+              try {
+                if (!option.value) {
+                  setOptionHidden(option, false);
+                  return;
+                }
+
+                setOptionHidden(option, !optionMatchesParent(option, "data-vp-parent-domain", domainValue));
+              } catch (error) {
+                /* no-op */
+              }
+            });
+
+            ensureSelectValue(categorySelect, config.fallback.category || "bloecke");
+          } catch (error) {
+            warn("Category option filter failed.", error);
+          }
+        }
+
+        function filterSubcategoryOptions(domainValue, categoryValue) {
+          try {
+            if (!subcategorySelect) {
+              return;
+            }
+
+            var hasDomainData = optionHasParentData(subcategorySelect, "data-vp-parent-domain");
+            var hasCategoryData = optionHasParentData(subcategorySelect, "data-vp-parent-category");
+
+            if (!hasDomainData && !hasCategoryData) {
+              return;
+            }
+
+            toArray(subcategorySelect.options).forEach(function (option) {
+              try {
+                if (!option.value) {
+                  setOptionHidden(option, false);
+                  return;
+                }
+
+                var matchesDomain = !hasDomainData || optionMatchesParent(option, "data-vp-parent-domain", domainValue);
+                var matchesCategory = !hasCategoryData || optionMatchesParent(option, "data-vp-parent-category", categoryValue);
+
+                setOptionHidden(option, !(matchesDomain && matchesCategory));
+              } catch (error) {
+                /* no-op */
+              }
+            });
+
+            ensureSelectValue(subcategorySelect, config.fallback.subcategory || "basis");
+          } catch (error) {
+            warn("Subcategory option filter failed.", error);
+          }
+        }
+
+        function setStatus(node, text) {
+          try {
+            if (node) {
+              node.textContent = text || "";
+            }
+          } catch (error) {
+            /* no-op */
+          }
+        }
+
+        function setFieldValidity(field, valid, message) {
+          try {
+            if (!field) {
+              return;
+            }
+
+            field.setAttribute("data-vp-field-valid", valid ? "true" : "false");
+
+            if (valid) {
+              field.removeAttribute("aria-invalid");
+            } else {
+              field.setAttribute("aria-invalid", "true");
+            }
+
+            if (typeof field.setCustomValidity === "function") {
+              field.setCustomValidity(valid ? "" : (message || "Dieses Feld ist erforderlich."));
+            }
+          } catch (error) {
+            warn("Field validity update failed.", error);
+          }
+        }
+
+        function readFamilySlug() {
+          try {
+            var identity = window.VectoplanCreateIdentity &&
+              typeof window.VectoplanCreateIdentity.getState === "function"
+              ? window.VectoplanCreateIdentity.getState()
+              : null;
+
+            if (identity && identity.slugPreview) {
+              return identity.slugPreview;
+            }
+
+            var nameField = document.querySelector('[name="family_name"]') ||
+              document.querySelector("[data-vp-identity-field='name']");
+
+            if (nameField && nameField.value) {
+              return slugify(nameField.value);
+            }
+
+            return "family_slug";
+          } catch (error) {
+            return "family_slug";
+          }
+        }
+
+        function updatePathPreview(nextState) {
+          try {
+            var domainValue = nextState.domain || config.fallback.domain || "hochbau";
+            var categoryValue = nextState.category || config.fallback.category || "bloecke";
+            var subcategoryValue = nextState.subcategory || config.fallback.subcategory || "basis";
+            var familySlug = nextState.familySlug || "family_slug";
+
+            if (pathDomain) {
+              pathDomain.textContent = domainValue || "domain";
+            }
+
+            if (pathCategory) {
+              pathCategory.textContent = categoryValue || "category";
+            }
+
+            if (pathSubcategory) {
+              pathSubcategory.textContent = subcategoryValue || "subcategory";
+            }
+
+            if (pathFamily) {
+              pathFamily.textContent = familySlug || "family_slug";
+            }
+          } catch (error) {
+            warn("Path preview update failed.", error);
+          }
+        }
+
+        function readState(source) {
+          try {
+            var domainValue = ensureSelectValue(domainSelect, config.fallback.domain || "hochbau");
+            filterCategoryOptions(domainValue);
+
+            var categoryValue = ensureSelectValue(categorySelect, config.fallback.category || "bloecke");
+            filterSubcategoryOptions(domainValue, categoryValue);
+
+            var subcategoryValue = ensureSelectValue(subcategorySelect, config.fallback.subcategory || "basis");
+            var familySlug = readFamilySlug();
+
+            var domainValid = Boolean(domainValue);
+            var categoryValid = Boolean(categoryValue);
+            var subcategoryValid = Boolean(subcategoryValue);
+            var taxonomyPath = [
+              domainValue || "domain",
+              categoryValue || "category",
+              subcategoryValue || "subcategory",
+              familySlug || "family_slug"
+            ].join("/");
+
+            return {
+              domain: domainValue,
+              category: categoryValue,
+              subcategory: subcategoryValue,
+              domainLabel: getOptionLabel(domainSelect, domainValue, domainValue),
+              categoryLabel: getOptionLabel(categorySelect, categoryValue, categoryValue),
+              subcategoryLabel: getOptionLabel(subcategorySelect, subcategoryValue, subcategoryValue),
+              familySlug: familySlug,
+              taxonomyPath: taxonomyPath,
+              valid: domainValid && categoryValid && subcategoryValid,
+              domainValid: domainValid,
+              categoryValid: categoryValid,
+              subcategoryValid: subcategoryValid,
+              ready: config.ready === true,
+              updatedAt: new Date().toISOString(),
+              source: source || "read"
+            };
+          } catch (error) {
+            warn("State read failed.", error);
+
+            return Object.assign({}, state);
+          }
+        }
+
+        function updateRootAttributes(nextState) {
+          try {
+            section.setAttribute("data-vp-taxonomy-current-domain", nextState.domain || "");
+            section.setAttribute("data-vp-taxonomy-current-category", nextState.category || "");
+            section.setAttribute("data-vp-taxonomy-current-subcategory", nextState.subcategory || "");
+            section.setAttribute("data-vp-taxonomy-current-path", nextState.taxonomyPath || "");
+            section.setAttribute("data-vp-taxonomy-valid", nextState.valid ? "true" : "false");
+            section.setAttribute("data-vp-taxonomy-last-source", nextState.source || "unknown");
+            section.setAttribute("data-vp-taxonomy-last-update", String(Date.now()));
+
+            var app = document.querySelector("[data-vp-create-app]");
+            var form = document.querySelector("[data-vp-create-form], [data-create-form='true'], #vp-create-form");
+
+            [app, form].forEach(function (node) {
+              try {
+                if (!node) {
+                  return;
+                }
+
+                node.setAttribute("data-vp-taxonomy-domain", nextState.domain || "");
+                node.setAttribute("data-vp-taxonomy-category", nextState.category || "");
+                node.setAttribute("data-vp-taxonomy-subcategory", nextState.subcategory || "");
+                node.setAttribute("data-vp-taxonomy-path", nextState.taxonomyPath || "");
+                node.setAttribute("data-vp-taxonomy-valid", nextState.valid ? "true" : "false");
+              } catch (nodeError) {
+                /* no-op */
+              }
+            });
+          } catch (error) {
+            warn("Root attribute update failed.", error);
+          }
+        }
+
+        function updateStatus(nextState) {
+          try {
+            setStatus(
+              domainStatus,
+              nextState.domainValid
+                ? "Domain gesetzt: " + nextState.domainLabel + "."
+                : "Domain ist erforderlich."
+            );
+
+            setStatus(
+              categoryStatus,
+              nextState.categoryValid
+                ? "Kategorie gesetzt: " + nextState.categoryLabel + "."
+                : "Kategorie ist erforderlich."
+            );
+
+            setStatus(
+              subcategoryStatus,
+              nextState.subcategoryValid
+                ? "Subkategorie gesetzt: " + nextState.subcategoryLabel + "."
+                : "Subkategorie ist erforderlich."
+            );
+          } catch (error) {
+            warn("Status update failed.", error);
+          }
+        }
+
+        function updateValidity(nextState, previousState) {
+          try {
+            setFieldValidity(domainSelect, nextState.domainValid, "Bitte eine Domain auswählen.");
+            setFieldValidity(categorySelect, nextState.categoryValid, "Bitte eine Kategorie auswählen.");
+            setFieldValidity(subcategorySelect, nextState.subcategoryValid, "Bitte eine Subkategorie auswählen.");
+
+            if (!previousState || previousState.valid !== nextState.valid) {
+              dispatch(config.events.validityChanged || "vectoplan:create:taxonomy-validity-changed", {
+                component: COMPONENT_NAME,
+                version: COMPONENT_VERSION,
+                valid: nextState.valid,
+                domainValid: nextState.domainValid,
+                categoryValid: nextState.categoryValid,
+                subcategoryValid: nextState.subcategoryValid,
+                state: Object.assign({}, nextState),
+                root: section
+              });
+            }
+          } catch (error) {
+            warn("Validity update failed.", error);
+          }
+        }
+
+        function updateTaxonomy(options) {
+          try {
+            var updateOptions = options || {};
+            var previousState = Object.assign({}, state);
+
+            state = readState(updateOptions.source || "update");
+
+            updatePathPreview(state);
+            updateRootAttributes(state);
+            updateStatus(state);
+            updateValidity(state, previousState);
+
+            dispatch(config.events.changed || "vectoplan:create:taxonomy-changed", {
+              component: COMPONENT_NAME,
+              version: COMPONENT_VERSION,
+              state: Object.assign({}, state),
+              previousState: previousState,
+              root: section,
+              source: state.source
+            });
+
+            return Object.assign({}, state);
+          } catch (error) {
+            warn("Taxonomy update failed.", error);
+            return Object.assign({}, state);
+          }
+        }
+
+        function bindSelect(selectElement, sourceName) {
+          try {
+            if (!selectElement || selectElement.getAttribute("data-vp-taxonomy-bound") === "true") {
+              return;
+            }
+
+            selectElement.addEventListener("change", function () {
+              updateTaxonomy({
+                source: sourceName + "-change"
+              });
+            });
+
+            selectElement.addEventListener("input", function () {
+              updateTaxonomy({
+                source: sourceName + "-input"
+              });
+            });
+
+            selectElement.setAttribute("data-vp-taxonomy-bound", "true");
+          } catch (error) {
+            warn("Select binding skipped.", error);
+          }
+        }
+
+        function focusFirstInvalid() {
+          try {
+            if (!state.domainValid && domainSelect && typeof domainSelect.focus === "function") {
+              domainSelect.focus();
+              return true;
+            }
+
+            if (!state.categoryValid && categorySelect && typeof categorySelect.focus === "function") {
+              categorySelect.focus();
+              return true;
+            }
+
+            if (!state.subcategoryValid && subcategorySelect && typeof subcategorySelect.focus === "function") {
+              subcategorySelect.focus();
+              return true;
+            }
+
+            return false;
+          } catch (error) {
+            return false;
+          }
+        }
+
+        bindSelect(domainSelect, "domain");
+        bindSelect(categorySelect, "category");
+        bindSelect(subcategorySelect, "subcategory");
+
+        document.addEventListener("vectoplan:create:identity-changed", function () {
+          try {
+            updateTaxonomy({
+              source: "identity-changed"
+            });
+          } catch (error) {
+            warn("Identity change sync failed.", error);
+          }
+        });
+
+        document.addEventListener("input", function (event) {
+          try {
+            if (
+              event &&
+              event.target &&
+              event.target.matches &&
+              (
+                event.target.matches('[name="family_name"]') ||
+                event.target.matches("[data-vp-identity-field='name']")
+              )
+            ) {
+              updateTaxonomy({
+                source: "family-name-input"
+              });
+            }
+          } catch (error) {
+            warn("Family name listener failed.", error);
+          }
+        });
+
+        updateTaxonomy({
+          source: "boot"
+        });
+
+        window.VectoplanCreateTaxonomy = Object.assign({}, window.VectoplanCreateTaxonomy || {}, {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          root: section,
+          update: updateTaxonomy,
+          validate: function () {
+            try {
+              updateTaxonomy({
+                source: "validate"
+              });
+
+              return state.valid;
+            } catch (error) {
+              warn("Validate failed.", error);
+              return false;
+            }
+          },
+          focusFirstInvalid: focusFirstInvalid,
+          getState: function () {
+            try {
+              return Object.assign({}, state);
+            } catch (error) {
+              return {};
+            }
+          },
+          getConfig: function () {
+            try {
+              return Object.assign({}, config);
+            } catch (error) {
+              return {};
+            }
+          }
+        });
+
+        section.setAttribute("data-vp-taxonomy-section-ready", "true");
+        section.setAttribute("data-vp-taxonomy-version", COMPONENT_VERSION);
+
+        dispatch(config.events.ready || "vectoplan:create:taxonomy-ready", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          state: Object.assign({}, state),
+          root: section
+        });
+      } catch (error) {
+        try {
+          if (window.console && typeof window.console.warn === "function") {
+            window.console.warn("[VECTOPLAN Create Taxonomy] Defensive initialization failed.", error);
+          }
+        } catch (consoleError) {
+          /* no-op */
+        }
+      }
+    }
+
+    try {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", bootTaxonomy, { once: true });
+      } else {
+        bootTaxonomy();
+      }
+    } catch (error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[VECTOPLAN Create Taxonomy] Boot scheduling failed.", error);
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+  })();
+</script>

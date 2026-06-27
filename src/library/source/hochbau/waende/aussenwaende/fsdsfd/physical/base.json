@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.1.0",
+  "family_id": "vp.hochbau.waende.aussenwaende.fsdsfd",
+  "object_kind": "cell_block",
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": []
+}

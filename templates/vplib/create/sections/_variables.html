@@ -1,0 +1,1841 @@
+{# services/vectoplan-library/templates/vplib/create/sections/_variables.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · VPLIB Create Wizard · Step 3: Variables & Documents
+
+  Zweck:
+  - Ersetzt die sichtbare Step-3-Shell "Objekt und Varianten" durch
+    "Variablen und Unterlagen".
+  - Der Nutzer definiert hier fachliche/technische Variablen und kann
+    Hersteller-/Produktunterlagen für spätere AI-Sortierung auswählen.
+  - Objektart bleibt als technischer Backend-/Runtime-Kontext erhalten, wird
+    aber nicht mehr als sichtbarer Hauptinhalt geführt.
+  - Der bestehende Backend- und JS-Vertrag bleibt kompatibel.
+
+  Sichtbares UI-Ziel:
+  - Titel: Variablen und Unterlagen.
+  - Kein sichtbarer Objekt-Fokus.
+  - Kompakter Upload-Bereich für technische Unterlagen.
+  - Variant-/Variable-Workspace mit maximaler Nutzfläche.
+  - Im Editor-/Drawer-Modus wird der obere Upload-/Kontextbereich ausgeblendet,
+    damit der Variableneditor mehr Platz bekommt.
+
+  Stabiler Backend-Vertrag:
+  - object_kind
+  - family_profile_id
+  - variant_profile_id
+  - definition_variants_json
+  - default_variant_id
+  - technical_document_uploads_json
+
+  Relevante Variant-Payload-Felder:
+  - variants[...][is_default]
+  - variants[...][kind]
+  - variants[...][name]
+  - variants[...][slug]
+  - variants[...][description]
+  - variants[...][variant_profile_id]
+  - variants[...][definition_values_json]
+  - variants[...][definition_summary]
+  - variants[...][definition_managed]
+  - variants[...][additional_field_keys]
+
+  Wichtige Hooks:
+  - data-vp-create-section="object-variants"
+  - data-vp-create-section-alias="variables"
+  - data-vp-object-variants-top="true"
+  - data-vp-object-kind-area="true"
+  - data-create-object-kind="true"
+  - data-vp-family-profile-id-field="true"
+  - data-vp-variant-profile-id-field="true"
+  - data-vp-variant-editor-state="closed|open"
+  - data-vp-variant-workspace-root="true"       aus _variant_workspace.html
+  - data-vp-definition-managed-variants="true"  aus _variant_workspace.html
+  - data-vp-upload-kind="technical_documents"
+
+  Event-Vertrag:
+  - dispatch:
+      vectoplan:create:variables-ready
+      vectoplan:create:variables-upload-changed
+      vectoplan:create:upload-changed
+      vectoplan:create:object-kind-changed
+      vectoplan:create:variant-profile-resolve-requested
+      vectoplan:create:object-variants-ready
+      vectoplan:create:object-variants-editor-state-changed
+
+  - listen:
+      vectoplan:create:variant-family-profile-resolved
+      vectoplan:create:variant-profile-resolved
+      vectoplan:create:definitions-ready
+      vectoplan:create:definitions-unavailable
+      vectoplan:create:variant-state-changed
+      vectoplan:create:variant-state-synced
+      vectoplan:create:variant-editor-opened
+      vectoplan:create:variant-editor-closed
+      vectoplan:create:variant-drawer-opened
+      vectoplan:create:variant-drawer-closed
+      vectoplan:create:variant-drawer-session-started
+      vectoplan:create:variant-drawer-session-prepared
+      vectoplan:create:variant-drawer-apply-finished
+      vectoplan:create:variant-drawer-apply-failed
+      vectoplan:create:variant-drawer-reset
+      vectoplan:create:variant-drawer-cancel-requested
+      vectoplan:create:variant-workspace-editor-state-changed
+      vectoplan:create:variant-table-editor-mode-changed
+
+  Robustheit:
+  - Alle Kontextdaten werden defensiv normalisiert.
+  - Fehlende Options/Definitions/Draft-Daten brechen das Template nicht.
+  - JS benutzt try/catch und cached DOM-Referenzen.
+  - Editor-State wird auf Parent, Workspace, Drawer, Table und Slots gespiegelt.
+  - Upload verarbeitet nur lokale Metadaten; keine Dateiübertragung.
+  - Bestehende Hooks bleiben kompatibel.
+----------------------------------------------------------------------------- #}
+
+
+{# -----------------------------------------------------------------------------
+  1. Options defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if _options is defined and _options is mapping and 'data' in _options and _options['data'] is mapping %}
+  {% set _variables_options = _options['data'] %}
+{% elif _options is defined and _options is mapping %}
+  {% set _variables_options = _options %}
+{% elif create_options is defined and create_options is mapping and 'data' in create_options and create_options['data'] is mapping %}
+  {% set _variables_options = create_options['data'] %}
+{% elif create_options is defined and create_options is mapping %}
+  {% set _variables_options = create_options %}
+{% else %}
+  {% set _variables_options = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  2. Definitions-Kontext defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if _variables_options is mapping and 'definitions' in _variables_options and _variables_options['definitions'] is mapping %}
+  {% set _variables_definitions = _variables_options['definitions'] %}
+{% elif definitions is defined and definitions is mapping %}
+  {% set _variables_definitions = definitions %}
+{% else %}
+  {% set _variables_definitions = {} %}
+{% endif %}
+
+{% if _variables_options is mapping and 'definitions_options' in _variables_options and _variables_options['definitions_options'] is mapping %}
+  {% set _variables_definitions_options = _variables_options['definitions_options'] %}
+{% elif _variables_definitions is mapping and 'options' in _variables_definitions and _variables_definitions['options'] is mapping %}
+  {% set _variables_definitions_options = _variables_definitions['options'] %}
+{% elif definitions_options is defined and definitions_options is mapping %}
+  {% set _variables_definitions_options = definitions_options %}
+{% else %}
+  {% set _variables_definitions_options = {} %}
+{% endif %}
+
+{% if _variables_options is mapping and 'definition_catalogs' in _variables_options and _variables_options['definition_catalogs'] is mapping %}
+  {% set _variables_definition_catalogs = _variables_options['definition_catalogs'] %}
+{% elif _variables_definitions is mapping and 'definitions' in _variables_definitions and _variables_definitions['definitions'] is mapping %}
+  {% set _variables_definition_catalogs = _variables_definitions['definitions'] %}
+{% elif definition_catalogs is defined and definition_catalogs is mapping %}
+  {% set _variables_definition_catalogs = definition_catalogs %}
+{% elif _variables_definitions is mapping %}
+  {% set _variables_definition_catalogs = _variables_definitions %}
+{% else %}
+  {% set _variables_definition_catalogs = {} %}
+{% endif %}
+
+{% set _variables_definitions_available = false %}
+
+{% if _variables_definitions is mapping %}
+  {% if _variables_definitions.get('ok') is sameas true %}
+    {% set _variables_definitions_available = true %}
+  {% elif (_variables_definitions.get('ok') | string | lower) in ['true', '1', 'yes', 'ja', 'ok', 'healthy'] %}
+    {% set _variables_definitions_available = true %}
+  {% endif %}
+{% endif %}
+
+{% if not _variables_definitions_available and _variables_definition_catalogs is mapping %}
+  {% if 'variant_profiles' in _variables_definition_catalogs and _variables_definition_catalogs['variant_profiles'] %}
+    {% set _variables_definitions_available = true %}
+  {% elif 'variables' in _variables_definition_catalogs and _variables_definition_catalogs['variables'] %}
+    {% set _variables_definitions_available = true %}
+  {% elif 'family_profiles' in _variables_definition_catalogs and _variables_definition_catalogs['family_profiles'] %}
+    {% set _variables_definitions_available = true %}
+  {% endif %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  3. Object-Kind-Optionen defensiv lesen
+
+  Sichtbar wird die Objektart nicht mehr geführt, bleibt aber technischer Kontext.
+----------------------------------------------------------------------------- #}
+
+{% if _object_kinds is defined and _object_kinds is iterable and _object_kinds is not string and (_object_kinds | length) > 0 %}
+  {% set _variables_object_kinds = _object_kinds %}
+{% elif _variables_options is mapping and 'object_kinds' in _variables_options and _variables_options['object_kinds'] is iterable and _variables_options['object_kinds'] is not string and (_variables_options['object_kinds'] | length) > 0 %}
+  {% set _variables_object_kinds = _variables_options['object_kinds'] %}
+{% elif _variables_definitions_options is mapping and 'object_kinds' in _variables_definitions_options and _variables_definitions_options['object_kinds'] is iterable and _variables_definitions_options['object_kinds'] is not string and (_variables_definitions_options['object_kinds'] | length) > 0 %}
+  {% set _variables_object_kinds = _variables_definitions_options['object_kinds'] %}
+{% elif _variables_definition_catalogs is mapping and 'object_kinds' in _variables_definition_catalogs and _variables_definition_catalogs['object_kinds'] is iterable and _variables_definition_catalogs['object_kinds'] is not string and (_variables_definition_catalogs['object_kinds'] | length) > 0 %}
+  {% set _variables_object_kinds = _variables_definition_catalogs['object_kinds'] %}
+{% else %}
+  {% set _variables_object_kinds = [] %}
+{% endif %}
+
+{% if _variables_object_kinds | length > 0 %}
+  {% set _has_object_kinds = true %}
+{% else %}
+  {% set _has_object_kinds = false %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  4. Draft defensiv normalisieren
+----------------------------------------------------------------------------- #}
+
+{% if create_initial_draft is defined and create_initial_draft is mapping %}
+  {% set _variables_draft = create_initial_draft %}
+{% elif _initial_draft is defined and _initial_draft is mapping %}
+  {% set _variables_draft = _initial_draft %}
+{% elif _draft is defined and _draft is mapping %}
+  {% set _variables_draft = _draft %}
+{% elif draft is defined and draft is mapping %}
+  {% set _variables_draft = draft %}
+{% elif vplib_draft is defined and vplib_draft is mapping %}
+  {% set _variables_draft = vplib_draft %}
+{% else %}
+  {% set _variables_draft = {} %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  5. Object Kind / Profile IDs defensiv lesen
+
+  Wichtig:
+  family_profile_id und variant_profile_id bleiben leer, wenn sie nicht aus
+  einem echten Draft kommen. Sie dürfen nicht mit statischen Defaults vorbelegt
+  werden, sonst blockiert ein explizites variant_profile_id die automatische
+  Resolver-Logik.
+----------------------------------------------------------------------------- #}
+
+{% if _variables_draft is mapping and 'object_kind' in _variables_draft and _variables_draft['object_kind'] %}
+  {% set _selected_object_kind = _variables_draft['object_kind'] %}
+{% elif _variables_draft is mapping and 'object_class' in _variables_draft and _variables_draft['object_class'] %}
+  {% set _selected_object_kind = _variables_draft['object_class'] %}
+{% elif _variables_draft is mapping and 'family' in _variables_draft and _variables_draft['family'] is mapping and 'object_kind' in _variables_draft['family'] and _variables_draft['family']['object_kind'] %}
+  {% set _selected_object_kind = _variables_draft['family']['object_kind'] %}
+{% elif _variables_draft is mapping and 'family' in _variables_draft and _variables_draft['family'] is mapping and 'object_class' in _variables_draft['family'] and _variables_draft['family']['object_class'] %}
+  {% set _selected_object_kind = _variables_draft['family']['object_class'] %}
+{% elif _selected_object_kind is defined and _selected_object_kind %}
+  {% set _selected_object_kind = _selected_object_kind %}
+{% else %}
+  {% set _selected_object_kind = 'cell_block' %}
+{% endif %}
+
+{% set _selected_object_kind_normalized = _selected_object_kind | string | lower | replace('-', '_') | replace(' ', '_') %}
+
+{% if _variables_draft is mapping and 'family_profile_id' in _variables_draft and _variables_draft['family_profile_id'] %}
+  {% set _selected_family_profile_id = _variables_draft['family_profile_id'] %}
+{% elif _variables_draft is mapping and 'family' in _variables_draft and _variables_draft['family'] is mapping and 'family_profile_id' in _variables_draft['family'] and _variables_draft['family']['family_profile_id'] %}
+  {% set _selected_family_profile_id = _variables_draft['family']['family_profile_id'] %}
+{% elif _selected_family_profile_id is defined and _selected_family_profile_id %}
+  {% set _selected_family_profile_id = _selected_family_profile_id %}
+{% else %}
+  {% set _selected_family_profile_id = '' %}
+{% endif %}
+
+{% if _variables_draft is mapping and 'variant_profile_id' in _variables_draft and _variables_draft['variant_profile_id'] %}
+  {% set _selected_variant_profile_id = _variables_draft['variant_profile_id'] %}
+{% elif _variables_draft is mapping and 'family' in _variables_draft and _variables_draft['family'] is mapping and 'variant_profile_id' in _variables_draft['family'] and _variables_draft['family']['variant_profile_id'] %}
+  {% set _selected_variant_profile_id = _variables_draft['family']['variant_profile_id'] %}
+{% elif _selected_variant_profile_id is defined and _selected_variant_profile_id %}
+  {% set _selected_variant_profile_id = _selected_variant_profile_id %}
+{% else %}
+  {% set _selected_variant_profile_id = '' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  6. Varianten und Default defensiv lesen
+----------------------------------------------------------------------------- #}
+
+{% if _variables_draft is mapping and 'definition_variants_json' in _variables_draft and _variables_draft['definition_variants_json'] %}
+  {% set _definition_variants_json = _variables_draft['definition_variants_json'] %}
+{% elif definition_variants_json is defined and definition_variants_json %}
+  {% set _definition_variants_json = definition_variants_json %}
+{% else %}
+  {% set _definition_variants_json = '' %}
+{% endif %}
+
+{% if _variables_draft is mapping and 'variants' in _variables_draft and _variables_draft['variants'] is iterable and _variables_draft['variants'] is not string %}
+  {% if _variables_draft['variants'] is mapping %}
+    {% set _draft_variants = [] %}
+  {% else %}
+    {% set _draft_variants = _variables_draft['variants'] %}
+  {% endif %}
+{% elif _variables_draft is mapping and 'family' in _variables_draft and _variables_draft['family'] is mapping and 'variants' in _variables_draft['family'] and _variables_draft['family']['variants'] is iterable and _variables_draft['family']['variants'] is not string %}
+  {% if _variables_draft['family']['variants'] is mapping %}
+    {% set _draft_variants = [] %}
+  {% else %}
+    {% set _draft_variants = _variables_draft['family']['variants'] %}
+  {% endif %}
+{% else %}
+  {% set _draft_variants = [] %}
+{% endif %}
+
+{% if _variables_draft is mapping and 'default_variant_id' in _variables_draft and _variables_draft['default_variant_id'] %}
+  {% set _default_variant_id = _variables_draft['default_variant_id'] %}
+{% elif _variables_draft is mapping and 'default_variant' in _variables_draft and _variables_draft['default_variant'] %}
+  {% set _default_variant_id = _variables_draft['default_variant'] %}
+{% elif _variables_draft is mapping and 'variants' in _variables_draft and _variables_draft['variants'] is mapping and 'default' in _variables_draft['variants'] %}
+  {% set _default_variant_id = 'default' %}
+{% else %}
+  {% set _default_variant_id = 'default' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  7. Upload-Draft defensiv lesen
+----------------------------------------------------------------------------- #}
+
+{% if _variables_draft is mapping and 'technical_document_uploads_json' in _variables_draft and _variables_draft['technical_document_uploads_json'] %}
+  {% set _technical_document_uploads_json = _variables_draft['technical_document_uploads_json'] %}
+{% elif _variables_draft is mapping and 'documents_uploads_json' in _variables_draft and _variables_draft['documents_uploads_json'] %}
+  {% set _technical_document_uploads_json = _variables_draft['documents_uploads_json'] %}
+{% else %}
+  {% set _technical_document_uploads_json = '[]' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  8. Objektart-Hinweise ableiten
+----------------------------------------------------------------------------- #}
+
+{% if _selected_object_kind_normalized in ['cell_block', 'adaptive_system'] %}
+  {% set _object_kind_locks_cells = true %}
+{% else %}
+  {% set _object_kind_locks_cells = false %}
+{% endif %}
+
+{% if _selected_object_kind_normalized == 'cell_block' %}
+  {% set _object_kind_label = 'Rasterbauteil / Einzelblock' %}
+  {% set _object_kind_hint = 'Technischer Standardkontext für blockartige Bauteile.' %}
+{% elif _selected_object_kind_normalized == 'multi_cell_module' %}
+  {% set _object_kind_label = 'Mehrblock-Modul' %}
+  {% set _object_kind_hint = 'Technischer Standardkontext für mehrzellige Module.' %}
+{% elif _selected_object_kind_normalized == 'catalog_object' %}
+  {% set _object_kind_label = 'Katalogobjekt' %}
+  {% set _object_kind_hint = 'Technischer Standardkontext für freie Katalogobjekte.' %}
+{% elif _selected_object_kind_normalized == 'adaptive_system' %}
+  {% set _object_kind_label = 'Adaptives System' %}
+  {% set _object_kind_hint = 'Technischer Standardkontext für adaptive Systeme.' %}
+{% else %}
+  {% set _object_kind_label = _selected_object_kind %}
+  {% set _object_kind_hint = 'Technischer Objektkontext.' %}
+{% endif %}
+
+
+{# -----------------------------------------------------------------------------
+  9. Workspace-Aliase für Include bereitstellen
+----------------------------------------------------------------------------- #}
+
+{% set _vp_variant_options = _variables_options %}
+{% set _vp_variant_definitions = _variables_definitions %}
+{% set _vp_variant_definitions_options = _variables_definitions_options %}
+{% set _vp_variant_definition_catalogs = _variables_definition_catalogs %}
+{% set _vp_variant_definitions_available = _variables_definitions_available %}
+{% set _vp_variant_draft = _variables_draft %}
+{% set _vp_variant_draft_variants = _draft_variants %}
+{% set _vp_variant_definition_variants_json = _definition_variants_json %}
+{% set _vp_variant_default_variant_id = _default_variant_id %}
+{% set _vp_variant_object_kind = _selected_object_kind %}
+{% set _vp_variant_object_kind_normalized = _selected_object_kind_normalized %}
+{% set _vp_variant_family_profile_id = _selected_family_profile_id %}
+{% set _vp_variant_profile_id = _selected_variant_profile_id %}
+{% set vp_variant_workspace_id = 'vp-create-variables-workspace' %}
+
+
+<div
+  class="vplib-create-step__panel vp-create-section vp-create-section--object-variants vp-create-section--variables is-variant-editor-closed"
+  data-create-section="object-variants"
+  data-vp-create-section="object-variants"
+  data-vp-create-section-alias="variables"
+  data-create-section-required="true"
+  data-create-selected-object-kind="{{ _selected_object_kind_normalized }}"
+  data-create-object-kind-locks-cells="{% if _object_kind_locks_cells %}true{% else %}false{% endif %}"
+  data-create-object-kind-count="{{ _variables_object_kinds | length }}"
+  data-vp-definitions-enabled="{% if _variables_definitions_available %}true{% else %}false{% endif %}"
+  data-vp-definitions-available="{% if _variables_definitions_available %}true{% else %}false{% endif %}"
+  data-vp-current-object-kind="{{ _selected_object_kind_normalized }}"
+  data-vp-current-family-profile-id="{{ _selected_family_profile_id }}"
+  data-vp-current-variant-profile-id="{{ _selected_variant_profile_id }}"
+  data-vp-default-variant-id="{{ _default_variant_id }}"
+  data-vp-definition-managed-variants="true"
+  data-vp-step-panel="object-variants"
+  data-vp-variables-root="true"
+  data-vp-variables-version="0.6.0"
+  data-vp-object-variants-layout="flat"
+  data-vp-variant-editor-state="closed"
+  data-vp-object-variants-editor-state="closed"
+  data-vp-upload-enabled="true"
+  aria-labelledby="vp-create-variables-title"
+>
+  <header
+    class="vplib-create-step__header vp-create-object-variants__header vp-create-variables__header"
+    data-vp-object-variants-header="true"
+    data-vp-variables-header="true"
+  >
+    <div class="vplib-create-step__header-main vp-create-object-variants__header-main vp-create-variables__header-main">
+
+
+      <h2
+        id="vp-create-variables-title"
+        class="vplib-create-step__title"
+      >
+        Variablen und Unterlagen
+      </h2>
+
+      <p class="vplib-create-step__description">
+        Definiere die technischen Variablen
+      </p>
+    </div>
+
+
+  </header>
+
+  <div
+    class="vplib-create-step__body vp-create-object-variants__body vp-create-variables__body"
+    data-vp-object-variants-body="true"
+    data-vp-variables-body="true"
+  >
+    <div
+      class="vp-create-object-variants__top vp-create-variables__top"
+      data-vp-object-variants-top="true"
+      data-vp-object-kind-area="true"
+      data-vp-variables-top="true"
+      data-vp-editor-hidden-when-open="true"
+    >
+
+
+      <div
+        class="vp-create-sr-only"
+        data-vp-object-kind-field-area="true"
+        data-vp-object-kind-hidden-context="true"
+      >
+        <label for="create-object-kind">
+          Technischer Objektkontext
+        </label>
+
+        <input
+          id="create-object-kind"
+          type="hidden"
+          name="object_kind"
+          value="{{ _selected_object_kind }}"
+          data-create-object-kind="true"
+          data-create-object-kind-fallback="true"
+          data-create-preview-source="object-kind"
+          data-vp-step-field="object.kind"
+          data-vp-object-kind-field="true"
+          data-vp-object-kind-hidden-field="true"
+        />
+
+        <input
+          type="hidden"
+          name="family_profile_id"
+          value="{{ _selected_family_profile_id }}"
+          data-vp-family-profile-id-field="true"
+          data-create-field="family_profile_id"
+        />
+
+        <input
+          type="hidden"
+          name="variant_profile_id"
+          value="{{ _selected_variant_profile_id }}"
+          data-vp-variant-profile-id-field="true"
+          data-create-field="variant_profile_id"
+        />
+
+        <aside
+          data-create-object-kind-note="true"
+          data-create-object-kind-note-value="{{ _selected_object_kind_normalized }}"
+          data-vp-object-kind-note
+          aria-label="Technischer Objektkontext"
+        >
+          <strong data-create-object-kind-note-label="true">
+            {{ _object_kind_label }}
+          </strong>
+
+          <span data-create-object-kind-note-text="true">
+            {{ _object_kind_hint }}
+          </span>
+        </aside>
+      </div>
+    </div>
+
+    <div
+      class="vp-create-object-variants__workspace vp-create-variables__workspace"
+      data-vp-object-variants-workspace-slot="true"
+      data-vp-variables-workspace-slot="true"
+      data-vp-variant-editor-state="closed"
+    >
+      {% include [
+        "vplib/create/variants/_variant_workspace.html",
+        "library_admin/create/variants/_variant_workspace.html"
+      ] ignore missing with context %}
+    </div>
+  </div>
+
+  <script type="application/json" data-vp-variables-config>
+    {
+      "component": "create.variables",
+      "version": "0.6.0",
+      "visibleStepLabel": "Variablen und Unterlagen",
+      "compatibility": {
+        "section": "object-variants",
+        "objectKindField": "object_kind",
+        "familyProfileField": "family_profile_id",
+        "variantProfileField": "variant_profile_id",
+        "definitionVariantsField": "definition_variants_json",
+        "defaultVariantField": "default_variant_id"
+      },
+      "objectKind": {
+        "value": {{ _selected_object_kind_normalized | tojson }},
+        "label": {{ _object_kind_label | tojson }},
+        "hint": {{ _object_kind_hint | tojson }},
+        "locksCells": {{ _object_kind_locks_cells | tojson }}
+      },
+      "definitions": {
+        "available": {{ _variables_definitions_available | tojson }}
+      },
+      "uploads": {
+        "enabled": true,
+        "backendEnabled": false,
+        "field": "technical_document_files",
+        "metadataField": "technical_document_uploads_json",
+        "accept": ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp,.zip",
+        "multiple": true,
+        "purpose": "manufacturer_documents"
+      },
+      "events": {
+        "ready": "vectoplan:create:variables-ready",
+        "uploadChanged": "vectoplan:create:variables-upload-changed",
+        "genericUploadChanged": "vectoplan:create:upload-changed"
+      }
+    }
+  </script>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    var SECTION_SELECTOR = '[data-vp-create-section="object-variants"]';
+    var READY_ATTR = "data-vp-object-variants-ready";
+    var VARIABLES_READY_ATTR = "data-vp-variables-ready";
+    var EVENTS_BOUND_ATTR = "data-vp-object-variants-events-bound";
+    var COMPONENT_NAME = "VECTOPLAN Create Variables";
+    var COMPONENT_VERSION = "0.6.0";
+
+    function warn(message, error) {
+      try {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
+        }
+      } catch (consoleError) {
+        /* no-op */
+      }
+    }
+
+    function toArray(value) {
+      try {
+        return Array.prototype.slice.call(value || []);
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function normalize(value) {
+      try {
+        return String(value || "")
+          .trim()
+          .toLowerCase()
+          .replace(/[-\s]+/g, "_")
+          .replace(/[^a-z0-9_./]/g, "");
+      } catch (error) {
+        return "";
+      }
+    }
+
+    function normalizeEditorState(value) {
+      try {
+        var state = String(value || "").trim().toLowerCase();
+
+        if (
+          state === "open" ||
+          state === "opened" ||
+          state === "edit" ||
+          state === "editing" ||
+          state === "active"
+        ) {
+          return "open";
+        }
+
+        return "closed";
+      } catch (error) {
+        return "closed";
+      }
+    }
+
+    function dispatch(node, eventName, detail, cancelable) {
+      try {
+        if (!node || !eventName) {
+          return null;
+        }
+
+        var event = new CustomEvent(eventName, {
+          bubbles: true,
+          cancelable: !!cancelable,
+          detail: detail || {}
+        });
+
+        node.dispatchEvent(event);
+        return event;
+      } catch (error) {
+        warn("Could not dispatch event: " + eventName, error);
+        return null;
+      }
+    }
+
+    function dispatchNativeEvent(node, eventName) {
+      try {
+        if (!node || !eventName) {
+          return false;
+        }
+
+        node.dispatchEvent(new Event(eventName, {
+          bubbles: true,
+          cancelable: false
+        }));
+
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function setFieldValue(field, value, options) {
+      try {
+        if (!field) {
+          return;
+        }
+
+        var nextValue = value === null || value === undefined ? "" : String(value);
+
+        if (field.value === nextValue) {
+          return;
+        }
+
+        field.value = nextValue;
+        field.setAttribute("data-vp-last-variables-sync", String(Date.now()));
+
+        if (!options || options.silent !== true) {
+          dispatchNativeEvent(field, "input");
+          dispatchNativeEvent(field, "change");
+        }
+      } catch (error) {
+        warn("Field update failed.", error);
+      }
+    }
+
+    function getFieldValue(field, fallback) {
+      try {
+        if (!field) {
+          return fallback || "";
+        }
+
+        return field.value || fallback || "";
+      } catch (error) {
+        return fallback || "";
+      }
+    }
+
+    function firstExisting(root, selectors) {
+      try {
+        if (!root || !selectors || !selectors.length) {
+          return null;
+        }
+
+        for (var index = 0; index < selectors.length; index += 1) {
+          var node = root.querySelector(selectors[index]);
+
+          if (node) {
+            return node;
+          }
+        }
+
+        return null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function readJsonConfig(section) {
+      try {
+        var configNode = section.querySelector("[data-vp-variables-config]");
+
+        if (!configNode || !configNode.textContent) {
+          return {};
+        }
+
+        var parsed = JSON.parse(configNode.textContent);
+
+        if (!parsed || typeof parsed !== "object") {
+          return {};
+        }
+
+        return parsed;
+      } catch (error) {
+        warn("Variables config parse failed.", error);
+        return {};
+      }
+    }
+
+    function cacheSection(section) {
+      try {
+        return {
+          section: section,
+          config: readJsonConfig(section),
+
+          header: section.querySelector('[data-vp-object-variants-header="true"]') ||
+            section.querySelector('[data-vp-variables-header="true"]'),
+
+          body: section.querySelector('[data-vp-object-variants-body="true"]') ||
+            section.querySelector('[data-vp-variables-body="true"]'),
+
+          objectTop: section.querySelector('[data-vp-object-variants-top="true"]') ||
+            section.querySelector('[data-vp-variables-top="true"]'),
+
+          objectKindArea: section.querySelector('[data-vp-object-kind-area="true"]'),
+          objectKindFieldArea: section.querySelector('[data-vp-object-kind-field-area="true"]'),
+
+          objectKindSelect: firstExisting(section, [
+            '[data-create-object-kind="true"]',
+            '[data-vp-object-kind-field="true"]',
+            '[name="object_kind"]',
+            '[name="object_class"]'
+          ]),
+
+          objectKindNote: section.querySelector("[data-vp-object-kind-note]"),
+          objectKindLabel: section.querySelector('[data-create-object-kind-note-label="true"]'),
+          objectKindText: section.querySelector('[data-create-object-kind-note-text="true"]'),
+
+          familyProfileField: section.querySelector('[data-vp-family-profile-id-field="true"]'),
+          variantProfileField: section.querySelector('[data-vp-variant-profile-id-field="true"]'),
+
+          uploadZone: section.querySelector("[data-vp-upload-zone][data-vp-upload-kind='technical_documents']"),
+          uploadInput: section.querySelector("[data-vp-upload-input][data-vp-upload-kind='technical_documents']"),
+          uploadMetaField: section.querySelector("[data-vp-upload-metadata][data-vp-upload-metadata-kind='technical_documents']"),
+          uploadFileList: section.querySelector("[data-vp-upload-file-list]"),
+          uploadEmpty: section.querySelector("[data-vp-upload-empty]"),
+          uploadCountLabel: section.querySelector("[data-vp-upload-count-label]"),
+
+          workspaceSlot: section.querySelector('[data-vp-object-variants-workspace-slot="true"]') ||
+            section.querySelector('[data-vp-variables-workspace-slot="true"]'),
+
+          workspace: firstExisting(section, [
+            '[data-vp-variant-workspace-root="true"]',
+            '[data-vp-variant-workspace="true"]',
+            '.vp-create-variant-workspace'
+          ]),
+
+          tableSlot: firstExisting(section, [
+            '[data-vp-variant-table-slot="true"]',
+            '.vp-create-variant-workspace__table-slot'
+          ]),
+
+          drawerSlot: firstExisting(section, [
+            '[data-vp-variant-drawer-slot="true"]',
+            '.vp-create-variant-workspace__drawer-slot'
+          ]),
+
+          table: firstExisting(section, [
+            '[data-vp-variant-table-root="true"]',
+            '[data-vp-variant-table="true"]',
+            '[data-create-variant-table="true"]'
+          ]),
+
+          drawer: firstExisting(section, [
+            '[data-vp-variant-drawer-root="true"]',
+            '[data-vp-variant-drawer="true"]',
+            '.vp-create-variant-drawer'
+          ]),
+
+          countLabel: firstExisting(section, [
+            "[data-vp-variant-count-label]",
+            "[data-vp-variant-count-label='true']"
+          ])
+        };
+      } catch (error) {
+        warn("Could not cache section nodes.", error);
+
+        return {
+          section: section,
+          config: {}
+        };
+      }
+    }
+
+    var objectKindMeta = {
+      cell_block: {
+        label: "Rasterbauteil / Einzelblock",
+        text: "Technischer Standardkontext für blockartige Bauteile.",
+        locksCells: true
+      },
+      multi_cell_module: {
+        label: "Mehrblock-Modul",
+        text: "Technischer Standardkontext für mehrzellige Module.",
+        locksCells: false
+      },
+      catalog_object: {
+        label: "Katalogobjekt",
+        text: "Technischer Standardkontext für freie Katalogobjekte.",
+        locksCells: false
+      },
+      adaptive_system: {
+        label: "Adaptives System",
+        text: "Technischer Standardkontext für adaptive Systeme.",
+        locksCells: true
+      }
+    };
+
+    function readObjectKind(cache) {
+      try {
+        var rawValue = cache.objectKindSelect
+          ? getFieldValue(cache.objectKindSelect, "")
+          : cache.section.getAttribute("data-create-selected-object-kind");
+
+        return normalize(rawValue) || "cell_block";
+      } catch (error) {
+        return "cell_block";
+      }
+    }
+
+    function getProfilePayloadFromDetail(detail) {
+      try {
+        var payload = detail || {};
+        var familyProfileId = payload.family_profile_id || payload.familyProfileId || "";
+        var variantProfileId = payload.variant_profile_id || payload.variantProfileId || "";
+
+        if (!familyProfileId && payload.profilePayload && payload.profilePayload.family_profile_id) {
+          familyProfileId = payload.profilePayload.family_profile_id;
+        }
+
+        if (!variantProfileId && payload.profilePayload && payload.profilePayload.variant_profile_id) {
+          variantProfileId = payload.profilePayload.variant_profile_id;
+        }
+
+        if (!familyProfileId && payload.family_profile && payload.family_profile.id) {
+          familyProfileId = payload.family_profile.id;
+        }
+
+        if (!variantProfileId && payload.variant_profile && payload.variant_profile.id) {
+          variantProfileId = payload.variant_profile.id;
+        }
+
+        if (!variantProfileId && payload.profile && payload.profile.id) {
+          variantProfileId = payload.profile.id;
+        }
+
+        return {
+          familyProfileId: familyProfileId || "",
+          variantProfileId: variantProfileId || ""
+        };
+      } catch (error) {
+        return {
+          familyProfileId: "",
+          variantProfileId: ""
+        };
+      }
+    }
+
+    function getRuntimeTargets(cache) {
+      try {
+        return [
+          cache.workspaceSlot,
+          cache.workspace,
+          cache.tableSlot,
+          cache.drawerSlot,
+          cache.table,
+          cache.drawer
+        ].filter(Boolean);
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function updateObjectKindNote(cache) {
+      try {
+        var key = readObjectKind(cache);
+        var meta = objectKindMeta[key] || {
+          label: key || "Objektart",
+          text: "Technischer Objektkontext.",
+          locksCells: false
+        };
+
+        cache.section.setAttribute("data-create-selected-object-kind", key);
+        cache.section.setAttribute("data-vp-current-object-kind", key);
+        cache.section.setAttribute("data-create-object-kind-locks-cells", meta.locksCells ? "true" : "false");
+
+        if (cache.objectKindNote) {
+          cache.objectKindNote.setAttribute("data-create-object-kind-note-value", key);
+        }
+
+        if (cache.objectKindLabel) {
+          cache.objectKindLabel.textContent = meta.label;
+        }
+
+        if (cache.objectKindText) {
+          cache.objectKindText.textContent = meta.text;
+        }
+
+        syncObjectKindToTargets(cache, key);
+      } catch (error) {
+        warn("Object kind note update failed.", error);
+      }
+    }
+
+    function syncObjectKindToTargets(cache, objectKind) {
+      try {
+        var key = normalize(objectKind) || "cell_block";
+
+        getRuntimeTargets(cache).forEach(function (target) {
+          try {
+            target.setAttribute("data-vp-current-object-kind", key);
+            target.setAttribute("data-create-selected-object-kind", key);
+          } catch (targetError) {
+            warn("Object kind target write skipped.", targetError);
+          }
+        });
+      } catch (error) {
+        warn("Object kind target sync failed.", error);
+      }
+    }
+
+    function syncProfilesToTargets(cache, familyProfileId, variantProfileId, options) {
+      try {
+        var familyId = familyProfileId || "";
+        var variantId = variantProfileId || "";
+        var silent = options && options.silent === true;
+        var allowEmpty = options && options.allowEmpty === true;
+
+        if (familyId || allowEmpty) {
+          setFieldValue(cache.familyProfileField, familyId, {
+            silent: silent
+          });
+          cache.section.setAttribute("data-vp-current-family-profile-id", familyId);
+        }
+
+        if (variantId || allowEmpty) {
+          setFieldValue(cache.variantProfileField, variantId, {
+            silent: silent
+          });
+          cache.section.setAttribute("data-vp-current-variant-profile-id", variantId);
+        }
+
+        getRuntimeTargets(cache).forEach(function (target) {
+          try {
+            if (familyId || allowEmpty) {
+              target.setAttribute("data-vp-current-family-profile-id", familyId);
+              target.setAttribute("data-vp-family-profile-id", familyId);
+            }
+
+            if (variantId || allowEmpty) {
+              target.setAttribute("data-vp-current-variant-profile-id", variantId);
+              target.setAttribute("data-vp-variant-profile-id", variantId);
+            }
+          } catch (targetError) {
+            warn("Profile target write skipped.", targetError);
+          }
+        });
+      } catch (error) {
+        warn("Profile target sync failed.", error);
+      }
+    }
+
+    function clearResolvedProfiles(cache) {
+      try {
+        syncProfilesToTargets(cache, "", "", {
+          silent: false,
+          allowEmpty: true
+        });
+      } catch (error) {
+        warn("Clearing resolved profiles failed.", error);
+      }
+    }
+
+    function setManagedHidden(node, hidden, reason) {
+      try {
+        if (!node) {
+          return false;
+        }
+
+        if (hidden) {
+          node.setAttribute("data-vp-hidden-by-variant-editor", "true");
+          node.setAttribute("data-vp-hidden-reason", reason || "variant_editor_open");
+          node.setAttribute("aria-hidden", "true");
+          node.hidden = true;
+          node.setAttribute("hidden", "");
+          return true;
+        }
+
+        if (node.getAttribute("data-vp-hidden-by-variant-editor") === "true") {
+          node.removeAttribute("data-vp-hidden-by-variant-editor");
+          node.removeAttribute("data-vp-hidden-reason");
+          node.removeAttribute("aria-hidden");
+          node.hidden = false;
+          node.removeAttribute("hidden");
+          return true;
+        }
+
+        return false;
+      } catch (error) {
+        warn("Managed hidden update failed.", error);
+        return false;
+      }
+    }
+
+    function markEditorState(node, state, source) {
+      try {
+        if (!node) {
+          return false;
+        }
+
+        node.setAttribute("data-vp-variant-editor-state", state);
+        node.setAttribute("data-vp-object-variants-editor-state", state);
+        node.setAttribute("data-vp-variables-editor-state", state);
+        node.setAttribute("data-vp-variant-editor-state-source", source || COMPONENT_NAME);
+
+        if (node.classList) {
+          node.classList.toggle("is-variant-editor-open", state === "open");
+          node.classList.toggle("is-variant-editor-closed", state !== "open");
+        }
+
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function readInitialEditorState(cache) {
+      try {
+        var candidates = [
+          cache.section,
+          cache.workspace,
+          cache.workspaceSlot,
+          cache.drawer,
+          cache.drawerSlot,
+          document.documentElement
+        ].filter(Boolean);
+
+        for (var index = 0; index < candidates.length; index += 1) {
+          var value = candidates[index].getAttribute("data-vp-variant-editor-state") ||
+            candidates[index].getAttribute("data-vp-object-variants-editor-state") ||
+            candidates[index].getAttribute("data-vp-variables-editor-state") ||
+            "";
+
+          if (value) {
+            return normalizeEditorState(value);
+          }
+        }
+
+        return "closed";
+      } catch (error) {
+        return "closed";
+      }
+    }
+
+    function setEditorState(cache, nextState, options) {
+      try {
+        var state = normalizeEditorState(nextState);
+        var previousState = normalizeEditorState(cache.section.getAttribute("data-vp-variant-editor-state") || "closed");
+        var source = options && options.source ? options.source : "variables";
+        var silent = options && options.silent === true;
+
+        markEditorState(cache.section, state, source);
+        markEditorState(cache.body, state, source);
+        markEditorState(cache.workspaceSlot, state, source);
+        markEditorState(cache.workspace, state, source);
+        markEditorState(cache.tableSlot, state, source);
+        markEditorState(cache.drawerSlot, state, source);
+        markEditorState(cache.table, state, source);
+        markEditorState(cache.drawer, state, source);
+
+        setManagedHidden(cache.objectTop, state === "open", source);
+        setManagedHidden(cache.objectKindArea, state === "open", source);
+
+        if (cache.workspaceSlot) {
+          cache.workspaceSlot.setAttribute(
+            "data-vp-object-kind-area-hidden",
+            state === "open" ? "true" : "false"
+          );
+        }
+
+        try {
+          document.documentElement.setAttribute("data-vp-object-variants-editor-state", state);
+          document.documentElement.setAttribute("data-vp-variables-editor-state", state);
+        } catch (htmlError) {
+          /* no-op */
+        }
+
+        if (!silent && previousState !== state) {
+          dispatch(document, "vectoplan:create:object-variants-editor-state-changed", {
+            component: COMPONENT_NAME,
+            version: COMPONENT_VERSION,
+            state: state,
+            editorState: state,
+            open: state === "open",
+            previousState: previousState,
+            source: source
+          });
+        }
+
+        return state;
+      } catch (error) {
+        warn("Editor state update failed.", error);
+        return "closed";
+      }
+    }
+
+    function requestProfileResolve(cache, reason) {
+      try {
+        var objectKind = readObjectKind(cache);
+
+        var detail = {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          reason: reason || "variables",
+          context: {
+            object_kind: objectKind,
+            family_profile_id: getFieldValue(cache.familyProfileField, ""),
+            variant_profile_id: getFieldValue(cache.variantProfileField, "")
+          }
+        };
+
+        dispatch(document, "vectoplan:create:variant-profile-resolve-requested", detail);
+
+        if (
+          window.VectoplanCreateVariantProfiles &&
+          typeof window.VectoplanCreateVariantProfiles.resolveCurrentProfile === "function"
+        ) {
+          window.VectoplanCreateVariantProfiles.resolveCurrentProfile({
+            source: reason || "variables"
+          });
+        } else if (
+          window.VectoplanCreateDefinitionsRuntime &&
+          typeof window.VectoplanCreateDefinitionsRuntime.resolveCurrentProfile === "function"
+        ) {
+          window.VectoplanCreateDefinitionsRuntime.resolveCurrentProfile();
+        }
+      } catch (error) {
+        warn("Profile resolve request failed.", error);
+      }
+    }
+
+    function handleObjectKindChanged(cache, reason) {
+      try {
+        var objectKind = readObjectKind(cache);
+
+        updateObjectKindNote(cache);
+        clearResolvedProfiles(cache);
+
+        dispatch(document, "vectoplan:create:object-kind-changed", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          object_kind: objectKind,
+          objectKind: objectKind,
+          reason: reason || "change"
+        });
+
+        requestProfileResolve(cache, reason || "object_kind_changed");
+      } catch (error) {
+        warn("Object kind change handling failed.", error);
+      }
+    }
+
+    function setProfileResolved(cache, detail) {
+      try {
+        var profilePayload = getProfilePayloadFromDetail(detail);
+
+        syncProfilesToTargets(
+          cache,
+          profilePayload.familyProfileId,
+          profilePayload.variantProfileId,
+          {
+            silent: false,
+            allowEmpty: false
+          }
+        );
+      } catch (error) {
+        warn("Profile resolved update failed.", error);
+      }
+    }
+
+    function setDefinitionsState(cache, available, detail) {
+      try {
+        var state = available ? "true" : "false";
+
+        cache.section.setAttribute("data-vp-definitions-enabled", state);
+        cache.section.setAttribute("data-vp-definitions-available", state);
+
+        getRuntimeTargets(cache).forEach(function (target) {
+          try {
+            target.setAttribute("data-vp-definitions-available", state);
+          } catch (targetError) {
+            warn("Definitions target write skipped.", targetError);
+          }
+        });
+
+        if (!available) {
+          cache.section.setAttribute(
+            "data-vp-definition-error",
+            detail && detail.error && detail.error.message
+              ? detail.error.message
+              : "definitions_unavailable"
+          );
+        } else {
+          cache.section.removeAttribute("data-vp-definition-error");
+        }
+      } catch (error) {
+        warn("Definitions state update failed.", error);
+      }
+    }
+
+    function syncVariantCount(cache, detail) {
+      try {
+        var count = null;
+
+        if (detail && detail.state && detail.state.variants && detail.state.variants.length !== undefined) {
+          count = detail.state.variants.length;
+        } else if (detail && detail.variants && detail.variants.length !== undefined) {
+          count = detail.variants.length;
+        } else if (cache.table) {
+          count = cache.table.querySelectorAll('[data-vp-variant-row="true"], [data-create-variant-row="true"]').length;
+        }
+
+        if (count === null || count === undefined || isNaN(parseInt(count, 10))) {
+          return;
+        }
+
+        count = parseInt(count, 10);
+
+        cache.section.setAttribute("data-vp-variant-count", String(count));
+        cache.section.setAttribute("data-vp-variable-variant-count", String(count));
+
+        getRuntimeTargets(cache).forEach(function (target) {
+          try {
+            target.setAttribute("data-vp-variant-count", String(count));
+            target.setAttribute("data-vp-variable-variant-count", String(count));
+          } catch (targetError) {
+            warn("Variant count target write skipped.", targetError);
+          }
+        });
+
+        if (cache.countLabel) {
+          cache.countLabel.textContent = count === 1 ? "1 Variante" : count + " Varianten";
+        }
+      } catch (error) {
+        warn("Variant count sync failed.", error);
+      }
+    }
+
+    function fileSizeLabel(bytes) {
+      try {
+        var value = parseInt(bytes, 10);
+
+        if (!Number.isFinite(value) || value <= 0) {
+          return "0 B";
+        }
+
+        if (value < 1024) {
+          return value + " B";
+        }
+
+        if (value < 1024 * 1024) {
+          return (value / 1024).toFixed(1).replace(".0", "") + " KB";
+        }
+
+        return (value / (1024 * 1024)).toFixed(1).replace(".0", "") + " MB";
+      } catch (error) {
+        return "";
+      }
+    }
+
+    function readUploadFiles(cache) {
+      try {
+        if (!cache.uploadInput || !cache.uploadInput.files) {
+          return [];
+        }
+
+        return toArray(cache.uploadInput.files).map(function (file, index) {
+          try {
+            return {
+              index: index,
+              name: file.name || "",
+              size: file.size || 0,
+              size_label: fileSizeLabel(file.size || 0),
+              sizeLabel: fileSizeLabel(file.size || 0),
+              type: file.type || "",
+              last_modified: file.lastModified || null,
+              lastModified: file.lastModified || null,
+              purpose: "manufacturer_documents",
+              kind: "technical_documents",
+              backend_stored: false,
+              backendStored: false,
+              local_only: true,
+              localOnly: true
+            };
+          } catch (fileError) {
+            return {
+              index: index,
+              name: "",
+              size: 0,
+              size_label: "0 B",
+              sizeLabel: "0 B",
+              type: "",
+              last_modified: null,
+              lastModified: null,
+              purpose: "manufacturer_documents",
+              kind: "technical_documents",
+              backend_stored: false,
+              backendStored: false,
+              local_only: true,
+              localOnly: true
+            };
+          }
+        });
+      } catch (error) {
+        warn("Upload file read failed.", error);
+        return [];
+      }
+    }
+
+    function renderUploadList(cache, files) {
+      try {
+        if (cache.uploadCountLabel) {
+          cache.uploadCountLabel.textContent = files.length === 1 ? "1 Datei" : files.length + " Dateien";
+        }
+
+        if (cache.uploadEmpty) {
+          cache.uploadEmpty.textContent = files.length
+            ? "Ausgewählte Unterlagen werden aktuell nur als lokale Metadaten erfasst."
+            : "Noch keine Unterlagen ausgewählt.";
+        }
+
+        if (!cache.uploadFileList) {
+          return;
+        }
+
+        cache.uploadFileList.innerHTML = "";
+
+        files.forEach(function (file) {
+          try {
+            var row = document.createElement("div");
+            row.className = "vp-create-upload__file";
+            row.setAttribute("data-vp-upload-file", "true");
+
+            var copy = document.createElement("div");
+            copy.className = "vp-create-upload__file-copy";
+
+            var name = document.createElement("strong");
+            name.className = "vp-create-upload__file-name";
+            name.setAttribute("data-vp-upload-file-name", "true");
+            name.textContent = file.name || "Unbenannte Datei";
+
+            var meta = document.createElement("span");
+            meta.className = "vp-create-upload__file-meta";
+            meta.setAttribute("data-vp-upload-file-meta", "true");
+            meta.textContent = [
+              file.size_label || file.sizeLabel || "",
+              file.type || "unbekannter Typ"
+            ].filter(Boolean).join(" · ");
+
+            copy.appendChild(name);
+            copy.appendChild(meta);
+            row.appendChild(copy);
+
+            cache.uploadFileList.appendChild(row);
+          } catch (rowError) {
+            warn("Upload row render skipped.", rowError);
+          }
+        });
+      } catch (error) {
+        warn("Upload list render failed.", error);
+      }
+    }
+
+    function syncUploadMetadata(cache, options) {
+      try {
+        var files = readUploadFiles(cache);
+        var payload = {
+          version: COMPONENT_VERSION,
+          kind: "technical_documents",
+          purpose: "manufacturer_documents",
+          backend_enabled: false,
+          backendEnabled: false,
+          local_only: true,
+          localOnly: true,
+          count: files.length,
+          files: files,
+          updated_at: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          source: options && options.source ? options.source : "upload"
+        };
+
+        if (cache.uploadMetaField) {
+          setFieldValue(cache.uploadMetaField, JSON.stringify(payload), {
+            silent: false
+          });
+        }
+
+        if (cache.uploadZone) {
+          cache.uploadZone.setAttribute("data-vp-upload-count", String(files.length));
+          cache.uploadZone.setAttribute("data-vp-upload-has-files", files.length > 0 ? "true" : "false");
+          cache.uploadZone.setAttribute("data-vp-upload-last-update", String(Date.now()));
+        }
+
+        cache.section.setAttribute("data-vp-technical-document-count", String(files.length));
+        cache.section.setAttribute("data-vp-technical-documents-selected", files.length > 0 ? "true" : "false");
+
+        renderUploadList(cache, files);
+
+        dispatch(cache.section, "vectoplan:create:variables-upload-changed", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          kind: "technical_documents",
+          purpose: "manufacturer_documents",
+          count: files.length,
+          files: files,
+          payload: payload,
+          source: payload.source
+        });
+
+        dispatch(document, "vectoplan:create:upload-changed", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          kind: "technical_documents",
+          purpose: "manufacturer_documents",
+          count: files.length,
+          files: files,
+          payload: payload,
+          source: payload.source
+        });
+
+        return payload;
+      } catch (error) {
+        warn("Upload metadata sync failed.", error);
+        return {
+          count: 0,
+          files: []
+        };
+      }
+    }
+
+    function bindUpload(cache) {
+      try {
+        if (!cache.uploadInput || cache.uploadInput.getAttribute("data-vp-upload-bound") === "true") {
+          syncUploadMetadata(cache, {
+            source: "upload-init"
+          });
+          return;
+        }
+
+        cache.uploadInput.addEventListener("change", function () {
+          syncUploadMetadata(cache, {
+            source: "upload-input-change"
+          });
+        });
+
+        cache.uploadInput.setAttribute("data-vp-upload-bound", "true");
+
+        syncUploadMetadata(cache, {
+          source: "upload-init"
+        });
+      } catch (error) {
+        warn("Upload binding failed.", error);
+      }
+    }
+
+    function handleExternalEditorEvent(cache, state, source) {
+      try {
+        setEditorState(cache, state, {
+          source: source,
+          silent: false
+        });
+      } catch (error) {
+        warn("External editor event handling failed.", error);
+      }
+    }
+
+    function bindEditorStateEvents(cache) {
+      try {
+        [
+          "vectoplan:create:variant-editor-opened",
+          "vectoplan:create:variant-drawer-opened",
+          "vectoplan:create:variant-edit-started",
+          "vectoplan:create:variant-drawer-session-started",
+          "vectoplan:create:variant-drawer-session-prepared"
+        ].forEach(function (eventName) {
+          document.addEventListener(eventName, function () {
+            handleExternalEditorEvent(cache, "open", eventName);
+          });
+        });
+
+        [
+          "vectoplan:create:variant-editor-closed",
+          "vectoplan:create:variant-drawer-closed",
+          "vectoplan:create:variant-edit-ended",
+          "vectoplan:create:variant-applied",
+          "vectoplan:create:variant-cancelled",
+          "vectoplan:create:variant-drawer-reset",
+          "vectoplan:create:variant-drawer-cancel-requested",
+          "vectoplan:create:variant-empty-state-close-requested",
+          "vectoplan:create:variant-drawer-apply-finished"
+        ].forEach(function (eventName) {
+          document.addEventListener(eventName, function () {
+            handleExternalEditorEvent(cache, "closed", eventName);
+          });
+        });
+
+        document.addEventListener("vectoplan:create:variant-drawer-apply-failed", function () {
+          handleExternalEditorEvent(cache, "open", "vectoplan:create:variant-drawer-apply-failed");
+        });
+
+        document.addEventListener("vectoplan:create:variant-workspace-editor-state-changed", function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+            handleExternalEditorEvent(
+              cache,
+              detail.state || detail.editorState || (detail.open ? "open" : "closed"),
+              detail.source || "workspace_editor_state_changed"
+            );
+          } catch (error) {
+            warn("Workspace editor-state listener failed.", error);
+          }
+        });
+
+        document.addEventListener("vectoplan:create:variant-table-editor-mode-changed", function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+            handleExternalEditorEvent(
+              cache,
+              detail.mode || detail.editorMode || (detail.open ? "open" : "closed"),
+              detail.source || "table_editor_mode_changed"
+            );
+          } catch (error) {
+            warn("Table editor-mode listener failed.", error);
+          }
+        });
+      } catch (error) {
+        warn("Editor state event binding failed.", error);
+      }
+    }
+
+    function bindEvents(cache) {
+      try {
+        if (!cache.section || cache.section.getAttribute(EVENTS_BOUND_ATTR) === "true") {
+          return;
+        }
+
+        if (cache.objectKindSelect) {
+          cache.objectKindSelect.addEventListener("change", function () {
+            handleObjectKindChanged(cache, "object_kind_change");
+          });
+
+          cache.objectKindSelect.addEventListener("input", function () {
+            updateObjectKindNote(cache);
+          });
+        }
+
+        bindUpload(cache);
+
+        document.addEventListener("vectoplan:create:variant-family-profile-resolved", function (event) {
+          setProfileResolved(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-profile-resolved", function (event) {
+          setProfileResolved(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:definitions-ready", function (event) {
+          setDefinitionsState(cache, true, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:definitions-unavailable", function (event) {
+          setDefinitionsState(cache, false, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-state-changed", function (event) {
+          syncVariantCount(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-state-synced", function (event) {
+          syncVariantCount(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-added", function (event) {
+          setProfileResolved(cache, event && event.detail ? event.detail : {});
+          syncVariantCount(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-updated", function (event) {
+          setProfileResolved(cache, event && event.detail ? event.detail : {});
+          syncVariantCount(cache, event && event.detail ? event.detail : {});
+        });
+
+        document.addEventListener("vectoplan:create:variant-removed", function (event) {
+          syncVariantCount(cache, event && event.detail ? event.detail : {});
+        });
+
+        bindEditorStateEvents(cache);
+
+        cache.section.setAttribute(EVENTS_BOUND_ATTR, "true");
+      } catch (error) {
+        warn("Event binding failed.", error);
+      }
+    }
+
+    function exposeApi(cache) {
+      try {
+        var objectVariantsApi = {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          section: cache.section,
+
+          refresh: function () {
+            try {
+              updateObjectKindNote(cache);
+              syncProfilesToTargets(
+                cache,
+                getFieldValue(cache.familyProfileField, ""),
+                getFieldValue(cache.variantProfileField, ""),
+                {
+                  silent: true,
+                  allowEmpty: false
+                }
+              );
+              syncVariantCount(cache, {});
+              syncUploadMetadata(cache, {
+                source: "public-refresh"
+              });
+              setEditorState(cache, readInitialEditorState(cache), {
+                source: "public_refresh",
+                silent: true
+              });
+              return true;
+            } catch (error) {
+              warn("Public refresh failed.", error);
+              return false;
+            }
+          },
+
+          requestProfileResolve: function (reason) {
+            requestProfileResolve(cache, reason || "public_api");
+          },
+
+          setEditorState: function (state, options) {
+            return setEditorState(cache, state, options || {
+              source: "public_api"
+            });
+          },
+
+          openEditorState: function () {
+            return setEditorState(cache, "open", {
+              source: "public_api_open"
+            });
+          },
+
+          closeEditorState: function () {
+            return setEditorState(cache, "closed", {
+              source: "public_api_close"
+            });
+          },
+
+          getObjectKind: function () {
+            return readObjectKind(cache);
+          },
+
+          getFamilyProfileId: function () {
+            return getFieldValue(cache.familyProfileField, "");
+          },
+
+          getVariantProfileId: function () {
+            return getFieldValue(cache.variantProfileField, "");
+          },
+
+          getUploads: function () {
+            try {
+              var raw = cache.uploadMetaField && cache.uploadMetaField.value
+                ? JSON.parse(cache.uploadMetaField.value)
+                : {
+                  count: 0,
+                  files: []
+                };
+
+              return raw;
+            } catch (error) {
+              return {
+                count: 0,
+                files: []
+              };
+            }
+          },
+
+          syncUploads: function () {
+            return syncUploadMetadata(cache, {
+              source: "public-api"
+            });
+          },
+
+          getSnapshot: function () {
+            return {
+              ready: cache.section.getAttribute(READY_ATTR) === "true",
+              variables_ready: cache.section.getAttribute(VARIABLES_READY_ATTR) === "true",
+              variablesReady: cache.section.getAttribute(VARIABLES_READY_ATTR) === "true",
+              version: COMPONENT_VERSION,
+              object_kind: readObjectKind(cache),
+              objectKind: readObjectKind(cache),
+              family_profile_id: getFieldValue(cache.familyProfileField, ""),
+              familyProfileId: getFieldValue(cache.familyProfileField, ""),
+              variant_profile_id: getFieldValue(cache.variantProfileField, ""),
+              variantProfileId: getFieldValue(cache.variantProfileField, ""),
+              definitions_available: cache.section.getAttribute("data-vp-definitions-available") === "true",
+              definitionsAvailable: cache.section.getAttribute("data-vp-definitions-available") === "true",
+              variant_count: cache.section.getAttribute("data-vp-variant-count") || "",
+              variantCount: cache.section.getAttribute("data-vp-variant-count") || "",
+              technical_document_count: cache.section.getAttribute("data-vp-technical-document-count") || "0",
+              technicalDocumentCount: cache.section.getAttribute("data-vp-technical-document-count") || "0",
+              editor_state: cache.section.getAttribute("data-vp-variant-editor-state") || "closed",
+              editorState: cache.section.getAttribute("data-vp-variant-editor-state") || "closed",
+              object_kind_area_hidden: cache.objectTop ? cache.objectTop.hidden : false,
+              objectKindAreaHidden: cache.objectTop ? cache.objectTop.hidden : false,
+              has_workspace: !!cache.workspace,
+              hasWorkspace: !!cache.workspace,
+              has_drawer: !!cache.drawer,
+              hasDrawer: !!cache.drawer
+            };
+          }
+        };
+
+        window.VectoplanCreateObjectVariants = Object.assign({}, window.VectoplanCreateObjectVariants || {}, objectVariantsApi);
+        window.VectoplanCreateVariables = Object.assign({}, window.VectoplanCreateVariables || {}, objectVariantsApi);
+      } catch (error) {
+        warn("API exposure failed.", error);
+      }
+    }
+
+    function initializeSection(section) {
+      try {
+        if (!section || section.getAttribute(READY_ATTR) === "true") {
+          return;
+        }
+
+        var cache = cacheSection(section);
+
+        updateObjectKindNote(cache);
+        syncProfilesToTargets(
+          cache,
+          getFieldValue(cache.familyProfileField, ""),
+          getFieldValue(cache.variantProfileField, ""),
+          {
+            silent: true,
+            allowEmpty: false
+          }
+        );
+        syncVariantCount(cache, {});
+        bindUpload(cache);
+        setEditorState(cache, readInitialEditorState(cache), {
+          source: "initialize",
+          silent: true
+        });
+        bindEvents(cache);
+        exposeApi(cache);
+
+        section.setAttribute(READY_ATTR, "true");
+        section.setAttribute(VARIABLES_READY_ATTR, "true");
+        section.setAttribute("data-vp-object-variants-version", COMPONENT_VERSION);
+        section.setAttribute("data-vp-variables-version", COMPONENT_VERSION);
+
+        dispatch(document, "vectoplan:create:variables-ready", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          object_kind: readObjectKind(cache),
+          objectKind: readObjectKind(cache),
+          family_profile_id: getFieldValue(cache.familyProfileField, ""),
+          familyProfileId: getFieldValue(cache.familyProfileField, ""),
+          variant_profile_id: getFieldValue(cache.variantProfileField, ""),
+          variantProfileId: getFieldValue(cache.variantProfileField, ""),
+          editor_state: section.getAttribute("data-vp-variant-editor-state") || "closed",
+          editorState: section.getAttribute("data-vp-variant-editor-state") || "closed",
+          uploads: window.VectoplanCreateVariables && typeof window.VectoplanCreateVariables.getUploads === "function"
+            ? window.VectoplanCreateVariables.getUploads()
+            : {
+              count: 0,
+              files: []
+            }
+        });
+
+        dispatch(document, "vectoplan:create:object-variants-ready", {
+          component: COMPONENT_NAME,
+          version: COMPONENT_VERSION,
+          object_kind: readObjectKind(cache),
+          objectKind: readObjectKind(cache),
+          family_profile_id: getFieldValue(cache.familyProfileField, ""),
+          familyProfileId: getFieldValue(cache.familyProfileField, ""),
+          variant_profile_id: getFieldValue(cache.variantProfileField, ""),
+          variantProfileId: getFieldValue(cache.variantProfileField, ""),
+          editor_state: section.getAttribute("data-vp-variant-editor-state") || "closed",
+          editorState: section.getAttribute("data-vp-variant-editor-state") || "closed"
+        });
+
+        if (!getFieldValue(cache.familyProfileField, "") || !getFieldValue(cache.variantProfileField, "")) {
+          window.setTimeout(function () {
+            requestProfileResolve(cache, "variables_ready");
+          }, 80);
+        }
+      } catch (error) {
+        warn("Section initialization failed.", error);
+
+        try {
+          section.setAttribute("data-vp-object-variants-status", "initialization_failed");
+          section.setAttribute("data-vp-variables-status", "initialization_failed");
+          section.setAttribute("data-vp-object-variants-error", String(error && error.message ? error.message : error));
+          section.setAttribute("data-vp-variables-error", String(error && error.message ? error.message : error));
+        } catch (statusError) {
+          /* no-op */
+        }
+      }
+    }
+
+    function initializeAll() {
+      try {
+        toArray(document.querySelectorAll(SECTION_SELECTOR)).forEach(function (section) {
+          initializeSection(section);
+        });
+      } catch (error) {
+        warn("Global initialization failed.", error);
+      }
+    }
+
+    try {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializeAll, {
+          once: true
+        });
+      } else {
+        initializeAll();
+      }
+    } catch (error) {
+      warn("Bootstrap failed.", error);
+    }
+  })();
+</script>
