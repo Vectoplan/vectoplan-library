@@ -6,8 +6,9 @@ Dieses Package bündelt die backendseitigen Service-Orchestrierungen für:
 
 1. den dateibasierten Creative-Library-Pfad
 2. den einfachen VPLIB-Create-Flow
-3. den neuen DB-Sync-Pfad
+3. den DB-Sync-Pfad
 4. den produktiven DB-basierten Published-Read-Pfad
+5. den persistenten User-Inventar-/Hotbar-Pfad
 
 Dateibasierte Services:
 
@@ -23,7 +24,7 @@ Dateibasierte Services:
   Einfacher Create-Flow:
     Draft -> Validate -> Package Plan -> VPLIB Archive -> optional Save
 
-Neue DB-Services:
+DB-Services:
 
 - `library_db_sync_service.py`
   Persistiert Scan-/Pipeline-Ergebnisse in die creative_library Tabellen:
@@ -32,6 +33,10 @@ Neue DB-Services:
 - `library_published_service.py`
   Produktiver DB-Lesepfad:
     creative_library Tabellen -> Repository -> Published-Service -> API
+
+- `user_inventory_service.py`
+  Persistenter User-Inventar-Pfad:
+    User hotbar overlay -> Inventar-API -> Service -> Repository -> PostgreSQL
 
 Zielrouten, die auf diese Services zugreifen:
 
@@ -55,6 +60,14 @@ Zielrouten, die auf diese Services zugreifen:
     POST /api/v1/vplib/create/download
     POST /api/v1/vplib/create/save
 
+    GET    /api/v1/vplib/inventar_user
+    GET    /api/v1/vplib/inventar_user/state
+    GET    /api/v1/vplib/inventar_user/slots
+    PATCH  /api/v1/vplib/inventar_user/select-slot
+    PUT    /api/v1/vplib/inventar_user/slots/<slot_index>
+    PATCH  /api/v1/vplib/inventar_user/slots/<slot_index>
+    DELETE /api/v1/vplib/inventar_user/slots/<slot_index>
+
 Diese Services sind bewusst getrennt von:
 
 - Flask-Routes
@@ -70,6 +83,7 @@ Schreibverantwortung:
 - Create-Service schreibt nur Source-Packages und nur mit Environment-Flag.
 - DB-Sync-Service schreibt in die creative_library DB über das Repository.
 - Published-Service liest nur aus der DB.
+- User-Inventory-Service schreibt ausschließlich User-Inventar-State und User-Slots.
 
 Taxonomie-Regel:
 
@@ -87,14 +101,20 @@ DB-/Publication-Regel:
     family_id und package_id bleiben semantische IDs.
     revision_hash beschreibt die Inhaltsrevision.
 
-Version 0.3.0:
+User-Inventar-Regel:
 
-- `library_db_sync_service` ist als optionales DB-Service-Modul registriert.
-- `library_published_service` ist als optionales DB-Service-Modul registriert.
+    user_id ist in Phase 1 standardmäßig 1.
+    inventory_key ist standardmäßig "default".
+    Es gibt exakt 9 Hotbar-Slots.
+    Die Slot-Auswahl wird persistent in PostgreSQL gespeichert.
+
+Version 0.4.0:
+
+- `user_inventory_service` ist als optionales DB-Service-Modul registriert.
+- User-Inventar-Health, Cache-Clear und Convenience-Wrapper sind verfügbar.
 - Alte dateibasierte Service-Reexports bleiben rückwärtskompatibel.
-- Health unterscheidet required, optional und db_service Module.
-- Import- und Runtime-Caches sind zentral leerbar.
-- Package-Import bleibt ohne Dateiscan, ohne DB-Zugriff und ohne Taxonomie-JSON-Load.
+- Published-Inventory und User-Inventory werden bewusst nicht unter demselben
+  Symbolnamen gemischt.
 """
 
 from __future__ import annotations
@@ -112,7 +132,7 @@ from typing import Any, Final, Iterable, Mapping
 # Package metadata
 # ---------------------------------------------------------------------------
 
-SERVICES_PACKAGE_VERSION: Final[str] = "0.3.0"
+SERVICES_PACKAGE_VERSION: Final[str] = "0.4.0"
 SERVICES_PACKAGE_NAME: Final[str] = "library.services"
 SERVICES_COMPONENT_NAME: Final[str] = "creative-library-services"
 
@@ -122,6 +142,7 @@ SERVICE_MODULES: Final[tuple[str, ...]] = (
     "library_create_service",
     "library_db_sync_service",
     "library_published_service",
+    "user_inventory_service",
 )
 
 REQUIRED_SERVICE_MODULES: Final[tuple[str, ...]] = (
@@ -133,11 +154,17 @@ OPTIONAL_SERVICE_MODULES: Final[tuple[str, ...]] = (
     "library_create_service",
     "library_db_sync_service",
     "library_published_service",
+    "user_inventory_service",
 )
 
 DB_SERVICE_MODULES: Final[tuple[str, ...]] = (
     "library_db_sync_service",
     "library_published_service",
+    "user_inventory_service",
+)
+
+USER_INVENTORY_SERVICE_MODULES: Final[tuple[str, ...]] = (
+    "user_inventory_service",
 )
 
 
@@ -365,11 +392,47 @@ SYMBOL_TO_MODULE: Final[dict[str, str]] = {
     "clear_library_published_service_caches": "library_published_service",
     "clear_published_service_cache": "library_published_service",
     "clear_published_service_caches": "library_published_service",
+
+    # -----------------------------------------------------------------------
+    # user_inventory_service.py
+    # -----------------------------------------------------------------------
+    "USER_INVENTORY_SERVICE_VERSION": "user_inventory_service",
+    "USER_INVENTORY_COMPONENT": "user_inventory_service",
+    "DEFAULT_USER_ID": "user_inventory_service",
+    "DEFAULT_INVENTORY_KEY": "user_inventory_service",
+    "DEFAULT_SLOT_COUNT": "user_inventory_service",
+    "MIN_SLOT_INDEX": "user_inventory_service",
+    "MAX_SLOT_INDEX": "user_inventory_service",
+    "STATUS_CACHE_CLEARED": "user_inventory_service",
+    "STATUS_ERROR": "user_inventory_service",
+    "STATUS_HEALTHY": "user_inventory_service",
+    "STATUS_OK": "user_inventory_service",
+    "STATUS_READY": "user_inventory_service",
+    "STATUS_SELECTED": "user_inventory_service",
+    "STATUS_SLOT_CLEARED": "user_inventory_service",
+    "STATUS_SLOT_SET": "user_inventory_service",
+    "UserInventoryServiceError": "user_inventory_service",
+    "UserInventoryServiceValidationError": "user_inventory_service",
+    "select_slot_response": "user_inventory_service",
+    "set_slot_response": "user_inventory_service",
+    "clear_slot_response": "user_inventory_service",
+    "clear_cache_response": "user_inventory_service",
+    "get_service_health_response": "user_inventory_service",
+    "inventory_payload_from_snapshot": "user_inventory_service",
+    "empty_slot_payload": "user_inventory_service",
+    "extract_item_payload": "user_inventory_service",
+    "normalize_payload": "user_inventory_service",
+    "normalize_inventory_key": "user_inventory_service",
+    "normalize_user_id": "user_inventory_service",
+    "normalize_slot_index": "user_inventory_service",
+    "slot_key_for_index": "user_inventory_service",
+    "success_response": "user_inventory_service",
+    "failure_response": "user_inventory_service",
 }
 
 
 # ---------------------------------------------------------------------------
-# Symbol aliases for clearer DB names
+# Symbol aliases for clearer names
 # ---------------------------------------------------------------------------
 
 SYMBOL_ALIASES: Final[dict[str, tuple[str, str]]] = {
@@ -383,6 +446,13 @@ SYMBOL_ALIASES: Final[dict[str, tuple[str, str]]] = {
     "published_tree_response": ("library_published_service", "get_published_tree_response"),
     "published_inventory_response": ("library_published_service", "get_inventory_response"),
     "published_service_health": ("library_published_service", "get_library_published_service_health"),
+
+    "user_inventory_get_inventory_response": ("user_inventory_service", "get_inventory_response"),
+    "user_inventory_select_slot_response": ("user_inventory_service", "select_slot_response"),
+    "user_inventory_set_slot_response": ("user_inventory_service", "set_slot_response"),
+    "user_inventory_clear_slot_response": ("user_inventory_service", "clear_slot_response"),
+    "user_inventory_clear_cache_response": ("user_inventory_service", "clear_cache_response"),
+    "user_inventory_service_health": ("user_inventory_service", "get_service_health_response"),
 }
 
 
@@ -410,6 +480,7 @@ class ServiceModuleStatus:
     required: bool = False
     optional: bool = False
     db_service: bool = False
+    user_inventory_service: bool = False
     symbol_count: int = 0
     exported_symbols: tuple[str, ...] = field(default_factory=tuple)
     error: dict[str, Any] | None = None
@@ -423,6 +494,7 @@ class ServiceModuleStatus:
             "required": self.required,
             "optional": self.optional,
             "db_service": self.db_service,
+            "user_inventory_service": self.user_inventory_service,
             "symbol_count": self.symbol_count,
             "exported_symbols": list(self.exported_symbols),
             "error": json_safe(self.error),
@@ -448,10 +520,13 @@ class ServicesHealth:
     loaded_optional_module_count: int
     db_service_count: int
     loaded_db_service_count: int
+    user_inventory_service_count: int
+    loaded_user_inventory_service_count: int
     symbol_count: int
     modules: dict[str, dict[str, Any]]
     subhealth: dict[str, dict[str, Any]] = field(default_factory=dict)
     db_services: dict[str, Any] = field(default_factory=dict)
+    user_inventory_services: dict[str, Any] = field(default_factory=dict)
     capabilities: dict[str, Any] = field(default_factory=dict)
     warnings: tuple[str, ...] = field(default_factory=tuple)
     errors: tuple[str, ...] = field(default_factory=tuple)
@@ -473,10 +548,13 @@ class ServicesHealth:
             "loaded_optional_module_count": self.loaded_optional_module_count,
             "db_service_count": self.db_service_count,
             "loaded_db_service_count": self.loaded_db_service_count,
+            "user_inventory_service_count": self.user_inventory_service_count,
+            "loaded_user_inventory_service_count": self.loaded_user_inventory_service_count,
             "symbol_count": self.symbol_count,
             "modules": json_safe(self.modules),
             "subhealth": json_safe(self.subhealth),
             "db_services": json_safe(self.db_services),
+            "user_inventory_services": json_safe(self.user_inventory_services),
             "capabilities": json_safe(self.capabilities),
             "warnings": list(self.warnings),
             "errors": list(self.errors),
@@ -608,6 +686,22 @@ def safe_tuple(value: Any) -> tuple[Any, ...]:
     return (value,)
 
 
+def payload_from_mapping_and_kwargs(
+    payload: Mapping[str, Any] | None = None,
+    kwargs: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Kombiniert optionales Payload-Mapping und Keyword-Argumente."""
+    result: dict[str, Any] = {}
+
+    if isinstance(payload, Mapping):
+        result.update(dict(payload))
+
+    if isinstance(kwargs, Mapping):
+        result.update(dict(kwargs))
+
+    return result
+
+
 def build_module_import_path(module_name: str) -> str:
     """Baut den vollständigen Importpfad eines Service-Submoduls."""
     return f"{__name__}.{module_name}"
@@ -649,6 +743,7 @@ def clear_services_runtime_caches() -> dict[str, Any]:
         "clear_library_scan_cache",
         "clear_library_db_sync_service_cache",
         "clear_library_published_service_cache",
+        "user_inventory_clear_cache_response",
     )
 
     cleared: list[dict[str, Any]] = []
@@ -714,6 +809,7 @@ def safe_import_module(
     required = module_name in REQUIRED_SERVICE_MODULES
     optional = module_name in OPTIONAL_SERVICE_MODULES
     db_service = module_name in DB_SERVICE_MODULES
+    user_inventory_service = module_name in USER_INVENTORY_SERVICE_MODULES
 
     try:
         with _IMPORT_CACHE_LOCK:
@@ -741,6 +837,7 @@ def safe_import_module(
             required=required,
             optional=optional,
             db_service=db_service,
+            user_inventory_service=user_inventory_service,
             symbol_count=len(exported_symbols),
             exported_symbols=exported_symbols,
             error=None,
@@ -761,6 +858,7 @@ def safe_import_module(
             required=required,
             optional=optional,
             db_service=db_service,
+            user_inventory_service=user_inventory_service,
             symbol_count=0,
             exported_symbols=(),
             error=error_payload,
@@ -785,6 +883,7 @@ def _extract_db_service_health_from_subhealth(subhealth: Mapping[str, Any]) -> d
     """Extrahiert DB-Service-Capabilities aus Subhealth."""
     sync_health = subhealth.get("library_db_sync_service")
     published_health = subhealth.get("library_published_service")
+    user_inventory_health = subhealth.get("user_inventory_service")
 
     return {
         "supported": True,
@@ -800,22 +899,55 @@ def _extract_db_service_health_from_subhealth(subhealth: Mapping[str, Any]) -> d
             "implementation_stage": published_health.get("implementation_stage") if isinstance(published_health, Mapping) else None,
             "status": published_health.get("status") if isinstance(published_health, Mapping) else None,
         },
+        "user_inventory": {
+            "available": isinstance(user_inventory_health, Mapping) and _status_is_healthy(user_inventory_health),
+            "version": user_inventory_health.get("version") if isinstance(user_inventory_health, Mapping) else None,
+            "component": user_inventory_health.get("component") if isinstance(user_inventory_health, Mapping) else None,
+            "status": user_inventory_health.get("status") if isinstance(user_inventory_health, Mapping) else None,
+        },
+    }
+
+
+def _extract_user_inventory_service_health_from_subhealth(subhealth: Mapping[str, Any]) -> dict[str, Any]:
+    """Extrahiert User-Inventar-Service-Capabilities aus Subhealth."""
+    user_inventory_health = subhealth.get("user_inventory_service")
+
+    if not isinstance(user_inventory_health, Mapping):
+        return {
+            "supported": True,
+            "available": False,
+            "status": "missing_subhealth",
+            "health": {},
+        }
+
+    return {
+        "supported": True,
+        "available": _status_is_healthy(user_inventory_health),
+        "status": user_inventory_health.get("status"),
+        "version": user_inventory_health.get("version"),
+        "component": user_inventory_health.get("component"),
+        "health": json_safe(user_inventory_health),
     }
 
 
 def _build_capabilities(db_services: Mapping[str, Any]) -> dict[str, Any]:
     """Baut Capability-Map für Health/Admin."""
+    user_inventory_available = bool(db_services.get("user_inventory", {}).get("available", False))
+
     return {
         "filesystem_scan_service": True,
         "filesystem_block_service": True,
         "create_service": "library_create_service" in SERVICE_MODULES,
         "db_sync_service": bool(db_services.get("sync", {}).get("available", False)),
         "published_read_service": bool(db_services.get("published", {}).get("available", False)),
+        "user_inventory_service": user_inventory_available,
         "sync_route_ready": bool(db_services.get("sync", {}).get("available", False)),
         "published_blocks_route_ready": bool(db_services.get("published", {}).get("available", False)),
         "published_detail_route_ready": bool(db_services.get("published", {}).get("available", False)),
         "published_tree_route_ready": bool(db_services.get("published", {}).get("available", False)),
         "inventory_route_ready": bool(db_services.get("published", {}).get("available", False)),
+        "user_inventory_route_ready": user_inventory_available,
+        "user_inventory_persistence_ready": user_inventory_available,
     }
 
 
@@ -860,6 +992,7 @@ def get_service_subhealth(
         "library_create_service": "get_service_health",
         "library_db_sync_service": "get_library_db_sync_service_health",
         "library_published_service": "get_library_published_service_health",
+        "user_inventory_service": "get_service_health_response",
     }
 
     module_names = SERVICE_MODULES if include_optional else REQUIRED_SERVICE_MODULES
@@ -882,6 +1015,7 @@ def get_service_subhealth(
                     "required": module_name in REQUIRED_SERVICE_MODULES,
                     "optional": module_name in OPTIONAL_SERVICE_MODULES,
                     "db_service": module_name in DB_SERVICE_MODULES,
+                    "user_inventory_service": module_name in USER_INVENTORY_SERVICE_MODULES,
                     "error": status.error,
                 }
                 continue
@@ -894,6 +1028,7 @@ def get_service_subhealth(
                     "required": module_name in REQUIRED_SERVICE_MODULES,
                     "optional": module_name in OPTIONAL_SERVICE_MODULES,
                     "db_service": module_name in DB_SERVICE_MODULES,
+                    "user_inventory_service": module_name in USER_INVENTORY_SERVICE_MODULES,
                     "module": module_name,
                 }
                 continue
@@ -908,6 +1043,7 @@ def get_service_subhealth(
                     "required": module_name in REQUIRED_SERVICE_MODULES,
                     "optional": module_name in OPTIONAL_SERVICE_MODULES,
                     "db_service": module_name in DB_SERVICE_MODULES,
+                    "user_inventory_service": module_name in USER_INVENTORY_SERVICE_MODULES,
                     "function": function_name,
                 }
                 continue
@@ -921,6 +1057,7 @@ def get_service_subhealth(
             health_payload.setdefault("required", module_name in REQUIRED_SERVICE_MODULES)
             health_payload.setdefault("optional", module_name in OPTIONAL_SERVICE_MODULES)
             health_payload.setdefault("db_service", module_name in DB_SERVICE_MODULES)
+            health_payload.setdefault("user_inventory_service", module_name in USER_INVENTORY_SERVICE_MODULES)
             subhealth[module_name] = health_payload
 
         except Exception as exc:
@@ -931,6 +1068,7 @@ def get_service_subhealth(
                 "required": module_name in REQUIRED_SERVICE_MODULES,
                 "optional": module_name in OPTIONAL_SERVICE_MODULES,
                 "db_service": module_name in DB_SERVICE_MODULES,
+                "user_inventory_service": module_name in USER_INVENTORY_SERVICE_MODULES,
                 "error": exception_to_dict(exc, include_traceback=include_traceback),
             }
 
@@ -951,7 +1089,7 @@ def get_services_health(
     Diese Funktion führt keinen Scan und keinen DB-Sync aus.
 
     include_optional:
-        Wenn True, werden Create-, DB-Sync- und Published-Service geprüft.
+        Wenn True, werden Create-, DB-Sync-, Published- und User-Inventory-Service geprüft.
 
     strict_optional:
         Wenn True, führen Fehler in optionalen Services zu unhealthy.
@@ -992,6 +1130,12 @@ def get_services_health(
     loaded_db_services = [
         name
         for name in DB_SERVICE_MODULES
+        if name in loaded_modules
+    ]
+
+    loaded_user_inventory_services = [
+        name
+        for name in USER_INVENTORY_SERVICE_MODULES
         if name in loaded_modules
     ]
 
@@ -1044,6 +1188,7 @@ def get_services_health(
                 warnings.append(f"optional service subhealth failed: {name}")
 
     db_services = _extract_db_service_health_from_subhealth(subhealth)
+    user_inventory_services = _extract_user_inventory_service_health_from_subhealth(subhealth)
     capabilities = _build_capabilities(db_services)
 
     healthy = len(errors) == 0
@@ -1064,10 +1209,13 @@ def get_services_health(
         loaded_optional_module_count=len(loaded_optional_modules),
         db_service_count=len(DB_SERVICE_MODULES),
         loaded_db_service_count=len(loaded_db_services),
+        user_inventory_service_count=len(USER_INVENTORY_SERVICE_MODULES),
+        loaded_user_inventory_service_count=len(loaded_user_inventory_services),
         symbol_count=symbol_count,
         modules=module_statuses,
         subhealth=subhealth,
         db_services=db_services,
+        user_inventory_services=user_inventory_services,
         capabilities=capabilities,
         warnings=tuple(warnings),
         errors=tuple(errors),
@@ -1247,6 +1395,10 @@ def get_library_published_service_module() -> ModuleType | None:
     return get_service_module("library_published_service")
 
 
+def get_user_inventory_service_module() -> ModuleType | None:
+    return get_service_module("user_inventory_service")
+
+
 # ---------------------------------------------------------------------------
 # Existing filesystem convenience helpers
 # ---------------------------------------------------------------------------
@@ -1344,7 +1496,7 @@ def tree_response(
     source_root: Any = None,
     options: Any = None,
 ) -> dict[str, Any]:
-    """Convenience-Wrapper für dateibasierte Tree-Antworten."""
+    """Convenience-Wrapper für dateibasierten Tree."""
     get_library_tree_response_from_block_service = load_service_symbol(
         "get_library_tree_response_from_block_service"
     )
@@ -1502,7 +1654,7 @@ def published_tree_db_response(**kwargs: Any) -> dict[str, Any]:
 
 
 def published_inventory_db_response(**kwargs: Any) -> dict[str, Any]:
-    """Convenience-Wrapper für DB-basiertes Inventory."""
+    """Convenience-Wrapper für DB-basiertes Creative-/Published-Inventory."""
     fn = load_service_symbol("get_inventory_response")
     return fn(**kwargs)
 
@@ -1510,6 +1662,60 @@ def published_inventory_db_response(**kwargs: Any) -> dict[str, Any]:
 def publication_status_response() -> dict[str, Any]:
     """Convenience-Wrapper für DB-Publication-Status."""
     fn = load_service_symbol("get_publication_status")
+    return fn()
+
+
+# ---------------------------------------------------------------------------
+# User inventory convenience helpers
+# ---------------------------------------------------------------------------
+
+def user_inventory_state_response(
+    payload: Mapping[str, Any] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Convenience-Wrapper für persistenten User-Inventar-State."""
+    fn = load_service_symbol("user_inventory_get_inventory_response")
+    return fn(payload_from_mapping_and_kwargs(payload, kwargs))
+
+
+def user_inventory_select_slot_response(
+    payload: Mapping[str, Any] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Convenience-Wrapper für persistente User-Slot-Auswahl."""
+    fn = load_service_symbol("user_inventory_select_slot_response")
+    return fn(payload_from_mapping_and_kwargs(payload, kwargs))
+
+
+def user_inventory_set_slot_response(
+    slot_index: Any,
+    payload: Mapping[str, Any] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Convenience-Wrapper zum Setzen eines User-Inventar-Slots."""
+    fn = load_service_symbol("user_inventory_set_slot_response")
+    return fn(slot_index, payload_from_mapping_and_kwargs(payload, kwargs))
+
+
+def user_inventory_clear_slot_response(
+    slot_index: Any,
+    payload: Mapping[str, Any] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Convenience-Wrapper zum Leeren eines User-Inventar-Slots."""
+    fn = load_service_symbol("user_inventory_clear_slot_response")
+    return fn(slot_index, payload_from_mapping_and_kwargs(payload, kwargs))
+
+
+def user_inventory_health_response() -> dict[str, Any]:
+    """Convenience-Wrapper für User-Inventar-Service-Health."""
+    fn = load_service_symbol("user_inventory_service_health")
+    return fn()
+
+
+def user_inventory_clear_runtime_cache_response() -> dict[str, Any]:
+    """Convenience-Wrapper für User-Inventar-Service-Cache-Clear."""
+    fn = load_service_symbol("user_inventory_clear_cache_response")
     return fn()
 
 
@@ -1535,6 +1741,7 @@ __all__: Final[tuple[str, ...]] = (
     "REQUIRED_SERVICE_MODULES",
     "OPTIONAL_SERVICE_MODULES",
     "DB_SERVICE_MODULES",
+    "USER_INVENTORY_SERVICE_MODULES",
     "SYMBOL_TO_MODULE",
     "SYMBOL_ALIASES",
 
@@ -1546,6 +1753,7 @@ __all__: Final[tuple[str, ...]] = (
     "json_safe",
     "dataclass_to_dict_safe",
     "safe_tuple",
+    "payload_from_mapping_and_kwargs",
     "build_module_import_path",
 
     "clear_services_import_cache",
@@ -1569,6 +1777,7 @@ __all__: Final[tuple[str, ...]] = (
     "get_library_create_service_module",
     "get_library_db_sync_service_module",
     "get_library_published_service_module",
+    "get_user_inventory_service_module",
 
     # Existing filesystem convenience helpers
     "scan_source",
@@ -1599,6 +1808,14 @@ __all__: Final[tuple[str, ...]] = (
     "published_tree_db_response",
     "published_inventory_db_response",
     "publication_status_response",
+
+    # User inventory convenience helpers
+    "user_inventory_state_response",
+    "user_inventory_select_slot_response",
+    "user_inventory_set_slot_response",
+    "user_inventory_clear_slot_response",
+    "user_inventory_health_response",
+    "user_inventory_clear_runtime_cache_response",
 
     # Cache
     "clear_scan_cache",

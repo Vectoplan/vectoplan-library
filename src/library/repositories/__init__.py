@@ -7,7 +7,8 @@ Diese Datei ist bewusst robust, importarm und seiteneffektfrei aufgebaut.
 Aufgaben dieser Fassade:
 
 - zentrale Einstiegspunkte für Repository-Subpackages bereitstellen
-- spätere SQL-/Storage-Repositories lazy importieren
+- SQL-/Storage-Repositories lazy importieren
+- eigenständige Repository-Module lazy importieren
 - Importfehler zwischenspeichern und diagnostizierbar machen
 - Health-/Ready-Funktionen für Startup, Tests und Admin bereitstellen
 - Runtime- und Import-Caches kontrolliert leeren
@@ -22,9 +23,13 @@ Diese Datei ist nur die Fassade. Die konkrete SQL-Implementierung folgt in:
     services/vectoplan-library/src/library/repositories/sql/__init__.py
     services/vectoplan-library/src/library/repositories/sql/creative_library_repository.py
 
+Der persistente User-Inventar-Pfad liegt als eigenständiges Repository-Modul in:
+
+    services/vectoplan-library/src/library/repositories/user_inventory_repository.py
+
 Die Repository-Schicht liegt absichtlich zwischen:
 
-    services / sync / read-services
+    services / sync / read-services / user-inventory-service
         und
     models / SQLAlchemy / Datenbank
 
@@ -51,10 +56,10 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 REPOSITORIES_PACKAGE_NAME = "library.repositories"
 REPOSITORIES_COMPONENT_NAME = "creative_library_repositories"
-REPOSITORIES_API_VERSION = "v1"
+REPOSITORIES_API_VERSION = "v2"
 REPOSITORIES_IMPLEMENTATION_STAGE = "repository-facade"
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 # ---------------------------------------------------------------------------
@@ -83,9 +88,18 @@ OPTIONAL_REPOSITORY_SUBPACKAGES: Tuple[str, ...] = (
     "storage",
 )
 
+# Eigenständige Repository-Module außerhalb von sql/.
+OPTIONAL_REPOSITORY_MODULES: Tuple[str, ...] = (
+    "user_inventory_repository",
+)
+
 REPOSITORY_SUBPACKAGE_MODULES: Mapping[str, str] = {
     "sql": f"{__name__}.sql",
     "storage": f"{__name__}.storage",
+}
+
+REPOSITORY_STANDALONE_MODULES: Mapping[str, str] = {
+    "user_inventory_repository": f"{__name__}.user_inventory_repository",
 }
 
 REPOSITORY_BACKEND_MODULES: Mapping[str, str] = {
@@ -94,13 +108,13 @@ REPOSITORY_BACKEND_MODULES: Mapping[str, str] = {
 
 
 # ---------------------------------------------------------------------------
-# Forward-looking lazy symbol registry
+# Lazy symbol registry
 # ---------------------------------------------------------------------------
 
-# Diese Symbole werden erst verfügbar, wenn die konkreten Dateien existieren.
-# Die Fassade darf sie bereits kennen, aber nicht beim Import erzwingen.
 SYMBOL_TO_MODULE: Mapping[str, str] = {
-    # Repository class / config / errors
+    # -----------------------------------------------------------------------
+    # sql/creative_library_repository.py
+    # -----------------------------------------------------------------------
     "CreativeLibraryRepository": f"{__name__}.sql.creative_library_repository",
     "CreativeLibraryRepositoryConfig": f"{__name__}.sql.creative_library_repository",
     "CreativeLibraryRepositoryError": f"{__name__}.sql.creative_library_repository",
@@ -108,15 +122,29 @@ SYMBOL_TO_MODULE: Mapping[str, str] = {
     "CreativeLibraryRepositoryConflict": f"{__name__}.sql.creative_library_repository",
     "CreativeLibraryRepositoryNotFound": f"{__name__}.sql.creative_library_repository",
 
-    # Factory / lifecycle helpers
     "create_creative_library_repository": f"{__name__}.sql.creative_library_repository",
     "get_creative_library_repository": f"{__name__}.sql.creative_library_repository",
     "get_default_creative_library_repository": f"{__name__}.sql.creative_library_repository",
 
-    # Cache / health helpers from concrete repository implementation
     "clear_creative_library_repository_cache": f"{__name__}.sql.creative_library_repository",
     "get_creative_library_repository_health": f"{__name__}.sql.creative_library_repository",
     "assert_creative_library_repository_ready": f"{__name__}.sql.creative_library_repository",
+
+    # -----------------------------------------------------------------------
+    # user_inventory_repository.py
+    # -----------------------------------------------------------------------
+    "USER_INVENTORY_REPOSITORY_VERSION": f"{__name__}.user_inventory_repository",
+    "UserInventoryRepository": f"{__name__}.user_inventory_repository",
+    "UserInventoryRepositoryError": f"{__name__}.user_inventory_repository",
+    "UserInventoryNotFoundError": f"{__name__}.user_inventory_repository",
+    "UserInventoryValidationError": f"{__name__}.user_inventory_repository",
+    "UserInventorySnapshot": f"{__name__}.user_inventory_repository",
+    "get_default_slot_indices": f"{__name__}.user_inventory_repository",
+    "get_user_inventory_repository": f"{__name__}.user_inventory_repository",
+    "get_user_inventory_repository_health": f"{__name__}.user_inventory_repository",
+    "normalize_repository_user_id": f"{__name__}.user_inventory_repository",
+    "normalize_repository_inventory_key": f"{__name__}.user_inventory_repository",
+    "normalize_repository_slot_index": f"{__name__}.user_inventory_repository",
 }
 
 
@@ -147,7 +175,6 @@ _IMPORT_TRACEBACK_CACHE: Dict[str, str] = {}
 # Exceptions
 # ---------------------------------------------------------------------------
 
-
 class RepositoryError(RuntimeError):
     """Basisklasse für Repository-Fassadenfehler."""
 
@@ -164,11 +191,10 @@ class RepositoryUnavailableError(RepositoryError):
 # Status models
 # ---------------------------------------------------------------------------
 
-
 @dataclass(frozen=True)
 class RepositoryModuleStatus:
     """
-    Import-/Verfügbarkeitsstatus eines Repository-Subpackages.
+    Import-/Verfügbarkeitsstatus eines Repository-Subpackages oder Repository-Moduls.
 
     exists:
         Modul wurde über importlib.util.find_spec gefunden.
@@ -191,6 +217,7 @@ class RepositoryModuleStatus:
     error_type: Optional[str] = None
     error: Optional[str] = None
     traceback: Optional[str] = None
+    kind: str = "subpackage"
 
     @property
     def ok(self) -> bool:
@@ -199,6 +226,7 @@ class RepositoryModuleStatus:
     def to_dict(self, *, include_traceback: bool = False) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
             "name": self.name,
+            "kind": self.kind,
             "module_path": self.module_path,
             "required": self.required,
             "exists": self.exists,
@@ -218,7 +246,6 @@ class RepositoryModuleStatus:
 # ---------------------------------------------------------------------------
 # Basic helpers
 # ---------------------------------------------------------------------------
-
 
 def _normalize_key(value: Any) -> str:
     """
@@ -251,7 +278,7 @@ def _module_exists(module_path: str) -> Tuple[bool, Optional[BaseException]]:
 
     try:
         return importlib.util.find_spec(module_path) is not None, None
-    except Exception as exc:  # intentionally defensive for health endpoints
+    except Exception as exc:
         return False, exc
 
 
@@ -291,6 +318,22 @@ def _build_unavailable_message(module_path: str, exc: Optional[BaseException] = 
     )
 
 
+def _dedupe_strings(values: Iterable[str]) -> Tuple[str, ...]:
+    result: List[str] = []
+    seen: set[str] = set()
+
+    for value in values or ():
+        key = str(value)
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        result.append(key)
+
+    return tuple(result)
+
+
 def get_repositories_package_root() -> Path:
     """Gibt den absoluten Pfad zum Repository-Package zurück."""
 
@@ -313,6 +356,10 @@ def get_repositories_info() -> Dict[str, Any]:
         "supported_backends": list(SUPPORTED_REPOSITORY_BACKENDS),
         "core_subpackages": list(CORE_REPOSITORY_SUBPACKAGES),
         "optional_subpackages": list(OPTIONAL_REPOSITORY_SUBPACKAGES),
+        "optional_repository_modules": list(OPTIONAL_REPOSITORY_MODULES),
+        "subpackage_modules": dict(REPOSITORY_SUBPACKAGE_MODULES),
+        "standalone_modules": dict(REPOSITORY_STANDALONE_MODULES),
+        "symbol_count": len(SYMBOL_TO_MODULE),
     }
 
 
@@ -323,7 +370,6 @@ get_repository_info = get_repositories_info
 # ---------------------------------------------------------------------------
 # Safe imports
 # ---------------------------------------------------------------------------
-
 
 def safe_import_module(
     module_path: str,
@@ -367,7 +413,7 @@ def safe_import_module(
             _clear_import_error(normalized_path)
             return module
 
-    except Exception as exc:  # intentionally defensive for lazy imports
+    except Exception as exc:
         _store_import_error(normalized_path, exc)
 
         if required:
@@ -393,6 +439,32 @@ def safe_import_subpackage(
 
     normalized_name = _normalize_key(name)
     module_path = REPOSITORY_SUBPACKAGE_MODULES.get(
+        normalized_name,
+        f"{__name__}.{normalized_name}",
+    )
+
+    return safe_import_module(
+        module_path,
+        required=required,
+        force_reload=force_reload,
+    )
+
+
+def safe_import_repository_module(
+    name: str,
+    *,
+    required: bool = False,
+    force_reload: bool = False,
+) -> Optional[ModuleType]:
+    """
+    Importiert ein eigenständiges Repository-Modul anhand seines kurzen Namens.
+
+    Beispiel:
+        safe_import_repository_module("user_inventory_repository")
+    """
+
+    normalized_name = _normalize_key(name)
+    module_path = REPOSITORY_STANDALONE_MODULES.get(
         normalized_name,
         f"{__name__}.{normalized_name}",
     )
@@ -466,9 +538,6 @@ def get_creative_library_repository_module(
 ) -> Optional[ModuleType]:
     """
     Importiert das konkrete Creative-Library-Repository-Modul.
-
-    Diese Datei wird erst in einem späteren Schritt erstellt. Bis dahin liefert
-    required=False None und required=True eine RepositoryUnavailableError.
     """
 
     return safe_import_module(
@@ -509,10 +578,53 @@ def get_creative_library_repository_class(
     return repository_class
 
 
+def get_user_inventory_repository_module(
+    *,
+    required: bool = True,
+    force_reload: bool = False,
+) -> Optional[ModuleType]:
+    """
+    Importiert das konkrete User-Inventar-Repository-Modul.
+    """
+
+    return safe_import_repository_module(
+        "user_inventory_repository",
+        required=required,
+        force_reload=force_reload,
+    )
+
+
+def get_user_inventory_repository_class(
+    *,
+    required: bool = True,
+    force_reload: bool = False,
+) -> Optional[type]:
+    """
+    Liefert die Klasse UserInventoryRepository aus user_inventory_repository.py.
+    """
+
+    module = get_user_inventory_repository_module(
+        required=required,
+        force_reload=force_reload,
+    )
+
+    if module is None:
+        return None
+
+    repository_class = getattr(module, "UserInventoryRepository", None)
+
+    if repository_class is None and required:
+        raise RepositoryUnavailableError(
+            "UserInventoryRepository class is missing in "
+            f"{module.__name__}."
+        )
+
+    return repository_class
+
+
 # ---------------------------------------------------------------------------
 # Status / health
 # ---------------------------------------------------------------------------
-
 
 def get_repository_subpackage_status(
     name: str,
@@ -544,6 +656,58 @@ def get_repository_subpackage_status(
         else normalized_name in CORE_REPOSITORY_SUBPACKAGES
     )
 
+    return _get_repository_module_status(
+        name=normalized_name,
+        module_path=module_path,
+        required=is_required,
+        kind="subpackage",
+        attempt_import=attempt_import,
+        force_reload=force_reload,
+        include_traceback=include_traceback,
+    )
+
+
+def get_repository_module_status(
+    name: str,
+    *,
+    required: Optional[bool] = None,
+    attempt_import: bool = True,
+    force_reload: bool = False,
+    include_traceback: bool = False,
+) -> RepositoryModuleStatus:
+    """
+    Liefert den Status eines eigenständigen Repository-Moduls.
+    """
+
+    normalized_name = _normalize_key(name)
+    module_path = REPOSITORY_STANDALONE_MODULES.get(
+        normalized_name,
+        f"{__name__}.{normalized_name}",
+    )
+
+    is_required = bool(required) if required is not None else False
+
+    return _get_repository_module_status(
+        name=normalized_name,
+        module_path=module_path,
+        required=is_required,
+        kind="module",
+        attempt_import=attempt_import,
+        force_reload=force_reload,
+        include_traceback=include_traceback,
+    )
+
+
+def _get_repository_module_status(
+    *,
+    name: str,
+    module_path: str,
+    required: bool,
+    kind: str,
+    attempt_import: bool,
+    force_reload: bool,
+    include_traceback: bool,
+) -> RepositoryModuleStatus:
     exists, spec_error = _module_exists(module_path)
     module: Optional[ModuleType] = None
 
@@ -568,18 +732,19 @@ def get_repository_subpackage_status(
 
     if not exists and effective_error is None:
         error_type = "ModuleNotFound"
-        error_message = f"Repository subpackage not found: {module_path}"
+        error_message = f"Repository module not found: {module_path}"
 
     return RepositoryModuleStatus(
-        name=normalized_name,
+        name=name,
         module_path=module_path,
-        required=is_required,
+        required=required,
         exists=exists,
         imported=imported,
         available=available,
         error_type=error_type,
         error=error_message,
         traceback=_get_cached_traceback(module_path) if include_traceback else None,
+        kind=kind,
     )
 
 
@@ -592,12 +757,9 @@ def get_repository_subpackage_statuses(
 ) -> Dict[str, RepositoryModuleStatus]:
     """
     Liefert Statusinformationen für alle bekannten Repository-Subpackages.
-
-    strict beeinflusst hier nicht die Statusdaten selbst, sondern wird aus
-    Konsistenzgründen akzeptiert. Die Auswertung erfolgt in get_repositories_health.
     """
 
-    del strict  # Auswertung passiert in get_repositories_health.
+    del strict
 
     names: List[str] = []
 
@@ -617,6 +779,31 @@ def get_repository_subpackage_statuses(
             include_traceback=include_tracebacks,
         )
         for name in names
+    }
+
+
+def get_repository_module_statuses(
+    *,
+    strict: bool = False,
+    attempt_import: bool = True,
+    force_reload: bool = False,
+    include_tracebacks: bool = False,
+) -> Dict[str, RepositoryModuleStatus]:
+    """
+    Liefert Statusinformationen für eigenständige Repository-Module.
+    """
+
+    del strict
+
+    return {
+        name: get_repository_module_status(
+            name,
+            required=False,
+            attempt_import=attempt_import,
+            force_reload=force_reload,
+            include_traceback=include_tracebacks,
+        )
+        for name in OPTIONAL_REPOSITORY_MODULES
     }
 
 
@@ -697,7 +884,14 @@ def get_repositories_health(
         verlangt werden, z. B. "sql".
     """
 
-    statuses = get_repository_subpackage_statuses(
+    subpackage_statuses = get_repository_subpackage_statuses(
+        strict=strict,
+        attempt_import=attempt_import,
+        force_reload=force_reload,
+        include_tracebacks=include_tracebacks,
+    )
+
+    module_statuses = get_repository_module_statuses(
         strict=strict,
         attempt_import=attempt_import,
         force_reload=force_reload,
@@ -707,7 +901,7 @@ def get_repositories_health(
     errors: List[Dict[str, Any]] = []
     warnings: List[Dict[str, Any]] = []
 
-    for status in statuses.values():
+    for status in list(subpackage_statuses.values()) + list(module_statuses.values()):
         payload = status.to_dict(include_traceback=include_tracebacks)
 
         if status.required and not status.available:
@@ -772,6 +966,8 @@ def get_repositories_health(
     else:
         status_text = "ok"
 
+    user_inventory_status = module_statuses.get("user_inventory_repository")
+
     return {
         "ok": ok,
         "status": status_text,
@@ -792,7 +988,19 @@ def get_repositories_health(
         ),
         "subpackages": {
             name: status.to_dict(include_traceback=include_tracebacks)
-            for name, status in statuses.items()
+            for name, status in subpackage_statuses.items()
+        },
+        "repository_modules": {
+            name: status.to_dict(include_traceback=include_tracebacks)
+            for name, status in module_statuses.items()
+        },
+        "capabilities": {
+            "creative_library_repository": True,
+            "user_inventory_repository": bool(user_inventory_status and user_inventory_status.available),
+            "sql_backend": "sql" in get_available_repository_backends(
+                attempt_import=False,
+                force_reload=force_reload,
+            ),
         },
         "errors": errors,
         "warnings": warnings,
@@ -867,10 +1075,34 @@ def assert_repositories_ready(
 assert_repository_ready = assert_repositories_ready
 
 
+def assert_user_inventory_repository_ready(
+    *,
+    attempt_import: bool = True,
+    force_reload: bool = False,
+) -> Dict[str, Any]:
+    """
+    Prüft gezielt das User-Inventar-Repository.
+    """
+
+    status = get_repository_module_status(
+        "user_inventory_repository",
+        required=True,
+        attempt_import=attempt_import,
+        force_reload=force_reload,
+        include_traceback=False,
+    )
+
+    if not status.available:
+        raise RepositoryUnavailableError(
+            f"User inventory repository is not ready: {status.error}"
+        )
+
+    return status.to_dict()
+
+
 # ---------------------------------------------------------------------------
 # Cache handling
 # ---------------------------------------------------------------------------
-
 
 def clear_repository_import_cache() -> Dict[str, Any]:
     """
@@ -926,7 +1158,7 @@ def clear_repository_runtime_caches() -> Dict[str, Any]:
                 )
                 break
 
-            except Exception as exc:  # defensive: cache clearing must be safe
+            except Exception as exc:
                 failed.append(
                     {
                         "module_path": module_path,
@@ -969,21 +1201,54 @@ clear_repositories_cache = clear_repositories_caches
 clear_repository_cache = clear_repositories_caches
 
 
+def clear_user_inventory_repository_caches() -> Dict[str, Any]:
+    """
+    Leert gezielt User-Inventar-Repository-Caches, falls das Modul verfügbar ist.
+    """
+
+    module = get_user_inventory_repository_module(required=False)
+
+    if module is None:
+        return {
+            "ok": False,
+            "cleared": False,
+            "reason": "user_inventory_repository module is not available",
+        }
+
+    clear_fn = getattr(module, "clear_repository_caches", None)
+
+    if not callable(clear_fn):
+        return {
+            "ok": True,
+            "cleared": False,
+            "reason": "clear_repository_caches is not exported by user_inventory_repository",
+        }
+
+    result = clear_fn()
+
+    if isinstance(result, Mapping):
+        return dict(result)
+
+    return {
+        "ok": True,
+        "cleared": True,
+        "result": str(result),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Lazy attribute exports
 # ---------------------------------------------------------------------------
 
-
 def __getattr__(name: str) -> Any:
     """
-    Lazy-Exports für Subpackages und konkrete Repository-Symbole.
+    Lazy-Exports für Subpackages, eigenständige Module und konkrete Repository-Symbole.
 
     Beispiele:
         from library.repositories import sql
         from library.repositories import CreativeLibraryRepository
-
-    Wenn die konkrete SQL-Datei noch nicht existiert, wird erst beim Zugriff
-    ein klarer AttributeError/RepositoryUnavailableError ausgelöst.
+        from library.repositories import UserInventoryRepository
+        from library.repositories import user_inventory_repository
     """
 
     normalized_name = _normalize_key(name)
@@ -994,6 +1259,16 @@ def __getattr__(name: str) -> Any:
         if module is None:
             raise AttributeError(
                 f"Repository subpackage '{name}' is not available."
+            )
+
+        return module
+
+    if normalized_name in REPOSITORY_STANDALONE_MODULES:
+        module = safe_import_repository_module(normalized_name, required=True)
+
+        if module is None:
+            raise AttributeError(
+                f"Repository module '{name}' is not available."
             )
 
         return module
@@ -1023,6 +1298,7 @@ def __dir__() -> List[str]:
 
     static_names = set(globals().keys())
     static_names.update(REPOSITORY_SUBPACKAGE_MODULES.keys())
+    static_names.update(REPOSITORY_STANDALONE_MODULES.keys())
     static_names.update(SYMBOL_TO_MODULE.keys())
     return sorted(static_names)
 
@@ -1042,6 +1318,11 @@ __all__ = [
     "SUPPORTED_REPOSITORY_BACKENDS",
     "CORE_REPOSITORY_SUBPACKAGES",
     "OPTIONAL_REPOSITORY_SUBPACKAGES",
+    "OPTIONAL_REPOSITORY_MODULES",
+    "REPOSITORY_SUBPACKAGE_MODULES",
+    "REPOSITORY_STANDALONE_MODULES",
+    "REPOSITORY_BACKEND_MODULES",
+    "SYMBOL_TO_MODULE",
 
     # Exceptions
     "RepositoryError",
@@ -1059,15 +1340,20 @@ __all__ = [
     # Imports
     "safe_import_module",
     "safe_import_subpackage",
+    "safe_import_repository_module",
     "get_repository_backend_from_env",
     "resolve_repository_backend",
     "get_repository_backend_module",
     "get_creative_library_repository_module",
     "get_creative_library_repository_class",
+    "get_user_inventory_repository_module",
+    "get_user_inventory_repository_class",
 
     # Health
     "get_repository_subpackage_status",
     "get_repository_subpackage_statuses",
+    "get_repository_module_status",
+    "get_repository_module_statuses",
     "get_available_repository_backends",
     "has_repository_backend",
     "get_repositories_health",
@@ -1076,6 +1362,7 @@ __all__ = [
     "is_repository_healthy",
     "assert_repositories_ready",
     "assert_repository_ready",
+    "assert_user_inventory_repository_ready",
 
     # Cache
     "clear_repository_import_cache",
@@ -1084,8 +1371,14 @@ __all__ = [
     "clear_repository_caches",
     "clear_repositories_cache",
     "clear_repository_cache",
+    "clear_user_inventory_repository_caches",
 
-    # Future lazy symbols
+    # Subpackages / modules
+    "sql",
+    "storage",
+    "user_inventory_repository",
+
+    # Creative-library lazy symbols
     "CreativeLibraryRepository",
     "CreativeLibraryRepositoryConfig",
     "CreativeLibraryRepositoryError",
@@ -1098,4 +1391,18 @@ __all__ = [
     "clear_creative_library_repository_cache",
     "get_creative_library_repository_health",
     "assert_creative_library_repository_ready",
+
+    # User-inventory lazy symbols
+    "USER_INVENTORY_REPOSITORY_VERSION",
+    "UserInventoryRepository",
+    "UserInventoryRepositoryError",
+    "UserInventoryNotFoundError",
+    "UserInventoryValidationError",
+    "UserInventorySnapshot",
+    "get_default_slot_indices",
+    "get_user_inventory_repository",
+    "get_user_inventory_repository_health",
+    "normalize_repository_user_id",
+    "normalize_repository_inventory_key",
+    "normalize_repository_slot_index",
 ]

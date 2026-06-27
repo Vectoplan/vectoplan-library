@@ -1,0 +1,114 @@
+<!-- templates/inventar/user-inventar.html -->
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+
+  <title>User-Inventar · VECTOPLAN</title>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css') }}">
+</head>
+
+<body class="vp-inventar-page vp-user-inventar-page vp-user-inventar-overlay-page">
+  {# --------------------------------------------------------------------------
+     Defensive Template Defaults
+     -------------------------------------------------------------------------- #}
+  {% set _user_id = user_id | default(1, true) | int %}
+  {% if _user_id < 1 %}
+    {% set _user_id = 1 %}
+  {% endif %}
+
+  {% set _inventory_key = inventory_key | default("default", true) | string | trim %}
+  {% if not _inventory_key %}
+    {% set _inventory_key = "default" %}
+  {% endif %}
+
+  {% set _slot_count = slot_count | default(9, true) | int %}
+  {% if _slot_count < 1 or _slot_count > 9 %}
+    {% set _slot_count = 9 %}
+  {% endif %}
+
+  {% set _active_slot_index = active_slot_index | default(1, true) | int %}
+  {% if _active_slot_index < 1 or _active_slot_index > _slot_count %}
+    {% set _active_slot_index = 1 %}
+  {% endif %}
+
+  {% set _last_selected_slot_index = last_selected_slot_index | default(_active_slot_index, true) | int %}
+  {% if _last_selected_slot_index < 1 or _last_selected_slot_index > _slot_count %}
+    {% set _last_selected_slot_index = _active_slot_index %}
+  {% endif %}
+
+  {% set _user_inventory_api_url = user_inventory_api_url | default("/api/v1/vplib/inventar_user", true) | string | trim %}
+  {% if not _user_inventory_api_url %}
+    {% set _user_inventory_api_url = "/api/v1/vplib/inventar_user" %}
+  {% endif %}
+
+  {% set _user_inventory_select_url = user_inventory_select_url | default("/api/v1/vplib/inventar_user/select-slot", true) | string | trim %}
+  {% if not _user_inventory_select_url %}
+    {% set _user_inventory_select_url = "/api/v1/vplib/inventar_user/select-slot" %}
+  {% endif %}
+
+  {% set _cache_enabled = cache_enabled | default(true, true) %}
+  {% set _wheel_navigation_enabled = wheel_navigation_enabled | default(true, true) %}
+  {% set _keyboard_navigation_enabled = keyboard_navigation_enabled | default(true, true) %}
+
+  {% if user_inventory_slots is defined %}
+    {% set _user_inventory_slots = user_inventory_slots %}
+  {% elif inventory_slots is defined %}
+    {% set _user_inventory_slots = inventory_slots %}
+  {% elif slots is defined %}
+    {% set _user_inventory_slots = slots %}
+  {% else %}
+    {% set _user_inventory_slots = [] %}
+  {% endif %}
+
+  <main
+    id="vp-user-inventory-root"
+    class="vp-user-inventory-root"
+    aria-label="User-Inventar"
+    data-user-inventory-root="true"
+    data-user-inventory-page="overlay"
+    data-user-id="{{ _user_id }}"
+    data-inventory-key="{{ _inventory_key | e }}"
+    data-slot-count="{{ _slot_count }}"
+    data-active-slot-index="{{ _active_slot_index }}"
+    data-last-selected-slot-index="{{ _last_selected_slot_index }}"
+    data-user-inventory-api-url="{{ _user_inventory_api_url | e }}"
+    data-user-inventory-select-url="{{ _user_inventory_select_url | e }}"
+    data-wheel-navigation-enabled="{{ 'true' if _wheel_navigation_enabled else 'false' }}"
+    data-keyboard-navigation-enabled="{{ 'true' if _keyboard_navigation_enabled else 'false' }}"
+    data-cache-enabled="{{ 'true' if _cache_enabled else 'false' }}"
+  >
+    {% set user_inventory_hotbar_variant = "overlay" %}
+    {% set user_inventory_hotbar_id = "vp-user-hotbar" %}
+    {% set user_inventory_hotbar_label = "Aktuelles User-Inventar" %}
+    {% set user_inventory_slot_count = _slot_count %}
+    {% set user_inventory_active_slot_index = _active_slot_index %}
+    {% set user_inventory_last_selected_slot_index = _last_selected_slot_index %}
+    {% set user_inventory_user_id = _user_id %}
+    {% set user_inventory_key = _inventory_key %}
+    {% set user_inventory_slots = _user_inventory_slots %}
+    {% set user_inventory_create_embed_hotbar_area = false %}
+    {% include "inventar/partials/_user-hotbar.html" with context %}
+
+    <div
+      id="vp-user-inventory-status"
+      class="vp-user-inventory-status"
+      aria-live="polite"
+      data-user-inventory-status="true"
+      hidden
+    ></div>
+  </main>
+
+  <script
+    src="{{ url_for('static', filename='js/inventar/user-inventory.js') }}"
+    defer
+    data-user-id="{{ _user_id }}"
+    data-inventory-key="{{ _inventory_key | e }}"
+    data-user-inventory-api-url="{{ _user_inventory_api_url | e }}"
+    data-user-inventory-select-url="{{ _user_inventory_select_url | e }}"
+  ></script>
+</body>
+</html>

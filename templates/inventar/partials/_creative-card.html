@@ -1,0 +1,470 @@
+{# templates/inventar/partials/_creative-card.html #}
+{#
+  VECTOPLAN Creative Card Partial
+
+  Zweck:
+  - Einheitliche Card-Struktur für Creative-Library-Elemente.
+  - Preview-Bereich wird als Banner-Fläche verwendet.
+  - Quadratisches Icon sitzt rechts oben im Banner.
+  - Bestehende data-* Taxonomie-Attribute bleiben erhalten.
+  - Robuste Defaults für fehlende Backend-Felder.
+  - Kann später für dynamisch geladene VPLIB-Items weiterverwendet werden.
+
+  Erwartete optionale Include-Variablen:
+  - creative_card_item
+  - item
+  - card
+  - creative_item
+
+  Unterstützte Felder:
+  - id
+  - item_db_id
+  - family_id
+  - vplib_uid
+  - package_id
+  - variant_id
+  - domain
+  - category
+  - subcategory
+  - taxonomy_path
+  - object_kind
+  - label
+  - name
+  - title
+  - text
+  - description
+  - icon_text
+  - icon
+  - badge
+  - show_kind
+  - quantity
+  - banner_url
+  - preview_url
+  - preview
+  - assets
+  - variant
+  - placement
+  - meta
+  - metadata
+
+  Beispiel im Loop:
+  {% set creative_card_item = item %}
+  {% include "inventar/partials/_creative-card.html" with context %}
+#}
+
+{# --------------------------------------------------------------------------
+   Card-Input robust bestimmen
+   -------------------------------------------------------------------------- #}
+{% if creative_card_item is defined %}
+  {% set _card = creative_card_item %}
+{% elif creative_item is defined %}
+  {% set _card = creative_item %}
+{% elif card is defined %}
+  {% set _card = card %}
+{% elif item is defined %}
+  {% set _card = item %}
+{% else %}
+  {% set _card = {} %}
+{% endif %}
+
+{# --------------------------------------------------------------------------
+   Kleine lokale Cache-Namespace-Struktur.
+   Verhindert mehrfaches Nachschlagen derselben Werte im Markup.
+   -------------------------------------------------------------------------- #}
+{% set _c = namespace(
+  id="",
+  item_db_id="",
+  family_id="",
+  vplib_uid="",
+  package_id="",
+  variant_id="default",
+  domain="",
+  category="",
+  subcategory="",
+  taxonomy_path="",
+  object_kind="",
+  object_kind_label="",
+  title="Unbenanntes Element",
+  label="",
+  text="",
+  description="",
+  icon_text="IT",
+  badge="",
+  quantity=0,
+  source="creative",
+  scope="editor",
+  mode="creative",
+  banner_url="",
+  preview_url="",
+  detail_url="",
+  create_url="",
+  draggable=false,
+  selectable=true,
+  disabled=false,
+  locked=false,
+  pinned=false,
+  show_kind=false,
+  show_badge=false,
+  show_facts=false,
+  aria_label="Creative Library Element",
+  classes="vp-creative-card"
+) %}
+
+{# --------------------------------------------------------------------------
+   Basis-Felder normalisieren
+   -------------------------------------------------------------------------- #}
+{% set _c.id = _card.id | default("", true) | string | trim %}
+{% set _c.item_db_id = _card.item_db_id | default(_card.db_id | default("", true), true) | string | trim %}
+{% set _c.family_id = _card.family_id | default(_card.family | default("", true), true) | string | trim %}
+{% set _c.vplib_uid = _card.vplib_uid | default(_card.uid | default("", true), true) | string | trim %}
+{% set _c.package_id = _card.package_id | default(_card.package | default("", true), true) | string | trim %}
+{% set _c.variant_id = _card.variant_id | default(_card.variant | default("default", true), true) | string | trim %}
+
+{% if not _c.variant_id %}
+  {% set _c.variant_id = "default" %}
+{% endif %}
+
+{% set _c.domain = _card.domain | default("", true) | string | trim %}
+{% set _c.category = _card.category | default("", true) | string | trim %}
+{% set _c.subcategory = _card.subcategory | default("", true) | string | trim %}
+{% set _c.taxonomy_path = _card.taxonomy_path | default("", true) | string | trim %}
+{% set _c.object_kind = _card.object_kind | default(_card.kind | default("", true), true) | string | trim %}
+
+{% set _c.label = _card.label | default(_card.name | default(_card.title | default("", true), true), true) | string | trim %}
+{% set _c.title = _card.title | default(_card.label | default(_card.name | default("", true), true), true) | string | trim %}
+
+{% if not _c.title %}
+  {% if _c.label %}
+    {% set _c.title = _c.label %}
+  {% elif _c.family_id %}
+    {% set _c.title = _c.family_id %}
+  {% elif _c.vplib_uid %}
+    {% set _c.title = _c.vplib_uid %}
+  {% else %}
+    {% set _c.title = "Unbenanntes Element" %}
+  {% endif %}
+{% endif %}
+
+{% if not _c.label %}
+  {% set _c.label = _c.title %}
+{% endif %}
+
+{% set _c.description = _card.description | default("", true) | string | trim %}
+{% set _c.text = _card.text | default(_card.description | default("", true), true) | string | trim %}
+
+{% set _c.quantity = _card.quantity | default(0, true) | int %}
+{% if _c.quantity < 0 %}
+  {% set _c.quantity = 0 %}
+{% endif %}
+
+{% set _c.source = _card.source | default("creative", true) | string | trim %}
+{% set _c.scope = _card.scope | default("editor", true) | string | trim %}
+{% set _c.mode = _card.mode | default("creative", true) | string | trim %}
+
+{# --------------------------------------------------------------------------
+   URLs normalisieren
+   -------------------------------------------------------------------------- #}
+{% set _c.banner_url = _card.banner_url | default(_card.banner | default("", true), true) | string | trim %}
+{% set _c.preview_url = _card.preview_url | default("", true) | string | trim %}
+
+{% if not _c.preview_url and _card.preview is defined and _card.preview is mapping %}
+  {% set _c.preview_url = _card.preview.url | default(_card.preview.src | default("", true), true) | string | trim %}
+{% endif %}
+
+{% if not _c.banner_url and _c.preview_url %}
+  {% set _c.banner_url = _c.preview_url %}
+{% endif %}
+
+{% set _c.detail_url = _card.detail_url | default(_card.url | default("", true), true) | string | trim %}
+{% set _c.create_url = _card.create_url | default("", true) | string | trim %}
+
+{# --------------------------------------------------------------------------
+   Boolean-Felder defensiv normalisieren
+   -------------------------------------------------------------------------- #}
+{% set _raw_draggable = _card.draggable if _card.draggable is defined else false %}
+{% set _raw_draggable_text = _raw_draggable | string | lower | trim %}
+{% set _c.draggable = _raw_draggable is sameas true or _raw_draggable_text in ["true", "1", "yes", "ja", "on", "draggable"] %}
+
+{% set _raw_selectable = _card.selectable if _card.selectable is defined else true %}
+{% set _raw_selectable_text = _raw_selectable | string | lower | trim %}
+{% if _raw_selectable is sameas false or _raw_selectable_text in ["false", "0", "no", "nein", "off", "disabled"] %}
+  {% set _c.selectable = false %}
+{% else %}
+  {% set _c.selectable = true %}
+{% endif %}
+
+{% set _raw_disabled = _card.disabled if _card.disabled is defined else false %}
+{% set _raw_disabled_text = _raw_disabled | string | lower | trim %}
+{% set _c.disabled = _raw_disabled is sameas true or _raw_disabled_text in ["true", "1", "yes", "ja", "on", "disabled"] %}
+
+{% set _raw_locked = _card.locked if _card.locked is defined else false %}
+{% set _raw_locked_text = _raw_locked | string | lower | trim %}
+{% set _c.locked = _raw_locked is sameas true or _raw_locked_text in ["true", "1", "yes", "ja", "on", "locked"] %}
+
+{% set _raw_pinned = _card.pinned if _card.pinned is defined else false %}
+{% set _raw_pinned_text = _raw_pinned | string | lower | trim %}
+{% set _c.pinned = _raw_pinned is sameas true or _raw_pinned_text in ["true", "1", "yes", "ja", "on", "pinned"] %}
+
+{% set _raw_show_kind = _card.show_kind if _card.show_kind is defined else false %}
+{% set _raw_show_kind_text = _raw_show_kind | string | lower | trim %}
+{% set _c.show_kind = _raw_show_kind is sameas true or _raw_show_kind_text in ["true", "1", "yes", "ja", "on", "show"] %}
+
+{% set _raw_show_facts = _card.show_facts if _card.show_facts is defined else false %}
+{% set _raw_show_facts_text = _raw_show_facts | string | lower | trim %}
+{% set _c.show_facts = _raw_show_facts is sameas true or _raw_show_facts_text in ["true", "1", "yes", "ja", "on", "show"] %}
+
+{# --------------------------------------------------------------------------
+   Badge / Object-Kind Label
+   -------------------------------------------------------------------------- #}
+{% set _c.badge = _card.badge | default("", true) | string | trim %}
+
+{% if not _c.badge and _c.object_kind %}
+  {% if _c.object_kind == "catalog_object" %}
+    {% set _c.badge = "Objekt" %}
+  {% elif _c.object_kind == "cell_block" %}
+    {% set _c.badge = "Block" %}
+  {% elif _c.object_kind == "multi_cell_module" %}
+    {% set _c.badge = "Modul" %}
+  {% elif _c.object_kind == "adaptive_system" %}
+    {% set _c.badge = "System" %}
+  {% endif %}
+{% endif %}
+
+{% set _c.show_badge = _c.badge | length > 0 %}
+
+{% if _c.object_kind %}
+  {% set _c.object_kind_label = _c.object_kind %}
+{% endif %}
+
+{# --------------------------------------------------------------------------
+   Icon-Text bestimmen.
+   Unterstützt string icon, mapping icon.text/icon.label, object_kind, title usw.
+   -------------------------------------------------------------------------- #}
+{% set _icon_candidate = _card.icon_text | default("", true) | string | trim %}
+
+{% if not _icon_candidate and _card.icon is defined %}
+  {% if _card.icon is mapping %}
+    {% set _icon_candidate = _card.icon.text | default(_card.icon.label | default(_card.icon.name | default("", true), true), true) | string | trim %}
+  {% else %}
+    {% set _icon_candidate = _card.icon | string | trim %}
+  {% endif %}
+{% endif %}
+
+{% if not _icon_candidate and _c.object_kind %}
+  {% set _icon_candidate = _c.object_kind %}
+{% elif not _icon_candidate and _c.title %}
+  {% set _icon_candidate = _c.title %}
+{% elif not _icon_candidate and _c.family_id %}
+  {% set _icon_candidate = _c.family_id %}
+{% elif not _icon_candidate and _c.vplib_uid %}
+  {% set _icon_candidate = _c.vplib_uid %}
+{% endif %}
+
+{% set _icon_candidate = _icon_candidate
+  | replace(" ", "")
+  | replace("_", "")
+  | replace("-", "")
+  | replace(".", "")
+  | replace("/", "")
+  | replace("\\", "")
+  | replace(":", "")
+  | upper
+%}
+
+{% if _icon_candidate | length > 2 %}
+  {% set _c.icon_text = _icon_candidate[:2] %}
+{% elif _icon_candidate %}
+  {% set _c.icon_text = _icon_candidate %}
+{% else %}
+  {% set _c.icon_text = "IT" %}
+{% endif %}
+
+{# --------------------------------------------------------------------------
+   Klassen zusammensetzen
+   -------------------------------------------------------------------------- #}
+{% if _c.disabled %}
+  {% set _c.classes = _c.classes ~ " vp-creative-card--disabled" %}
+{% endif %}
+
+{% if _c.locked %}
+  {% set _c.classes = _c.classes ~ " vp-creative-card--locked" %}
+{% endif %}
+
+{% if _c.pinned %}
+  {% set _c.classes = _c.classes ~ " vp-creative-card--pinned" %}
+{% endif %}
+
+{% if _c.banner_url %}
+  {% set _c.classes = _c.classes ~ " vp-creative-card--has-banner-image" %}
+{% else %}
+  {% set _c.classes = _c.classes ~ " vp-creative-card--has-generated-banner" %}
+{% endif %}
+
+{% if _c.object_kind %}
+  {% set _c.classes = _c.classes ~ " vp-creative-card--kind-" ~ (_c.object_kind | replace("_", "-") | replace(".", "-") | lower) %}
+{% endif %}
+
+{% if creative_card_extra_class is defined and creative_card_extra_class %}
+  {% set _c.classes = _c.classes ~ " " ~ creative_card_extra_class | string | trim %}
+{% elif card_extra_class is defined and card_extra_class %}
+  {% set _c.classes = _c.classes ~ " " ~ card_extra_class | string | trim %}
+{% endif %}
+
+{# --------------------------------------------------------------------------
+   ARIA Label
+   -------------------------------------------------------------------------- #}
+{% set _c.aria_label = _c.title %}
+{% if _c.object_kind %}
+  {% set _c.aria_label = _c.aria_label ~ ", " ~ _c.object_kind %}
+{% endif %}
+{% if _c.domain %}
+  {% set _c.aria_label = _c.aria_label ~ ", Domain " ~ _c.domain %}
+{% endif %}
+{% if _c.category %}
+  {% set _c.aria_label = _c.aria_label ~ ", Kategorie " ~ _c.category %}
+{% endif %}
+{% if _c.subcategory %}
+  {% set _c.aria_label = _c.aria_label ~ ", Subkategorie " ~ _c.subcategory %}
+{% endif %}
+{% if _c.disabled %}
+  {% set _c.aria_label = _c.aria_label ~ ", deaktiviert" %}
+{% endif %}
+
+<article
+  class="{{ _c.classes | e }}"
+  role="listitem"
+  aria-label="{{ _c.aria_label | e }}"
+  data-creative-item-card="true"
+  data-creative-card="true"
+
+  data-item-id="{{ _c.id | e }}"
+  data-item-db-id="{{ _c.item_db_id | e }}"
+  data-family-id="{{ _c.family_id | e }}"
+  data-vplib-uid="{{ _c.vplib_uid | e }}"
+  data-package-id="{{ _c.package_id | e }}"
+  data-variant-id="{{ _c.variant_id | e }}"
+
+  data-domain="{{ _c.domain | e }}"
+  data-category="{{ _c.category | e }}"
+  data-subcategory="{{ _c.subcategory | e }}"
+  data-taxonomy-path="{{ _c.taxonomy_path | e }}"
+  data-object-kind="{{ _c.object_kind | e }}"
+
+  data-item-title="{{ _c.title | e }}"
+  data-item-label="{{ _c.label | e }}"
+  data-item-description="{{ _c.description | e }}"
+  data-item-quantity="{{ _c.quantity }}"
+
+  data-source="{{ _c.source | e }}"
+  data-scope="{{ _c.scope | e }}"
+  data-mode="{{ _c.mode | e }}"
+
+  data-selectable="{{ 'true' if _c.selectable else 'false' }}"
+  data-draggable="{{ 'true' if _c.draggable else 'false' }}"
+  data-disabled="{{ 'true' if _c.disabled else 'false' }}"
+  data-locked="{{ 'true' if _c.locked else 'false' }}"
+  data-pinned="{{ 'true' if _c.pinned else 'false' }}"
+
+  {% if _c.create_url %}data-create-url="{{ _c.create_url | e }}"{% endif %}
+  {% if _c.detail_url %}data-detail-url="{{ _c.detail_url | e }}"{% endif %}
+
+  {% if _c.selectable and not _c.disabled %}
+    tabindex="0"
+  {% else %}
+    aria-disabled="true"
+  {% endif %}
+
+  {% if _c.draggable and not _c.disabled %}
+    draggable="true"
+  {% else %}
+    draggable="false"
+  {% endif %}
+>
+  <div
+    class="vp-creative-card__preview vp-creative-card__banner"
+    aria-hidden="true"
+    data-creative-card-banner="true"
+  >
+    {% if _c.banner_url %}
+      <img
+        class="vp-creative-card__preview-image vp-creative-card__banner-image"
+        src="{{ _c.banner_url | e }}"
+        alt=""
+        loading="lazy"
+        decoding="async"
+      >
+    {% endif %}
+
+    <span
+      class="vp-creative-card__icon"
+      aria-hidden="true"
+      data-creative-card-icon="true"
+    >
+      {{ _c.icon_text }}
+    </span>
+  </div>
+
+  <div class="vp-creative-card__content">
+    {% if _c.show_badge or (_c.show_kind and _c.object_kind_label) %}
+      <div class="vp-creative-card__head">
+        {% if _c.show_badge %}
+          <span class="vp-creative-card__badge">
+            {{ _c.badge }}
+          </span>
+        {% endif %}
+
+        {% if _c.show_kind and _c.object_kind_label %}
+          <span class="vp-creative-card__kind">
+            {{ _c.object_kind_label }}
+          </span>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <h2 class="vp-creative-card__title">
+      {{ _c.title }}
+    </h2>
+
+    {% if _c.text %}
+      <p class="vp-creative-card__text">
+        {{ _c.text }}
+      </p>
+    {% endif %}
+
+    {% if _c.show_facts %}
+      <dl class="vp-creative-card__facts">
+        {% if _c.family_id %}
+          <div>
+            <dt>Family</dt>
+            <dd>{{ _c.family_id }}</dd>
+          </div>
+        {% endif %}
+
+        {% if _c.variant_id %}
+          <div>
+            <dt>Variante</dt>
+            <dd>{{ _c.variant_id }}</dd>
+          </div>
+        {% endif %}
+
+        {% if _c.object_kind %}
+          <div>
+            <dt>Objektart</dt>
+            <dd>{{ _c.object_kind }}</dd>
+          </div>
+        {% endif %}
+
+        {% if _c.domain or _c.category or _c.subcategory %}
+          <div>
+            <dt>Taxonomie</dt>
+            <dd>
+              {{ _c.domain or "all" }}
+              {% if _c.category %} / {{ _c.category }}{% endif %}
+              {% if _c.subcategory %} / {{ _c.subcategory }}{% endif %}
+            </dd>
+          </div>
+        {% endif %}
+      </dl>
+    {% endif %}
+  </div>
+</article>

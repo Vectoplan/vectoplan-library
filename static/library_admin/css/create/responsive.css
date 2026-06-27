@@ -17,6 +17,17 @@
   - Keine neuen Komponenten-Grunddefinitionen.
   - Nur responsive Overrides und robuste Layout-Korrekturen.
 
+  Finaler Scroll-Vertrag:
+  - /create bleibt 100vw × 100dvh beziehungsweise iframe-viewport-hoch.
+  - Body/Page scrollt nicht.
+  - Stepper bleibt oben.
+  - Workspace bleibt in der Mitte.
+  - Wizard-Navigation bleibt unten.
+  - Der aktive Step-Inhalt scrollt über .vplib-create-step__body.
+  - Die Varianten-Tabelle scrollt bei Bedarf nur horizontal.
+  - Der Variant Drawer scrollt intern nur in seiner Field-Area.
+  - Preview darf kompakt werden, darf aber den Step-Scroll nicht blockieren.
+
   Zielzustand:
   - 100vw × 100dvh.
   - Kein Body-Scroll.
@@ -30,6 +41,8 @@
       - keine sichtbare Debug-/Meta-Zeile
       - Zusatzfelder als Zeilen
       - Tabelle versteckt sich bei Editor open
+      - Drawer-Footer bleibt sichtbar
+      - Drawer-Fields scrollen intern
   - Schritt 6 enthält Actions und kompaktes Feedback.
 
   Abhängigkeit:
@@ -54,6 +67,7 @@
     - alte .vp-create-* Klassen bleiben harmlos
     - neue .vplib-create-* Wizard-Klassen haben Vorrang
     - finale Overrides für Clean-Variant-Editor
+    - explizite Scroll-Zonen
 ----------------------------------------------------------------------------- */
 
 
@@ -61,19 +75,52 @@
   1. Global Responsive Contract
 ----------------------------------------------------------------------------- */
 
+:root {
+  --vp-create-responsive-min-width: 320px;
+  --vp-create-responsive-preview-tablet-height: 200px;
+  --vp-create-responsive-preview-small-height: 160px;
+  --vp-create-responsive-preview-mobile-height: 140px;
+  --vp-create-responsive-preview-tiny-height: 124px;
+  --vp-create-responsive-step-scroll-padding: clamp(10px, 1.2vw, 18px);
+  --vp-create-responsive-scrollbar-bg: rgba(226, 232, 240, 0.64);
+  --vp-create-responsive-scrollbar-thumb: rgba(37, 99, 235, 0.34);
+}
+
+[data-theme="dark"],
+.vplib-create-app[data-theme="dark"],
+.dark .vplib-create-app {
+  --vp-create-responsive-scrollbar-bg: rgba(15, 23, 42, 0.86);
+  --vp-create-responsive-scrollbar-thumb: rgba(96, 165, 250, 0.44);
+}
+
 html[data-create-document="true"],
 html[data-vp-create-document="true"],
-body[data-create-page="true"],
-body[data-vp-create-page="true"],
-body.vp-create-page {
-  min-width: 320px;
+html[data-vp-create-shell="wizard"] {
+  width: 100%;
+  height: 100%;
+  min-width: var(--vp-create-responsive-min-width);
+  min-height: 0;
+  overflow: hidden;
 }
 
 body[data-create-page="true"],
 body[data-vp-create-page="true"],
 body.vp-create-page {
+  width: 100%;
+  height: 100vh;
+  min-width: var(--vp-create-responsive-min-width);
+  min-height: 0;
+  margin: 0;
   overflow: hidden;
   overscroll-behavior: none;
+}
+
+@supports (height: 100dvh) {
+  body[data-create-page="true"],
+  body[data-vp-create-page="true"],
+  body.vp-create-page {
+    height: 100dvh;
+  }
 }
 
 .vplib-create-app,
@@ -93,13 +140,84 @@ body.vp-create-page {
 .vp-create-variant-workspace,
 [data-vp-variant-workspace-root="true"],
 .vp-create-variant-drawer,
-[data-vp-variant-drawer-root="true"] {
+[data-vp-variant-drawer-root="true"],
+.vp-create-variant-drawer__panel,
+.vp-create-variant-drawer__body,
+.vp-create-variant-drawer__fields {
   min-width: 0;
   min-height: 0;
 }
 
+.vplib-create-app {
+  width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
+@supports (height: 100dvh) {
+  .vplib-create-app {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+}
+
 .vplib-create-app__shell {
   isolation: isolate;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.vplib-create-app__form {
+  display: contents;
+}
+
+.vplib-create-app__workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.vplib-create-app__main {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.vplib-create-app__aside {
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.vplib-create-steps {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.vplib-create-step {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.vplib-create-step.is-active,
+.vplib-create-step:not([hidden]).is-active {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .vplib-create-step[hidden],
@@ -107,9 +225,155 @@ body.vp-create-page {
   display: none !important;
 }
 
+.vplib-create-step__panel {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.vplib-create-step__body {
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: var(--vp-create-responsive-step-scroll-padding);
+}
+
+.vplib-create-step__body::-webkit-scrollbar,
+.vplib-create-app__aside::-webkit-scrollbar {
+  width: 10px;
+}
+
+.vplib-create-step__body::-webkit-scrollbar-track,
+.vplib-create-app__aside::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: var(--vp-create-responsive-scrollbar-bg);
+}
+
+.vplib-create-step__body::-webkit-scrollbar-thumb,
+.vplib-create-app__aside::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--vp-create-responsive-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+.vplib-create-step__body,
+.vplib-create-app__aside {
+  scrollbar-width: thin;
+  scrollbar-color:
+    var(--vp-create-responsive-scrollbar-thumb)
+    var(--vp-create-responsive-scrollbar-bg);
+}
+
 
 /* -----------------------------------------------------------------------------
-  2. Large Desktop Polish
+  2. Final Step-3 / Variant Editor Scroll Corrections
+----------------------------------------------------------------------------- */
+
+.vp-create-section--object-variants,
+[data-vp-create-section="object-variants"],
+[data-create-section="object-variants"] {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-object-variants__body,
+[data-vp-object-variants-body="true"] {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-object-variants__workspace,
+[data-vp-object-variants-workspace-slot="true"] {
+  min-width: 0;
+  min-height: 0;
+}
+
+.vp-create-section--object-variants[data-vp-variant-editor-state="open"],
+.vp-create-section--object-variants[data-vp-object-variants-editor-state="open"],
+.vp-create-section--object-variants.is-variant-editor-open,
+[data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"],
+[data-vp-create-section="object-variants"][data-vp-object-variants-editor-state="open"],
+[data-vp-create-section="object-variants"].is-variant-editor-open {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vp-create-section--object-variants[data-vp-variant-editor-state="open"] [data-vp-object-variants-body="true"],
+.vp-create-section--object-variants[data-vp-object-variants-editor-state="open"] [data-vp-object-variants-body="true"],
+.vp-create-section--object-variants.is-variant-editor-open [data-vp-object-variants-body="true"],
+[data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] [data-vp-object-variants-body="true"],
+[data-vp-create-section="object-variants"][data-vp-object-variants-editor-state="open"] [data-vp-object-variants-body="true"],
+[data-vp-create-section="object-variants"].is-variant-editor-open [data-vp-object-variants-body="true"] {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vp-create-section--object-variants[data-vp-variant-editor-state="open"] [data-vp-object-variants-workspace-slot="true"],
+.vp-create-section--object-variants[data-vp-object-variants-editor-state="open"] [data-vp-object-variants-workspace-slot="true"],
+.vp-create-section--object-variants.is-variant-editor-open [data-vp-object-variants-workspace-slot="true"],
+[data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] [data-vp-object-variants-workspace-slot="true"],
+[data-vp-create-section="object-variants"][data-vp-object-variants-editor-state="open"] [data-vp-object-variants-workspace-slot="true"],
+[data-vp-create-section="object-variants"].is-variant-editor-open [data-vp-object-variants-workspace-slot="true"] {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"],
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"],
+.vp-create-variant-workspace.is-variant-editor-open,
+[data-vp-variant-workspace-root="true"].is-variant-editor-open {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vp-create-variant-workspace[data-vp-variant-editor-state="open"] [data-vp-variant-drawer-slot="true"],
+[data-vp-variant-workspace-root="true"][data-vp-variant-editor-state="open"] [data-vp-variant-drawer-slot="true"],
+.vp-create-variant-workspace.is-variant-editor-open [data-vp-variant-drawer-slot="true"],
+[data-vp-variant-workspace-root="true"].is-variant-editor-open [data-vp-variant-drawer-slot="true"] {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vp-create-variant-table,
+[data-vp-variant-table-root="true"] {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.vp-create-variant-editor--compact .vp-create-variant-table,
+.vp-create-variable-editor--compact .vp-create-variable-table {
+  max-height: none;
+}
+
+@supports selector(:has(*)) {
+  .vplib-create-step__body:has(.vp-create-section--object-variants[data-vp-variant-editor-state="open"]),
+  .vplib-create-step__body:has(.vp-create-section--object-variants[data-vp-object-variants-editor-state="open"]),
+  .vplib-create-step__body:has(.vp-create-section--object-variants.is-variant-editor-open),
+  .vplib-create-step__body:has([data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"]),
+  .vplib-create-step__body:has([data-vp-create-section="object-variants"][data-vp-object-variants-editor-state="open"]),
+  .vplib-create-step__body:has([data-vp-create-section="object-variants"].is-variant-editor-open) {
+    overflow: hidden;
+    padding-right: 0;
+  }
+}
+
+
+/* -----------------------------------------------------------------------------
+  3. Large Desktop Polish
 ----------------------------------------------------------------------------- */
 
 @media (min-width: 1481px) {
@@ -146,7 +410,8 @@ body.vp-create-page {
   }
 
   .vp-create-variant-drawer__panel {
-    --vp-variant-drawer-embedded-height: clamp(35rem, calc(100dvh - 17rem), 48rem);
+    --vp-variant-drawer-embedded-height: 100%;
+    --vp-variant-drawer-embedded-min-height: 0;
   }
 
   .vp-create-variant-optional-fields__row,
@@ -158,7 +423,7 @@ body.vp-create-page {
 
 
 /* -----------------------------------------------------------------------------
-  3. Medium Desktop
+  4. Medium Desktop
 ----------------------------------------------------------------------------- */
 
 @media (max-width: 1320px) {
@@ -207,7 +472,7 @@ body.vp-create-page {
 
 
 /* -----------------------------------------------------------------------------
-  4. Small Desktop / Large Tablet
+  5. Small Desktop / Large Tablet
 ----------------------------------------------------------------------------- */
 
 @media (max-width: 1180px) {
@@ -276,11 +541,6 @@ body.vp-create-page {
     grid-column: 1 / -1;
   }
 
-  .vp-create-variant-editor--compact .vp-create-variant-table,
-  .vp-create-variable-editor--compact .vp-create-variable-table {
-    max-height: min(34vh, 360px);
-  }
-
   .vp-create-object-variants__top {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -299,13 +559,14 @@ body.vp-create-page {
   }
 
   .vp-create-variant-drawer__panel {
-    --vp-variant-drawer-embedded-height: clamp(32rem, calc(100dvh - 16rem), 43rem);
+    --vp-variant-drawer-embedded-height: 100%;
+    --vp-variant-drawer-embedded-min-height: 0;
   }
 }
 
 
 /* -----------------------------------------------------------------------------
-  5. Tablet
+  6. Tablet
 
   Preview wandert unter den aktiven Step und bleibt kompakt.
   Der Body bleibt weiterhin scrollfrei.
@@ -316,13 +577,19 @@ body.vp-create-page {
     --vp-create-wizard-page-pad-x: 10px;
     --vp-create-wizard-page-pad-y: 10px;
     --vp-create-wizard-gap: 10px;
+    --vp-create-responsive-step-scroll-padding: 10px;
   }
 
   .vplib-create-app {
     width: 100%;
     height: 100vh;
-    height: 100dvh;
     min-height: 0;
+  }
+
+  @supports (height: 100dvh) {
+    .vplib-create-app {
+      height: 100dvh;
+    }
   }
 
   .vplib-create-app__shell {
@@ -334,12 +601,12 @@ body.vp-create-page {
 
   .vplib-create-app__workspace {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(130px, 200px);
+    grid-template-rows: minmax(0, 1fr) minmax(130px, var(--vp-create-responsive-preview-tablet-height));
     min-height: 0;
   }
 
   .vplib-create-app__aside {
-    max-height: 200px;
+    max-height: var(--vp-create-responsive-preview-tablet-height);
     min-height: 0;
     overflow: hidden;
   }
@@ -480,11 +747,7 @@ body.vp-create-page {
 
   .vp-create-result-output {
     max-height: 150px;
-  }
-
-  .vp-create-variant-editor--compact .vp-create-variant-table,
-  .vp-create-variable-editor--compact .vp-create-variable-table {
-    max-height: min(28vh, 300px);
+    overflow: auto;
   }
 
   .vplib-create-wizard-nav__inner {
@@ -497,7 +760,8 @@ body.vp-create-page {
   }
 
   .vp-create-variant-drawer__panel {
-    --vp-variant-drawer-embedded-height: clamp(30rem, calc(100dvh - 15rem), 40rem);
+    --vp-variant-drawer-embedded-height: 100%;
+    --vp-variant-drawer-embedded-min-height: 0;
   }
 
   .vp-create-variant-drawer__section-grid--cols-2,
@@ -528,7 +792,7 @@ body.vp-create-page {
 
 
 /* -----------------------------------------------------------------------------
-  6. Small Tablet / Large Phone
+  7. Small Tablet / Large Phone
 ----------------------------------------------------------------------------- */
 
 @media (max-width: 760px) {
@@ -537,11 +801,11 @@ body.vp-create-page {
   }
 
   .vplib-create-app__workspace {
-    grid-template-rows: minmax(0, 1fr) minmax(110px, 160px);
+    grid-template-rows: minmax(0, 1fr) minmax(110px, var(--vp-create-responsive-preview-small-height));
   }
 
   .vplib-create-app__aside {
-    max-height: 160px;
+    max-height: var(--vp-create-responsive-preview-small-height);
   }
 
   .vplib-create-stepper__eyebrow {
@@ -651,11 +915,13 @@ body.vp-create-page {
 
 
 /* -----------------------------------------------------------------------------
-  7. Mobile
+  8. Mobile
 ----------------------------------------------------------------------------- */
 
 @media (max-width: 640px) {
-  html {
+  html[data-create-document="true"],
+  html[data-vp-create-document="true"],
+  html[data-vp-create-shell="wizard"] {
     scroll-padding-top: 0;
   }
 
@@ -666,6 +932,10 @@ body.vp-create-page {
     overflow: hidden;
   }
 
+  :root {
+    --vp-create-responsive-step-scroll-padding: 8px;
+  }
+
   .vplib-create-app__shell {
     padding: 8px;
     gap: 8px;
@@ -673,11 +943,11 @@ body.vp-create-page {
 
   .vplib-create-app__workspace {
     gap: 8px;
-    grid-template-rows: minmax(0, 1fr) minmax(96px, 140px);
+    grid-template-rows: minmax(0, 1fr) minmax(96px, var(--vp-create-responsive-preview-mobile-height));
   }
 
   .vplib-create-app__aside {
-    max-height: 140px;
+    max-height: var(--vp-create-responsive-preview-mobile-height);
   }
 
   .vplib-create-stepper__inner {
@@ -876,12 +1146,8 @@ body.vp-create-page {
   .vp-create-result-output {
     max-height: 120px;
     padding: var(--vp-create-space-2, 0.5rem);
+    overflow: auto;
     font-size: var(--vp-create-text-2xs, 0.6875rem);
-  }
-
-  .vp-create-variant-editor--compact .vp-create-variant-table,
-  .vp-create-variable-editor--compact .vp-create-variable-table {
-    max-height: min(24vh, 230px);
   }
 
   .vp-create-mobile-hint,
@@ -903,8 +1169,8 @@ body.vp-create-page {
   }
 
   .vp-create-variant-drawer__panel {
-    --vp-variant-drawer-embedded-height: clamp(27rem, calc(100dvh - 14rem), 36rem);
-    --vp-variant-drawer-embedded-min-height: min(24rem, calc(100dvh - 12rem));
+    --vp-variant-drawer-embedded-height: 100%;
+    --vp-variant-drawer-embedded-min-height: 0;
   }
 
   .vp-create-variant-drawer__fields {
@@ -939,12 +1205,16 @@ body.vp-create-page {
 
 
 /* -----------------------------------------------------------------------------
-  8. Very Small Mobile
+  9. Very Small Mobile
 ----------------------------------------------------------------------------- */
 
 @media (max-width: 420px) {
+  :root {
+    --vp-create-responsive-step-scroll-padding: 6px;
+  }
+
   .vplib-create-app {
-    min-width: 320px;
+    min-width: var(--vp-create-responsive-min-width);
   }
 
   .vplib-create-app__shell {
@@ -954,11 +1224,11 @@ body.vp-create-page {
 
   .vplib-create-app__workspace {
     gap: 6px;
-    grid-template-rows: minmax(0, 1fr) minmax(86px, 124px);
+    grid-template-rows: minmax(0, 1fr) minmax(86px, var(--vp-create-responsive-preview-tiny-height));
   }
 
   .vplib-create-app__aside {
-    max-height: 124px;
+    max-height: var(--vp-create-responsive-preview-tiny-height);
   }
 
   .vplib-create-stepper__inner,
@@ -1037,6 +1307,7 @@ body.vp-create-page {
 
   .vp-create-result-output {
     max-height: 104px;
+    overflow: auto;
   }
 
   .vplib-create-wizard-nav__button {
@@ -1053,7 +1324,8 @@ body.vp-create-page {
   }
 
   .vp-create-variant-drawer__panel {
-    --vp-variant-drawer-embedded-height: clamp(25rem, calc(100dvh - 13rem), 34rem);
+    --vp-variant-drawer-embedded-height: 100%;
+    --vp-variant-drawer-embedded-min-height: 0;
   }
 
   .vp-create-variant-optional-fields__available-list,
@@ -1064,13 +1336,17 @@ body.vp-create-page {
 
 
 /* -----------------------------------------------------------------------------
-  9. Short Viewports / Landscape Phones
+  10. Short Viewports / Landscape Phones
 
   Der Wizard bleibt 100dvh. Inhalte werden verdichtet, statt Body-Scroll zu
   aktivieren.
 ----------------------------------------------------------------------------- */
 
 @media (max-height: 760px) {
+  :root {
+    --vp-create-responsive-step-scroll-padding: 8px;
+  }
+
   .vplib-create-app {
     min-height: 0;
   }
@@ -1108,16 +1384,12 @@ body.vp-create-page {
 
   .vp-create-result-output {
     max-height: 120px;
-  }
-
-  .vp-create-variant-editor--compact .vp-create-variant-table,
-  .vp-create-variable-editor--compact .vp-create-variable-table {
-    max-height: min(26vh, 260px);
+    overflow: auto;
   }
 
   .vp-create-variant-drawer__panel {
-    --vp-variant-drawer-embedded-height: clamp(26rem, calc(100dvh - 13.5rem), 36rem);
-    --vp-variant-drawer-embedded-min-height: min(23rem, calc(100dvh - 11rem));
+    --vp-variant-drawer-embedded-height: 100%;
+    --vp-variant-drawer-embedded-min-height: 0;
   }
 
   .vp-create-variant-drawer__header {
@@ -1184,6 +1456,7 @@ body.vp-create-page {
 
   .vp-create-result-output {
     max-height: 96px;
+    overflow: auto;
   }
 
   .vplib-create-wizard-nav__hint,
@@ -1192,8 +1465,8 @@ body.vp-create-page {
   }
 
   .vp-create-variant-drawer__panel {
-    --vp-variant-drawer-embedded-height: clamp(23rem, calc(100dvh - 11.5rem), 31rem);
-    --vp-variant-drawer-embedded-min-height: 22rem;
+    --vp-variant-drawer-embedded-height: 100%;
+    --vp-variant-drawer-embedded-min-height: 0;
   }
 
   .vp-create-variant-drawer__subtitle,
@@ -1211,6 +1484,7 @@ body.vp-create-page {
 
   .vplib-create-app__aside {
     max-height: none;
+    overflow: hidden;
   }
 
   .vp-create-preview-card {
@@ -1236,14 +1510,14 @@ body.vp-create-page {
   }
 
   .vp-create-variant-drawer__panel {
-    --vp-variant-drawer-embedded-height: clamp(20rem, calc(100dvh - 10rem), 28rem);
-    --vp-variant-drawer-embedded-min-height: 19rem;
+    --vp-variant-drawer-embedded-height: 100%;
+    --vp-variant-drawer-embedded-min-height: 0;
   }
 }
 
 
 /* -----------------------------------------------------------------------------
-  10. Coarse Pointer / Touch
+  11. Coarse Pointer / Touch
 ----------------------------------------------------------------------------- */
 
 @media (pointer: coarse) {
@@ -1272,7 +1546,7 @@ body.vp-create-page {
 
 
 /* -----------------------------------------------------------------------------
-  11. Fine Pointer
+  12. Fine Pointer
 ----------------------------------------------------------------------------- */
 
 @media (pointer: fine) {
@@ -1293,7 +1567,7 @@ body.vp-create-page {
 
 
 /* -----------------------------------------------------------------------------
-  12. Reduced Data / Low Bandwidth
+  13. Reduced Data / Low Bandwidth
 
   Es werden keine externen Assets geladen. Dekorative Effekte werden trotzdem
   reduziert, wenn der Browser das signalisiert.
@@ -1318,7 +1592,7 @@ body.vp-create-page {
 
 
 /* -----------------------------------------------------------------------------
-  13. Reduced Motion
+  14. Reduced Motion
 ----------------------------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -1348,7 +1622,7 @@ body.vp-create-page {
 
 
 /* -----------------------------------------------------------------------------
-  14. Forced Colors
+  15. Forced Colors
 ----------------------------------------------------------------------------- */
 
 @media (forced-colors: active) {
@@ -1384,12 +1658,13 @@ body.vp-create-page {
 
 
 /* -----------------------------------------------------------------------------
-  15. Print Final Cleanup
+  16. Print Final Cleanup
 ----------------------------------------------------------------------------- */
 
 @media print {
   html[data-create-document="true"],
   html[data-vp-create-document="true"],
+  html[data-vp-create-shell="wizard"],
   body[data-create-page="true"],
   body[data-vp-create-page="true"],
   body.vp-create-page {
@@ -1407,7 +1682,8 @@ body.vp-create-page {
   .vplib-create-app__aside,
   .vplib-create-steps,
   .vplib-create-step,
-  .vplib-create-step__panel {
+  .vplib-create-step__panel,
+  .vplib-create-step__body {
     display: block;
     width: auto;
     height: auto;

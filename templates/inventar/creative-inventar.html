@@ -1,0 +1,370 @@
+<!-- templates/inventar/creative-inventar.html -->
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+
+  <title>Creative-Inventar · VECTOPLAN</title>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css') }}">
+</head>
+
+<body class="vp-inventar-page vp-creative-inventar-page">
+  {# --------------------------------------------------------------------------
+     Defensive Template Defaults
+     -------------------------------------------------------------------------- #}
+  {% set _creative_user_id = user_id | default(1, true) | int %}
+  {% if _creative_user_id < 1 %}
+    {% set _creative_user_id = 1 %}
+  {% endif %}
+
+  {% set _creative_inventory_key = inventory_key | default("default", true) | string | trim %}
+  {% if not _creative_inventory_key %}
+    {% set _creative_inventory_key = "default" %}
+  {% endif %}
+
+  {% set _creative_slot_count = slot_count | default(9, true) | int %}
+  {% if _creative_slot_count < 1 or _creative_slot_count > 9 %}
+    {% set _creative_slot_count = 9 %}
+  {% endif %}
+
+  {% set _creative_active_slot_index = active_slot_index | default(1, true) | int %}
+  {% if _creative_active_slot_index < 1 or _creative_active_slot_index > _creative_slot_count %}
+    {% set _creative_active_slot_index = 1 %}
+  {% endif %}
+
+  {% set _creative_last_selected_slot_index = last_selected_slot_index | default(_creative_active_slot_index, true) | int %}
+  {% if _creative_last_selected_slot_index < 1 or _creative_last_selected_slot_index > _creative_slot_count %}
+    {% set _creative_last_selected_slot_index = _creative_active_slot_index %}
+  {% endif %}
+
+  {% set _taxonomy_url = taxonomy_url | default("/api/v1/vplib/taxonomy/create-options", true) | string | trim %}
+  {% if not _taxonomy_url %}
+    {% set _taxonomy_url = "/api/v1/vplib/taxonomy/create-options" %}
+  {% endif %}
+
+  {% set _create_url = create_url | default("/create", true) | string | trim %}
+  {% if not _create_url %}
+    {% set _create_url = "/create" %}
+  {% endif %}
+
+  {% set _user_inventory_api_url = user_inventory_api_url | default("/api/v1/vplib/inventar_user", true) | string | trim %}
+  {% if not _user_inventory_api_url %}
+    {% set _user_inventory_api_url = "/api/v1/vplib/inventar_user" %}
+  {% endif %}
+
+  {% set _user_inventory_select_url = user_inventory_select_url | default("/api/v1/vplib/inventar_user/select-slot", true) | string | trim %}
+  {% if not _user_inventory_select_url %}
+    {% set _user_inventory_select_url = "/api/v1/vplib/inventar_user/select-slot" %}
+  {% endif %}
+
+  {# --------------------------------------------------------------------------
+     Fallback-Daten für die Creative Library.
+     Backend kann später creative_items übergeben.
+     -------------------------------------------------------------------------- #}
+  {% set _fallback_creative_items = [
+    {
+      "family_id": "vp.hochbau.bloecke.basic_stone_block",
+      "variant_id": "default",
+      "domain": "hochbau",
+      "category": "tragwerk",
+      "subcategory": "fundamente",
+      "object_kind": "cell_block",
+      "icon_text": "ST",
+      "title": "Basic Stone Block",
+      "text": "Einfacher Basisblock für Rasterbau, Tests und frühe Platzierungslogik."
+    },
+    {
+      "family_id": "vp.hochbau.waende.masonry_wall",
+      "variant_id": "24cm_tragend",
+      "domain": "hochbau",
+      "category": "waende",
+      "subcategory": "mauerwerkswaende",
+      "object_kind": "cell_block",
+      "icon_text": "MW",
+      "title": "Mauerwerkswand",
+      "text": "Wand-Family mit späteren Varianten für Dicke, Tragfähigkeit und technische Kennwerte."
+    },
+    {
+      "family_id": "vp.hochbau.decken.concrete_slab",
+      "variant_id": "default",
+      "domain": "hochbau",
+      "category": "decken",
+      "subcategory": "massivdecken",
+      "object_kind": "cell_block",
+      "icon_text": "MD",
+      "title": "Massivdecke",
+      "text": "Deckenbauteil als Platzhalter für spätere Mengen-, Maß- und Materiallogik."
+    },
+    {
+      "family_id": "vp.hochbau.module.stair_core",
+      "variant_id": "default",
+      "domain": "hochbau",
+      "category": "treppen_rampen",
+      "subcategory": "treppenlaeufe",
+      "object_kind": "multi_cell_module",
+      "icon_text": "TK",
+      "title": "Treppenkern",
+      "text": "Mehrzelliger Modul-Platzhalter für Erschließung und spätere Occupancy-Daten."
+    },
+    {
+      "family_id": "vp.tiefbau.leitungen.water_pipe",
+      "variant_id": "default",
+      "domain": "tiefbau",
+      "category": "leitungen",
+      "subcategory": "wasserleitungen",
+      "object_kind": "adaptive_system",
+      "icon_text": "WL",
+      "title": "Wasserleitung",
+      "text": "Leitungsobjekt als Platzhalter für spätere Routing- und Tiefbau-Logik."
+    },
+    {
+      "family_id": "vp.ingenieurbau.bruecken.bridge_cap",
+      "variant_id": "default",
+      "domain": "ingenieurbau",
+      "category": "bruecken",
+      "subcategory": "kappen_randbalken",
+      "object_kind": "adaptive_system",
+      "icon_text": "BK",
+      "title": "Brückenkappe",
+      "text": "Adaptives Ingenieurbau-Bauteil, später abhängig von Tragwerk, Breite und Randbedingungen."
+    },
+    {
+      "family_id": "vp.hochbau.moebel.school_desk",
+      "variant_id": "default",
+      "domain": "hochbau",
+      "category": "moebel_ausstattung",
+      "subcategory": "schule",
+      "object_kind": "catalog_object",
+      "icon_text": "SB",
+      "title": "Schulbank",
+      "text": "Einfaches Katalogobjekt für Ausstattung, Preview und spätere Collision-Daten."
+    },
+    {
+      "family_id": "vp.hochbau.technik.faucet",
+      "variant_id": "default",
+      "domain": "hochbau",
+      "category": "sanitaer",
+      "subcategory": "armaturen",
+      "object_kind": "catalog_object",
+      "icon_text": "WH",
+      "badge": "Objekt",
+      "show_kind": true,
+      "title": "Wasserhahn",
+      "text": "Kompaktes technisches Katalogobjekt mit späterer Herstellerfähigkeit."
+    }
+  ] %}
+
+  {% if creative_items is defined and creative_items %}
+    {% set _creative_items = creative_items %}
+  {% else %}
+    {% set _creative_items = _fallback_creative_items %}
+  {% endif %}
+
+  <main
+    id="vp-creative-inventory-root"
+    class="vp-creative-layout"
+    aria-label="Creative-Inventar"
+
+    data-taxonomy-root="true"
+    data-taxonomy-url="{{ _taxonomy_url | e }}"
+    data-include-world-edit="true"
+    data-selected-domain="all"
+    data-selected-category="all"
+    data-selected-subcategory="all"
+    data-taxonomy-locked="false"
+    data-taxonomy-filter-cards="true"
+    data-taxonomy-lock-aware="true"
+
+    data-create-embed-root="true"
+    data-create-url="{{ _create_url | e }}"
+    data-create-embed-active="false"
+    data-create-embed-status-disabled="true"
+    data-create-embed-lock-taxonomy="true"
+    data-create-embed-close-on-taxonomy-click="false"
+
+    data-user-inventory-root="true"
+    data-user-id="{{ _creative_user_id }}"
+    data-inventory-key="{{ _creative_inventory_key | e }}"
+    data-slot-count="{{ _creative_slot_count }}"
+    data-active-slot-index="{{ _creative_active_slot_index }}"
+    data-last-selected-slot-index="{{ _creative_last_selected_slot_index }}"
+    data-user-inventory-api-url="{{ _user_inventory_api_url | e }}"
+    data-user-inventory-select-url="{{ _user_inventory_select_url | e }}"
+    data-wheel-navigation-enabled="false"
+    data-keyboard-navigation-enabled="false"
+    data-card-selection-enabled="false"
+    data-suspend-during-create-embed="true"
+    data-cache-enabled="true"
+  >
+    <section
+      class="vp-creative-library"
+      aria-label="Creative Library"
+      data-creative-library="true"
+    >
+      <div
+        id="vp-creative-taxonomy-status"
+        class="vp-creative-taxonomy-status"
+        data-taxonomy-status="true"
+        aria-live="polite"
+        hidden
+      ></div>
+
+      <div
+        class="vp-creative-tabs-bar"
+        aria-label="Creative Library Navigation"
+        data-create-embed-tabs-bar="true"
+      >
+        <nav
+          id="vp-creative-taxonomy-tabs"
+          class="vp-creative-tabs"
+          aria-label="Creative Library Reiter"
+          data-taxonomy-tabs="true"
+        >
+          <button class="vp-creative-tab vp-creative-tab--active" type="button" disabled>
+            Taxonomie lädt
+          </button>
+        </nav>
+
+        <div
+          class="vp-creative-create-action vp-creative-create-action--tabs"
+          aria-label="Neues Element"
+        >
+          <button
+            id="vp-create-embed-toggle"
+            class="vp-creative-create-button"
+            type="button"
+            data-create-embed-toggle="true"
+            data-create-url="{{ _create_url | e }}"
+            data-open-label="Neues Element hinzufügen"
+            data-close-label="Creative Library anzeigen"
+            aria-controls="vp-create-embed-panel"
+            aria-expanded="false"
+          >
+            <span class="vp-creative-create-button__icon" aria-hidden="true">+</span>
+            <span class="vp-creative-create-button__label" data-create-embed-toggle-label="true">
+              Neues Element hinzufügen
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div
+        class="vp-creative-taxonomy-bar"
+        aria-label="Creative Library Kategorien"
+        data-create-embed-taxonomy-bar="true"
+        data-create-embed-filter-area="true"
+      >
+        <nav
+          id="vp-creative-taxonomy-filters"
+          class="vp-creative-filters"
+          aria-label="Creative Library Kategorien"
+          data-taxonomy-filters="true"
+        >
+          <button class="vp-creative-filter vp-creative-filter--active" type="button" disabled>
+            <span>Kategorien werden geladen</span>
+            <strong>...</strong>
+          </button>
+        </nav>
+      </div>
+
+      <nav
+        id="vp-creative-taxonomy-subfilters"
+        class="vp-creative-subfilters"
+        aria-label="Creative Library Subkategorien"
+        data-taxonomy-subfilters="true"
+        data-create-embed-subfilter-area="true"
+        hidden
+      ></nav>
+
+      <section
+        id="vp-create-embed-panel"
+        class="vp-create-embed-panel"
+        aria-label="Neues VPLIB-Element erstellen"
+        data-create-embed-panel="true"
+        hidden
+      >
+        <iframe
+          id="vp-create-embed-frame"
+          class="vp-create-embed-frame"
+          title="VPLIB Create Flow"
+          data-create-embed-frame="true"
+          data-src="{{ _create_url | e }}"
+          loading="lazy"
+          referrerpolicy="same-origin"
+        ></iframe>
+      </section>
+
+      <section
+        class="vp-creative-grid"
+        id="creative-items"
+        aria-label="Creative Library Items"
+        role="list"
+        data-creative-library-grid="true"
+        data-create-embed-library-area="true"
+      >
+        {% for item in _creative_items %}
+          {% set creative_card_item = item %}
+          {% include "inventar/partials/_creative-card.html" with context %}
+        {% endfor %}
+      </section>
+    </section>
+
+    <aside class="vp-creative-tools" aria-label="Creative Mode Tools">
+      <section class="vp-creative-tools__panel">
+        <h2 class="vp-creative-tools__title">
+          Creative Mode
+        </h2>
+
+        <div class="vp-tool-group">
+          <h3 class="vp-tool-group__title">
+            Paint Brush Tool
+          </h3>
+        </div>
+      </section>
+    </aside>
+
+    {% set user_inventory_hotbar_variant = "dock" %}
+    {% set user_inventory_hotbar_id = "vp-creative-user-hotbar" %}
+    {% set user_inventory_hotbar_label = "Aktuelles User-Inventar" %}
+    {% set user_inventory_slot_count = _creative_slot_count %}
+    {% set user_inventory_active_slot_index = _creative_active_slot_index %}
+    {% set user_inventory_last_selected_slot_index = _creative_last_selected_slot_index %}
+    {% set user_inventory_user_id = _creative_user_id %}
+    {% set user_inventory_key = _creative_inventory_key %}
+    {% set user_inventory_create_embed_hotbar_area = true %}
+    {% include "inventar/partials/_user-hotbar.html" with context %}
+
+    <div
+      id="vp-creative-user-inventory-status"
+      class="vp-user-inventory-status"
+      aria-live="polite"
+      data-user-inventory-status="true"
+      hidden
+    ></div>
+  </main>
+
+  <script
+    src="{{ url_for('static', filename='js/inventar/taxonomy-navigation.js') }}"
+    defer
+    data-taxonomy-url="{{ _taxonomy_url | e }}"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='js/inventar/create-embed.js') }}"
+    defer
+    data-create-url="{{ _create_url | e }}"
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='js/inventar/user-inventory.js') }}"
+    defer
+    data-user-id="{{ _creative_user_id }}"
+    data-inventory-key="{{ _creative_inventory_key | e }}"
+    data-user-inventory-api-url="{{ _user_inventory_api_url | e }}"
+    data-user-inventory-select-url="{{ _user_inventory_select_url | e }}"
+  ></script>
+</body>
+</html>

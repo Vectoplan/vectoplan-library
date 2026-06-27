@@ -13,7 +13,10 @@ Aktueller Fokus:
 - Assets
 - ScanRuns
 - ScanIssues
-- Inventory-Slots
+- Creative-Library Inventory-Slots
+- User-Inventar-State
+- User-Inventar-Slots
+- Editor-/Hotbar-Auswahl pro User
 
 Wichtige Architekturregel:
 - Die Datenbank erzeugt nicht die fachliche Block-ID.
@@ -21,6 +24,8 @@ Wichtige Architekturregel:
 - Die Datenbank übernimmt `vplib_uid` nur aus `vplib.manifest.json`.
 - DB-interne Primary Keys dürfen existieren, sind aber nicht die fachliche
   VECTOPLAN-/VPLIB-Identität.
+- UserInventoryState/UserInventorySlot speichern nur User-Zustand und
+  Slot-Zuordnungen; sie erzeugen keine Library-Items und keine VPLIB-UIDs.
 
 Wichtig für Flask-Migrate:
 - `flask db migrate` lädt die App über FLASK_APP=wsgi:app.
@@ -53,7 +58,7 @@ from types import ModuleType
 from typing import Any, Final, Iterable, Mapping
 
 
-MODELS_PACKAGE_VERSION: Final[str] = "vectoplan_library.models.v2"
+MODELS_PACKAGE_VERSION: Final[str] = "vectoplan_library.models.v4"
 
 
 class ModelsImportError(ImportError):
@@ -94,21 +99,40 @@ class ModelModuleStatus:
 
 _RELATIVE_MODEL_MODULES: Final[dict[str, str]] = {
     "creative_library": ".creative_library",
+    "user_inventory": ".user_inventory",
 }
 
 
 _RELATIVE_MODEL_MODULE_ALIASES: Final[dict[str, str]] = {
+    # ---------------------------------------------------------------------
+    # Backward-compatible Creative-Library aliases
+    # ---------------------------------------------------------------------
     "creative": "creative_library",
     "library": "creative_library",
     "inventory": "creative_library",
     "scan": "creative_library",
     "scans": "creative_library",
+
+    # ---------------------------------------------------------------------
+    # User-Inventory aliases
+    # ---------------------------------------------------------------------
+    "user": "user_inventory",
+    "users": "user_inventory",
+    "user_inventory_models": "user_inventory",
+    "user_hotbar": "user_inventory",
+    "hotbar": "user_inventory",
+    "editor_inventory": "user_inventory",
 }
 
 
 _MODULE_MODEL_ITERATOR_NAMES: Final[dict[str, tuple[str, ...]]] = {
     "creative_library": (
         "iter_creative_library_models",
+        "iter_models",
+        "get_models",
+    ),
+    "user_inventory": (
+        "iter_user_inventory_models",
         "iter_models",
         "get_models",
     ),
@@ -130,12 +154,46 @@ _SYMBOL_TO_MODULE: Final[dict[str, str]] = {
     "CreativeLibraryRevision": "creative_library",
     "CreativeLibraryVariant": "creative_library",
     "CreativeLibraryAsset": "creative_library",
+    "CreativeLibraryDocument": "creative_library",
     "CreativeLibraryScanRun": "creative_library",
     "CreativeLibraryScanIssue": "creative_library",
     "CreativeLibraryInventorySlot": "creative_library",
+    "CreativeLibraryFamily": "creative_library",
+    "CreativeLibraryFamilyRevision": "creative_library",
     "iter_creative_library_models": "creative_library",
+    "iter_creative_library_model_aliases": "creative_library",
+    "get_creative_library_alias_names": "creative_library",
     "get_creative_library_model_names": "creative_library",
     "get_creative_library_models_health": "creative_library",
+    "get_creative_library_table_names": "creative_library",
+
+    # ---------------------------------------------------------------------
+    # user_inventory.py
+    # ---------------------------------------------------------------------
+    "USER_INVENTORY_MODELS_SCHEMA_VERSION": "user_inventory",
+    "DEFAULT_USER_ID": "user_inventory",
+    "DEFAULT_SLOT_COUNT": "user_inventory",
+    "MIN_SLOT_INDEX": "user_inventory",
+    "MAX_SLOT_INDEX": "user_inventory",
+    "UserInventoryState": "user_inventory",
+    "UserInventorySlot": "user_inventory",
+    "clean_optional_string": "user_inventory",
+    "clean_required_string": "user_inventory",
+    "clean_string": "user_inventory",
+    "get_user_inventory_model_names": "user_inventory",
+    "get_user_inventory_models_health": "user_inventory",
+    "get_user_inventory_table_names": "user_inventory",
+    "iter_user_inventory_models": "user_inventory",
+    "normalize_bool": "user_inventory",
+    "normalize_int": "user_inventory",
+    "normalize_json_list": "user_inventory",
+    "normalize_json_mapping": "user_inventory",
+    "normalize_json_value": "user_inventory",
+    "normalize_slot_index": "user_inventory",
+    "normalize_user_id": "user_inventory",
+    "slot_key_for_index": "user_inventory",
+    "taxonomy_path_for": "user_inventory",
+    "utc_now": "user_inventory",
 }
 
 
@@ -181,7 +239,8 @@ def __getattr__(name: str) -> Any:
 
     Beispiele:
         from models import CreativeLibraryItem
-        from models import CreativeLibraryRevision
+        from models import UserInventoryState
+        from models import utc_now
         from models import import_all_models
     """
     canonical_module_name = _RELATIVE_MODEL_MODULE_ALIASES.get(name, name)
@@ -210,6 +269,15 @@ def __getattr__(name: str) -> Any:
     return value
 
 
+def __dir__() -> list[str]:
+    """Ergänzt Lazy-Reexport-Symbole in dir(models)."""
+    names = set(globals().keys())
+    names.update(_RELATIVE_MODEL_MODULES.keys())
+    names.update(_RELATIVE_MODEL_MODULE_ALIASES.keys())
+    names.update(_SYMBOL_TO_MODULE.keys())
+    return sorted(names)
+
+
 # ---------------------------------------------------------------------------
 # Public registry helpers
 # ---------------------------------------------------------------------------
@@ -220,14 +288,15 @@ def get_model_module_keys(*, include_aliases: bool = False) -> tuple[str, ...]:
 
     Args:
         include_aliases:
-            Wenn True, werden Komfort-Aliase wie "creative" und "inventory" ergänzt.
+            Wenn True, werden Komfort-Aliase wie "creative", "inventory",
+            "user" und "hotbar" ergänzt.
     """
     keys = list(_RELATIVE_MODEL_MODULES.keys())
 
     if include_aliases:
         keys.extend(_RELATIVE_MODEL_MODULE_ALIASES.keys())
 
-    return tuple(keys)
+    return tuple(_dedupe_strings(keys))
 
 
 def get_model_module_alias_map() -> Mapping[str, str]:
@@ -440,20 +509,23 @@ def get_models_metadata_snapshot() -> dict[str, Any]:
                 "available": False,
                 "table_count": 0,
                 "table_names": [],
+                "expected_table_names": list(get_model_table_names()),
+                "missing_expected_table_names": list(get_model_table_names()),
                 "error": "db.metadata.tables is not available.",
             }
 
         table_names = tuple(sorted(str(name) for name in tables.keys()))
+        expected_table_names = get_model_table_names()
 
         return {
             "schema_version": MODELS_PACKAGE_VERSION,
             "available": True,
             "table_count": len(table_names),
             "table_names": list(table_names),
-            "expected_table_names": list(get_model_table_names()),
+            "expected_table_names": list(expected_table_names),
             "missing_expected_table_names": [
                 name
-                for name in get_model_table_names()
+                for name in expected_table_names
                 if name not in table_names
             ],
         }
@@ -480,13 +552,20 @@ def get_models_health() -> dict[str, Any]:
         model_class_count = sum(len(status.model_class_names) for status in statuses)
         table_count = sum(len(status.table_names) for status in statuses)
         metadata_table_count = int(metadata_snapshot.get("table_count") or 0)
-        healthy = len(failed) == 0 and model_class_count > 0 and metadata_table_count > 0
+        missing_expected_table_names = metadata_snapshot.get("missing_expected_table_names") or []
+        healthy = (
+            len(failed) == 0
+            and model_class_count > 0
+            and metadata_table_count > 0
+            and not missing_expected_table_names
+        )
     except Exception:
         loaded = []
         failed = list(statuses)
         model_class_count = 0
         table_count = 0
         metadata_table_count = 0
+        missing_expected_table_names = []
         healthy = False
 
     return {
@@ -501,10 +580,17 @@ def get_models_health() -> dict[str, Any]:
         "symbol_count": len(_SYMBOL_TO_MODULE),
         "alias_count": len(_RELATIVE_MODEL_MODULE_ALIASES),
         "aliases": get_model_module_alias_map(),
+        "model_module_keys": list(get_model_module_keys(include_aliases=False)),
         "model_class_names": list(get_model_class_names()),
         "table_names": list(get_model_table_names()),
+        "missing_expected_table_names": list(missing_expected_table_names),
         "metadata": metadata_snapshot,
         "modules": [status.to_dict() for status in statuses],
+        "supports_creative_library": is_model_symbol("CreativeLibraryItem"),
+        "supports_user_inventory": is_model_symbol("UserInventoryState"),
+        "supports_user_inventory_slots": is_model_symbol("UserInventorySlot"),
+        "exports_user_inventory_utc_now": is_model_symbol("utc_now"),
+        "exports_user_inventory_slot_key_for_index": is_model_symbol("slot_key_for_index"),
     }
 
 
@@ -535,6 +621,13 @@ def assert_models_ready() -> None:
 
     if int(metadata_snapshot.get("table_count") or 0) <= 0:
         raise ModelsImportError("No SQLAlchemy tables are registered in db.metadata.")
+
+    missing_expected_table_names = metadata_snapshot.get("missing_expected_table_names") or []
+    if missing_expected_table_names:
+        raise ModelsImportError(
+            "Not all expected SQLAlchemy tables are registered in db.metadata: "
+            + ", ".join(str(name) for name in missing_expected_table_names)
+        )
 
 
 def clear_model_caches() -> None:
@@ -586,6 +679,7 @@ def _iter_model_classes_from_module(
     Bevorzugt werden explizite Iterator-Funktionen des Moduls, z.B.:
 
         iter_creative_library_models()
+        iter_user_inventory_models()
 
     Fallback:
     - Objekt ist Klasse
@@ -721,11 +815,35 @@ def _dedupe_model_classes(values: Iterable[type[Any]]) -> tuple[type[Any], ...]:
     return tuple(result)
 
 
+def _dedupe_strings(values: Iterable[str]) -> tuple[str, ...]:
+    """Dedupliziert Strings stabil in Eingabereihenfolge."""
+    result: list[str] = []
+    seen: set[str] = set()
+
+    for value in values or ():
+        try:
+            key = str(value)
+        except Exception:
+            continue
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        result.append(key)
+
+    return tuple(result)
+
+
 def _load_db_extension() -> Any:
     """Lädt die zentrale SQLAlchemy-Extension `db` defensiv."""
     errors: list[str] = []
 
-    for module_name in ("extensions", "src.extensions"):
+    for module_name in (
+        "extensions",
+        "src.extensions",
+        "vectoplan_library.extensions",
+    ):
         try:
             module = importlib.import_module(module_name)
             db = getattr(module, "db", None)
@@ -749,6 +867,7 @@ __all__ = [
     "clear_model_caches",
     "creative",
     "creative_library",
+    "editor_inventory",
     "get_model_class_names",
     "get_model_module_alias_map",
     "get_model_module_keys",
@@ -758,6 +877,7 @@ __all__ = [
     "get_model_table_names",
     "get_models_health",
     "get_models_metadata_snapshot",
+    "hotbar",
     "import_all_models",
     "inventory",
     "is_model_symbol",
@@ -769,5 +889,10 @@ __all__ = [
     "model_statuses_to_json",
     "scan",
     "scans",
+    "user",
+    "user_hotbar",
+    "user_inventory",
+    "user_inventory_models",
+    "users",
     *_SYMBOL_TO_MODULE.keys(),
 ]
