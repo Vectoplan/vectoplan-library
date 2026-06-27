@@ -143,7 +143,7 @@
       </h2>
 
       <p class="vplib-create-step__description">
-        Lege die sichtbare Identität der neuen Library-Family fest. Technische IDs werden nicht manuell gepflegt.
+        Lege die sichtbare Identität der neuen Library-Family fest.
       </p>
     </div>
 
@@ -165,7 +165,7 @@
           _identity_family_name,
           'text',
           'z. B. Basic Wall Block',
-          'Sichtbarer Name der Family. Slug, Family-ID und Package-ID werden serverseitig abgeleitet.',
+
           true,
           false,
           false,
@@ -190,7 +190,6 @@
           _identity_family_description,
           'textarea',
           'Kurz beschreiben, wofür diese Family gedacht ist.',
-          'Fachlicher Zweck und Einsatzbereich. Keine Formeln, keine Skripte, keine technischen IDs.',
           true,
           false,
           false,
@@ -208,21 +207,7 @@
         ) }}
       </div>
 
-      <div
-        class="vplib-create-step__field vplib-create-step__field--full vp-create-derived-note"
-        data-vp-derived-note="identity"
-        aria-label="Automatisch abgeleitete Werte"
-      >
-        <div class="vp-create-derived-note__inner">
-          <span class="vp-create-derived-note__label">
-            Automatisch:
-          </span>
 
-          <span class="vp-create-derived-note__text">
-            Slug, <code>family_id</code> und <code>package_id</code> werden vom Backend erzeugt.
-          </span>
-        </div>
-      </div>
     </div>
   </div>
 </div>

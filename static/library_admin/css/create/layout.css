@@ -34,6 +34,8 @@
   - Größere, besser lesbare lokale Texte.
   - Keine unnötigen Scrollbars auf Wrapper-Ebene.
   - Nur fachliche Inhaltsbereiche dürfen lokal scrollen.
+  - Body/Page bleibt im Wizard-Modus scrollfrei.
+  - Shell-/Workspace-Kinder bleiben mit min-height: 0 scrollfähig.
 
   Robustheitsprinzip:
   - CSS hat kein try/catch.
@@ -41,6 +43,7 @@
     - starke Scope-Klassen
     - defensive Legacy-Kompatibilität
     - min-width: 0 / min-height: 0
+    - keine harten Höhen auf Fachkomponenten
     - niedrige Layout-Spezifität, damit Fach-CSS überschreiben kann
     - keine Abhängigkeit zu gelöschten Partials
     - keine direkten Backend-Annahmen
@@ -118,6 +121,9 @@
 
   --vp-create-layout-line-normal: 1.42;
   --vp-create-layout-line-snug: var(--vp-create-line-snug, 1.35);
+
+  --vp-create-layout-scrollbar-bg: rgba(226, 232, 240, 0.64);
+  --vp-create-layout-scrollbar-thumb: rgba(37, 99, 235, 0.34);
 }
 
 
@@ -126,10 +132,12 @@
 ----------------------------------------------------------------------------- */
 
 html[data-create-document="true"],
-html[data-vp-create-document="true"] {
+html[data-vp-create-document="true"],
+html[data-vp-create-shell="wizard"] {
   width: 100%;
   height: 100%;
-  min-height: 100%;
+  min-width: 320px;
+  min-height: 0;
 }
 
 body.vp-create-page,
@@ -137,13 +145,21 @@ body[data-create-page="true"],
 body[data-vp-create-page="true"] {
   width: 100%;
   height: 100vh;
-  height: 100dvh;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-width: 320px;
+  min-height: 0;
   margin: 0;
   overflow: hidden;
+  overscroll-behavior: none;
   color: var(--vp-create-layout-text);
   background: var(--vp-create-layout-page-bg);
+}
+
+@supports (height: 100dvh) {
+  body.vp-create-page,
+  body[data-create-page="true"],
+  body[data-vp-create-page="true"] {
+    height: 100dvh;
+  }
 }
 
 body.vp-create-page *,
@@ -161,7 +177,17 @@ body[data-vp-create-page="true"] a {
 .vp-create-page code,
 body[data-create-page="true"] code,
 body[data-vp-create-page="true"] code {
-  font-family: var(--vp-create-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  font-family: var(
+    --vp-create-font-mono,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace
+  );
 }
 
 
@@ -173,8 +199,10 @@ body[data-vp-create-page="true"] code {
 ----------------------------------------------------------------------------- */
 
 .vplib-create-app {
+  width: 100%;
   min-width: 0;
   min-height: 0;
+  color: var(--vp-create-layout-text);
 }
 
 .vplib-create-app__shell,
@@ -200,8 +228,13 @@ body[data-vp-create-page="true"] code {
 
 .vplib-create-app__main,
 .vplib-create-app__aside {
-  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
 }
+
+/* Wichtig:
+   Keine pauschale Scrollbar auf Shell, Form, Workspace, Main oder Aside erzwingen.
+   wizard.css entscheidet final, welcher Bereich scrollt. */
 
 
 /* -----------------------------------------------------------------------------
@@ -277,7 +310,17 @@ body[data-vp-create-page="true"] code {
 }
 
 .vp-create-mono {
-  font-family: var(--vp-create-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  font-family: var(
+    --vp-create-font-mono,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace
+  );
 }
 
 .vp-create-nowrap {
@@ -818,7 +861,17 @@ body[data-vp-create-page="true"] code {
 }
 
 .vp-create-mini-status__value--mono {
-  font-family: var(--vp-create-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  font-family: var(
+    --vp-create-font-mono,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace
+  );
 }
 
 .vp-create-mini-status__hint {
@@ -949,7 +1002,52 @@ body[data-vp-create-page="true"] code {
 
 
 /* -----------------------------------------------------------------------------
-  22. Dark Theme Fallback
+  22. Generic Local Scroll Helpers
+
+  Diese Hilfsklassen sind bewusst opt-in.
+  Der Wizard-Scroll selbst liegt in wizard.css.
+----------------------------------------------------------------------------- */
+
+.vp-create-scroll-region,
+[data-vp-create-scroll-region="true"] {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.vp-create-scroll-region::-webkit-scrollbar,
+[data-vp-create-scroll-region="true"]::-webkit-scrollbar {
+  width: 10px;
+}
+
+.vp-create-scroll-region::-webkit-scrollbar-track,
+[data-vp-create-scroll-region="true"]::-webkit-scrollbar-track {
+  border-radius: var(--vp-create-layout-radius-full);
+  background: var(--vp-create-layout-scrollbar-bg);
+}
+
+.vp-create-scroll-region::-webkit-scrollbar-thumb,
+[data-vp-create-scroll-region="true"]::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--vp-create-layout-radius-full);
+  background: var(--vp-create-layout-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+.vp-create-scroll-region,
+[data-vp-create-scroll-region="true"] {
+  scrollbar-width: thin;
+  scrollbar-color:
+    var(--vp-create-layout-scrollbar-thumb)
+    var(--vp-create-layout-scrollbar-bg);
+}
+
+
+/* -----------------------------------------------------------------------------
+  23. Dark Theme Fallback
 ----------------------------------------------------------------------------- */
 
 [data-theme="dark"],
@@ -968,6 +1066,9 @@ body[data-vp-create-page="true"] code {
   --vp-create-layout-text-strong: var(--vp-create-text-strong, #f8fafc);
   --vp-create-layout-text-muted: var(--vp-create-text-muted, #cbd5e1);
   --vp-create-layout-text-soft: var(--vp-create-text-soft, #94a3b8);
+
+  --vp-create-layout-scrollbar-bg: rgba(15, 23, 42, 0.86);
+  --vp-create-layout-scrollbar-thumb: rgba(96, 165, 250, 0.44);
 }
 
 [data-theme="dark"] .vp-create-object-kind-note__icon,
@@ -978,7 +1079,7 @@ body[data-vp-create-page="true"] code {
 
 
 /* -----------------------------------------------------------------------------
-  23. Responsive Layout Helpers
+  24. Responsive Layout Helpers
 
   Die zentrale Wizard-Responsiveness liegt in wizard.css.
   Hier nur allgemeine lokale Anpassungen.
@@ -1088,7 +1189,7 @@ body[data-vp-create-page="true"] code {
 
 
 /* -----------------------------------------------------------------------------
-  24. Reduced Motion
+  25. Reduced Motion
 ----------------------------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -1099,10 +1200,13 @@ body[data-vp-create-page="true"] code {
 
 
 /* -----------------------------------------------------------------------------
-  25. Print
+  26. Print
 ----------------------------------------------------------------------------- */
 
 @media print {
+  html[data-create-document="true"],
+  html[data-vp-create-document="true"],
+  html[data-vp-create-shell="wizard"],
   body.vp-create-page,
   body[data-create-page="true"],
   body[data-vp-create-page="true"] {

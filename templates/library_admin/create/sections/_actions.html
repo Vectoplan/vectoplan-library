@@ -162,7 +162,7 @@
       </h2>
 
       <p class="vplib-create-step__description">
-        Baue den Draft, validiere die Struktur, prüfe den Package-Plan und erzeuge anschließend das VPLIB-Archiv.
+        Neue .vplib Datei erstellen und speichern
       </p>
     </div>
 
@@ -177,59 +177,7 @@
 
   <div class="vplib-create-step__body">
     <div class="vplib-create-step__grid">
-      <div
-        class="vplib-create-step__field vplib-create-step__field--full vp-create-action-status-strip"
-        data-vp-actions-status-strip
-        aria-label="Create-Service Status"
-      >
-        <article
-          class="vp-create-mini-status"
-          data-vp-action-health-status="{{ _health_badge_state }}"
-        >
-          <span class="vp-create-mini-status__label">
-            Service
-          </span>
 
-          <strong class="vp-create-mini-status__value">
-            {{ _health_state_label }}
-          </strong>
-
-          <span class="vp-create-mini-status__hint">
-            {{ _health_hint }}
-          </span>
-        </article>
-
-        <article
-          class="vp-create-mini-status"
-          data-vp-action-write-status="{{ _save_badge_state }}"
-        >
-          <span class="vp-create-mini-status__label">
-            Save
-          </span>
-
-          <strong class="vp-create-mini-status__value">
-            {{ _save_state_label }}
-          </strong>
-
-          <span class="vp-create-mini-status__hint">
-            {{ _save_hint }}
-          </span>
-        </article>
-
-        <article class="vp-create-mini-status">
-          <span class="vp-create-mini-status__label">
-            API
-          </span>
-
-          <strong class="vp-create-mini-status__value vp-create-mini-status__value--mono">
-            {{ _actions_api_prefix }}
-          </strong>
-
-          <span class="vp-create-mini-status__hint">
-            Create-Endpunkte bleiben Backend-gesteuert.
-          </span>
-        </article>
-      </div>
 
       <div
         class="vplib-create-step__field vplib-create-step__field--full vp-create-action-stack"
@@ -320,74 +268,7 @@
         </button>
       </div>
 
-      <div
-        class="vplib-create-step__field vplib-create-step__field--full vp-create-action-feedback"
-        data-vp-actions-feedback
-        data-vp-actions-feedback-state="idle"
-        aria-labelledby="vp-create-action-feedback-title"
-      >
-        <div class="vp-create-action-feedback__header">
-          <div class="vp-create-action-feedback__title-wrap">
-            <h3
-              id="vp-create-action-feedback-title"
-              class="vp-create-action-feedback__title"
-            >
-              Ergebnis
-            </h3>
 
-            <p
-              class="vp-create-action-feedback__status"
-              data-create-action-status="true"
-              data-vp-action-status
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              Bereit. Wähle eine Aktion.
-            </p>
-          </div>
-
-          <div class="vp-create-action-feedback__tools">
-            <button
-              class="vp-create-button vp-create-button--ghost vp-create-button--small"
-              type="button"
-              data-create-copy-result="true"
-              data-vp-actions-result-copy
-              disabled
-              aria-disabled="true"
-            >
-              Kopieren
-            </button>
-
-            <button
-              class="vp-create-button vp-create-button--ghost vp-create-button--small"
-              type="button"
-              data-create-clear-result="true"
-              data-vp-actions-result-clear
-              disabled
-              aria-disabled="true"
-            >
-              Leeren
-            </button>
-          </div>
-        </div>
-
-        <div
-          class="vp-create-result-summary"
-          data-create-result-summary="true"
-          data-vp-actions-result-summary
-          hidden
-        ></div>
-
-        <pre
-          class="vp-create-result-output"
-          data-create-result-output="true"
-          data-vp-actions-result-output
-          tabindex="0"
-          aria-label="Backend-Ergebnis als JSON"
-          hidden
-        ><code data-vp-actions-result-code>{}</code></pre>
-      </div>
 
       <div
         class="vplib-create-step__field vplib-create-step__field--full vp-create-derived-note"

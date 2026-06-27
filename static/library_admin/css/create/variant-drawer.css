@@ -14,6 +14,23 @@
   - Optionale Backend-Variablen liegen in `variant-optional-fields.css`.
   - Validierungsdetails liegen in `variant-validation.css`.
 
+  Scroll-Vertrag:
+  - Standalone/Legacy Modal:
+      Drawer Root ist fixed.
+      Backdrop ist sichtbar.
+      Panel ist viewport-begrenzt.
+      Field-Bereich scrollt.
+  - Embedded Wizard / Step 3:
+      Drawer Root ist relativ und belegt den Workspace.
+      Kein Backdrop.
+      Panel ist 100% hoch, nicht clamp-basiert.
+      Grid: Header | Validation | Body | Footer.
+      Body selbst scrollt nicht.
+      Nur .vp-create-variant-drawer__fields scrollt.
+      Footer bleibt sichtbar.
+  - Keine vertikale Scrollbar auf Drawer Root, Drawer Slot, Panel oder Body.
+  - Keine doppelte Scrollbar zwischen Wizard-Step und Drawer-Fields.
+
   UI-Ziel dieser Fassung:
   - Keine sichtbare linke Section-Navigation im Clean-Editor.
   - Kein sichtbarer Text "Noch kein Profil geladen".
@@ -41,6 +58,8 @@
       - defensive hidden-Regeln
       - explizite Grid-Reihen für Header / Validation / Body / Footer
       - Unterstützung für alte und neue data-hooks
+      - min-height: 0 auf allen Grid-/Flex-Kindern
+      - finaler embedded 100%-Höhenvertrag
 ----------------------------------------------------------------------------- */
 
 
@@ -106,11 +125,11 @@
   --vp-variant-drawer-height: min(88vh, 58rem);
   --vp-variant-drawer-height-fullscreen: calc(100vh - 2rem);
 
-  --vp-variant-drawer-embedded-height: clamp(36rem, calc(100dvh - 14.5rem), 50rem);
-  --vp-variant-drawer-embedded-min-height: min(32rem, calc(100dvh - 11rem));
+  --vp-variant-drawer-embedded-height: 100%;
+  --vp-variant-drawer-embedded-min-height: 0;
 
-  --vp-variant-drawer-header-min-height: 4.7rem;
-  --vp-variant-drawer-footer-min-height: 4rem;
+  --vp-variant-drawer-header-min-height: 4.55rem;
+  --vp-variant-drawer-footer-min-height: 3.85rem;
 
   --vp-variant-drawer-padding: clamp(1rem, 1.55vw, 1.35rem);
   --vp-variant-drawer-padding-sm: clamp(0.72rem, 1vw, 0.95rem);
@@ -121,6 +140,9 @@
   --vp-variant-drawer-font-subtitle: 0.94rem;
   --vp-variant-drawer-font-body: 0.92rem;
   --vp-variant-drawer-font-small: 0.82rem;
+
+  --vp-variant-drawer-scrollbar-bg: transparent;
+  --vp-variant-drawer-scrollbar-thumb: rgba(100, 116, 139, 0.42);
 
   --vp-variant-drawer-transition-fast: 140ms ease;
   --vp-variant-drawer-transition: 220ms ease;
@@ -169,6 +191,8 @@
 
   --vp-variant-drawer-shadow-soft:
     0 14px 36px rgba(0, 0, 0, 0.34);
+
+  --vp-variant-drawer-scrollbar-thumb: rgba(148, 163, 184, 0.42);
 }
 
 
@@ -192,18 +216,23 @@ body.vp-create-variant-drawer-open {
   z-index: var(--vp-variant-drawer-z-backdrop);
   display: grid;
   place-items: center;
+  min-width: 0;
+  min-height: 0;
   padding: 1rem;
   pointer-events: none;
   color: var(--vp-variant-drawer-text);
+  overflow: hidden;
 }
 
 .vp-create-variant-drawer[hidden],
 [data-vp-variant-drawer-root="true"][hidden],
-.vp-create-variant-drawer[data-vp-variant-drawer-state="closed"] {
+.vp-create-variant-drawer[data-vp-variant-drawer-state="closed"],
+[data-vp-variant-drawer-root="true"][data-vp-variant-drawer-state="closed"] {
   display: none !important;
 }
 
-.vp-create-variant-drawer[data-vp-variant-drawer-state="open"] {
+.vp-create-variant-drawer[data-vp-variant-drawer-state="open"],
+[data-vp-variant-drawer-root="true"][data-vp-variant-drawer-state="open"] {
   pointer-events: auto;
 }
 
@@ -237,10 +266,14 @@ body.vp-create-variant-drawer-open {
   display: block;
   place-items: initial;
   width: 100%;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
+  max-height: 100%;
   padding: 0;
   pointer-events: auto;
+  overflow: hidden;
 }
 
 [data-vp-create-step] .vp-create-variant-drawer[hidden],
@@ -310,6 +343,7 @@ body.vp-create-variant-drawer-open {
   container-type: inline-size;
   container-name: vp-variant-drawer;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   width: var(--vp-variant-drawer-width-wide);
   max-width: calc(100vw - 2rem);
@@ -329,7 +363,8 @@ body.vp-create-variant-drawer-open {
     transform var(--vp-variant-drawer-transition-slow);
 }
 
-.vp-create-variant-drawer[data-vp-variant-drawer-state="open"] .vp-create-variant-drawer__panel {
+.vp-create-variant-drawer[data-vp-variant-drawer-state="open"] .vp-create-variant-drawer__panel,
+[data-vp-variant-drawer-root="true"][data-vp-variant-drawer-state="open"] .vp-create-variant-drawer__panel {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
@@ -355,6 +390,7 @@ body.vp-create-variant-drawer-open {
   max-height: var(--vp-variant-drawer-embedded-height);
   min-height: var(--vp-variant-drawer-embedded-min-height);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   overflow: hidden;
   border-radius: var(--vp-variant-drawer-radius-lg);
@@ -367,6 +403,19 @@ body.vp-create-variant-drawer-open {
 .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__panel {
   background: var(--vp-variant-drawer-bg);
   border: 1px solid var(--vp-variant-drawer-border);
+}
+
+[data-vp-create-step] .vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__panel,
+[data-vp-create-step] .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__panel,
+[data-vp-variant-workspace] .vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__panel,
+[data-vp-variant-workspace] .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__panel,
+[data-vp-variant-workspace-root="true"] .vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__panel,
+[data-vp-variant-workspace-root="true"] .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__panel,
+[data-vp-create-section="object-variants"] .vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__panel,
+[data-vp-create-section="object-variants"] .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__panel {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
 }
 
 .vp-create-variant-drawer[data-vp-drawer-size="compact"] .vp-create-variant-drawer__panel,
@@ -393,8 +442,8 @@ body.vp-create-variant-drawer-open {
 [data-vp-create-section="object-variants"] .vp-create-variant-drawer[data-vp-drawer-size] .vp-create-variant-drawer__panel,
 [data-vp-create-section="object-variants"] .vp-create-variant-drawer[data-vp-variant-drawer-size] .vp-create-variant-drawer__panel {
   width: 100%;
-  height: var(--vp-variant-drawer-embedded-height);
-  max-height: var(--vp-variant-drawer-embedded-height);
+  height: 100%;
+  max-height: 100%;
 }
 
 
@@ -447,6 +496,7 @@ body.vp-create-variant-drawer-open {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--vp-variant-drawer-gap);
   align-items: start;
+  min-width: 0;
   min-height: var(--vp-variant-drawer-header-min-height);
   padding: var(--vp-variant-drawer-padding);
   background:
@@ -463,8 +513,8 @@ body.vp-create-variant-drawer-open {
 [data-vp-variant-workspace-root="true"] .vp-create-variant-drawer__header,
 .vp-create-variant-workspace .vp-create-variant-drawer__header,
 [data-vp-create-section="object-variants"] .vp-create-variant-drawer__header {
-  min-height: 4.25rem;
-  padding: 0.78rem 1rem;
+  min-height: 4.05rem;
+  padding: 0.72rem 0.95rem;
 }
 
 .vp-create-variant-drawer__header-main {
@@ -535,7 +585,15 @@ body.vp-create-variant-drawer-open {
 .vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__meta,
 .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__meta,
 .vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__status,
-.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__status {
+.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__status,
+[data-vp-create-step] .vp-create-variant-drawer__meta,
+[data-vp-variant-workspace] .vp-create-variant-drawer__meta,
+[data-vp-variant-workspace-root="true"] .vp-create-variant-drawer__meta,
+[data-vp-create-section="object-variants"] .vp-create-variant-drawer__meta,
+[data-vp-create-step] .vp-create-variant-drawer__status,
+[data-vp-variant-workspace] .vp-create-variant-drawer__status,
+[data-vp-variant-workspace-root="true"] .vp-create-variant-drawer__status,
+[data-vp-create-section="object-variants"] .vp-create-variant-drawer__status {
   display: none !important;
 }
 
@@ -682,13 +740,18 @@ body.vp-create-variant-drawer-open {
 
 .vp-create-variant-drawer__validation {
   min-width: 0;
+  max-height: min(22vh, 10rem);
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 0.62rem 0.85rem;
   color: var(--vp-variant-drawer-warning);
   background: var(--vp-variant-drawer-warning-soft);
   border-bottom: 1px solid var(--vp-variant-drawer-warning-border);
+  overscroll-behavior: contain;
 }
 
-.vp-create-variant-drawer__validation[hidden] {
+.vp-create-variant-drawer__validation[hidden],
+.vp-create-variant-drawer__validation:empty {
   display: none !important;
 }
 
@@ -744,6 +807,7 @@ body.vp-create-variant-drawer-open {
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   height: 100%;
+  max-height: 100%;
   overflow: hidden;
 }
 
@@ -861,9 +925,12 @@ body.vp-create-variant-drawer-open {
 .vp-create-variant-drawer__fields {
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--vp-variant-drawer-padding);
   background: var(--vp-variant-drawer-bg);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__fields,
@@ -874,7 +941,7 @@ body.vp-create-variant-drawer-open {
 .vp-create-variant-workspace .vp-create-variant-drawer__fields,
 [data-vp-create-section="object-variants"] .vp-create-variant-drawer__fields {
   height: 100%;
-  max-height: none;
+  max-height: 100%;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
@@ -1313,6 +1380,7 @@ body.vp-create-variant-drawer-open {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--vp-variant-drawer-gap);
   align-items: center;
+  min-width: 0;
   min-height: var(--vp-variant-drawer-footer-min-height);
   padding: var(--vp-variant-drawer-padding-sm) var(--vp-variant-drawer-padding);
   background:
@@ -1343,12 +1411,12 @@ body.vp-create-variant-drawer-open {
 [data-vp-create-section="object-variants"] .vp-create-variant-drawer-footer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 3.9rem;
-  padding: 0.62rem 0.85rem;
+  min-height: 3.6rem;
+  padding: 0.56rem 0.82rem;
 }
 
 .vp-create-variant-drawer-footer--compact {
-  min-height: 3.8rem;
+  min-height: 3.6rem;
 }
 
 .vp-create-variant-drawer__footer-status,
@@ -1488,8 +1556,8 @@ body.vp-create-variant-drawer-open {
 [data-vp-variant-workspace] .vp-create-variant-drawer-footer .vp-create-button,
 [data-vp-create-section="object-variants"] .vp-create-variant-drawer__footer .vp-create-button,
 [data-vp-create-section="object-variants"] .vp-create-variant-drawer-footer .vp-create-button {
-  min-height: 2.25rem;
-  padding-block: 0.44rem;
+  min-height: 2.2rem;
+  padding-block: 0.4rem;
   font-size: 0.84rem;
 }
 
@@ -1784,11 +1852,13 @@ body.vp-create-variant-drawer-open {
   24. Busy / Dirty Runtime States
 ----------------------------------------------------------------------------- */
 
-.vp-create-variant-drawer[data-vp-variant-drawer-busy="true"] .vp-create-variant-drawer__panel {
+.vp-create-variant-drawer[data-vp-variant-drawer-busy="true"] .vp-create-variant-drawer__panel,
+[data-vp-variant-drawer-root="true"][data-vp-variant-drawer-busy="true"] .vp-create-variant-drawer__panel {
   cursor: progress;
 }
 
-.vp-create-variant-drawer[data-vp-variant-drawer-busy="true"] .vp-create-variant-drawer__panel::after {
+.vp-create-variant-drawer[data-vp-variant-drawer-busy="true"] .vp-create-variant-drawer__panel::after,
+[data-vp-variant-drawer-root="true"][data-vp-variant-drawer-busy="true"] .vp-create-variant-drawer__panel::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1832,15 +1902,17 @@ body.vp-create-variant-drawer-open {
 .vp-create-variant-drawer__section-nav,
 .vp-create-variant-drawer__fields,
 .vp-create-variant-drawer__summary,
-.vp-create-variant-drawer-empty-state__diagnostics-pre {
+.vp-create-variant-drawer-empty-state__diagnostics-pre,
+.vp-create-variant-drawer__validation {
   scrollbar-width: thin;
-  scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+  scrollbar-color: var(--vp-variant-drawer-scrollbar-thumb) var(--vp-variant-drawer-scrollbar-bg);
 }
 
 .vp-create-variant-drawer__section-nav::-webkit-scrollbar,
 .vp-create-variant-drawer__fields::-webkit-scrollbar,
 .vp-create-variant-drawer__summary::-webkit-scrollbar,
-.vp-create-variant-drawer-empty-state__diagnostics-pre::-webkit-scrollbar {
+.vp-create-variant-drawer-empty-state__diagnostics-pre::-webkit-scrollbar,
+.vp-create-variant-drawer__validation::-webkit-scrollbar {
   width: 0.58rem;
   height: 0.58rem;
 }
@@ -1848,8 +1920,9 @@ body.vp-create-variant-drawer-open {
 .vp-create-variant-drawer__section-nav::-webkit-scrollbar-thumb,
 .vp-create-variant-drawer__fields::-webkit-scrollbar-thumb,
 .vp-create-variant-drawer__summary::-webkit-scrollbar-thumb,
-.vp-create-variant-drawer-empty-state__diagnostics-pre::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.42);
+.vp-create-variant-drawer-empty-state__diagnostics-pre::-webkit-scrollbar-thumb,
+.vp-create-variant-drawer__validation::-webkit-scrollbar-thumb {
+  background: var(--vp-variant-drawer-scrollbar-thumb);
   border: 0.16rem solid transparent;
   border-radius: 999px;
   background-clip: content-box;
@@ -1858,8 +1931,9 @@ body.vp-create-variant-drawer-open {
 .vp-create-variant-drawer__section-nav::-webkit-scrollbar-track,
 .vp-create-variant-drawer__fields::-webkit-scrollbar-track,
 .vp-create-variant-drawer__summary::-webkit-scrollbar-track,
-.vp-create-variant-drawer-empty-state__diagnostics-pre::-webkit-scrollbar-track {
-  background: transparent;
+.vp-create-variant-drawer-empty-state__diagnostics-pre::-webkit-scrollbar-track,
+.vp-create-variant-drawer__validation::-webkit-scrollbar-track {
+  background: var(--vp-variant-drawer-scrollbar-bg);
 }
 
 
@@ -1963,12 +2037,20 @@ body.vp-create-variant-drawer-open {
     border-radius: var(--vp-variant-drawer-radius-lg);
   }
 
+  @supports (height: 100dvh) {
+    .vp-create-variant-drawer__panel {
+      height: calc(100dvh - 1rem);
+      max-height: calc(100dvh - 1rem);
+    }
+  }
+
   [data-vp-create-step] .vp-create-variant-drawer__panel,
   [data-vp-variant-workspace] .vp-create-variant-drawer__panel,
   [data-vp-variant-workspace-root="true"] .vp-create-variant-drawer__panel,
   [data-vp-create-section="object-variants"] .vp-create-variant-drawer__panel {
-    height: clamp(32rem, calc(100dvh - 14rem), 43rem);
-    max-height: clamp(32rem, calc(100dvh - 14rem), 43rem);
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
   }
 
   .vp-create-variant-drawer__body {
@@ -2003,6 +2085,14 @@ body.vp-create-variant-drawer-open {
     border-inline: 0;
   }
 
+  @supports (height: 100dvh) {
+    .vp-create-variant-drawer__panel {
+      height: 100dvh;
+      max-height: 100dvh;
+      min-height: 100dvh;
+    }
+  }
+
   [data-vp-create-step] .vp-create-variant-drawer__panel,
   [data-vp-variant-workspace] .vp-create-variant-drawer__panel,
   [data-vp-variant-workspace-root="true"] .vp-create-variant-drawer__panel,
@@ -2010,9 +2100,9 @@ body.vp-create-variant-drawer-open {
   [data-vp-create-section="object-variants"] .vp-create-variant-drawer__panel {
     width: 100%;
     max-width: 100%;
-    height: clamp(30rem, calc(100dvh - 14rem), 41rem);
-    max-height: clamp(30rem, calc(100dvh - 14rem), 41rem);
-    min-height: min(26rem, calc(100dvh - 11rem));
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
     border-radius: var(--vp-variant-drawer-radius-lg);
     border-inline: 1px solid var(--vp-variant-drawer-border);
   }
@@ -2097,17 +2187,17 @@ body.vp-create-variant-drawer-open {
 
 @media (max-height: 760px) {
   :root {
-    --vp-variant-drawer-embedded-height: clamp(31rem, calc(100dvh - 12.5rem), 42rem);
-    --vp-variant-drawer-embedded-min-height: min(28rem, calc(100dvh - 10rem));
+    --vp-variant-drawer-embedded-height: 100%;
+    --vp-variant-drawer-embedded-min-height: 0;
   }
 
   [data-vp-create-step] .vp-create-variant-drawer__header,
   [data-vp-variant-workspace] .vp-create-variant-drawer__header,
   [data-vp-variant-workspace-root="true"] .vp-create-variant-drawer__header,
   [data-vp-create-section="object-variants"] .vp-create-variant-drawer__header {
-    min-height: 3.85rem;
-    padding-top: 0.62rem;
-    padding-bottom: 0.62rem;
+    min-height: 3.7rem;
+    padding-top: 0.56rem;
+    padding-bottom: 0.56rem;
   }
 
   .vp-create-variant-drawer__subtitle,
@@ -2117,21 +2207,21 @@ body.vp-create-variant-drawer-open {
 
   .vp-create-variant-drawer__footer,
   .vp-create-variant-drawer-footer {
-    min-height: 3.45rem;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
+    min-height: 3.25rem;
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
   }
 
   .vp-create-variant-drawer__fields {
-    padding-top: 0.72rem;
-    padding-bottom: 0.72rem;
+    padding-top: 0.68rem;
+    padding-bottom: 0.68rem;
   }
 }
 
 @media (max-height: 640px) {
   :root {
-    --vp-variant-drawer-embedded-height: clamp(27rem, calc(100dvh - 10.5rem), 36rem);
-    --vp-variant-drawer-embedded-min-height: 24rem;
+    --vp-variant-drawer-embedded-height: 100%;
+    --vp-variant-drawer-embedded-min-height: 0;
   }
 
   .vp-create-variant-drawer__kicker {

@@ -26,6 +26,18 @@
   - Keine profil- oder objektartspezifischen Spezialfälle.
   - Validierungsdetails liegen ergänzend in `variant-validation.css`.
 
+  Scroll-/Layout-Vertrag:
+  - Diese Datei erzeugt keine eigene globale Scrollzone.
+  - Scrollen im geöffneten Drawer passiert ausschließlich in:
+      .vp-create-variant-drawer__fields
+  - Field-Grids dürfen nicht größer als ihr Parent werden.
+  - Felder, Controls, Document-Rows und Labels bleiben min-width: 0.
+  - Textarea- und Document-List-Felder laufen full-width.
+  - Optional-Fields-Rows aus `variant-optional-fields.css` werden nicht in
+    normale Karten oder Section-Grids zurückverwandelt.
+  - Systemfelder bleiben unsichtbar.
+  - Clean-Shell bleibt lesbar, nicht miniaturisiert.
+
   UI-Ziel dieser Fassung:
   - Größere und besser lesbare Felder im eingebetteten Variant Editor.
   - Keine Mini-Typografie im Clean-Editor.
@@ -49,6 +61,17 @@
   - [data-vp-clean-section-layout="flat"]
   - [data-vp-section-display="flat"]
   - [data-vp-section-visible="true"]
+
+  Robustheitsprinzip:
+  - CSS besitzt kein try/catch.
+  - Robustheit entsteht über:
+      - enge Scope-Selektoren
+      - Fallback-Variablen
+      - defensive hidden/system-managed Regeln
+      - min-width: 0 / min-height: 0
+      - kontrollierte Field-Grids
+      - klare Full-Width-Regeln für lange Eingaben
+      - keine pauschalen Höhenzwänge
 ----------------------------------------------------------------------------- */
 
 
@@ -118,6 +141,10 @@
 
   --vp-variant-field-section-gap: 0.78rem;
   --vp-variant-field-section-grid-gap: 0.78rem;
+
+  --vp-variant-field-textarea-min-height: 5.9rem;
+  --vp-variant-field-textarea-max-height: min(18rem, 38vh);
+  --vp-variant-field-document-row-gap: 0.48rem;
 }
 
 
@@ -187,8 +214,10 @@
   container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: var(--vp-variant-field-gap);
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
   color: var(--vp-variant-field-text);
 }
@@ -293,6 +322,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
 }
 
@@ -440,7 +470,8 @@
 
 .vp-create-variant-field__textarea,
 .vp-create-variant-field textarea {
-  min-height: 5.9rem;
+  min-height: var(--vp-variant-field-textarea-min-height);
+  max-height: var(--vp-variant-field-textarea-max-height);
   resize: vertical;
   overflow: auto;
 }
@@ -455,7 +486,9 @@
 [data-vp-create-step] .vp-create-variant-field[data-vp-field-key="variant.description"] textarea,
 [data-vp-create-step] .vp-create-variant-field[data-vp-field-key="variant.description"] .vp-create-variant-field__textarea,
 .vp-create-variant-drawer--shell-clean .vp-create-variant-field[data-vp-field-key="variant.description"] textarea,
-.vp-create-variant-drawer--shell-clean .vp-create-variant-field[data-vp-field-key="variant.description"] .vp-create-variant-field__textarea {
+.vp-create-variant-drawer--shell-clean .vp-create-variant-field[data-vp-field-key="variant.description"] .vp-create-variant-field__textarea,
+.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-field[data-vp-field-key="variant.description"] textarea,
+.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-field[data-vp-field-key="variant.description"] .vp-create-variant-field__textarea {
   min-height: 5.9rem;
 }
 
@@ -604,6 +637,7 @@
   color: var(--vp-variant-field-text-muted);
   font-size: var(--vp-variant-field-help-size);
   line-height: 1.42;
+  overflow-wrap: anywhere;
 }
 
 .vp-create-variant-field__description[hidden] {
@@ -616,6 +650,7 @@
   font-size: var(--vp-variant-field-help-size);
   font-weight: 750;
   line-height: 1.42;
+  overflow-wrap: anywhere;
 }
 
 .vp-create-variant-field__error[hidden] {
@@ -710,7 +745,7 @@
     minmax(6rem, 0.72fr)
     minmax(9rem, 1.4fr)
     auto;
-  gap: 0.48rem;
+  gap: var(--vp-variant-field-document-row-gap);
   align-items: start;
   min-width: 0;
   padding: 0.58rem;
@@ -719,7 +754,8 @@
   border-radius: var(--vp-variant-field-radius);
 }
 
-.vp-create-variant-document-row input {
+.vp-create-variant-document-row input,
+[data-vp-document-row="true"] input {
   min-height: var(--vp-variant-field-control-height-sm);
   padding-block: 0.5rem;
   font-size: 0.86rem;
@@ -810,7 +846,8 @@
 /* Clean-Shell intentionally stays readable, not mini. */
 .vp-create-variant-drawer--shell-clean .vp-create-variant-field,
 .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-field,
-[data-vp-create-step] .vp-create-variant-drawer--shell-clean .vp-create-variant-field {
+[data-vp-create-step] .vp-create-variant-drawer--shell-clean .vp-create-variant-field,
+[data-vp-create-section="object-variants"] .vp-create-variant-field {
   gap: 0.46rem;
 }
 
@@ -839,6 +876,7 @@
 
 .vp-create-variant-drawer__section-grid {
   min-width: 0;
+  align-items: start;
 }
 
 .vp-create-variant-drawer__section-grid .vp-create-variant-field {
@@ -902,6 +940,7 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--vp-variant-field-section-gap);
   min-width: 0;
+  min-height: 0;
 }
 
 .vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__section,
@@ -914,6 +953,7 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 0.68rem;
   min-width: 0;
+  min-height: 0;
   padding: 0.78rem 0 0.82rem;
   border: 0;
   border-top: 1px solid var(--vp-variant-field-border-soft);
@@ -930,10 +970,15 @@
   border-top: 0;
 }
 
-.vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__section[hidden],
-.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__section[hidden],
-.vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__section[aria-hidden="true"],
-.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__section[aria-hidden="true"] {
+.vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__section[hidden]:not([data-vp-section-visible="true"]),
+.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__section[hidden]:not([data-vp-section-visible="true"]) {
+  display: none !important;
+}
+
+.vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__section[hidden][data-vp-section-visible="true"],
+.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__section[hidden][data-vp-section-visible="true"],
+.vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__section[aria-hidden="true"][data-vp-section-visible="true"],
+.vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__section[aria-hidden="true"][data-vp-section-visible="true"] {
   display: grid !important;
 }
 
@@ -970,8 +1015,10 @@
 .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] [data-vp-section-display="flat"] [data-vp-section-fields="true"] {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: var(--vp-variant-field-section-grid-gap);
   min-width: 0;
+  min-height: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1231,17 +1278,24 @@
 ----------------------------------------------------------------------------- */
 
 @media (max-height: 760px) {
-  .vp-create-variant-drawer--shell-clean .vp-create-variant-field__textarea,
-  .vp-create-variant-drawer--shell-clean .vp-create-variant-field textarea,
-  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-field__textarea,
-  .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-field textarea {
-    min-height: 5rem;
+  :root {
+    --vp-variant-field-textarea-min-height: 5rem;
+    --vp-variant-field-textarea-max-height: min(13rem, 32vh);
   }
 
   .vp-create-variant-drawer--shell-clean .vp-create-variant-drawer__section,
   .vp-create-variant-drawer[data-vp-variant-drawer-shell="clean"] .vp-create-variant-drawer__section {
     padding-top: 0.62rem;
     padding-bottom: 0.65rem;
+  }
+}
+
+@media (max-height: 640px) {
+  :root {
+    --vp-variant-field-textarea-min-height: 4.4rem;
+    --vp-variant-field-textarea-max-height: min(10rem, 28vh);
+    --vp-variant-field-section-gap: 0.62rem;
+    --vp-variant-field-section-grid-gap: 0.62rem;
   }
 }
 

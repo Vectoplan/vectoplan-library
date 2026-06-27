@@ -8,30 +8,24 @@
     Fallbacks und Editor-State.
   - Fachliche Feld-, Tabellen- und Drawer-Details liegen weiterhin in:
       - tables.css
+      - variant-table.css
       - variant-drawer.css
       - variant-fields.css
       - variant-optional-fields.css
       - variant-validation.css
 
-  Aktuelles Ziel:
-  - Workspace bleibt flach und platzsparend.
-  - Keine zusätzliche schwere Card im Step-3-Inhalt.
-  - Kein großer Statusbereich zwischen Header und Tabelle.
-  - Status erscheint als kompakte Pill im Header.
-  - data-vp-variant-editor-state="closed":
-      - Objektart-Auswahl sichtbar.
-      - Objektart-Hinweis sichtbar.
-      - Variantenübersicht sichtbar.
-      - Drawer-Slot verborgen.
-  - data-vp-variant-editor-state="open":
-      - Objektart-Auswahl verborgen.
-      - Objektart-Hinweis verborgen.
-      - Variantenübersicht verborgen.
-      - Workspace-Header reduziert.
-      - Drawer-Slot sichtbar und volle Breite.
-  - Der Drawer/Editor bekommt die volle verfügbare Breite.
-  - Der Workspace selbst erzeugt keine zusätzliche Scrollbar.
-  - Bestehende Runtime-Hooks und Fallback-Klassen bleiben kompatibel.
+  Scroll-Vertrag:
+  - Geschlossener Zustand:
+      Der aktive Wizard-Step scrollt über .vplib-create-step__body.
+      Der Variant Workspace erzeugt keine eigene vertikale Scrollbar.
+      Die Tabelle darf ihre Breite intern kontrollieren.
+  - Geöffneter Editor-Zustand:
+      Objektart-Auswahl, Hinweis und Tabelle werden ausgeblendet.
+      Der Drawer-Slot übernimmt die verfügbare Höhe.
+      Der Drawer selbst bleibt ein internes Grid.
+      Nur die Drawer-Field-Area scrollt.
+  - Keine Wrapper-Scrollbar auf Step-3-Shell, Workspace oder Drawer-Slot.
+  - Kein Clipping der Variantenliste im geschlossenen Zustand.
 
   Erwartete Haupt-Hooks:
   - .vp-create-section--object-variants
@@ -56,6 +50,7 @@
       - Editor-State-Fallbacks über Klassen und :has()
       - min-width: 0 / min-height: 0
       - kontrollierte Overflow-Regeln
+      - klare Trennung zwischen Step-Scroll und Drawer-Scroll
 ----------------------------------------------------------------------------- */
 
 
@@ -111,6 +106,9 @@
   --vp-variant-workspace-transition: 160ms ease;
   --vp-variant-workspace-z-base: 1;
   --vp-variant-workspace-z-drawer: 5;
+
+  --vp-variant-workspace-table-empty-min-height: 7rem;
+  --vp-variant-workspace-embedded-table-empty-min-height: 5.6rem;
 }
 
 
@@ -180,8 +178,9 @@
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: auto;
   gap: clamp(0.8rem, 1vw, 1.08rem);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .vp-create-object-variants__top,
@@ -296,6 +295,10 @@
 [data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] [data-vp-object-variants-body="true"],
 [data-vp-create-section="object-variants"].is-variant-editor-open [data-vp-object-variants-body="true"] {
   gap: var(--vp-variant-workspace-gap-compact);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .vp-create-section--object-variants[data-vp-variant-editor-state="open"] .vp-create-object-variants__workspace,
@@ -304,7 +307,8 @@
 [data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] [data-vp-object-variants-workspace-slot="true"],
 [data-vp-create-section="object-variants"].is-variant-editor-open [data-vp-object-variants-workspace-slot="true"] {
   min-height: 0;
-  overflow: visible;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Fallback für Browser mit :has(), falls ein JS-State nur auf Workspace/Drawer landet. */
@@ -341,6 +345,7 @@
   gap: var(--vp-variant-workspace-gap);
   width: 100%;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
   padding: var(--vp-variant-workspace-padding);
   color: var(--vp-variant-workspace-text);
@@ -368,7 +373,7 @@
   display: none !important;
 }
 
-/* Eingebettet in Schritt 3: keine zusätzliche schwere Card. */
+/* Eingebettet in Schritt 3: keine zusätzliche schwere Card, keine eigene Scrollbox. */
 .vp-create-object-variants__workspace > .vp-create-variant-workspace,
 .vp-create-object-variants__workspace > [data-vp-variant-workspace-root="true"],
 .vp-create-section--object-variants .vp-create-variant-workspace,
@@ -397,6 +402,9 @@
     "status-text"
     "table"
     "fallback";
+  grid-template-rows: auto auto auto auto;
+  height: auto;
+  overflow: visible;
 }
 
 .vp-create-variant-workspace[data-vp-variant-editor-state="open"],
@@ -406,7 +414,11 @@
   grid-template-areas:
     "drawer"
     "fallback";
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: var(--vp-variant-workspace-gap-compact);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .vp-create-variant-workspace[data-vp-variant-editor-state="open"] .vp-create-variant-workspace__header,
@@ -634,7 +646,7 @@
   display: block;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
   transition:
     opacity var(--vp-variant-workspace-transition),
     max-height var(--vp-variant-workspace-transition),
@@ -652,16 +664,25 @@
 
 .vp-create-variant-workspace__table-slot:empty,
 [data-vp-variant-table-slot="true"]:empty {
-  min-height: 7rem;
+  min-height: var(--vp-variant-workspace-table-empty-min-height);
   border: 1px dashed var(--vp-variant-workspace-border);
   border-radius: var(--vp-variant-workspace-radius-sm);
   background: var(--vp-variant-workspace-bg-soft);
 }
 
+.vp-create-object-variants__workspace .vp-create-variant-workspace__table-slot:empty,
+.vp-create-object-variants__workspace [data-vp-variant-table-slot="true"]:empty,
+.vp-create-section--object-variants .vp-create-variant-workspace__table-slot:empty,
+.vp-create-section--object-variants [data-vp-variant-table-slot="true"]:empty,
+[data-vp-create-section="object-variants"] .vp-create-variant-workspace__table-slot:empty,
+[data-vp-create-section="object-variants"] [data-vp-variant-table-slot="true"]:empty {
+  min-height: var(--vp-variant-workspace-embedded-table-empty-min-height);
+}
+
 .vp-create-variant-workspace__table-slot:empty::before,
 [data-vp-variant-table-slot="true"]:empty::before {
   content: "Variantenliste wird geladen.";
-  min-height: 7rem;
+  min-height: inherit;
   display: grid;
   place-items: center;
   padding: 1rem;
@@ -683,8 +704,9 @@
   display: block;
   width: 100%;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .vp-create-variant-workspace__drawer-slot[hidden],
@@ -696,6 +718,7 @@
 [data-vp-variant-drawer-slot="true"] > * {
   width: 100%;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
 }
 
@@ -709,8 +732,10 @@
 [data-vp-variant-workspace-root="true"].is-variant-editor-open [data-vp-variant-drawer-slot="true"] {
   display: block !important;
   width: 100%;
+  height: 100%;
+  min-height: 0;
   max-width: 100%;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .vp-create-variant-workspace[data-vp-variant-editor-state="open"] > .vp-create-variant-drawer,
@@ -722,7 +747,10 @@
   grid-area: drawer;
   display: block;
   width: 100%;
+  height: 100%;
+  min-height: 0;
   max-width: 100%;
+  overflow: hidden;
 }
 
 
@@ -815,12 +843,14 @@
 .vp-create-variant-workspace [data-vp-variant-drawer-root="true"],
 [data-vp-variant-workspace-root="true"] [data-vp-variant-drawer-root="true"] {
   width: 100%;
+  min-width: 0;
   max-width: 100%;
 }
 
 .vp-create-variant-workspace .vp-create-variant-drawer__panel,
 [data-vp-variant-workspace-root="true"] .vp-create-variant-drawer__panel {
   width: 100%;
+  min-width: 0;
   max-width: 100%;
 }
 
@@ -1066,6 +1096,9 @@
 @media print {
   .vp-create-variant-workspace,
   [data-vp-variant-workspace-root="true"] {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
     padding: 0;
     background: transparent;
     border: 0;

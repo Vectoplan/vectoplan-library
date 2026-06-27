@@ -1,0 +1,428 @@
+{# templates/inventar/partials/_user-hotbar.html #}
+{#
+  VECTOPLAN User-Hotbar Partial
+
+  Zweck:
+  - Gemeinsame 9-Slot-Hotbar für /user-inventar und /creative-inventar.
+  - Unterstützt Overlay- und Dock-Variante.
+  - Bleibt kompatibel mit static/js/inventar/user-inventory.js.
+  - Rendert defensiv mit Defaults, damit fehlende Backend-/Template-Daten nicht brechen.
+
+  Erwartete optionale Include-Variablen:
+  - user_inventory_hotbar_variant oder hotbar_variant: "overlay" | "dock"
+  - user_inventory_hotbar_id oder hotbar_id
+  - user_inventory_hotbar_label oder hotbar_label
+  - user_inventory_slots, inventory_slots oder slots
+  - user_id
+  - inventory_key
+  - slot_count
+  - active_slot_index
+  - last_selected_slot_index
+  - create_embed_hotbar_area: true | false
+
+  Beispiel:
+  {% include "inventar/partials/_user-hotbar.html" with context %}
+
+  Optional vor dem Include setzen:
+  {% set user_inventory_hotbar_variant = "dock" %}
+#}
+
+{# --------------------------------------------------------------------------
+   Variante normalisieren
+   -------------------------------------------------------------------------- #}
+{% if user_inventory_hotbar_variant is defined %}
+  {% set _hotbar_variant_raw = user_inventory_hotbar_variant %}
+{% elif hotbar_variant is defined %}
+  {% set _hotbar_variant_raw = hotbar_variant %}
+{% else %}
+  {% set _hotbar_variant_raw = "dock" %}
+{% endif %}
+
+{% set _hotbar_variant = _hotbar_variant_raw|string|lower|trim %}
+
+{% if _hotbar_variant not in ["overlay", "dock"] %}
+  {% set _hotbar_variant = "dock" %}
+{% endif %}
+
+{# --------------------------------------------------------------------------
+   IDs / Labels / Klassen
+   -------------------------------------------------------------------------- #}
+{% if user_inventory_hotbar_id is defined %}
+  {% set _hotbar_id = user_inventory_hotbar_id|string|trim %}
+{% elif hotbar_id is defined %}
+  {% set _hotbar_id = hotbar_id|string|trim %}
+{% else %}
+  {% set _hotbar_id = "vp-user-hotbar" %}
+{% endif %}
+
+{% if user_inventory_hotbar_label is defined %}
+  {% set _hotbar_label = user_inventory_hotbar_label|string|trim %}
+{% elif hotbar_label is defined %}
+  {% set _hotbar_label = hotbar_label|string|trim %}
+{% else %}
+  {% set _hotbar_label = "Aktuelles User-Inventar" %}
+{% endif %}
+
+{% if not _hotbar_label %}
+  {% set _hotbar_label = "Aktuelles User-Inventar" %}
+{% endif %}
+
+{% set _hotbar_class = "vp-user-hotbar vp-user-hotbar--" ~ _hotbar_variant %}
+
+{% if user_inventory_hotbar_extra_class is defined and user_inventory_hotbar_extra_class %}
+  {% set _hotbar_class = _hotbar_class ~ " " ~ user_inventory_hotbar_extra_class|string|trim %}
+{% elif hotbar_extra_class is defined and hotbar_extra_class %}
+  {% set _hotbar_class = _hotbar_class ~ " " ~ hotbar_extra_class|string|trim %}
+{% endif %}
+
+{# --------------------------------------------------------------------------
+   Slot-Anzahl defensiv normalisieren.
+   user-inventory.js ist aktuell auf 1..9 ausgelegt.
+   -------------------------------------------------------------------------- #}
+{% if slot_count is defined %}
+  {% set _slot_count = slot_count|int %}
+{% elif user_inventory_slot_count is defined %}
+  {% set _slot_count = user_inventory_slot_count|int %}
+{% else %}
+  {% set _slot_count = 9 %}
+{% endif %}
+
+{% if _slot_count < 1 %}
+  {% set _slot_count = 9 %}
+{% endif %}
+
+{% if _slot_count > 9 %}
+  {% set _slot_count = 9 %}
+{% endif %}
+
+{# --------------------------------------------------------------------------
+   Aktiven Slot defensiv normalisieren
+   -------------------------------------------------------------------------- #}
+{% if active_slot_index is defined %}
+  {% set _active_slot_index = active_slot_index|int %}
+{% elif user_inventory_active_slot_index is defined %}
+  {% set _active_slot_index = user_inventory_active_slot_index|int %}
+{% else %}
+  {% set _active_slot_index = 1 %}
+{% endif %}
+
+{% if _active_slot_index < 1 or _active_slot_index > _slot_count %}
+  {% set _active_slot_index = 1 %}
+{% endif %}
+
+{% if last_selected_slot_index is defined %}
+  {% set _last_selected_slot_index = last_selected_slot_index|int %}
+{% elif user_inventory_last_selected_slot_index is defined %}
+  {% set _last_selected_slot_index = user_inventory_last_selected_slot_index|int %}
+{% else %}
+  {% set _last_selected_slot_index = _active_slot_index %}
+{% endif %}
+
+{% if _last_selected_slot_index < 1 or _last_selected_slot_index > _slot_count %}
+  {% set _last_selected_slot_index = _active_slot_index %}
+{% endif %}
+
+{# --------------------------------------------------------------------------
+   User / Inventory-Key defensiv normalisieren
+   -------------------------------------------------------------------------- #}
+{% if user_id is defined %}
+  {% set _user_id = user_id|int %}
+{% elif user_inventory_user_id is defined %}
+  {% set _user_id = user_inventory_user_id|int %}
+{% else %}
+  {% set _user_id = 1 %}
+{% endif %}
+
+{% if _user_id < 1 %}
+  {% set _user_id = 1 %}
+{% endif %}
+
+{% if inventory_key is defined %}
+  {% set _inventory_key = inventory_key|string|trim %}
+{% elif user_inventory_key is defined %}
+  {% set _inventory_key = user_inventory_key|string|trim %}
+{% else %}
+  {% set _inventory_key = "default" %}
+{% endif %}
+
+{% if not _inventory_key %}
+  {% set _inventory_key = "default" %}
+{% endif %}
+
+{# --------------------------------------------------------------------------
+   Slot-Datenquelle.
+   Unterstützt:
+   - user_inventory_slots
+   - inventory_slots
+   - slots
+   - Liste oder Mapping
+   -------------------------------------------------------------------------- #}
+{% if user_inventory_slots is defined %}
+  {% set _slots = user_inventory_slots %}
+{% elif inventory_slots is defined %}
+  {% set _slots = inventory_slots %}
+{% elif slots is defined %}
+  {% set _slots = slots %}
+{% else %}
+  {% set _slots = [] %}
+{% endif %}
+
+{# --------------------------------------------------------------------------
+   Create-Embed-Hotbar-Area.
+   Im Creative-Inventar soll die Hotbar während Create ausgeblendet werden.
+   Für Overlay wird das standardmäßig nicht gesetzt.
+   -------------------------------------------------------------------------- #}
+{% if create_embed_hotbar_area is defined %}
+  {% set _create_embed_hotbar_area = create_embed_hotbar_area %}
+{% elif user_inventory_create_embed_hotbar_area is defined %}
+  {% set _create_embed_hotbar_area = user_inventory_create_embed_hotbar_area %}
+{% else %}
+  {% set _create_embed_hotbar_area = (_hotbar_variant == "dock") %}
+{% endif %}
+
+<section
+  {% if _hotbar_id %}id="{{ _hotbar_id|e }}"{% endif %}
+  class="{{ _hotbar_class|e }}"
+  aria-label="{{ _hotbar_label|e }}"
+  data-user-inventory-hotbar="true"
+  data-user-inventory-hotbar-variant="{{ _hotbar_variant|e }}"
+  data-user-id="{{ _user_id }}"
+  data-inventory-key="{{ _inventory_key|e }}"
+  data-slot-count="{{ _slot_count }}"
+  data-active-slot-index="{{ _active_slot_index }}"
+  data-last-selected-slot-index="{{ _last_selected_slot_index }}"
+  {% if _create_embed_hotbar_area %}data-create-embed-hotbar-area="true"{% endif %}
+>
+  <div
+    class="vp-user-hotbar__slots"
+    role="listbox"
+    aria-label="{{ _slot_count }} User-Inventar-Slots"
+    aria-orientation="horizontal"
+    data-user-inventory-slots="true"
+  >
+    {% for _slot_index in range(1, _slot_count + 1) %}
+      {# --------------------------------------------------------------------
+         Slot-Daten für aktuellen Index finden.
+         Mapping: {1: {...}} oder {"1": {...}}
+         Liste:   [{"slot_index": 1, ...}]
+         -------------------------------------------------------------------- #}
+      {% set _slot_lookup = namespace(data={}) %}
+
+      {% if _slots is mapping %}
+        {% if _slot_index in _slots %}
+          {% set _slot_lookup.data = _slots[_slot_index] %}
+        {% elif _slot_index|string in _slots %}
+          {% set _slot_lookup.data = _slots[_slot_index|string] %}
+        {% endif %}
+      {% else %}
+        {% for _candidate in _slots %}
+          {% set _candidate_index = _candidate.slot_index|default(_candidate.index|default(_candidate.slot|default(0)))|int %}
+          {% if _candidate_index == _slot_index %}
+            {% set _slot_lookup.data = _candidate %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+
+      {% set _slot = _slot_lookup.data %}
+
+      {# --------------------------------------------------------------------
+         Slot-Felder defensiv normalisieren
+         -------------------------------------------------------------------- #}
+      {% set _slot_key = _slot.slot_key|default("user-slot-" ~ _slot_index, true)|string|trim %}
+      {% if not _slot_key %}
+        {% set _slot_key = "user-slot-" ~ _slot_index %}
+      {% endif %}
+
+      {% set _item_db_id = _slot.item_db_id|default(_slot.id|default("", true), true)|string|trim %}
+      {% set _vplib_uid = _slot.vplib_uid|default("", true)|string|trim %}
+      {% set _family_id = _slot.family_id|default("", true)|string|trim %}
+      {% set _package_id = _slot.package_id|default("", true)|string|trim %}
+      {% set _variant_id = _slot.variant_id|default("", true)|string|trim %}
+      {% set _object_kind = _slot.object_kind|default("", true)|string|trim %}
+      {% set _domain = _slot.domain|default("", true)|string|trim %}
+      {% set _category = _slot.category|default("", true)|string|trim %}
+      {% set _subcategory = _slot.subcategory|default("", true)|string|trim %}
+      {% set _taxonomy_path = _slot.taxonomy_path|default("", true)|string|trim %}
+
+      {% set _label = _slot.label|default(_slot.name|default("", true), true)|string|trim %}
+      {% if not _label and _family_id %}
+        {% set _label = _family_id %}
+      {% elif not _label and _vplib_uid %}
+        {% set _label = _vplib_uid %}
+      {% endif %}
+
+      {% set _description = _slot.description|default("", true)|string|trim %}
+      {% set _quantity = _slot.quantity|default(0, true)|int %}
+      {% if _quantity < 0 %}
+        {% set _quantity = 0 %}
+      {% endif %}
+
+      {% set _source = _slot.source|default("user", true)|string|trim %}
+      {% set _scope = _slot.scope|default("editor", true)|string|trim %}
+      {% set _mode = _slot.mode|default("creative", true)|string|trim %}
+
+      {% set _has_item =
+        (_item_db_id|length > 0) or
+        (_vplib_uid|length > 0) or
+        (_family_id|length > 0) or
+        (_package_id|length > 0) or
+        (_variant_id|length > 0) or
+        (_label|length > 0) or
+        (_object_kind|length > 0)
+      %}
+
+      {% set _raw_empty = _slot.empty if _slot.empty is defined else none %}
+      {% set _raw_empty_text = _raw_empty|string|lower|trim %}
+
+      {% if _raw_empty is sameas true or _raw_empty_text in ["true", "1", "yes", "ja", "on", "empty"] %}
+        {% set _is_empty = true %}
+      {% elif _raw_empty is sameas false or _raw_empty_text in ["false", "0", "no", "nein", "off", "filled"] %}
+        {% set _is_empty = false %}
+      {% else %}
+        {% set _is_empty = not _has_item %}
+      {% endif %}
+
+      {% set _is_selected = (_slot_index == _active_slot_index) %}
+
+      {% set _raw_locked = _slot.locked if _slot.locked is defined else false %}
+      {% set _raw_locked_text = _raw_locked|string|lower|trim %}
+      {% set _is_locked = _raw_locked is sameas true or _raw_locked_text in ["true", "1", "yes", "ja", "on", "locked"] %}
+
+      {% set _raw_pinned = _slot.pinned if _slot.pinned is defined else false %}
+      {% set _raw_pinned_text = _raw_pinned|string|lower|trim %}
+      {% set _is_pinned = _raw_pinned is sameas true or _raw_pinned_text in ["true", "1", "yes", "ja", "on", "pinned"] %}
+
+      {% set _slot_class = "vp-user-slot" %}
+
+      {% if _is_selected %}
+        {% set _slot_class = _slot_class ~ " vp-user-slot--active vp-user-slot--selected" %}
+      {% endif %}
+
+      {% if _is_empty %}
+        {% set _slot_class = _slot_class ~ " vp-user-slot--empty" %}
+      {% else %}
+        {% set _slot_class = _slot_class ~ " vp-user-slot--filled" %}
+      {% endif %}
+
+      {% if _is_locked %}
+        {% set _slot_class = _slot_class ~ " vp-user-slot--locked" %}
+      {% endif %}
+
+      {% if _is_pinned %}
+        {% set _slot_class = _slot_class ~ " vp-user-slot--pinned" %}
+      {% endif %}
+
+      {# --------------------------------------------------------------------
+         Icon-Text serverseitig defensiv bestimmen.
+         user-inventory.js kann später trotzdem neu rendern.
+         -------------------------------------------------------------------- #}
+      {% set _icon_text = "" %}
+
+      {% if _slot.icon is defined and _slot.icon is mapping %}
+        {% set _icon_text = _slot.icon.text|default(_slot.icon.label|default("", true), true)|string|trim %}
+      {% endif %}
+
+      {% if not _icon_text and _object_kind %}
+        {% set _icon_text = _object_kind %}
+      {% elif not _icon_text and _label %}
+        {% set _icon_text = _label %}
+      {% elif not _icon_text and _family_id %}
+        {% set _icon_text = _family_id %}
+      {% elif not _icon_text and _vplib_uid %}
+        {% set _icon_text = _vplib_uid %}
+      {% endif %}
+
+      {% set _icon_text = _icon_text
+        |replace(" ", "")
+        |replace("_", "")
+        |replace("-", "")
+        |replace(".", "")
+        |replace("/", "")
+        |replace("\\", "")
+        |upper
+      %}
+
+      {% if _icon_text|length > 2 %}
+        {% set _icon_text = _icon_text[:2] %}
+      {% endif %}
+
+      {% if not _icon_text %}
+        {% set _icon_text = "IT" %}
+      {% endif %}
+
+      {% if _is_empty %}
+        {% set _slot_status_label = "leer" %}
+      {% elif _label %}
+        {% set _slot_status_label = _label %}
+      {% elif _family_id %}
+        {% set _slot_status_label = _family_id %}
+      {% elif _vplib_uid %}
+        {% set _slot_status_label = _vplib_uid %}
+      {% else %}
+        {% set _slot_status_label = "belegt" %}
+      {% endif %}
+
+      {% set _slot_aria_label = "Inventar Slot " ~ _slot_index ~ ", " ~ _slot_status_label %}
+      {% if _is_selected %}
+        {% set _slot_aria_label = _slot_aria_label ~ ", ausgewählt" %}
+      {% endif %}
+
+      <article
+        id="vp-user-slot-{{ _slot_index }}"
+        class="{{ _slot_class|e }}"
+        role="option"
+        tabindex="{{ '0' if _is_selected else '-1' }}"
+        aria-label="{{ _slot_aria_label|e }}"
+        aria-selected="{{ 'true' if _is_selected else 'false' }}"
+        data-slot-index="{{ _slot_index }}"
+        data-slot-key="{{ _slot_key|e }}"
+        data-slot-empty="{{ 'true' if _is_empty else 'false' }}"
+        data-slot-selected="{{ 'true' if _is_selected else 'false' }}"
+        data-slot-quantity="{{ _quantity }}"
+        data-slot-label="{{ _label|e }}"
+        data-item-db-id="{{ _item_db_id|e }}"
+        data-family-id="{{ _family_id|e }}"
+        data-vplib-uid="{{ _vplib_uid|e }}"
+        data-package-id="{{ _package_id|e }}"
+        data-variant-id="{{ _variant_id|e }}"
+        data-object-kind="{{ _object_kind|e }}"
+        data-domain="{{ _domain|e }}"
+        data-category="{{ _category|e }}"
+        data-subcategory="{{ _subcategory|e }}"
+        data-taxonomy-path="{{ _taxonomy_path|e }}"
+        data-source="{{ _source|e }}"
+        data-scope="{{ _scope|e }}"
+        data-mode="{{ _mode|e }}"
+        data-slot-locked="{{ 'true' if _is_locked else 'false' }}"
+        data-slot-pinned="{{ 'true' if _is_pinned else 'false' }}"
+        {% if _description %}title="{{ _description|e }}"{% endif %}
+      >
+        <div class="vp-user-slot__index" aria-hidden="true">
+          {{ _slot_index }}
+        </div>
+
+        <div class="vp-user-slot__content">
+          {% if _is_empty %}
+            <span class="vp-user-slot__placeholder">
+              Leer
+            </span>
+          {% else %}
+            <span class="vp-user-slot__icon" aria-hidden="true">
+              {{ _icon_text }}
+            </span>
+
+            <span class="vp-user-slot__label">
+              {{ _label or _family_id or _vplib_uid or "Item" }}
+            </span>
+          {% endif %}
+        </div>
+
+        {% if not _is_empty and _quantity > 1 %}
+          <span class="vp-user-slot__quantity" aria-label="Anzahl {{ _quantity }}">
+            {{ _quantity }}
+          </span>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </div>
+</section>
