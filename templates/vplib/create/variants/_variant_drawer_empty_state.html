@@ -4,60 +4,9 @@
 
   Zweck:
   - Kompakter Empty-/Fallback-State für den Varianten-/Variablen-Drawer.
-  - Wird angezeigt, wenn Definitionsdaten fehlen, kein Variant Profile aufgelöst
-    werden kann oder die Runtime noch keine Felder rendern kann.
-  - Vermeidet große Diagnoseflächen im normalen UI.
-  - Gibt nur die nötigste sichtbare Meldung aus.
-  - Hält Diagnose-, Retry-, Close- und Copy-Hooks weiterhin stabil.
-  - Keine API-Aufrufe direkt im Template.
-  - Keine Package-Erzeugung.
-  - Keine fachliche Variant-Logik.
-  - Keine Three.js-Logik.
-  - Keine Dateioperation.
-
-  Verantwortung dieser Datei:
-  - Compact Empty-State-DOM.
-  - Hidden/klappbarer Diagnosebereich.
-  - Kontext-JSON für Entwickler und Runtime.
-  - Retry-/Close-/Copy-Hooks.
-  - Defensiver JS-Bootstrap mit try/catch und Cache.
-
-  Nicht-Verantwortung:
-  - Definitionsdaten laden.
-  - Profile auflösen.
-  - Felder rendern.
-  - Variant Values validieren.
-  - Varianten speichern.
-  - Tabellenzeilen erzeugen.
-
-  Stabile Hooks:
-  - data-vp-variant-drawer-empty-state="true"
-  - data-vp-variant-drawer-empty-state-root="true"
-  - data-vp-empty-state-retry="true"
-  - data-vp-empty-state-close="true"
-  - data-vp-empty-state-toggle-diagnostics="true"
-  - data-vp-empty-state-copy-context="true"
-  - data-vp-empty-state-context-json="true"
-  - data-vp-empty-state-diagnostics="true"
-
-  Event-Vertrag:
-  - dispatch:
-      vectoplan:create:variant-empty-state-ready
-      vectoplan:create:variant-definitions-retry-requested
-      vectoplan:create:variant-empty-state-close-requested
-      vectoplan:create:variant-empty-state-context-copied
-
-  - listen:
-      vectoplan:create:variant-profile-resolved
-      vectoplan:create:definitions-ready
-      vectoplan:create:definitions-unavailable
-      vectoplan:create:variant-drawer-opened
-      vectoplan:create:variant-drawer-closed
------------------------------------------------------------------------------ #}
-
-
-{# -----------------------------------------------------------------------------
-  1. Kontext defensiv normalisieren
+  - Sichtbar, wenn Definitionsdaten fehlen oder kein Variant Profile aufgelöst ist.
+  - Hält Retry-/Close-/Copy-/Diagnose-Hooks stabil.
+  - Keine API-Aufrufe, keine Package-Erzeugung, keine fachliche Variant-Logik.
 ----------------------------------------------------------------------------- #}
 
 {% if _variant_workspace_id is defined and _variant_workspace_id %}
@@ -95,7 +44,7 @@
 {% endif %}
 
 {% set _empty_definitions_available_text = _empty_definitions_available_raw | string | lower %}
-{% if _empty_definitions_available_raw is sameas true or _empty_definitions_available_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy'] %}
+{% if _empty_definitions_available_raw is sameas true or _empty_definitions_available_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy', 'ready'] %}
   {% set _empty_definitions_available = true %}
 {% else %}
   {% set _empty_definitions_available = false %}
@@ -189,13 +138,12 @@
   'variant_profile_id': _empty_variant_profile_id
 } %}
 
-
 <section
   id="{{ _vp_variant_empty_state_id }}"
   class="vp-create-variant-drawer-empty-state vp-create-variant-drawer-empty-state--compact"
   data-vp-variant-drawer-empty-state="true"
   data-vp-variant-drawer-empty-state-root="true"
-  data-vp-variant-drawer-empty-state-version="0.6.0"
+  data-vp-variant-drawer-empty-state-version="0.7.0"
   data-vp-empty-state-status="{{ _empty_status }}"
   data-vp-empty-state-visible="true"
   data-vp-definitions-available="{% if _empty_definitions_available %}true{% else %}false{% endif %}"
@@ -400,7 +348,7 @@
       <pre
         class="vp-create-variant-drawer-empty-state__diagnostics-pre"
         data-vp-empty-state-context-pre="true"
-      >{{ _empty_context_payload | tojson(indent=2) }}</pre>
+      >{{ _empty_context_payload | tojson }}</pre>
     </div>
 
     <script
@@ -414,7 +362,7 @@
       tabindex="-1"
       aria-hidden="true"
       hidden
-    >{{ _empty_context_payload | tojson(indent=2) }}</textarea>
+    >{{ _empty_context_payload | tojson }}</textarea>
   </div>
 </section>
 
@@ -425,7 +373,7 @@
     var EMPTY_SELECTOR = "[data-vp-variant-drawer-empty-state-root='true']";
     var READY_ATTR = "data-vp-empty-state-ready";
     var COMPONENT_NAME = "VECTOPLAN Variant Drawer Empty State";
-    var COMPONENT_VERSION = "0.6.0";
+    var COMPONENT_VERSION = "0.7.0";
 
     function warn(message, error) {
       try {
@@ -482,8 +430,10 @@
 
           if (hidden) {
             node.setAttribute("hidden", "");
+            node.setAttribute("aria-hidden", "true");
           } else {
             node.removeAttribute("hidden");
+            node.removeAttribute("aria-hidden");
           }
         }
       } catch (error) {
@@ -807,6 +757,12 @@
           source: COMPONENT_NAME
         });
 
+        dispatch(document, "vectoplan:create:variant-profile-resolve-requested", {
+          context: context,
+          source: COMPONENT_NAME,
+          reason: "empty_state_retry"
+        });
+
         try {
           if (
             window.VectoplanCreateDefinitionsRuntime &&
@@ -863,6 +819,7 @@
         }
 
         safeSetHidden(cache.root, true);
+        cache.root.setAttribute("data-vp-empty-state-visible", "false");
       } catch (error) {
         warn("Could not request close.", error);
       }
@@ -880,6 +837,7 @@
 
         root.hidden = false;
         root.removeAttribute("hidden");
+        root.removeAttribute("aria-hidden");
         root.setAttribute("data-vp-empty-state-visible", "true");
 
         if (reason) {
@@ -903,6 +861,7 @@
 
         root.hidden = true;
         root.setAttribute("hidden", "");
+        root.setAttribute("aria-hidden", "true");
         root.setAttribute("data-vp-empty-state-visible", "false");
       } catch (error) {
         warn("Could not hide empty state.", error);
@@ -990,6 +949,18 @@
           }
         });
 
+        document.addEventListener("vectoplan:create:variant-profile-resolution-failed", function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+
+            toArray(document.querySelectorAll(EMPTY_SELECTOR)).forEach(function (root) {
+              showEmptyState(root, "profile_unresolved", detail.context || {});
+            });
+          } catch (error) {
+            warn("Profile resolution failed listener failed.", error);
+          }
+        });
+
         document.addEventListener("vectoplan:create:definitions-ready", function (event) {
           try {
             var detail = event && event.detail ? event.detail : {};
@@ -1065,6 +1036,7 @@
           component: COMPONENT_NAME,
           version: COMPONENT_VERSION,
           __version: COMPONENT_VERSION,
+
           getRoots: function () {
             try {
               return toArray(document.querySelectorAll(EMPTY_SELECTOR));
@@ -1072,6 +1044,7 @@
               return [];
             }
           },
+
           getFirstRoot: function () {
             try {
               return document.querySelector(EMPTY_SELECTOR);
@@ -1079,21 +1052,27 @@
               return null;
             }
           },
+
           getContext: function (root) {
             return readContext(root || api.getFirstRoot());
           },
+
           show: function (reason, contextPatch, root) {
             showEmptyState(root || api.getFirstRoot(), reason || "", contextPatch || {});
           },
+
           hide: function (root) {
             hideEmptyState(root || api.getFirstRoot());
           },
+
           retry: function (root) {
             requestRetry(cacheEmptyState(root || api.getFirstRoot()));
           },
+
           copyContext: function (root) {
             copyContext(cacheEmptyState(root || api.getFirstRoot()));
           },
+
           refresh: function (root) {
             try {
               var node = root || api.getFirstRoot();
@@ -1106,6 +1085,7 @@
               warn("Could not refresh empty state.", error);
             }
           },
+
           getSnapshot: function (root) {
             try {
               var node = root || api.getFirstRoot();
@@ -1138,7 +1118,7 @@
       }
     }
 
-    function dispatchReady(root, cache) {
+    function dispatchReady(root) {
       try {
         var context = readContext(root);
 
@@ -1175,7 +1155,7 @@
         root.setAttribute(READY_ATTR, "true");
         root.setAttribute("data-vp-empty-state-js-version", COMPONENT_VERSION);
 
-        dispatchReady(root, cache);
+        dispatchReady(root);
       } catch (error) {
         warn("Empty-state initialization failed.", error);
 

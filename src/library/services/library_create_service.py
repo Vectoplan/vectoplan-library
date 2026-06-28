@@ -7,22 +7,27 @@ Purpose:
 
 Scope:
     - No Flask dependency.
-    - No database dependency.
+    - No direct database dependency.
     - No automatic publishing.
     - No Three.js / model upload handling.
     - No executable package content.
     - Produces scanner-readable directory packages and downloadable .vplib archives.
     - Uses the backend taxonomy as canonical source for domain/category/subcategory.
     - Creates or preserves stable `vplib_uid` for every package.
+    - Optionally reads Definition Catalog/Create Context through a service adapter.
+    - Optionally builds CreativeLibraryDraftService-compatible payloads.
 
 Main public functions:
     - get_service_health()
     - get_create_options()
+    - get_create_context(payload)
     - build_draft(payload)
     - validate_draft(payload)
     - build_package_plan(payload)
     - build_vplib_archive(payload)
     - save_package(payload)
+    - build_persistent_draft_payload(payload)
+    - build_publish_bundle_from_create_payload(payload)
 
 Important:
     Saving is disabled by default and must be explicitly enabled with:
@@ -53,6 +58,7 @@ Canonical VPLIB UID:
 from __future__ import annotations
 
 import hashlib
+import importlib
 import io
 import json
 import os
@@ -62,11 +68,17 @@ import uuid
 import zipfile
 from dataclasses import dataclass, field as dataclass_field
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
 
-LIBRARY_CREATE_SERVICE_VERSION = "0.3.0"
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+LIBRARY_CREATE_SERVICE_VERSION = "0.4.0"
 LIBRARY_CREATE_SERVICE_COMPONENT = "library-create-service"
 
 CREATE_API_PREFIX = "/api/v1/vplib/create"
@@ -149,24 +161,87 @@ MAX_VARIANTS = 50
 MAX_VARIABLES = 120
 
 
-try:
-    from library.taxonomy import (
-        TaxonomySelection,
-        get_default_taxonomy_service,
-        make_json_safe as _taxonomy_json_safe,
-        normalize_slug as _taxonomy_normalize_slug,
-    )
+# ---------------------------------------------------------------------------
+# Lazy optional service imports
+# ---------------------------------------------------------------------------
 
-    _TAXONOMY_IMPORT_ERROR: BaseException | None = None
-except Exception as import_error:  # pragma: no cover - defensive runtime guard
-    TaxonomySelection = None  # type: ignore[assignment]
-    get_default_taxonomy_service = None  # type: ignore[assignment]
-    _taxonomy_json_safe = None  # type: ignore[assignment]
-    _TAXONOMY_IMPORT_ERROR = import_error
+@lru_cache(maxsize=1)
+def _load_taxonomy_module() -> ModuleType:
+    """Load canonical taxonomy service module defensively."""
+    errors: list[str] = []
 
-    def _taxonomy_normalize_slug(value: Any, *, default: str = "") -> str:  # type: ignore[no-redef]
-        return _slugify(value) or default
+    for module_name in (
+        "library.taxonomy",
+        "src.library.taxonomy",
+        "vectoplan_library.library.taxonomy",
+        "vectoplan_library.src.library.taxonomy",
+    ):
+        try:
+            return importlib.import_module(module_name)
+        except Exception as exc:
+            errors.append(f"{module_name}: {type(exc).__name__}: {exc}")
 
+    raise ImportError("Could not import taxonomy service. " + " | ".join(errors))
+
+
+@lru_cache(maxsize=1)
+def _load_definition_catalog_service_module() -> ModuleType:
+    """Load optional DB-backed Definition Catalog service.
+
+    This is an adapter dependency, not a direct DB dependency. If unavailable,
+    the create service continues to work with static/taxonomy-backed options.
+    """
+    errors: list[str] = []
+
+    for module_name in (
+        "library.services.library_definition_catalog_service",
+        "src.library.services.library_definition_catalog_service",
+        "vectoplan_library.library.services.library_definition_catalog_service",
+        "vectoplan_library.src.library.services.library_definition_catalog_service",
+    ):
+        try:
+            return importlib.import_module(module_name)
+        except Exception as exc:
+            errors.append(f"{module_name}: {type(exc).__name__}: {exc}")
+
+    raise ImportError("Could not import definition catalog service. " + " | ".join(errors))
+
+
+def _get_taxonomy_import_error() -> BaseException | None:
+    try:
+        _load_taxonomy_module()
+        return None
+    except Exception as exc:
+        return exc
+
+
+def _taxonomy_normalize_slug(value: Any, *, default: str = "") -> str:
+    try:
+        module = _load_taxonomy_module()
+        normalizer = getattr(module, "normalize_slug", None)
+        if callable(normalizer):
+            return str(normalizer(value, default=default))
+    except Exception:
+        pass
+
+    return _slugify(value) or default
+
+
+def _taxonomy_json_safe(value: Any) -> Any:
+    try:
+        module = _load_taxonomy_module()
+        helper = getattr(module, "make_json_safe", None)
+        if callable(helper):
+            return helper(value)
+    except Exception:
+        pass
+
+    return _json_safe_fallback(value)
+
+
+# ---------------------------------------------------------------------------
+# Dataclasses
+# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class CreateIssue:
@@ -361,6 +436,10 @@ class CreateDraftNormalizationError(ValueError):
         self.warnings = list(warnings or [])
 
 
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
 def get_service_health() -> CreateResult:
     """Return a defensive health payload for the create service."""
     warnings: list[CreateIssue] = []
@@ -404,19 +483,16 @@ def get_service_health() -> CreateResult:
         errors.append(
             _exception_issue(
                 "taxonomy_service_unavailable",
-                _TAXONOMY_IMPORT_ERROR,
+                _get_taxonomy_import_error(),
                 field="library.taxonomy",
                 fallback_message="Taxonomie-Service ist nicht verfügbar.",
             )
         )
     else:
         try:
-            taxonomy_health = _get_taxonomy_service().health(
-                force_reload=False,
-                include_registry_state=False,
-            )
+            taxonomy_health = _call_taxonomy_health()
 
-            if not bool(taxonomy_health.get("healthy")):
+            if not bool(taxonomy_health.get("healthy") or taxonomy_health.get("ok")):
                 errors.append(
                     _error(
                         "taxonomy_service_unhealthy",
@@ -440,6 +516,28 @@ def get_service_health() -> CreateResult:
                     field="library.taxonomy.health",
                 )
             )
+
+    definition_health = _get_definition_catalog_service_health()
+    definition_available = bool(definition_health.get("available", False))
+
+    if definition_available:
+        info.append(
+            _info(
+                "definition_catalog_available",
+                "Definition-Catalog-Service ist verfügbar.",
+                field="definitions",
+                details=definition_health,
+            )
+        )
+    else:
+        warnings.append(
+            _warning(
+                "definition_catalog_unavailable",
+                "Definition-Catalog-Service ist nicht verfügbar. Create fällt auf Taxonomy/Static Options zurück.",
+                field="definitions",
+                details=definition_health,
+            )
+        )
 
     write_enabled = _env_bool(ENV_WRITE_ENABLED, default=False)
     overwrite_enabled = _env_bool(ENV_OVERWRITE_ENABLED, default=False)
@@ -492,15 +590,29 @@ def get_service_health() -> CreateResult:
                 "required_fields": list(REQUIRED_TAXONOMY_FIELDS),
                 "health": taxonomy_health,
             },
+            "definitions": {
+                "available": definition_available,
+                "health": definition_health,
+            },
             "routes_expected": {
                 "page": "/create",
                 "health": f"{CREATE_API_PREFIX}/health",
                 "options": f"{CREATE_API_PREFIX}/options",
+                "create_context": f"{CREATE_API_PREFIX}/create-context",
                 "draft": f"{CREATE_API_PREFIX}/draft",
                 "validate": f"{CREATE_API_PREFIX}/validate",
                 "package_plan": f"{CREATE_API_PREFIX}/package-plan",
                 "download": f"{CREATE_API_PREFIX}/download",
                 "save": f"{CREATE_API_PREFIX}/save",
+            },
+            "capabilities": {
+                "build_directory_package": True,
+                "build_archive": True,
+                "save_to_source_root": write_enabled,
+                "definition_catalog_options": definition_available,
+                "persistent_draft_payload": True,
+                "automatic_publish": False,
+                "direct_database_dependency": False,
             },
         },
         errors=errors,
@@ -510,103 +622,80 @@ def get_service_health() -> CreateResult:
     )
 
 
-def get_create_options() -> CreateResult:
+def get_create_options(*, include_definitions: bool = True, user_id: Any = 1) -> CreateResult:
     """Return create options for the create frontend."""
     try:
-        taxonomy_payload = _get_taxonomy_service().get_create_options_payload()
+        taxonomy_payload = _get_taxonomy_create_options_payload()
         flattened = _flatten_taxonomy_options(taxonomy_payload)
+
+        definition_options = {}
+        definition_warnings: list[CreateIssue] = []
+
+        if include_definitions:
+            definition_options = _get_definition_create_options_payload(user_id=user_id)
+            if not definition_options.get("available", False):
+                definition_warnings.append(
+                    _warning(
+                        "definition_options_unavailable",
+                        "Definition-Catalog-Optionen sind nicht verfügbar. Statische Create-Optionen bleiben aktiv.",
+                        field="definitions",
+                        details=definition_options,
+                    )
+                )
+
+        static_options = _static_create_options()
+
+        data = {
+            "service": LIBRARY_CREATE_SERVICE_COMPONENT,
+            "version": LIBRARY_CREATE_SERVICE_VERSION,
+            "write_enabled": _env_bool(ENV_WRITE_ENABLED, default=False),
+            "overwrite_enabled": _env_bool(ENV_OVERWRITE_ENABLED, default=False),
+            "source_root": str(get_source_root()),
+            "vplib_uid": "",
+            "vplib_uid_field": VPLIB_UID_FIELD,
+            "create_payload_normalization": {
+                "enabled": True,
+                "vplib_uid_field": VPLIB_UID_FIELD,
+                "uid_created_by": "vplib_id_service",
+                "uid_persisted_in": MANIFEST_DOCUMENT_PATH,
+                "existing_valid_uid_is_preserved": True,
+                "invalid_uid_is_rejected": True,
+                "database_creates_id": False,
+            },
+            "taxonomy_source": "backend_taxonomy_service",
+            "taxonomy_version": taxonomy_payload.get("taxonomy_version", ""),
+            "taxonomy_schema_version": taxonomy_payload.get("taxonomy_schema_version", ""),
+            "required_taxonomy_fields": list(REQUIRED_TAXONOMY_FIELDS),
+            "taxonomy": taxonomy_payload.get("taxonomy", {}),
+            "domains": taxonomy_payload.get("domains", []),
+            "categories_by_domain": taxonomy_payload.get("categories_by_domain", {}),
+            "subcategories_by_category": taxonomy_payload.get("subcategories_by_category", {}),
+            "subcategories_by_category_path": taxonomy_payload.get(
+                "subcategories_by_category_path",
+                taxonomy_payload.get("subcategories_by_category", {}),
+            ),
+            "categories": flattened["categories"],
+            "subcategories": flattened["subcategories"],
+            "object_kinds": static_options["object_kinds"],
+            "primitive_shapes": static_options["primitive_shapes"],
+            "units": static_options["units"],
+            "material_classes": static_options["material_classes"],
+            "limits": {
+                "max_text_length": MAX_TEXT_LENGTH,
+                "max_slug_length": MAX_SLUG_LENGTH,
+                "max_variants": MAX_VARIANTS,
+                "max_variables": MAX_VARIABLES,
+            },
+            "definitions": definition_options,
+        }
+
+        data = _merge_definition_options_into_create_options(data, definition_options)
 
         return CreateResult(
             ok=True,
             status="ok",
-            data={
-                "service": LIBRARY_CREATE_SERVICE_COMPONENT,
-                "version": LIBRARY_CREATE_SERVICE_VERSION,
-                "write_enabled": _env_bool(ENV_WRITE_ENABLED, default=False),
-                "overwrite_enabled": _env_bool(ENV_OVERWRITE_ENABLED, default=False),
-                "source_root": str(get_source_root()),
-                "vplib_uid": "",
-                "vplib_uid_field": VPLIB_UID_FIELD,
-                "create_payload_normalization": {
-                    "enabled": True,
-                    "vplib_uid_field": VPLIB_UID_FIELD,
-                    "uid_created_by": "vplib_id_service",
-                    "uid_persisted_in": MANIFEST_DOCUMENT_PATH,
-                    "existing_valid_uid_is_preserved": True,
-                    "invalid_uid_is_rejected": True,
-                    "database_creates_id": False,
-                },
-                "taxonomy_source": "backend_taxonomy_service",
-                "taxonomy_version": taxonomy_payload.get("taxonomy_version", ""),
-                "taxonomy_schema_version": taxonomy_payload.get("taxonomy_schema_version", ""),
-                "required_taxonomy_fields": list(REQUIRED_TAXONOMY_FIELDS),
-                "taxonomy": taxonomy_payload.get("taxonomy", {}),
-                "domains": taxonomy_payload.get("domains", []),
-                "categories_by_domain": taxonomy_payload.get("categories_by_domain", {}),
-                "subcategories_by_category": taxonomy_payload.get("subcategories_by_category", {}),
-                "categories": flattened["categories"],
-                "subcategories": flattened["subcategories"],
-                "object_kinds": [
-                    {
-                        "value": "cell_block",
-                        "id": "cell_block",
-                        "label": "Raster-Bauteil",
-                        "description": "Ein einzelner Raster- oder Blockbaustein.",
-                        "enabled": True,
-                        "default": True,
-                    },
-                    {
-                        "value": "multi_cell_module",
-                        "id": "multi_cell_module",
-                        "label": "Mehrblock-Modul",
-                        "description": "Ein Modul, das mehrere Rasterblöcke belegen kann.",
-                        "enabled": True,
-                    },
-                    {
-                        "value": "catalog_object",
-                        "id": "catalog_object",
-                        "label": "Katalogobjekt",
-                        "description": "Ein freies Objekt wie Möbel, Armatur oder Ausstattung.",
-                        "enabled": True,
-                    },
-                    {
-                        "value": "adaptive_system",
-                        "id": "adaptive_system",
-                        "label": "Adaptives System",
-                        "description": "Ein später kontextabhängiges System.",
-                        "enabled": True,
-                    },
-                ],
-                "primitive_shapes": [
-                    {"value": "block", "id": "block", "label": "Block / Quader", "enabled": True, "default": True},
-                    {"value": "wall", "id": "wall", "label": "Wand / Platte stehend", "enabled": True},
-                    {"value": "slab", "id": "slab", "label": "Decke / Platte liegend", "enabled": True},
-                    {"value": "cylinder", "id": "cylinder", "label": "Zylinder", "enabled": True},
-                    {"value": "pipe", "id": "pipe", "label": "Rohr / liegender Zylinder", "enabled": True},
-                ],
-                "units": [
-                    {"value": "m", "id": "m", "label": "Meter", "enabled": True, "default": True},
-                    {"value": "cm", "id": "cm", "label": "Zentimeter", "enabled": True},
-                    {"value": "mm", "id": "mm", "label": "Millimeter", "enabled": True},
-                ],
-                "material_classes": [
-                    {"value": "beton", "id": "beton", "label": "Beton", "enabled": True},
-                    {"value": "stahlbeton", "id": "stahlbeton", "label": "Stahlbeton", "enabled": True},
-                    {"value": "ziegel", "id": "ziegel", "label": "Ziegel", "enabled": True},
-                    {"value": "mauerwerk", "id": "mauerwerk", "label": "Mauerwerk", "enabled": True},
-                    {"value": "holz", "id": "holz", "label": "Holz", "enabled": True},
-                    {"value": "stahl", "id": "stahl", "label": "Stahl", "enabled": True},
-                    {"value": "glas", "id": "glas", "label": "Glas", "enabled": True},
-                    {"value": "kunststoff", "id": "kunststoff", "label": "Kunststoff", "enabled": True},
-                    {"value": "sonstiges", "id": "sonstiges", "label": "Sonstiges Material", "enabled": True},
-                ],
-                "limits": {
-                    "max_text_length": MAX_TEXT_LENGTH,
-                    "max_slug_length": MAX_SLUG_LENGTH,
-                    "max_variants": MAX_VARIANTS,
-                    "max_variables": MAX_VARIABLES,
-                },
-            },
+            data=data,
+            warnings=definition_warnings,
             info=[
                 _info(
                     "taxonomy_options_loaded",
@@ -630,6 +719,68 @@ def get_create_options() -> CreateResult:
             "Create-Optionen konnten nicht erzeugt werden.",
             exc=exc,
             http_status=500,
+        )
+
+
+def get_create_context(payload: Any | None = None, **kwargs: Any) -> CreateResult:
+    """Return definition-backed create context when Definition Catalog is available."""
+    try:
+        mapping = _coerce_payload_mapping(payload)
+        mapping.update({key: value for key, value in kwargs.items() if value is not None})
+
+        service = _get_definition_catalog_service()
+        method = getattr(service, "get_create_context", None)
+
+        if not callable(method):
+            return CreateResult(
+                ok=False,
+                status="definition_context_unavailable",
+                data={
+                    "available": False,
+                    "reason": "Definition service does not expose get_create_context.",
+                },
+                errors=[
+                    _error(
+                        "definition_context_unavailable",
+                        "Definition-Catalog-Service stellt get_create_context nicht bereit.",
+                        field="definitions",
+                    )
+                ],
+                http_status=503,
+            )
+
+        result = _call_method_flex(
+            method,
+            {
+                "user_id": mapping.get("user_id"),
+                "domain": mapping.get("domain"),
+                "category": mapping.get("category"),
+                "subcategory": mapping.get("subcategory"),
+                "object_kind": mapping.get("object_kind") or mapping.get("objectKind"),
+                "family_profile_id": mapping.get("family_profile_id") or mapping.get("familyProfileId"),
+                "variant_profile_id": mapping.get("variant_profile_id") or mapping.get("variantProfileId"),
+                "include_catalog": _safe_bool(mapping.get("include_catalog"), default=False),
+            },
+        )
+
+        payload_data = _service_result_payload(result)
+
+        return CreateResult(
+            ok=bool(payload_data.get("ok", True)),
+            status=str(payload_data.get("status") or "ok"),
+            data={
+                "available": True,
+                "definition_context": payload_data,
+            },
+            http_status=200 if bool(payload_data.get("ok", True)) else 422,
+        )
+
+    except Exception as exc:
+        return _failure(
+            "definition_context_failed",
+            "Definition-backed Create Context konnte nicht erzeugt werden.",
+            exc=exc,
+            http_status=503,
         )
 
 
@@ -1076,6 +1227,112 @@ def save_package(payload: Any, *, overwrite: bool | None = None) -> CreateResult
         )
 
 
+def build_persistent_draft_payload(payload: Any) -> CreateResult:
+    """Build CreativeLibraryDraftService-compatible payload from create input."""
+    try:
+        validation = validate_draft(payload)
+        if not validation.ok:
+            return validation
+
+        draft = validation.data.get("draft") or {}
+        documents = build_package_documents(draft)
+
+        draft_payload = _build_draft_service_payload(
+            draft=draft,
+            documents=documents,
+            original_payload=_coerce_payload_mapping(payload),
+            validation=validation,
+        )
+
+        return CreateResult(
+            ok=True,
+            status="persistent_draft_payload_ready",
+            data={
+                "vplib_uid": _extract_vplib_uid_from_any(draft_payload),
+                "draft_service_payload": draft_payload,
+                "draft": draft,
+            },
+            warnings=validation.warnings,
+            info=validation.info
+            + [
+                _info(
+                    "persistent_draft_payload_ready",
+                    "Payload ist kompatibel mit CreativeLibraryDraftService.create_draft().",
+                )
+            ],
+            http_status=200,
+        )
+    except Exception as exc:
+        return _failure(
+            "persistent_draft_payload_failed",
+            "Persistent-Draft-Payload konnte nicht erzeugt werden.",
+            exc=exc,
+            http_status=500,
+        )
+
+
+def build_publish_bundle_from_create_payload(payload: Any) -> CreateResult:
+    """Build publish-bundle-like payload from simple create input."""
+    try:
+        persistent_payload_result = build_persistent_draft_payload(payload)
+        if not persistent_payload_result.ok:
+            return persistent_payload_result
+
+        draft_service_payload = persistent_payload_result.data.get("draft_service_payload") or {}
+        manifest = draft_service_payload.get("manifest_payload") or {}
+        family = draft_service_payload.get("family_payload") or {}
+        classification = draft_service_payload.get("classification_payload") or {}
+        modules = draft_service_payload.get("modules_payload") or {}
+        documents = draft_service_payload.get("documents") or []
+        variants = draft_service_payload.get("variants") or []
+
+        publish_payload = {
+            "schema_version": LIBRARY_CREATE_SERVICE_VERSION,
+            "source": LIBRARY_CREATE_SERVICE_COMPONENT,
+            "vplib_uid": draft_service_payload.get("vplib_uid"),
+            "family_id": draft_service_payload.get("family_id"),
+            "package_id": draft_service_payload.get("package_id"),
+            "title": draft_service_payload.get("title"),
+            "description": draft_service_payload.get("description"),
+            "family_payload": family,
+            "classification_payload": classification,
+            "manifest_payload": manifest,
+            "modules_payload": modules,
+            "generator_payload": draft_service_payload.get("generator_payload") or {},
+            "variants": variants,
+            "documents": documents,
+            "assets": [],
+            "document_bundle": {
+                "manifest": manifest,
+                "family": family,
+                "classification": classification,
+                "modules": modules,
+                "variants": variants,
+                "documents": documents,
+                "assets": [],
+            },
+        }
+
+        return CreateResult(
+            ok=True,
+            status="publish_bundle_ready",
+            data={
+                "vplib_uid": _extract_vplib_uid_from_any(publish_payload),
+                "publish": publish_payload,
+            },
+            warnings=persistent_payload_result.warnings,
+            info=persistent_payload_result.info,
+            http_status=200,
+        )
+    except Exception as exc:
+        return _failure(
+            "publish_bundle_failed",
+            "Publish-Bundle konnte aus Create-Payload nicht erzeugt werden.",
+            exc=exc,
+            http_status=500,
+        )
+
+
 def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) -> dict[str, Any]:
     """
     Build all phase-1 package documents.
@@ -1137,6 +1394,7 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                 "dynamic": normalized.object_kind == "adaptive_system",
                 "manufacturer": True,
                 "docs": True,
+                "definitions": bool(normalized.source.get("definition_context")),
                 "tests": False,
             },
             "active_modules": [
@@ -1153,6 +1411,7 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                     "dynamic": normalized.object_kind == "adaptive_system",
                     "manufacturer": True,
                     "docs": True,
+                    "definitions": bool(normalized.source.get("definition_context")),
                     "tests": False,
                 }.items()
                 if enabled
@@ -1347,6 +1606,13 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "parameters": {},
         }
 
+    if normalized.source.get("definition_context"):
+        documents["definitions/create_context.json"] = {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
+            "source": "definition_catalog_service",
+            "context": _json_safe(normalized.source.get("definition_context")),
+        }
+
     for variant in normalized.variants:
         variant_id = str(variant.get("variant_id") or "").strip()
         if not variant_id or variant_id == "default":
@@ -1363,11 +1629,16 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
     return documents
 
 
+# Backward-compatible public aliases expected by route services/tests.
 health = get_service_health
 get_options = get_create_options
 create_draft = build_draft
 package_plan = build_package_plan
 
+
+# ---------------------------------------------------------------------------
+# Source root
+# ---------------------------------------------------------------------------
 
 def get_source_root(explicit: str | os.PathLike[str] | None = None) -> Path:
     """
@@ -1402,9 +1673,15 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+# ---------------------------------------------------------------------------
+# Normalization
+# ---------------------------------------------------------------------------
+
 def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft, list[CreateIssue]]:
     warnings: list[CreateIssue] = []
     now = _utc_now()
+
+    payload = _maybe_apply_definition_context_defaults(payload, warnings=warnings)
 
     vplib_uid = _ensure_payload_vplib_uid(payload)
 
@@ -1704,6 +1981,15 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
     warnings.extend(variable_warnings)
 
     labels = _extract_taxonomy_labels(taxonomy_reference)
+    source_metadata = {
+        "mode": "create_form",
+        "taxonomy_source": "backend_taxonomy_service",
+        "vplib_uid_source": "payload_or_generated",
+    }
+
+    definition_context = payload.get("definition_context")
+    if isinstance(definition_context, Mapping):
+        source_metadata["definition_context"] = _json_safe(dict(definition_context))
 
     return (
         NormalizedCreateDraft(
@@ -1711,17 +1997,17 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
             family_name=family_name,
             family_slug=family_slug,
             family_description=family_description,
-            domain=taxonomy_reference.selection.domain,
-            category=taxonomy_reference.selection.category,
-            subcategory=taxonomy_reference.selection.subcategory,
+            domain=_reference_value(taxonomy_reference, "domain", fallback=domain),
+            category=_reference_value(taxonomy_reference, "category", fallback=category),
+            subcategory=_reference_value(taxonomy_reference, "subcategory", fallback=subcategory),
             object_kind=object_kind,
-            taxonomy_version=taxonomy_reference.taxonomy_version,
-            classification_path=taxonomy_reference.classification_path,
+            taxonomy_version=_reference_attr(taxonomy_reference, "taxonomy_version", fallback=""),
+            classification_path=_reference_attr(taxonomy_reference, "classification_path", fallback=f"{domain}/{category}/{subcategory}"),
             taxonomy_labels=labels,
-            source_parts=tuple(taxonomy_reference.source_parts),
-            source_path=taxonomy_reference.source_path,
-            family_id=taxonomy_reference.family_id,
-            package_id=taxonomy_reference.package_id,
+            source_parts=tuple(_reference_attr(taxonomy_reference, "source_parts", fallback=[domain, category, subcategory, family_slug])),
+            source_path=_reference_attr(taxonomy_reference, "source_path", fallback=f"{domain}/{category}/{subcategory}/{family_slug}"),
+            family_id=_reference_attr(taxonomy_reference, "family_id", fallback=f"vp.{domain}.{category}.{subcategory}.{family_slug}"),
+            package_id=_reference_attr(taxonomy_reference, "package_id", fallback=f"vplib.vp.{domain}.{category}.{subcategory}.{family_slug}"),
             package_version=DEFAULT_PACKAGE_VERSION,
             default_variant_id=default_variant_id,
             variants=variants,
@@ -1740,14 +2026,154 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
             material_classes=material_classes,
             variables=variables,
             created_at=now,
-            source={
-                "mode": "create_form",
-                "taxonomy_source": "backend_taxonomy_service",
-                "vplib_uid_source": "payload_or_generated",
-            },
+            source=source_metadata,
         ),
         warnings,
     )
+
+
+def _maybe_apply_definition_context_defaults(
+    payload: Mapping[str, Any],
+    *,
+    warnings: list[CreateIssue],
+) -> dict[str, Any]:
+    """Optionally merges Definition Catalog create context into payload.
+
+    This is opt-in to preserve the no-DB-direct/no-service-side-surprise behavior.
+    """
+    mapping = dict(payload)
+
+    use_context = (
+        _safe_bool(mapping.get("use_definition_context"), default=False)
+        or _safe_bool(mapping.get("use_definitions"), default=False)
+        or _safe_bool(mapping.get("definition_context_enabled"), default=False)
+    )
+
+    if not use_context:
+        return mapping
+
+    try:
+        context_result = get_create_context(mapping)
+        if not context_result.ok:
+            warnings.append(
+                _warning(
+                    "definition_context_not_applied",
+                    "Definition Context konnte nicht angewendet werden.",
+                    field="definition_context",
+                    details=context_result.to_dict(),
+                )
+            )
+            return mapping
+
+        context_payload = context_result.data.get("definition_context") or {}
+        context_payload = _service_result_payload(context_payload)
+        inner_payload = context_payload.get("payload") if isinstance(context_payload.get("payload"), Mapping) else context_payload
+
+        if isinstance(inner_payload, Mapping):
+            mapping["definition_context"] = dict(inner_payload)
+            defaults = _extract_create_context_defaults(inner_payload)
+            merged = dict(defaults)
+            merged.update(mapping)
+            return merged
+
+    except Exception as exc:
+        warnings.append(
+            _exception_issue(
+                "definition_context_failed",
+                exc,
+                field="definition_context",
+                fallback_message="Definition Context konnte nicht geladen werden.",
+            )
+        )
+
+    return mapping
+
+
+def _extract_create_context_defaults(context_payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Extracts safe default values from a Definition Catalog create context."""
+    payload = dict(context_payload)
+    defaults: dict[str, Any] = {}
+
+    for key in ("family_profile", "variant_profile", "resolved_family_profile", "resolved_variant_profile"):
+        value = payload.get(key)
+        if isinstance(value, Mapping):
+            for candidate in ("object_kind", "primitive_shape", "material_class", "material_classes"):
+                if candidate in value and candidate not in defaults:
+                    defaults[candidate] = value[candidate]
+
+    upload_constraints = payload.get("upload_constraints")
+    if isinstance(upload_constraints, Mapping):
+        defaults.setdefault("upload_constraints", upload_constraints)
+
+    return defaults
+
+
+# ---------------------------------------------------------------------------
+# Taxonomy
+# ---------------------------------------------------------------------------
+
+def _is_taxonomy_available() -> bool:
+    try:
+        module = _load_taxonomy_module()
+        return getattr(module, "get_default_taxonomy_service", None) is not None
+    except Exception:
+        return False
+
+
+def _get_taxonomy_service() -> Any:
+    if not _is_taxonomy_available():
+        raise RuntimeError("Taxonomie-Service ist nicht verfügbar.")
+
+    module = _load_taxonomy_module()
+    factory = getattr(module, "get_default_taxonomy_service", None)
+    if not callable(factory):
+        raise RuntimeError("Taxonomie-Service-Factory ist nicht verfügbar.")
+
+    return factory()
+
+
+def _call_taxonomy_health() -> dict[str, Any]:
+    service = _get_taxonomy_service()
+
+    for call in (
+        lambda: service.health(force_reload=False, include_registry_state=False),
+        lambda: service.health(),
+        lambda: service.get_health(),
+    ):
+        try:
+            result = call()
+            if isinstance(result, Mapping):
+                return dict(result)
+        except Exception:
+            continue
+
+    return {"ok": True, "healthy": True}
+
+
+def _get_taxonomy_create_options_payload() -> dict[str, Any]:
+    service = _get_taxonomy_service()
+
+    for method_name in (
+        "get_create_options_payload",
+        "get_create_options",
+        "create_options",
+    ):
+        method = getattr(service, method_name, None)
+        if not callable(method):
+            continue
+
+        result = method()
+        payload = _service_result_payload(result)
+
+        if isinstance(payload.get("data"), Mapping):
+            return dict(payload["data"])
+
+        if isinstance(payload.get("payload"), Mapping):
+            return dict(payload["payload"])
+
+        return payload
+
+    raise RuntimeError("Taxonomie-Service stellt keine Create-Options-Methode bereit.")
 
 
 def _build_taxonomy_reference(
@@ -1764,21 +2190,36 @@ def _build_taxonomy_reference(
             errors=[
                 _exception_issue(
                     "taxonomy_service_unavailable",
-                    _TAXONOMY_IMPORT_ERROR,
+                    _get_taxonomy_import_error(),
                     field="library.taxonomy",
                     fallback_message="Taxonomie-Service ist nicht verfügbar.",
                 )
             ],
         )
 
+    service = _get_taxonomy_service()
+
     try:
-        result = _get_taxonomy_service().build_family_reference(
-            domain=domain,
-            category=category,
-            subcategory=subcategory,
-            family_slug=family_slug,
-            object_kind=object_kind,
-        )
+        if hasattr(service, "build_family_reference") and callable(service.build_family_reference):
+            result = service.build_family_reference(
+                domain=domain,
+                category=category,
+                subcategory=subcategory,
+                family_slug=family_slug,
+                object_kind=object_kind,
+            )
+        elif hasattr(service, "build_reference") and callable(service.build_reference):
+            result = service.build_reference(
+                {
+                    "domain": domain,
+                    "category": category,
+                    "subcategory": subcategory,
+                    "family_slug": family_slug,
+                    "object_kind": object_kind,
+                }
+            )
+        else:
+            raise RuntimeError("Taxonomie-Service stellt keine build_family_reference/build_reference-Methode bereit.")
     except Exception as exc:
         raise CreateDraftNormalizationError(
             "Taxonomie-Referenz konnte nicht aufgebaut werden.",
@@ -1791,18 +2232,22 @@ def _build_taxonomy_reference(
             ],
         ) from exc
 
-    issues = _taxonomy_issues_to_create_issues(result.issues)
+    issues = _taxonomy_issues_to_create_issues(result)
     errors = [issue for issue in issues if issue.severity == "error"]
     warnings = [issue for issue in issues if issue.severity != "error"]
 
-    if errors or not bool(getattr(result, "valid", False)):
+    valid = bool(getattr(result, "valid", True))
+    if isinstance(result, Mapping):
+        valid = bool(result.get("valid", result.get("ok", True)))
+
+    if errors or not valid:
         if not errors:
             errors.append(
                 _error(
                     "taxonomy_invalid",
                     "Taxonomie-Auswahl ist ungültig.",
                     field="taxonomy",
-                    details=result.to_dict() if hasattr(result, "to_dict") else {},
+                    details=result.to_dict() if hasattr(result, "to_dict") else _json_safe(result),
                 )
             )
         raise CreateDraftNormalizationError(
@@ -1814,49 +2259,109 @@ def _build_taxonomy_reference(
     return result, warnings
 
 
+def _reference_attr(reference: Any, name: str, *, fallback: Any = None) -> Any:
+    try:
+        value = getattr(reference, name)
+        if value is not None and value != "":
+            return value
+    except Exception:
+        pass
+
+    try:
+        payload = reference.to_dict() if hasattr(reference, "to_dict") else reference
+        if isinstance(payload, Mapping):
+            value = payload.get(name)
+            if value is not None and value != "":
+                return value
+    except Exception:
+        pass
+
+    return fallback
+
+
+def _reference_value(reference: Any, key: str, *, fallback: str = "") -> str:
+    try:
+        selection = getattr(reference, "selection", None)
+        if selection is not None:
+            value = getattr(selection, key, None)
+            if value:
+                return str(value)
+    except Exception:
+        pass
+
+    try:
+        payload = reference.to_dict() if hasattr(reference, "to_dict") else reference
+        if isinstance(payload, Mapping):
+            selection_payload = payload.get("selection")
+            if isinstance(selection_payload, Mapping) and selection_payload.get(key):
+                return str(selection_payload[key])
+            if payload.get(key):
+                return str(payload[key])
+    except Exception:
+        pass
+
+    return fallback
+
+
 def _extract_taxonomy_labels(reference: Any) -> dict[str, str]:
     try:
         resolved = getattr(reference, "resolved", None)
-        if resolved is not None:
+        selection = getattr(reference, "selection", None)
+        if resolved is not None and selection is not None:
             return {
-                "domain": str(getattr(resolved.domain, "label", reference.selection.domain)),
-                "category": str(getattr(resolved.category, "label", reference.selection.category)),
-                "subcategory": str(getattr(resolved.subcategory, "label", reference.selection.subcategory)),
+                "domain": str(getattr(getattr(resolved, "domain", None), "label", getattr(selection, "domain", ""))),
+                "category": str(getattr(getattr(resolved, "category", None), "label", getattr(selection, "category", ""))),
+                "subcategory": str(getattr(getattr(resolved, "subcategory", None), "label", getattr(selection, "subcategory", ""))),
             }
     except Exception:
         pass
 
     try:
-        payload = reference.to_dict()
-        resolved_payload = payload.get("resolved", {}) if isinstance(payload, Mapping) else {}
-        path_labels = resolved_payload.get("path_labels", [])
-        if isinstance(path_labels, list) and len(path_labels) >= 3:
+        payload = reference.to_dict() if hasattr(reference, "to_dict") else reference
+        if isinstance(payload, Mapping):
+            resolved_payload = payload.get("resolved", {}) if isinstance(payload.get("resolved"), Mapping) else {}
+            path_labels = resolved_payload.get("path_labels", [])
+            if isinstance(path_labels, list) and len(path_labels) >= 3:
+                return {
+                    "domain": str(path_labels[0]),
+                    "category": str(path_labels[1]),
+                    "subcategory": str(path_labels[2]),
+                }
+
+            selection_payload = payload.get("selection", {}) if isinstance(payload.get("selection"), Mapping) else {}
             return {
-                "domain": str(path_labels[0]),
-                "category": str(path_labels[1]),
-                "subcategory": str(path_labels[2]),
+                "domain": str(selection_payload.get("domain") or payload.get("domain") or ""),
+                "category": str(selection_payload.get("category") or payload.get("category") or ""),
+                "subcategory": str(selection_payload.get("subcategory") or payload.get("subcategory") or ""),
             }
     except Exception:
         pass
 
     return {
-        "domain": str(getattr(reference.selection, "domain", "")),
-        "category": str(getattr(reference.selection, "category", "")),
-        "subcategory": str(getattr(reference.selection, "subcategory", "")),
+        "domain": _reference_value(reference, "domain"),
+        "category": _reference_value(reference, "category"),
+        "subcategory": _reference_value(reference, "subcategory"),
     }
 
 
 def _taxonomy_issues_to_create_issues(validation_result: Any) -> list[CreateIssue]:
     issues: list[CreateIssue] = []
 
-    raw_issues = []
-    try:
-        raw_issues = list(getattr(validation_result, "issues", []) or [])
-    except Exception:
-        raw_issues = []
+    if validation_result is None:
+        return issues
 
-    for issue in raw_issues:
-        issues.append(_taxonomy_issue_to_create_issue(issue))
+    if isinstance(validation_result, Mapping):
+        raw_issues = validation_result.get("issues") or validation_result.get("errors") or []
+    elif isinstance(validation_result, Iterable) and not isinstance(validation_result, (str, bytes, bytearray)):
+        raw_issues = list(validation_result)
+    else:
+        raw_issues = getattr(validation_result, "issues", [])
+
+    try:
+        for issue in list(raw_issues or []):
+            issues.append(_taxonomy_issue_to_create_issue(issue))
+    except Exception:
+        return issues
 
     return issues
 
@@ -1881,6 +2386,194 @@ def _taxonomy_issue_to_create_issue(issue: Any) -> CreateIssue:
         field="taxonomy",
     )
 
+
+# ---------------------------------------------------------------------------
+# Definition catalog adapter
+# ---------------------------------------------------------------------------
+
+def _get_definition_catalog_service() -> Any:
+    module = _load_definition_catalog_service_module()
+
+    factory = getattr(module, "create_library_definition_catalog_service", None)
+    if callable(factory):
+        return factory()
+
+    service_class = getattr(module, "LibraryDefinitionCatalogService", None)
+    if service_class is not None:
+        return service_class()
+
+    raise RuntimeError("LibraryDefinitionCatalogService ist nicht verfügbar.")
+
+
+def _get_definition_catalog_service_health() -> dict[str, Any]:
+    try:
+        service = _get_definition_catalog_service()
+
+        if hasattr(service, "get_health") and callable(service.get_health):
+            health = service.get_health()
+            return {
+                "available": True,
+                "health": _service_result_payload(health),
+            }
+
+        return {
+            "available": True,
+            "health": {"ok": True},
+        }
+    except Exception as exc:
+        return {
+            "available": False,
+            "error": {
+                "type": type(exc).__name__,
+                "message": str(exc),
+            },
+        }
+
+
+def _get_definition_create_options_payload(*, user_id: Any = 1) -> dict[str, Any]:
+    try:
+        service = _get_definition_catalog_service()
+
+        for method_name in (
+            "get_create_options",
+            "get_create_context_options",
+            "get_current_catalog",
+        ):
+            method = getattr(service, method_name, None)
+            if not callable(method):
+                continue
+
+            try:
+                result = _call_method_flex(method, {"user_id": user_id})
+            except Exception:
+                result = method()
+
+            payload = _service_result_payload(result)
+
+            return {
+                "available": True,
+                "method": method_name,
+                "payload": payload,
+            }
+
+        return {
+            "available": False,
+            "error": "Definition service exposes no known create-options method.",
+        }
+    except Exception as exc:
+        return {
+            "available": False,
+            "error": {
+                "type": type(exc).__name__,
+                "message": str(exc),
+            },
+        }
+
+
+def _merge_definition_options_into_create_options(
+    data: dict[str, Any],
+    definition_options: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not definition_options.get("available"):
+        return data
+
+    payload = definition_options.get("payload")
+    if not isinstance(payload, Mapping):
+        return data
+
+    source_payload = payload.get("payload") if isinstance(payload.get("payload"), Mapping) else payload
+
+    if not isinstance(source_payload, Mapping):
+        return data
+
+    for source_key, target_key in (
+        ("object_kinds", "object_kinds"),
+        ("units", "units"),
+        ("materials", "material_classes"),
+        ("material_classes", "material_classes"),
+    ):
+        value = source_payload.get(source_key)
+        if isinstance(value, list) and value:
+            data[target_key] = _definition_items_to_options(value, existing=data.get(target_key))
+
+    data["definition_catalog"] = source_payload
+    return data
+
+
+def _definition_items_to_options(value: Iterable[Any], *, existing: Any = None) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for item in value:
+        if isinstance(item, Mapping):
+            option = {
+                "value": item.get("value") or item.get("key") or item.get("id") or item.get("slug"),
+                "id": item.get("id") or item.get("key") or item.get("value") or item.get("slug"),
+                "label": item.get("label") or item.get("name") or item.get("key") or item.get("value"),
+                "description": item.get("description") or "",
+                "enabled": not bool(item.get("disabled", False)),
+                "default": bool(item.get("default", False)),
+            }
+        else:
+            option = {
+                "value": str(item),
+                "id": str(item),
+                "label": str(item),
+                "description": "",
+                "enabled": True,
+            }
+
+        key = str(option.get("value") or option.get("id") or "").strip()
+        if not key or key in seen:
+            continue
+
+        seen.add(key)
+        result.append(option)
+
+    if result:
+        return result
+
+    return list(existing or [])
+
+
+def _call_method_flex(method: Any, kwargs: Mapping[str, Any]) -> Any:
+    """Call service method with kwargs, dropping unsupported args if necessary."""
+    cleaned = {
+        key: value
+        for key, value in kwargs.items()
+        if value is not None
+    }
+
+    try:
+        return method(**cleaned)
+    except TypeError:
+        try:
+            return method(cleaned)
+        except TypeError:
+            return method()
+
+
+def _service_result_payload(result: Any) -> dict[str, Any]:
+    if result is None:
+        return {}
+
+    if hasattr(result, "to_dict") and callable(result.to_dict):
+        try:
+            payload = result.to_dict(include_http_status=True)
+        except TypeError:
+            payload = result.to_dict()
+        if isinstance(payload, Mapping):
+            return dict(payload)
+
+    if isinstance(result, Mapping):
+        return dict(result)
+
+    return {"value": _json_safe(result)}
+
+
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
 
 def _ensure_normalized_draft(draft: NormalizedCreateDraft | Mapping[str, Any]) -> NormalizedCreateDraft:
     if isinstance(draft, NormalizedCreateDraft):
@@ -2078,6 +2771,10 @@ def _validate_package_documents(documents: Mapping[str, Any]) -> list[CreateIssu
     return errors
 
 
+# ---------------------------------------------------------------------------
+# Document builders
+# ---------------------------------------------------------------------------
+
 def _build_default_variant_document(draft: NormalizedCreateDraft) -> dict[str, Any]:
     default_variant = {}
     for variant in draft.variants:
@@ -2134,6 +2831,115 @@ def _build_notes_markdown(draft: NormalizedCreateDraft) -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# Persistent draft helpers
+# ---------------------------------------------------------------------------
+
+def _build_draft_service_payload(
+    *,
+    draft: Mapping[str, Any],
+    documents: Mapping[str, Any],
+    original_payload: Mapping[str, Any],
+    validation: CreateResult,
+) -> dict[str, Any]:
+    draft_payload = dict(draft)
+    manifest = documents.get("vplib.manifest.json") if isinstance(documents.get("vplib.manifest.json"), Mapping) else {}
+    modules = documents.get("vplib.modules.json") if isinstance(documents.get("vplib.modules.json"), Mapping) else {}
+    family = documents.get("family/identity.json") if isinstance(documents.get("family/identity.json"), Mapping) else {}
+    classification = documents.get("family/classification.json") if isinstance(documents.get("family/classification.json"), Mapping) else {}
+
+    document_rows = []
+    for path, content in sorted(documents.items()):
+        document_rows.append(
+            {
+                "document_kind": "generated_package_document",
+                "document_type": "json" if str(path).endswith(".json") else "markdown",
+                "field_key": path,
+                "title": path,
+                "payload": {
+                    "path": path,
+                    "content": _json_safe(content),
+                    "generated_by": LIBRARY_CREATE_SERVICE_COMPONENT,
+                },
+                "sort_order": len(document_rows),
+            }
+        )
+
+    variant_rows = []
+    for index, variant in enumerate(draft_payload.get("variants") or []):
+        if not isinstance(variant, Mapping):
+            continue
+        variant_rows.append(
+            {
+                "variant_id": variant.get("variant_id"),
+                "variant_key": variant.get("variant_id"),
+                "label": variant.get("label"),
+                "sort_order": index,
+                "definition_values_json": variant.get("overrides") or {},
+                "summary_json": {
+                    "description": variant.get("description"),
+                    "kind": variant.get("kind"),
+                    "is_default": variant.get("is_default"),
+                },
+                "payload": _json_safe(dict(variant)),
+            }
+        )
+
+    return {
+        "user_id": original_payload.get("user_id", 1),
+        "mode": original_payload.get("mode") or "create",
+        "source_scope": "user",
+        "target_vplib_uid": draft_payload.get("vplib_uid"),
+        "family_id": draft_payload.get("family_id"),
+        "package_id": draft_payload.get("package_id"),
+        "vplib_uid": draft_payload.get("vplib_uid"),
+        "title": draft_payload.get("family_name") or family.get("label"),
+        "label": draft_payload.get("family_name") or family.get("label"),
+        "name": draft_payload.get("family_name") or family.get("label"),
+        "description": draft_payload.get("family_description") or family.get("description"),
+        "family_payload": family or {
+            "family_id": draft_payload.get("family_id"),
+            "slug": draft_payload.get("family_slug"),
+            "label": draft_payload.get("family_name"),
+            "description": draft_payload.get("family_description"),
+        },
+        "classification_payload": classification or draft_payload.get("classification") or {},
+        "manifest_payload": manifest,
+        "modules_payload": modules,
+        "generator_payload": {
+            "component": LIBRARY_CREATE_SERVICE_COMPONENT,
+            "version": LIBRARY_CREATE_SERVICE_VERSION,
+            "original_payload": _json_safe(dict(original_payload)),
+            "normalized_draft": _json_safe(draft_payload),
+            "package_documents": _json_safe(documents),
+        },
+        "validation_payload": {
+            "valid": validation.ok,
+            "status": validation.status,
+            "errors": [issue.to_dict() for issue in validation.errors],
+            "warnings": [issue.to_dict() for issue in validation.warnings],
+            "info": [issue.to_dict() for issue in validation.info],
+        },
+        "variants": variant_rows,
+        "documents": document_rows,
+        "assets": [],
+        "payload": {
+            "source": LIBRARY_CREATE_SERVICE_COMPONENT,
+            "normalized_draft": _json_safe(draft_payload),
+        },
+        "metadata": {
+            "source_path": draft_payload.get("source_path"),
+            "source_parts": draft_payload.get("source_parts"),
+            "package_version": draft_payload.get("package_version"),
+            "taxonomy_version": (draft_payload.get("taxonomy") or {}).get("version"),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Payload coercion / form normalization
+# ---------------------------------------------------------------------------
+
 def _coerce_payload_mapping(payload: Any) -> dict[str, Any]:
     if payload is None:
         return {}
@@ -2180,13 +2986,33 @@ def _normalize_form_mapping(payload: dict[str, Any]) -> dict[str, Any]:
         else:
             normalized[str(key)] = value
 
-    indexed_prefixes = {"variants", "variables", "host_rules", "technical_profile"}
+    indexed_prefixes = {
+        "variants",
+        "variables",
+        "host_rules",
+        "technical_profile",
+        "assets",
+        "documents",
+        "validation_issues",
+    }
     for prefix in indexed_prefixes:
         rows = _extract_indexed_rows(normalized, prefix)
         if rows:
             normalized[prefix] = rows
 
-    nested_object_prefixes = {"taxonomy", "classification", "identity", "family", "geometry", "dimensions"}
+    nested_object_prefixes = {
+        "taxonomy",
+        "classification",
+        "identity",
+        "family",
+        "geometry",
+        "dimensions",
+        "technical",
+        "generator",
+        "manifest",
+        "modules",
+        "metadata",
+    }
     for prefix in nested_object_prefixes:
         nested = _extract_bracket_object(normalized, prefix)
         if nested:
@@ -2206,6 +3032,12 @@ def _normalize_form_mapping(payload: dict[str, Any]) -> dict[str, Any]:
         "technical_profile_json",
         "taxonomy_json",
         "classification_json",
+        "family_json",
+        "manifest_json",
+        "modules_json",
+        "generator_json",
+        "documents_json",
+        "assets_json",
         "draft_json",
     ]:
         if json_key in normalized and isinstance(normalized[json_key], str):
@@ -2252,6 +3084,136 @@ def _extract_bracket_object(payload: Mapping[str, Any], prefix: str) -> dict[str
 
     return result
 
+
+# ---------------------------------------------------------------------------
+# Option helpers
+# ---------------------------------------------------------------------------
+
+def _static_create_options() -> dict[str, Any]:
+    return {
+        "object_kinds": [
+            {
+                "value": "cell_block",
+                "id": "cell_block",
+                "label": "Raster-Bauteil",
+                "description": "Ein einzelner Raster- oder Blockbaustein.",
+                "enabled": True,
+                "default": True,
+            },
+            {
+                "value": "multi_cell_module",
+                "id": "multi_cell_module",
+                "label": "Mehrblock-Modul",
+                "description": "Ein Modul, das mehrere Rasterblöcke belegen kann.",
+                "enabled": True,
+            },
+            {
+                "value": "catalog_object",
+                "id": "catalog_object",
+                "label": "Katalogobjekt",
+                "description": "Ein freies Objekt wie Möbel, Armatur oder Ausstattung.",
+                "enabled": True,
+            },
+            {
+                "value": "adaptive_system",
+                "id": "adaptive_system",
+                "label": "Adaptives System",
+                "description": "Ein später kontextabhängiges System.",
+                "enabled": True,
+            },
+        ],
+        "primitive_shapes": [
+            {"value": "block", "id": "block", "label": "Block / Quader", "enabled": True, "default": True},
+            {"value": "wall", "id": "wall", "label": "Wand / Platte stehend", "enabled": True},
+            {"value": "slab", "id": "slab", "label": "Decke / Platte liegend", "enabled": True},
+            {"value": "cylinder", "id": "cylinder", "label": "Zylinder", "enabled": True},
+            {"value": "pipe", "id": "pipe", "label": "Rohr / liegender Zylinder", "enabled": True},
+        ],
+        "units": [
+            {"value": "m", "id": "m", "label": "Meter", "enabled": True, "default": True},
+            {"value": "cm", "id": "cm", "label": "Zentimeter", "enabled": True},
+            {"value": "mm", "id": "mm", "label": "Millimeter", "enabled": True},
+        ],
+        "material_classes": [
+            {"value": "beton", "id": "beton", "label": "Beton", "enabled": True},
+            {"value": "stahlbeton", "id": "stahlbeton", "label": "Stahlbeton", "enabled": True},
+            {"value": "ziegel", "id": "ziegel", "label": "Ziegel", "enabled": True},
+            {"value": "mauerwerk", "id": "mauerwerk", "label": "Mauerwerk", "enabled": True},
+            {"value": "holz", "id": "holz", "label": "Holz", "enabled": True},
+            {"value": "stahl", "id": "stahl", "label": "Stahl", "enabled": True},
+            {"value": "glas", "id": "glas", "label": "Glas", "enabled": True},
+            {"value": "kunststoff", "id": "kunststoff", "label": "Kunststoff", "enabled": True},
+            {"value": "sonstiges", "id": "sonstiges", "label": "Sonstiges Material", "enabled": True},
+        ],
+    }
+
+
+def _flatten_taxonomy_options(taxonomy_payload: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    categories: list[dict[str, Any]] = []
+    subcategories: list[dict[str, Any]] = []
+
+    categories_by_domain = taxonomy_payload.get("categories_by_domain", {})
+    if isinstance(categories_by_domain, Mapping):
+        for domain, items in categories_by_domain.items():
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, Mapping):
+                    continue
+                categories.append(
+                    {
+                        "value": item.get("id") or item.get("value") or item.get("node_key") or "",
+                        "id": item.get("id") or item.get("value") or item.get("node_key") or "",
+                        "label": item.get("label", item.get("id", "")),
+                        "domain": domain,
+                        "enabled": not bool(item.get("disabled", False)),
+                        "description": item.get("description", ""),
+                        "status": item.get("status", "active"),
+                    }
+                )
+
+    subcategory_maps = [
+        taxonomy_payload.get("subcategories_by_category", {}),
+        taxonomy_payload.get("subcategories_by_category_path", {}),
+    ]
+    for subcategories_by_category in subcategory_maps:
+        if not isinstance(subcategories_by_category, Mapping):
+            continue
+
+        for key, items in subcategories_by_category.items():
+            if not isinstance(items, list):
+                continue
+
+            parts = str(key).split("/")
+            domain = parts[0] if len(parts) > 0 else ""
+            category = parts[1] if len(parts) > 1 else ""
+
+            for item in items:
+                if not isinstance(item, Mapping):
+                    continue
+                option_id = item.get("id") or item.get("value") or item.get("node_key") or ""
+                subcategories.append(
+                    {
+                        "value": option_id,
+                        "id": option_id,
+                        "label": item.get("label", option_id),
+                        "domain": domain,
+                        "category": category,
+                        "enabled": not bool(item.get("disabled", False)),
+                        "description": item.get("description", ""),
+                        "status": item.get("status", "active"),
+                    }
+                )
+
+    return {
+        "categories": categories,
+        "subcategories": subcategories,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Variant / variable normalization
+# ---------------------------------------------------------------------------
 
 def _normalize_variants(payload: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[CreateIssue]]:
     warnings: list[CreateIssue] = []
@@ -2478,6 +3440,10 @@ def _normalize_material_classes(value: Any) -> list[str]:
 
     return result[:20]
 
+
+# ---------------------------------------------------------------------------
+# Generic helpers
+# ---------------------------------------------------------------------------
 
 def _first_value(mapping: Mapping[str, Any], keys: Sequence[str | Sequence[str]], default: Any = None) -> Any:
     for key in keys:
@@ -2723,71 +3689,9 @@ def _write_text_atomic(target_file: Path, content: str) -> None:
         raise
 
 
-def _is_taxonomy_available() -> bool:
-    return get_default_taxonomy_service is not None and _TAXONOMY_IMPORT_ERROR is None
-
-
-def _get_taxonomy_service() -> Any:
-    if not _is_taxonomy_available():
-        raise RuntimeError("Taxonomie-Service ist nicht verfügbar.")
-    return get_default_taxonomy_service()  # type: ignore[misc]
-
-
-def _flatten_taxonomy_options(taxonomy_payload: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
-    categories: list[dict[str, Any]] = []
-    subcategories: list[dict[str, Any]] = []
-
-    categories_by_domain = taxonomy_payload.get("categories_by_domain", {})
-    if isinstance(categories_by_domain, Mapping):
-        for domain, items in categories_by_domain.items():
-            if not isinstance(items, list):
-                continue
-            for item in items:
-                if not isinstance(item, Mapping):
-                    continue
-                categories.append(
-                    {
-                        "value": item.get("id", ""),
-                        "id": item.get("id", ""),
-                        "label": item.get("label", item.get("id", "")),
-                        "domain": domain,
-                        "enabled": not bool(item.get("disabled", False)),
-                        "description": item.get("description", ""),
-                        "status": item.get("status", "active"),
-                    }
-                )
-
-    subcategories_by_category = taxonomy_payload.get("subcategories_by_category", {})
-    if isinstance(subcategories_by_category, Mapping):
-        for key, items in subcategories_by_category.items():
-            if not isinstance(items, list):
-                continue
-
-            parts = str(key).split("/")
-            domain = parts[0] if len(parts) > 0 else ""
-            category = parts[1] if len(parts) > 1 else ""
-
-            for item in items:
-                if not isinstance(item, Mapping):
-                    continue
-                subcategories.append(
-                    {
-                        "value": item.get("id", ""),
-                        "id": item.get("id", ""),
-                        "label": item.get("label", item.get("id", "")),
-                        "domain": domain,
-                        "category": category,
-                        "enabled": not bool(item.get("disabled", False)),
-                        "description": item.get("description", ""),
-                        "status": item.get("status", "active"),
-                    }
-                )
-
-    return {
-        "categories": categories,
-        "subcategories": subcategories,
-    }
-
+# ---------------------------------------------------------------------------
+# VPLIB UID helpers
+# ---------------------------------------------------------------------------
 
 def _ensure_payload_vplib_uid(payload: Mapping[str, Any]) -> str:
     """Return an existing valid VPLIB UID or generate a new one."""
@@ -2960,13 +3864,18 @@ def _get_vplib_uid_service_health() -> dict[str, Any]:
             }
 
 
-def _json_safe(value: Any) -> Any:
-    if _taxonomy_json_safe is not None:
-        try:
-            return _taxonomy_json_safe(value)
-        except Exception:
-            pass
+# ---------------------------------------------------------------------------
+# JSON / issue helpers
+# ---------------------------------------------------------------------------
 
+def _json_safe(value: Any) -> Any:
+    try:
+        return _taxonomy_json_safe(value)
+    except Exception:
+        return _json_safe_fallback(value)
+
+
+def _json_safe_fallback(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
 
@@ -2977,10 +3886,10 @@ def _json_safe(value: Any) -> Any:
         return value.to_dict()
 
     if isinstance(value, Mapping):
-        return {str(key): _json_safe(inner_value) for key, inner_value in value.items()}
+        return {str(key): _json_safe_fallback(inner_value) for key, inner_value in value.items()}
 
     if isinstance(value, (list, tuple, set)):
-        return [_json_safe(item) for item in value]
+        return [_json_safe_fallback(item) for item in value]
 
     try:
         json.dumps(value)
@@ -3104,6 +4013,26 @@ def _failure(
     )
 
 
+def clear_library_create_service_caches() -> dict[str, Any]:
+    """Clear lazy import caches."""
+    cleared: list[str] = []
+
+    for cached_func in (
+        _load_taxonomy_module,
+        _load_definition_catalog_service_module,
+    ):
+        try:
+            cached_func.cache_clear()
+            cleared.append(getattr(cached_func, "__name__", str(cached_func)))
+        except Exception:
+            pass
+
+    return {
+        "ok": True,
+        "cleared": cleared,
+    }
+
+
 __all__ = [
     "ALLOWED_OBJECT_KINDS",
     "ALLOWED_PRIMITIVE_SHAPES",
@@ -3132,8 +4061,12 @@ __all__ = [
     "build_draft",
     "build_package_documents",
     "build_package_plan",
+    "build_persistent_draft_payload",
+    "build_publish_bundle_from_create_payload",
     "build_vplib_archive",
+    "clear_library_create_service_caches",
     "create_draft",
+    "get_create_context",
     "get_create_options",
     "get_options",
     "get_service_health",

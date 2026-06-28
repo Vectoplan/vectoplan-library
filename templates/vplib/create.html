@@ -11,7 +11,9 @@
   data-vp-create-color-scheme="dark"
   data-vp-create-style="black"
   data-vp-create-template-root="vplib"
-  data-vp-create-template-version="0.6.0"
+  data-vp-create-template-version="0.7.0"
+  data-vp-create-css-mode="single-file"
+  data-vp-create-variant-runtime="definition-managed"
 >
 <head>
   <meta charset="utf-8" />
@@ -29,11 +31,6 @@
         var defaultTheme = "dark";
         var themeStorageKey = "vectoplan.create.wizard.theme";
         var legacyThemeStorageKey = "vectoplan.create.theme";
-        var allowedThemes = {
-          light: true,
-          dark: true,
-          system: true
-        };
 
         root.classList.add("vp-create-js-pending");
         root.setAttribute("data-vp-create-shell", "wizard");
@@ -42,10 +39,10 @@
         root.setAttribute("data-vp-create-color-scheme", "dark");
         root.setAttribute("data-vp-create-style", "black");
         root.setAttribute("data-vp-create-template-root", "vplib");
-        root.setAttribute("data-vp-create-template-version", "0.6.0");
+        root.setAttribute("data-vp-create-template-version", "0.7.0");
         root.setAttribute("data-vp-create-css-mode", "single-file");
         root.setAttribute("data-vp-create-variant-runtime", "definition-managed");
-        root.setAttribute("data-vp-create-variant-runtime-version", "0.1.0");
+        root.setAttribute("data-vp-create-variant-runtime-version", "0.7.0");
 
         try {
           var isEmbedded = false;
@@ -62,40 +59,15 @@
         }
 
         try {
-          var storedTheme = window.localStorage.getItem(themeStorageKey);
-
-          if (!storedTheme || !allowedThemes[String(storedTheme).toLowerCase()]) {
-            storedTheme = defaultTheme;
-          }
-
-          /*
-            Der neue Create-Wizard wird bewusst schwarz geführt.
-            Alte localStorage-Werte wie "light" werden hier auf dark normalisiert,
-            damit JS-Kontext, CSS und Shell nicht gegeneinander arbeiten.
-          */
-          storedTheme = defaultTheme;
-
-          window.localStorage.setItem(themeStorageKey, storedTheme);
-          window.localStorage.setItem(legacyThemeStorageKey, storedTheme);
-
-          root.setAttribute("data-theme", String(storedTheme).toLowerCase());
-          root.setAttribute("data-vp-create-theme", String(storedTheme).toLowerCase());
-          root.setAttribute("data-create-default-theme", defaultTheme);
-          root.setAttribute("data-vp-create-default-theme", defaultTheme);
-          root.style.colorScheme = "dark";
+          window.localStorage.setItem(themeStorageKey, defaultTheme);
+          window.localStorage.setItem(legacyThemeStorageKey, defaultTheme);
         } catch (storageError) {
-          root.setAttribute("data-theme", defaultTheme);
-          root.setAttribute("data-vp-create-theme", defaultTheme);
-          root.style.colorScheme = "dark";
-
-          try {
-            if (window.console && typeof window.console.warn === "function") {
-              window.console.warn("[VECTOPLAN Create] Theme storage bootstrap failed. Falling back to dark.", storageError);
-            }
-          } catch (consoleError) {
-            /* no-op */
-          }
+          /* no-op */
         }
+
+        root.setAttribute("data-theme", defaultTheme);
+        root.setAttribute("data-vp-create-theme", defaultTheme);
+        root.style.colorScheme = "dark";
       } catch (error) {
         try {
           document.documentElement.setAttribute("data-theme", "dark");
@@ -130,9 +102,8 @@
 
 {% import "vplib/create/_macros.html" as create_ui %}
 
-
 {# -----------------------------------------------------------------------------
-   1. API-Kontext
+   1. API- und Kontextdaten
 ----------------------------------------------------------------------------- #}
 
 {% if create_api_prefix is defined and create_api_prefix %}
@@ -141,8 +112,55 @@
   {% set _api_prefix = '/api/v1/vplib/create' %}
 {% endif %}
 
-{% set _definitions_api_prefix = '/api/v1/vplib/definitions' %}
+{% if create_definitions_api_prefix is defined and create_definitions_api_prefix %}
+  {% set _definitions_api_prefix = create_definitions_api_prefix %}
+{% else %}
+  {% set _definitions_api_prefix = '/api/v1/vplib/definitions' %}
+{% endif %}
 
+{% if create_taxonomy_api_prefix is defined and create_taxonomy_api_prefix %}
+  {% set _taxonomy_api_prefix = create_taxonomy_api_prefix %}
+{% else %}
+  {% set _taxonomy_api_prefix = '/api/v1/vplib/taxonomy' %}
+{% endif %}
+
+{% if create_files_api_prefix is defined and create_files_api_prefix %}
+  {% set _files_api_prefix = create_files_api_prefix %}
+{% else %}
+  {% set _files_api_prefix = '/api/v1/vplib/files' %}
+{% endif %}
+
+{% if create_context is defined and create_context is mapping %}
+  {% set _context = create_context %}
+{% else %}
+  {% set _context = {} %}
+{% endif %}
+
+{% if _context is mapping and 'routes' in _context and _context['routes'] is mapping %}
+  {% set _routes = _context['routes'] %}
+{% else %}
+  {% set _routes = {} %}
+{% endif %}
+
+{% if _context is mapping and 'generatorContext' in _context and _context['generatorContext'] is mapping %}
+  {% set _generator_context = _context['generatorContext'] %}
+{% elif _context is mapping and 'generator_context' in _context and _context['generator_context'] is mapping %}
+  {% set _generator_context = _context['generator_context'] %}
+{% elif generator_context is defined and generator_context is mapping %}
+  {% set _generator_context = generator_context %}
+{% else %}
+  {% set _generator_context = {} %}
+{% endif %}
+
+{% if _context is mapping and 'payloadContract' in _context and _context['payloadContract'] is mapping %}
+  {% set _payload_contract = _context['payloadContract'] %}
+{% elif _context is mapping and 'payload_contract' in _context and _context['payload_contract'] is mapping %}
+  {% set _payload_contract = _context['payload_contract'] %}
+{% elif create_payload_contract is defined and create_payload_contract is mapping %}
+  {% set _payload_contract = create_payload_contract %}
+{% else %}
+  {% set _payload_contract = {} %}
+{% endif %}
 
 {# -----------------------------------------------------------------------------
    2. Options / Health / Blueprint
@@ -152,6 +170,12 @@
   {% set _options = create_options %}
 {% else %}
   {% set _options = {} %}
+{% endif %}
+
+{% if _options is mapping and 'data' in _options and _options['data'] is mapping %}
+  {% set _options_data = _options['data'] %}
+{% else %}
+  {% set _options_data = _options %}
 {% endif %}
 
 {% if create_health is defined and create_health is mapping %}
@@ -166,32 +190,14 @@
   {% set _blueprint = {} %}
 {% endif %}
 
-
 {# -----------------------------------------------------------------------------
-   3. Option-Gruppen
-
-   Unterstützt:
-   - direkte Optionsdaten
-   - RouteResponse-Envelope mit data
-   - definitions_options.*
-   - definition_catalogs.*
-   - definitions.* direkt
-
-   Wichtig:
-   Der aktuelle Backend-Stand liefert die echten Definitionsarrays direkt unter:
-     _options.data.definitions.object_kinds
-     _options.data.definitions.units
-     _options.data.definitions.materials
+   3. Definitions / Taxonomie / Upload-Konfiguration
 ----------------------------------------------------------------------------- #}
-
-{% if _options is mapping and 'data' in _options and _options['data'] is mapping %}
-  {% set _options_data = _options['data'] %}
-{% else %}
-  {% set _options_data = _options %}
-{% endif %}
 
 {% if _options_data is mapping and 'definitions' in _options_data and _options_data['definitions'] is mapping %}
   {% set _definitions_data = _options_data['definitions'] %}
+{% elif create_definitions is defined and create_definitions is mapping %}
+  {% set _definitions_data = create_definitions %}
 {% else %}
   {% set _definitions_data = {} %}
 {% endif %}
@@ -208,27 +214,13 @@
   {% set _definition_catalogs = _options_data['definition_catalogs'] %}
 {% elif _definitions_data is mapping and 'definitions' in _definitions_data and _definitions_data['definitions'] is mapping %}
   {% set _definition_catalogs = _definitions_data['definitions'] %}
-{% elif _definitions_data is mapping and (
-  'object_kinds' in _definitions_data or
-  'family_profiles' in _definitions_data or
-  'variant_profiles' in _definitions_data or
-  'variables' in _definitions_data or
-  'units' in _definitions_data or
-  'materials' in _definitions_data or
-  'document_types' in _definitions_data or
-  'profile_bindings' in _definitions_data
-) %}
+{% elif _definitions_data is mapping %}
   {% set _definition_catalogs = _definitions_data %}
 {% else %}
   {% set _definition_catalogs = {} %}
 {% endif %}
 
-{% if _definitions_data is mapping and (
-  _definitions_data.get('ok') is sameas true or
-  (_definitions_data.get('ok') | string | lower) in ['true', '1', 'yes', 'ja', 'ok', 'healthy']
-) %}
-  {% set _create_definitions_available = true %}
-{% elif _definition_catalogs is mapping and (
+{% if _definition_catalogs is mapping and (
   ('object_kinds' in _definition_catalogs and _definition_catalogs['object_kinds']) or
   ('family_profiles' in _definition_catalogs and _definition_catalogs['family_profiles']) or
   ('variant_profiles' in _definition_catalogs and _definition_catalogs['variant_profiles']) or
@@ -240,6 +232,20 @@
 {% else %}
   {% set _create_definitions_available = false %}
 {% endif %}
+
+{% if _context is mapping and 'uploadConfig' in _context and _context['uploadConfig'] is mapping %}
+  {% set _upload_config = _context['uploadConfig'] %}
+{% elif _context is mapping and 'uploads' in _context and _context['uploads'] is mapping %}
+  {% set _upload_config = _context['uploads'] %}
+{% elif create_upload_config is defined and create_upload_config is mapping %}
+  {% set _upload_config = create_upload_config %}
+{% else %}
+  {% set _upload_config = {} %}
+{% endif %}
+
+{# -----------------------------------------------------------------------------
+   4. Select-Options
+----------------------------------------------------------------------------- #}
 
 {% if _options_data is mapping and 'domains' in _options_data and _options_data['domains'] is iterable and _options_data['domains'] is not string %}
   {% set _domains = _options_data['domains'] %}
@@ -265,8 +271,6 @@
   {% set _object_kinds = _definitions_options['object_kinds'] %}
 {% elif _definition_catalogs is mapping and 'object_kinds' in _definition_catalogs and _definition_catalogs['object_kinds'] is iterable and _definition_catalogs['object_kinds'] is not string %}
   {% set _object_kinds = _definition_catalogs['object_kinds'] %}
-{% elif _definitions_data is mapping and 'object_kinds' in _definitions_data and _definitions_data['object_kinds'] is iterable and _definitions_data['object_kinds'] is not string %}
-  {% set _object_kinds = _definitions_data['object_kinds'] %}
 {% else %}
   {% set _object_kinds = [] %}
 {% endif %}
@@ -283,8 +287,6 @@
   {% set _units = _definitions_options['units'] %}
 {% elif _definition_catalogs is mapping and 'units' in _definition_catalogs and _definition_catalogs['units'] is iterable and _definition_catalogs['units'] is not string %}
   {% set _units = _definition_catalogs['units'] %}
-{% elif _definitions_data is mapping and 'units' in _definitions_data and _definitions_data['units'] is iterable and _definitions_data['units'] is not string %}
-  {% set _units = _definitions_data['units'] %}
 {% else %}
   {% set _units = [] %}
 {% endif %}
@@ -297,19 +299,20 @@
   {% set _material_classes = _definitions_options['materials'] %}
 {% elif _definition_catalogs is mapping and 'materials' in _definition_catalogs and _definition_catalogs['materials'] is iterable and _definition_catalogs['materials'] is not string %}
   {% set _material_classes = _definition_catalogs['materials'] %}
-{% elif _definitions_data is mapping and 'materials' in _definitions_data and _definitions_data['materials'] is iterable and _definitions_data['materials'] is not string %}
-  {% set _material_classes = _definitions_data['materials'] %}
 {% else %}
   {% set _material_classes = [] %}
 {% endif %}
 
-
 {# -----------------------------------------------------------------------------
-   4. Write-/Health-Status
+   5. Status / Version / Source
 ----------------------------------------------------------------------------- #}
 
 {% if _options_data is mapping and 'write_enabled' in _options_data %}
   {% set _write_enabled_raw = _options_data['write_enabled'] %}
+{% elif _context is mapping and 'write_enabled' in _context %}
+  {% set _write_enabled_raw = _context['write_enabled'] %}
+{% elif _context is mapping and 'writeEnabled' in _context %}
+  {% set _write_enabled_raw = _context['writeEnabled'] %}
 {% else %}
   {% set _write_enabled_raw = false %}
 {% endif %}
@@ -323,21 +326,18 @@
 
 {% if _health is mapping and 'ok' in _health %}
   {% set _health_ok_raw = _health['ok'] %}
+{% elif _health is mapping and 'healthy' in _health %}
+  {% set _health_ok_raw = _health['healthy'] %}
 {% else %}
   {% set _health_ok_raw = false %}
 {% endif %}
 
 {% set _health_ok_text = _health_ok_raw | string | lower %}
-{% if _health_ok_raw is sameas true or _health_ok_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy'] %}
+{% if _health_ok_raw is sameas true or _health_ok_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy', 'ready', 'partial'] %}
   {% set _health_ok = true %}
 {% else %}
   {% set _health_ok = false %}
 {% endif %}
-
-
-{# -----------------------------------------------------------------------------
-   5. Source Root / Versionen
------------------------------------------------------------------------------ #}
 
 {% if _options_data is mapping and 'source_root' in _options_data and _options_data['source_root'] %}
   {% set _source_root = _options_data['source_root'] %}
@@ -348,7 +348,7 @@
 {% if _blueprint is mapping and 'version' in _blueprint and _blueprint['version'] %}
   {% set _blueprint_version = _blueprint['version'] %}
 {% else %}
-  {% set _blueprint_version = '0.1.0' %}
+  {% set _blueprint_version = '1.1.0' %}
 {% endif %}
 
 {% if _options_data is mapping and 'version' in _options_data and _options_data['version'] %}
@@ -357,18 +357,24 @@
   {% set _create_service_version = 'unknown' %}
 {% endif %}
 
+{% if _generator_context is mapping and (_generator_context | length) > 0 %}
+  {% set _generator_context_ready = true %}
+{% else %}
+  {% set _generator_context_ready = false %}
+{% endif %}
 
-{# -----------------------------------------------------------------------------
-   6. Theme-Kontext
------------------------------------------------------------------------------ #}
+{% if _payload_contract is mapping and (_payload_contract | length) > 0 %}
+  {% set _payload_contract_ready = true %}
+{% else %}
+  {% set _payload_contract_ready = false %}
+{% endif %}
 
 {% set _create_default_theme = 'dark' %}
 {% set _create_theme_storage_key = 'vectoplan.create.wizard.theme' %}
 {% set _create_legacy_theme_storage_key = 'vectoplan.create.theme' %}
 
-
 {# -----------------------------------------------------------------------------
-   7. Optionaler Initial-Draft
+   6. Optionaler Initial-Draft
 ----------------------------------------------------------------------------- #}
 
 {% if create_initial_draft is defined and create_initial_draft is mapping %}
@@ -381,17 +387,8 @@
   {% set _initial_draft = {} %}
 {% endif %}
 
-
 {# -----------------------------------------------------------------------------
-   8. Wizard-Schritte
-
-   Wichtig:
-   - Step 3 wird sichtbar als "Variablen" geführt.
-   - Der interne key/target bleibt vorerst kompatibel:
-     key: object
-     target: object-variants
-   - Dadurch bleiben create_wizard.js, create_preview.js und Variant-Runtime
-     bis zum späteren Refactor stabil.
+   7. Wizard-Schritte
 ----------------------------------------------------------------------------- #}
 
 {% set create_steps = [
@@ -415,10 +412,12 @@
   },
   {
     "index": 3,
-    "key": "object",
+    "key": "variables",
+    "alias": "object",
+    "aliases": ["object", "object-variants", "variables"],
     "label": "Variablen",
     "short_label": "Variablen",
-    "description": "Variablen und Unterlagen",
+    "description": "Variablen, Varianten und Unterlagen",
     "hint": "Technische Variablen, Variantenwerte und optionale Herstellerunterlagen definieren.",
     "target": "object-variants"
   },
@@ -442,7 +441,9 @@
   },
   {
     "index": 6,
-    "key": "create",
+    "key": "actions",
+    "alias": "create",
+    "aliases": ["create", "actions"],
     "label": "Erzeugen",
     "short_label": "Erzeugen",
     "description": "Prüfen und ausgeben",
@@ -455,6 +456,10 @@
 
 {% if create_initial_step is defined and create_initial_step %}
   {% set _create_initial_step_raw = create_initial_step %}
+{% elif _context is mapping and 'uiState' in _context and _context['uiState'] is mapping and 'currentStep' in _context['uiState'] %}
+  {% set _create_initial_step_raw = _context['uiState']['currentStep'] %}
+{% elif _context is mapping and 'ui_state' in _context and _context['ui_state'] is mapping and 'current_step' in _context['ui_state'] %}
+  {% set _create_initial_step_raw = _context['ui_state']['current_step'] %}
 {% else %}
   {% set _create_initial_step_raw = 1 %}
 {% endif %}
@@ -469,7 +474,6 @@
   {% set create_initial_step = create_step_count %}
 {% endif %}
 
-
 <body
   class="vp-create-page"
   data-create-page="true"
@@ -477,15 +481,20 @@
   data-vp-create-mode="wizard"
   data-vp-create-style="black"
   data-vp-create-template-root="vplib"
-  data-vp-create-template-version="0.6.0"
+  data-vp-create-template-version="0.7.0"
   data-vp-create-css-mode="single-file"
   data-create-api-prefix="{{ _api_prefix }}"
+  data-vp-create-api-prefix="{{ _api_prefix }}"
   data-vp-definitions-api-prefix="{{ _definitions_api_prefix }}"
+  data-vp-taxonomy-api-prefix="{{ _taxonomy_api_prefix }}"
+  data-vp-files-api-prefix="{{ _files_api_prefix }}"
   data-create-write-enabled="{% if _write_enabled %}true{% else %}false{% endif %}"
   data-create-health-ok="{% if _health_ok %}true{% else %}false{% endif %}"
   data-vp-create-definitions-available="{% if _create_definitions_available %}true{% else %}false{% endif %}"
+  data-vp-create-generator-context-ready="{% if _generator_context_ready %}true{% else %}false{% endif %}"
+  data-vp-create-payload-contract-ready="{% if _payload_contract_ready %}true{% else %}false{% endif %}"
   data-vp-create-variant-runtime="definition-managed"
-  data-vp-create-variant-runtime-version="0.1.0"
+  data-vp-create-variant-runtime-version="0.7.0"
   data-create-default-theme="{{ _create_default_theme }}"
   data-vp-create-default-theme="{{ _create_default_theme }}"
   data-create-theme-storage-key="{{ _create_theme_storage_key }}"
@@ -497,15 +506,20 @@
     data-vp-create-shell="wizard"
     data-vp-create-style="black"
     data-vp-create-template-root="vplib"
-    data-vp-create-template-version="0.6.0"
+    data-vp-create-template-version="0.7.0"
     data-vp-create-css-mode="single-file"
     data-create-api-prefix="{{ _api_prefix }}"
+    data-vp-create-api-prefix="{{ _api_prefix }}"
     data-vp-definitions-api-prefix="{{ _definitions_api_prefix }}"
+    data-vp-taxonomy-api-prefix="{{ _taxonomy_api_prefix }}"
+    data-vp-files-api-prefix="{{ _files_api_prefix }}"
     data-create-write-enabled="{% if _write_enabled %}true{% else %}false{% endif %}"
     data-create-health-ok="{% if _health_ok %}true{% else %}false{% endif %}"
     data-vp-create-definitions-available="{% if _create_definitions_available %}true{% else %}false{% endif %}"
+    data-vp-create-generator-context-ready="{% if _generator_context_ready %}true{% else %}false{% endif %}"
+    data-vp-create-payload-contract-ready="{% if _payload_contract_ready %}true{% else %}false{% endif %}"
     data-vp-create-variant-runtime="definition-managed"
-    data-vp-create-variant-runtime-version="0.1.0"
+    data-vp-create-variant-runtime-version="0.7.0"
     data-create-source-root="{{ _source_root }}"
     data-create-blueprint-version="{{ _blueprint_version }}"
     data-create-service-version="{{ _create_service_version }}"
@@ -524,9 +538,29 @@
         data-vp-create-form
         data-create-form-state="idle"
         data-create-api-prefix="{{ _api_prefix }}"
+        data-vp-create-api-prefix="{{ _api_prefix }}"
         data-vp-definitions-api-prefix="{{ _definitions_api_prefix }}"
+        data-vp-taxonomy-api-prefix="{{ _taxonomy_api_prefix }}"
+        data-vp-files-api-prefix="{{ _files_api_prefix }}"
+        data-vp-route-health="{{ _routes.get('health', _api_prefix ~ '/health') }}"
+        data-vp-route-routes="{{ _routes.get('routes', _api_prefix ~ '/routes') }}"
+        data-vp-route-selftest="{{ _routes.get('selftest', _api_prefix ~ '/selftest') }}"
+        data-vp-route-options="{{ _routes.get('options', _api_prefix ~ '/options') }}"
+        data-vp-route-context="{{ _routes.get('context', _api_prefix ~ '/context') }}"
+        data-vp-route-create-context="{{ _routes.get('create_context', _api_prefix ~ '/create-context') }}"
+        data-vp-route-definitions-current="{{ _routes.get('definitions_current', _api_prefix ~ '/definitions/current') }}"
+        data-vp-route-draft="{{ _routes.get('draft', _api_prefix ~ '/draft') }}"
+        data-vp-route-persistent-draft="{{ _routes.get('persistent_draft', _api_prefix ~ '/drafts') }}"
+        data-vp-route-validate="{{ _routes.get('validate', _api_prefix ~ '/validate') }}"
+        data-vp-route-package-plan="{{ _routes.get('package_plan', _api_prefix ~ '/package-plan') }}"
+        data-vp-route-publish-bundle="{{ _routes.get('publish_bundle', _api_prefix ~ '/publish-bundle') }}"
+        data-vp-route-download="{{ _routes.get('download', _api_prefix ~ '/download') }}"
+        data-vp-route-save="{{ _routes.get('save', _api_prefix ~ '/save') }}"
+        data-vp-route-cache-clear="{{ _routes.get('cache_clear', _api_prefix ~ '/cache/clear') }}"
         data-vp-create-variant-runtime="definition-managed"
-        data-vp-create-variant-runtime-version="0.1.0"
+        data-vp-create-variant-runtime-version="0.7.0"
+        data-create-write-enabled="{% if _write_enabled %}true{% else %}false{% endif %}"
+        data-create-health-ok="{% if _health_ok %}true{% else %}false{% endif %}"
         data-create-default-theme="{{ _create_default_theme }}"
         data-create-theme-storage-key="{{ _create_theme_storage_key }}"
         data-vp-current-step="{{ create_initial_step }}"
@@ -557,6 +591,7 @@
                 data-vp-create-step
                 data-vp-step-index="1"
                 data-vp-step-key="identity"
+                data-vp-step-target="identity"
                 data-vp-step-label="Grunddaten"
                 aria-label="Schritt 1: Grunddaten"
                 {% if create_initial_step != 1 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
@@ -570,6 +605,7 @@
                 data-vp-create-step
                 data-vp-step-index="2"
                 data-vp-step-key="taxonomy"
+                data-vp-step-target="taxonomy"
                 data-vp-step-label="Taxonomie"
                 aria-label="Schritt 2: Taxonomie"
                 {% if create_initial_step != 2 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
@@ -582,9 +618,11 @@
                 class="vplib-create-step{% if create_initial_step == 3 %} is-active{% else %} is-hidden{% endif %}"
                 data-vp-create-step
                 data-vp-step-index="3"
-                data-vp-step-key="object"
+                data-vp-step-key="variables"
+                data-vp-step-alias="object"
+                data-vp-step-target="object-variants"
                 data-vp-step-label="Variablen"
-                data-vp-step-alias="variables"
+                data-vp-create-section-alias="variables"
                 aria-label="Schritt 3: Variablen und Unterlagen"
                 {% if create_initial_step != 3 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
               >
@@ -600,6 +638,7 @@
                 data-vp-create-step
                 data-vp-step-index="4"
                 data-vp-step-key="geometry"
+                data-vp-step-target="geometry"
                 data-vp-step-label="Geometrie"
                 aria-label="Schritt 4: Geometrie"
                 {% if create_initial_step != 4 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
@@ -613,6 +652,7 @@
                 data-vp-create-step
                 data-vp-step-index="5"
                 data-vp-step-key="technical"
+                data-vp-step-target="technical"
                 data-vp-step-label="Technik"
                 aria-label="Schritt 5: Technik"
                 {% if create_initial_step != 5 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
@@ -625,7 +665,9 @@
                 class="vplib-create-step{% if create_initial_step == 6 %} is-active{% else %} is-hidden{% endif %}"
                 data-vp-create-step
                 data-vp-step-index="6"
-                data-vp-step-key="create"
+                data-vp-step-key="actions"
+                data-vp-step-alias="create"
+                data-vp-step-target="actions"
                 data-vp-step-label="Erzeugen"
                 aria-label="Schritt 6: Prüfen und erzeugen"
                 {% if create_initial_step != 6 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
@@ -673,7 +715,7 @@
         root.setAttribute("data-vp-create-shell-ready", "true");
         root.setAttribute("data-vp-create-style", "black");
         root.setAttribute("data-vp-create-template-root", "vplib");
-        root.setAttribute("data-vp-create-template-version", "0.6.0");
+        root.setAttribute("data-vp-create-template-version", "0.7.0");
         root.setAttribute("data-vp-create-css-mode", "single-file");
         root.style.colorScheme = "dark";
       } catch (error) {
@@ -774,204 +816,37 @@
     })();
   </script>
 
-  {# ---------------------------------------------------------------------------
-     JavaScript-Ladereihenfolge
+  {% macro vp_create_script(filename, key) -%}
+    <script
+      src="{{ url_for('static', filename='js/vplib/create/' ~ filename) }}"
+      defer
+      data-vp-create-script="{{ key }}"
+      data-vp-create-script-base="js/vplib/create"
+      onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
+      onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
+    ></script>
+  {%- endmacro %}
 
-     Basisschichten:
-     1. create_core.js
-        Gemeinsamer State, Selektoren, Utilities, Events und Kontext.
+  {{ vp_create_script('create_core.js', 'create_core') }}
+  {{ vp_create_script('create_theme.js', 'create_theme') }}
+  {{ vp_create_script('create_wizard.js', 'create_wizard') }}
+  {{ vp_create_script('create_preview.js', 'create_preview') }}
+  {{ vp_create_script('create_dynamic_rows_legacy.js', 'create_dynamic_rows_legacy') }}
+  {{ vp_create_script('create_uploads.js', 'create_uploads') }}
+  {{ vp_create_script('create_definitions.js', 'create_definitions') }}
 
-     2. create_theme.js
-        Theme-Umschaltung. Der neue VPLIB-Create-Skin bleibt visuell schwarz.
+  {{ vp_create_script('create_variant_utils.js', 'create_variant_utils') }}
+  {{ vp_create_script('create_variant_state.js', 'create_variant_state') }}
+  {{ vp_create_script('create_variant_profiles.js', 'create_variant_profiles') }}
+  {{ vp_create_script('create_variant_summary.js', 'create_variant_summary') }}
+  {{ vp_create_script('create_variant_field_renderer.js', 'create_variant_field_renderer') }}
+  {{ vp_create_script('create_variant_optional_fields.js', 'create_variant_optional_fields') }}
+  {{ vp_create_script('create_variant_validation.js', 'create_variant_validation') }}
+  {{ vp_create_script('create_variant_drawer.js', 'create_variant_drawer') }}
+  {{ vp_create_script('create_variant_table.js', 'create_variant_table') }}
 
-     3. create_wizard.js
-        Autorisierte Wizard-Navigation.
-
-     4. create_preview.js
-        Taxonomie-Filter, Object-Kind-Regeln, Preview und Kontext-Sync.
-
-     5. create_dynamic_rows_legacy.js
-        Legacy-Zeilenkompatibilität; delegiert Variantenanlage an Drawer.
-
-     6. create_payload.js
-        Payload-Sammlung und definition_variants_json-Brücke.
-
-     7. create_uploads.js
-        Neue vorbereitete Upload-Brücke für 3D-Modelle und Dokumentlisten.
-        Noch ohne Backend-Persistenz.
-
-     8. create_actions.js
-        Draft, Validate, Package-Plan, Download und Save.
-
-     Variant Runtime:
-     9.  create_variant_utils.js
-     10. create_variant_state.js
-     11. create_variant_profiles.js
-     12. create_variant_summary.js
-     13. create_variant_field_renderer.js
-     14. create_variant_optional_fields.js
-     15. create_variant_validation.js
-     16. create_variant_drawer.js
-     17. create_variant_table.js
-
-     Abschluss:
-     18. create.js
-         Schlanker Orchestrator und stabile Public API window.VectoplanCreate.
-
-     19. create_definitions.js
-         Bestehende Definitions-/Legacy-Bridge zuletzt.
-  --------------------------------------------------------------------------- #}
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_core.js') }}"
-    defer
-    data-vp-create-script="create_core"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_theme.js') }}"
-    defer
-    data-vp-create-script="create_theme"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_wizard.js') }}"
-    defer
-    data-vp-create-script="create_wizard"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_preview.js') }}"
-    defer
-    data-vp-create-script="create_preview"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_dynamic_rows_legacy.js') }}"
-    defer
-    data-vp-create-script="create_dynamic_rows_legacy"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_payload.js') }}"
-    defer
-    data-vp-create-script="create_payload"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_uploads.js') }}"
-    defer
-    data-vp-create-script="create_uploads"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_actions.js') }}"
-    defer
-    data-vp-create-script="create_actions"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_variant_utils.js') }}"
-    defer
-    data-vp-create-script="create_variant_utils"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_variant_state.js') }}"
-    defer
-    data-vp-create-script="create_variant_state"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_variant_profiles.js') }}"
-    defer
-    data-vp-create-script="create_variant_profiles"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_variant_summary.js') }}"
-    defer
-    data-vp-create-script="create_variant_summary"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_variant_field_renderer.js') }}"
-    defer
-    data-vp-create-script="create_variant_field_renderer"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_variant_optional_fields.js') }}"
-    defer
-    data-vp-create-script="create_variant_optional_fields"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_variant_validation.js') }}"
-    defer
-    data-vp-create-script="create_variant_validation"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_variant_drawer.js') }}"
-    defer
-    data-vp-create-script="create_variant_drawer"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_variant_table.js') }}"
-    defer
-    data-vp-create-script="create_variant_table"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create.js') }}"
-    defer
-    data-vp-create-script="create"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
-
-  <script
-    src="{{ url_for('static', filename='library_admin/js/create_definitions.js') }}"
-    defer
-    data-vp-create-script="create_definitions"
-    onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
-    onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
-  ></script>
+  {{ vp_create_script('create_payload.js', 'create_payload') }}
+  {{ vp_create_script('create_actions.js', 'create_actions') }}
+  {{ vp_create_script('create.js', 'create') }}
 </body>
 </html>

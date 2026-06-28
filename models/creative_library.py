@@ -2,7 +2,8 @@
 """
 Creative Library database models for vectoplan-library.
 
-Diese Datei enthält die PostgreSQL-/SQLAlchemy-Modelle für die Creative Library.
+Diese Datei enthält die PostgreSQL-/SQLAlchemy-Modelle für die veröffentlichte
+Creative Library.
 
 Zielpfad:
 
@@ -13,22 +14,23 @@ Zielpfad:
         -> DB-Sync
         -> PostgreSQL
         -> Published Creative Library API
-        -> Inventory / Editor / Admin
+        -> Creative Inventory / Editor / Admin / Generator
 
-Wichtige Architekturregel:
+Wichtige Architekturregeln:
 
 - `vplib_uid` ist die stabile technische ID eines VPLIB-Packages.
 - `vplib_uid` entsteht beim Erstellen der .vplib / des Source-Packages.
 - `vplib_uid` wird in `vplib.manifest.json` gespeichert.
 - Die Datenbank erzeugt `vplib_uid` NICHT selbst.
 - Die Datenbank übernimmt, validiert, indiziert und versioniert diese ID nur.
-
-Interne DB-IDs:
-
-- Jede Tabelle hat eine interne `id`.
-- Diese `id` ist nur technische Datenbankidentität.
+- Interne DB-IDs sind nur technische Datenbankidentität.
 - Fachlich relevant für Package-Updates ist `vplib_uid`.
 - Inhaltsrevisionen werden über `revision_hash` erkannt.
+- Published Creative Library bleibt die Wahrheit für veröffentlichte Items.
+- Generator-/Bearbeitungsstände liegen in creative_library_drafts.py.
+- User-spezifische Sicht liegt in creative_library_user.py.
+- Generische Upload-/File-Metadaten liegen in library_files.py.
+- Diese Datei bleibt für bestehende Repository-/Route-Namen rückwärtskompatibel.
 
 Primäre Tabellen:
 
@@ -65,15 +67,44 @@ Technische Namen, JSON-Keys und Variablen bleiben Englisch.
 from __future__ import annotations
 
 import enum
+import hashlib
+import json
 import uuid
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any, Final, Iterable, Mapping
 
 
-CREATIVE_LIBRARY_MODELS_SCHEMA_VERSION: Final[str] = "vectoplan_library.creative_library.models.v3"
+# ---------------------------------------------------------------------------
+# Metadata / constants
+# ---------------------------------------------------------------------------
+
+CREATIVE_LIBRARY_MODELS_SCHEMA_VERSION: Final[str] = "vectoplan_library.creative_library.models.v4.1"
 CREATIVE_LIBRARY_UID_FIELD: Final[str] = "vplib_uid"
 DEFAULT_INVENTORY_KEY: Final[str] = "default"
+DEFAULT_USER_ID: Final[int] = 1
+
+MAX_VPLIB_UID_LENGTH = 128
+MAX_UID_LENGTH: Final[int] = 80
+MAX_STATUS_LENGTH: Final[int] = 40
+MAX_SOURCE_SCOPE_LENGTH: Final[int] = 40
+MAX_OWNER_SCOPE_LENGTH: Final[int] = 120
+MAX_LABEL_LENGTH: Final[int] = 255
+MAX_PACKAGE_ID_LENGTH: Final[int] = 255
+MAX_FAMILY_ID_LENGTH: Final[int] = 255
+MAX_FAMILY_SLUG_LENGTH: Final[int] = 160
+MAX_VARIANT_ID_LENGTH: Final[int] = 160
+MAX_OBJECT_KIND_LENGTH: Final[int] = 80
+MAX_PROFILE_ID_LENGTH: Final[int] = 160
+MAX_TAXONOMY_DOMAIN_LENGTH: Final[int] = 80
+MAX_TAXONOMY_CATEGORY_LENGTH: Final[int] = 120
+MAX_TAXONOMY_PATH_LENGTH: Final[int] = 512
+MAX_HASH_LENGTH: Final[int] = 128
+MAX_PATH_LENGTH: Final[int] = 1024
+MAX_MIME_TYPE_LENGTH: Final[int] = 160
+MAX_ROLE_LENGTH: Final[int] = 120
+MAX_SCOPE_LENGTH: Final[int] = 120
+MAX_FIELD_LENGTH: Final[int] = 255
 
 
 # ---------------------------------------------------------------------------
@@ -126,6 +157,17 @@ db = _load_db()
 # Enums
 # ---------------------------------------------------------------------------
 
+class CreativeLibrarySourceScope(str, enum.Enum):
+    SYSTEM = "system"
+    USER = "user"
+    IMPORTED = "imported"
+    GENERATED = "generated"
+
+    @property
+    def key(self) -> str:
+        return str(self.value)
+
+
 class CreativeLibraryStatus(str, enum.Enum):
     DRAFT = "draft"
     PENDING = "pending"
@@ -176,10 +218,12 @@ class CreativeLibraryAssetKind(str, enum.Enum):
     THUMBNAIL = "thumbnail"
     MESH = "mesh"
     MODEL = "model"
+    MODEL_3D = "model_3d"
     RENDER_VARIANT = "render_variant"
     TEXTURE = "texture"
     MATERIAL = "material"
     DOCUMENT = "document"
+    TECHNICAL_DRAWING = "technical_drawing"
     OTHER = "other"
 
     @property
@@ -196,16 +240,43 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def new_uid() -> str:
+    """Stable lowercase UUID string."""
+    return str(uuid.uuid4()).lower()
+
+
 def enum_value(value: Any, *, default: str = "") -> str:
     """Normalisiert Enum-/String-Werte zu DB-Strings."""
     if value is None:
         return default
 
     if hasattr(value, "value"):
-        return str(value.value)
+        try:
+            text = str(value.value).strip()
+            return text or default
+        except Exception:
+            return default
 
-    text = str(value).strip()
+    try:
+        text = str(value).strip()
+    except Exception:
+        return default
+
     return text or default
+
+
+def first_non_empty(*values: Any) -> Any:
+    """Liefert den ersten nicht-leeren Wert."""
+    for value in values:
+        if value is None:
+            continue
+
+        if isinstance(value, str) and not value.strip():
+            continue
+
+        return value
+
+    return None
 
 
 def normalize_optional_string(value: Any, *, max_length: int | None = None) -> str | None:
@@ -243,7 +314,10 @@ def normalize_bool(value: Any, *, default: bool = False) -> bool:
     if isinstance(value, bool):
         return value
 
-    text = str(value).strip().lower()
+    try:
+        text = str(value).strip().lower()
+    except Exception:
+        return default
 
     if text in {"1", "true", "yes", "y", "ja", "on", "enabled", "active", "visible", "published"}:
         return True
@@ -254,17 +328,36 @@ def normalize_bool(value: Any, *, default: bool = False) -> bool:
     return default
 
 
-def normalize_int(value: Any, *, default: int = 0, minimum: int | None = None) -> int:
+def normalize_int(
+    value: Any,
+    *,
+    default: int | None = 0,
+    minimum: int | None = None,
+    maximum: int | None = None,
+) -> int | None:
     """Robuste Integer-Normalisierung."""
+    if value is None and default is None:
+        return None
+
     try:
         result = int(value)
     except Exception:
+        if default is None:
+            return None
         result = int(default)
 
     if minimum is not None:
-        result = max(minimum, result)
+        result = max(int(minimum), result)
+
+    if maximum is not None:
+        result = min(int(maximum), result)
 
     return result
+
+
+def normalize_user_id(value: Any, *, default: int | None = DEFAULT_USER_ID) -> int | None:
+    """Normalisiert User-ID. None bleibt None, wenn default=None."""
+    return normalize_int(value, default=default, minimum=1)
 
 
 def normalize_json_mapping(value: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -275,10 +368,15 @@ def normalize_json_mapping(value: Mapping[str, Any] | None) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {"value": str(value)}
 
-    return {
-        str(key): normalize_json_value(child_value)
-        for key, child_value in value.items()
-    }
+    result: dict[str, Any] = {}
+
+    for key, child_value in value.items():
+        try:
+            result[str(key)] = normalize_json_value(child_value)
+        except Exception:
+            result[str(key)] = str(child_value)
+
+    return result
 
 
 def normalize_json_list(value: Iterable[Any] | None) -> list[Any]:
@@ -324,6 +422,46 @@ def normalize_json_value(value: Any) -> Any:
     return str(value)
 
 
+def merge_json(*values: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Mergt mehrere JSON-Mappings defensiv."""
+    merged: dict[str, Any] = {}
+
+    for value in values:
+        merged.update(normalize_json_mapping(value))
+
+    return merged
+
+
+def stable_json_hash(value: Any) -> str:
+    """Erzeugt einen stabilen SHA-256 Hash für JSON-kompatible Werte."""
+    try:
+        safe = normalize_json_value(value)
+        raw = json.dumps(safe, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    except Exception:
+        raw = str(value)
+
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+@lru_cache(maxsize=4096)
+def _cached_vplib_uid_fallback(value: str) -> str | None:
+    """Cached Fallback-Normalisierung für VPLIB UIDs."""
+    text = normalize_optional_string(value, max_length=MAX_VPLIB_UID_LENGTH)
+    if not text:
+        return None
+
+    lowered = text.lower()
+
+    try:
+        parsed = uuid.UUID(lowered)
+        uuid_text = str(parsed).lower()
+        if uuid_text == "00000000-0000-0000-0000-000000000000":
+            return None
+        return uuid_text
+    except Exception:
+        return lowered
+
+
 def normalize_vplib_uid(value: Any) -> str | None:
     """
     Normalisiert eine VPLIB UID.
@@ -361,20 +499,10 @@ def normalize_vplib_uid(value: Any) -> str | None:
     except Exception:
         pass
 
-    text = normalize_optional_string(value, max_length=80)
-    if not text:
-        return None
-
-    lowered = text.lower()
-
     try:
-        parsed = uuid.UUID(lowered)
-        uuid_text = str(parsed).lower()
-        if uuid_text == "00000000-0000-0000-0000-000000000000":
-            return None
-        return uuid_text
+        return _cached_vplib_uid_fallback(str(value))
     except Exception:
-        return lowered
+        return None
 
 
 def require_vplib_uid(value: Any) -> str:
@@ -383,6 +511,53 @@ def require_vplib_uid(value: Any) -> str:
     if not uid:
         raise ValueError("vplib_uid is required.")
     return uid
+
+
+def normalize_source_scope(value: Any, *, default: str = CreativeLibrarySourceScope.SYSTEM.value) -> str:
+    """Normalisiert source_scope."""
+    text = enum_value(value, default=default).strip().lower()
+
+    aliases = {
+        "core": CreativeLibrarySourceScope.SYSTEM.value,
+        "default": CreativeLibrarySourceScope.SYSTEM.value,
+        "global": CreativeLibrarySourceScope.SYSTEM.value,
+        "system": CreativeLibrarySourceScope.SYSTEM.value,
+        "user": CreativeLibrarySourceScope.USER.value,
+        "custom": CreativeLibrarySourceScope.USER.value,
+        "import": CreativeLibrarySourceScope.IMPORTED.value,
+        "imported": CreativeLibrarySourceScope.IMPORTED.value,
+        "generated": CreativeLibrarySourceScope.GENERATED.value,
+        "generator": CreativeLibrarySourceScope.GENERATED.value,
+    }
+
+    return aliases.get(text, text if text else default)[:MAX_SOURCE_SCOPE_LENGTH]
+
+
+def owner_scope_for(
+    *,
+    source_scope: Any = CreativeLibrarySourceScope.SYSTEM.value,
+    owner_user_id: Any = None,
+) -> str:
+    """
+    Baut einen stabilen owner_scope.
+
+    PostgreSQL behandelt NULL in UniqueConstraints nicht als gleich.
+    Deshalb wird zusätzlich ein nicht-nullbarer owner_scope gespeichert.
+    """
+
+    scope = normalize_source_scope(source_scope)
+    user_id = normalize_user_id(owner_user_id, default=None)
+
+    if scope == CreativeLibrarySourceScope.SYSTEM.value and user_id is None:
+        return CreativeLibrarySourceScope.SYSTEM.value
+
+    if scope == CreativeLibrarySourceScope.USER.value:
+        return f"user:{user_id or DEFAULT_USER_ID}"
+
+    if user_id is not None:
+        return f"{scope}:{user_id}"
+
+    return scope or CreativeLibrarySourceScope.SYSTEM.value
 
 
 def extract_manifest_classification(manifest: Mapping[str, Any]) -> dict[str, Any]:
@@ -411,28 +586,66 @@ def identity_dict(value: Any) -> dict[str, Any] | None:
     return {"value": str(value)}
 
 
-def first_non_empty(*values: Any) -> Any:
-    """Liefert den ersten nicht-leeren Wert."""
-    for value in values:
-        if value is None:
-            continue
+def taxonomy_path_for(
+    *,
+    domain: Any = None,
+    category: Any = None,
+    subcategory: Any = None,
+) -> str | None:
+    """Baut Taxonomiepfad aus Domain/Kategorie/Subkategorie."""
+    parts = [
+        normalize_optional_string(domain, max_length=MAX_TAXONOMY_DOMAIN_LENGTH),
+        normalize_optional_string(category, max_length=MAX_TAXONOMY_CATEGORY_LENGTH),
+        normalize_optional_string(subcategory, max_length=MAX_TAXONOMY_CATEGORY_LENGTH),
+    ]
 
-        if isinstance(value, str) and not value.strip():
-            continue
-
-        return value
-
-    return None
+    cleaned = [part for part in parts if part]
+    return "/".join(cleaned) if cleaned else None
 
 
-def merge_json(*values: Mapping[str, Any] | None) -> dict[str, Any]:
-    """Mergt mehrere JSON-Mappings defensiv."""
-    merged: dict[str, Any] = {}
+def normalize_status(value: Any, *, default: str = CreativeLibraryStatus.PUBLISHED.value) -> str:
+    """Normalisiert Status."""
+    return enum_value(value, default=default)[:MAX_STATUS_LENGTH]
 
-    for value in values:
-        merged.update(normalize_json_mapping(value))
 
-    return merged
+def normalize_relative_path(value: Any, *, field_name: str = "relative_path") -> str:
+    """Normalisiert package-relative Pfade defensiv."""
+    path = normalize_required_string(value, field_name=field_name, max_length=MAX_PATH_LENGTH)
+    cleaned = path.replace("\\", "/").strip()
+
+    if cleaned.startswith("/"):
+        raise ValueError(f"{field_name} must be package-relative.")
+
+    parts = [part for part in cleaned.split("/") if part not in {"", "."}]
+
+    if any(part == ".." for part in parts):
+        raise ValueError(f"{field_name} must not contain parent traversal.")
+
+    normalized = "/".join(parts)
+
+    if not normalized:
+        raise ValueError(f"{field_name} is required.")
+
+    return normalized[:MAX_PATH_LENGTH]
+
+
+def extract_variant_id(payload: Mapping[str, Any]) -> str:
+    """Ermittelt Variant-ID tolerant aus Payload."""
+    definition_values = normalize_json_mapping(
+        payload.get("definition_values") or payload.get("definitionValues") or payload.get("values")
+    )
+
+    return normalize_required_string(
+        first_non_empty(
+            payload.get("variant_id"),
+            payload.get("variantId"),
+            payload.get("id"),
+            payload.get("slug"),
+            definition_values.get("variant.variant_id"),
+        ),
+        field_name="variant_id",
+        max_length=MAX_VARIANT_ID_LENGTH,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -482,29 +695,52 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
     id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
 
     # Stable external package identity from vplib.manifest.json.
-    vplib_uid = db.Column(db.String(80), nullable=False, unique=True, index=True)
+    vplib_uid = db.Column(db.String(MAX_VPLIB_UID_LENGTH), nullable=False, unique=True, index=True)
+
+    # Ownership / origin.
+    owner_user_id = db.Column(db.BigInteger, nullable=True, index=True)
+    source_scope = db.Column(
+        db.String(MAX_SOURCE_SCOPE_LENGTH),
+        nullable=False,
+        default=CreativeLibrarySourceScope.SYSTEM.value,
+        index=True,
+    )
+    owner_scope = db.Column(
+        db.String(MAX_OWNER_SCOPE_LENGTH),
+        nullable=False,
+        default=CreativeLibrarySourceScope.SYSTEM.value,
+        index=True,
+    )
+    created_by_user_id = db.Column(db.BigInteger, nullable=True, index=True)
+    updated_by_user_id = db.Column(db.BigInteger, nullable=True, index=True)
 
     # Semantic/package identity.
-    package_id = db.Column(db.String(255), nullable=True, index=True)
-    family_id = db.Column(db.String(255), nullable=True, index=True)
-    family_slug = db.Column(db.String(160), nullable=True, index=True)
-    slug = db.Column(db.String(160), nullable=True, index=True)
-    label = db.Column(db.String(255), nullable=True)
-    name = db.Column(db.String(255), nullable=True)
+    package_id = db.Column(db.String(MAX_PACKAGE_ID_LENGTH), nullable=True, index=True)
+    family_id = db.Column(db.String(MAX_FAMILY_ID_LENGTH), nullable=True, index=True)
+    family_slug = db.Column(db.String(MAX_FAMILY_SLUG_LENGTH), nullable=True, index=True)
+    slug = db.Column(db.String(MAX_FAMILY_SLUG_LENGTH), nullable=True, index=True)
+    label = db.Column(db.String(MAX_LABEL_LENGTH), nullable=True)
+    name = db.Column(db.String(MAX_LABEL_LENGTH), nullable=True)
     description = db.Column(db.Text, nullable=True)
 
     # Taxonomy / classification.
-    domain = db.Column(db.String(80), nullable=True, index=True)
-    category = db.Column(db.String(120), nullable=True, index=True)
-    subcategory = db.Column(db.String(120), nullable=True, index=True)
-    classification_path = db.Column(db.String(512), nullable=True, index=True)
-    taxonomy_path = db.Column(db.String(512), nullable=True, index=True)
-    object_kind = db.Column(db.String(80), nullable=True, index=True)
+    domain = db.Column(db.String(MAX_TAXONOMY_DOMAIN_LENGTH), nullable=True, index=True)
+    category = db.Column(db.String(MAX_TAXONOMY_CATEGORY_LENGTH), nullable=True, index=True)
+    subcategory = db.Column(db.String(MAX_TAXONOMY_CATEGORY_LENGTH), nullable=True, index=True)
+    classification_path = db.Column(db.String(MAX_TAXONOMY_PATH_LENGTH), nullable=True, index=True)
+    taxonomy_path = db.Column(db.String(MAX_TAXONOMY_PATH_LENGTH), nullable=True, index=True)
+    object_kind = db.Column(db.String(MAX_OBJECT_KIND_LENGTH), nullable=True, index=True)
+
+    # Profile/definition metadata.
+    family_profile_id = db.Column(db.String(MAX_PROFILE_ID_LENGTH), nullable=True, index=True)
+    variant_profile_id = db.Column(db.String(MAX_PROFILE_ID_LENGTH), nullable=True, index=True)
+    definition_version = db.Column(db.String(80), nullable=True, index=True)
 
     # Source metadata.
     source_root = db.Column(db.Text, nullable=True)
     source_path = db.Column(db.Text, nullable=True, index=True)
     package_root = db.Column(db.Text, nullable=True)
+    source_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
 
     # Current publication pointer.
     current_revision_id = db.Column(
@@ -518,33 +754,43 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
         nullable=True,
         index=True,
     )
-    current_revision_hash = db.Column(db.String(128), nullable=True, index=True)
-    latest_revision_hash = db.Column(db.String(128), nullable=True, index=True)
-    published_revision_hash = db.Column(db.String(128), nullable=True, index=True)
-    revision_hash = db.Column(db.String(128), nullable=True, index=True)
+    current_revision_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
+    latest_revision_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
+    published_revision_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
+    revision_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
 
-    default_variant_id = db.Column(db.String(160), nullable=True, index=True)
+    default_variant_id = db.Column(db.String(MAX_VARIANT_ID_LENGTH), nullable=True, index=True)
     variant_count = db.Column(db.Integer, nullable=False, default=0)
     asset_count = db.Column(db.Integer, nullable=False, default=0)
     document_count = db.Column(db.Integer, nullable=False, default=0)
     revision_count = db.Column(db.Integer, nullable=False, default=0)
 
     # Lifecycle.
-    status = db.Column(db.String(40), nullable=False, default=CreativeLibraryStatus.PUBLISHED.value, index=True)
-    publication_status = db.Column(db.String(40), nullable=False, default=CreativeLibraryStatus.PUBLISHED.value, index=True)
+    status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=False, default=CreativeLibraryStatus.PUBLISHED.value, index=True)
+    publication_status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=False, default=CreativeLibraryStatus.PUBLISHED.value, index=True)
     enabled = db.Column(db.Boolean, nullable=False, default=True, index=True)
     visible = db.Column(db.Boolean, nullable=False, default=True, index=True)
     is_deleted = db.Column(db.Boolean, nullable=False, default=False, index=True)
+
+    editable = db.Column(db.Boolean, nullable=False, default=True)
+    generator_editable = db.Column(db.Boolean, nullable=False, default=True)
+    locked = db.Column(db.Boolean, nullable=False, default=False)
+    system_required = db.Column(db.Boolean, nullable=False, default=False)
 
     first_seen_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
     last_seen_at = db.Column(db.DateTime(timezone=True), nullable=True)
     scanned_at = db.Column(db.DateTime(timezone=True), nullable=True)
     published_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    last_edited_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    last_generated_at = db.Column(db.DateTime(timezone=True), nullable=True)
     deleted_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     # JSON payloads.
     summary_payload = db.Column(db.JSON, nullable=False, default=dict)
     payload = db.Column(db.JSON, nullable=False, default=dict)
+    generator_payload = db.Column(db.JSON, nullable=False, default=dict)
+    definition_payload = db.Column(db.JSON, nullable=False, default=dict)
+    file_refs_json = db.Column(db.JSON, nullable=False, default=list)
     meta = db.Column(db.JSON, nullable=False, default=dict)
     metadata_json = db.Column(db.JSON, nullable=False, default=dict)
 
@@ -595,6 +841,8 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
         db.Index("ix_creative_library_items_family_lookup", "family_id", "family_slug"),
         db.Index("ix_creative_library_items_source_status", "source_path", "status"),
         db.Index("ix_creative_library_items_kind_taxonomy", "object_kind", "domain", "category"),
+        db.Index("ix_creative_library_items_owner_status", "owner_scope", "publication_status", "enabled", "visible"),
+        db.Index("ix_creative_library_items_profiles", "family_profile_id", "variant_profile_id"),
     )
 
     def __repr__(self) -> str:
@@ -608,6 +856,9 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
         source_root: str | None = None,
         source_path: str | None = None,
         metadata: Mapping[str, Any] | None = None,
+        owner_user_id: Any = None,
+        source_scope: Any = CreativeLibrarySourceScope.SYSTEM.value,
+        created_by_user_id: Any = None,
     ) -> "CreativeLibraryItem":
         """Erzeugt ein Item aus `vplib.manifest.json`."""
         uid = require_vplib_uid(manifest.get(CREATIVE_LIBRARY_UID_FIELD))
@@ -615,33 +866,42 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
 
         family_slug = normalize_optional_string(
             manifest.get("family_slug") or manifest.get("slug"),
-            max_length=160,
+            max_length=MAX_FAMILY_SLUG_LENGTH,
         )
         label = normalize_optional_string(
             manifest.get("family_name") or manifest.get("label") or manifest.get("name"),
-            max_length=255,
+            max_length=MAX_LABEL_LENGTH,
         )
 
         domain = normalize_optional_string(
             manifest.get("domain") or classification.get("domain"),
-            max_length=80,
+            max_length=MAX_TAXONOMY_DOMAIN_LENGTH,
         )
         category = normalize_optional_string(
             manifest.get("category") or classification.get("category"),
-            max_length=120,
+            max_length=MAX_TAXONOMY_CATEGORY_LENGTH,
         )
         subcategory = normalize_optional_string(
             manifest.get("subcategory") or classification.get("subcategory"),
-            max_length=120,
+            max_length=MAX_TAXONOMY_CATEGORY_LENGTH,
         )
-        taxonomy_path = "/".join(part for part in (domain, category, subcategory) if part) or None
+        taxonomy_path = taxonomy_path_for(domain=domain, category=category, subcategory=subcategory)
 
+        normalized_source_scope = normalize_source_scope(source_scope)
+        normalized_owner_user_id = normalize_user_id(owner_user_id, default=None)
+
+        meta_payload = normalize_json_mapping(metadata)
         now = utc_now()
 
         return cls(
             vplib_uid=uid,
-            package_id=normalize_optional_string(manifest.get("package_id"), max_length=255),
-            family_id=normalize_optional_string(manifest.get("family_id"), max_length=255),
+            owner_user_id=normalized_owner_user_id,
+            source_scope=normalized_source_scope,
+            owner_scope=owner_scope_for(source_scope=normalized_source_scope, owner_user_id=normalized_owner_user_id),
+            created_by_user_id=normalize_user_id(created_by_user_id, default=None),
+            updated_by_user_id=normalize_user_id(created_by_user_id, default=None),
+            package_id=normalize_optional_string(manifest.get("package_id"), max_length=MAX_PACKAGE_ID_LENGTH),
+            family_id=normalize_optional_string(manifest.get("family_id"), max_length=MAX_FAMILY_ID_LENGTH),
             family_slug=family_slug,
             slug=family_slug,
             label=label,
@@ -652,22 +912,33 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
             subcategory=subcategory,
             classification_path=normalize_optional_string(
                 manifest.get("classification_path") or classification.get("classification_path"),
-                max_length=512,
+                max_length=MAX_TAXONOMY_PATH_LENGTH,
             ),
             taxonomy_path=taxonomy_path,
-            object_kind=normalize_optional_string(manifest.get("object_kind"), max_length=80),
+            object_kind=normalize_optional_string(manifest.get("object_kind"), max_length=MAX_OBJECT_KIND_LENGTH),
+            family_profile_id=normalize_optional_string(manifest.get("family_profile_id"), max_length=MAX_PROFILE_ID_LENGTH),
+            variant_profile_id=normalize_optional_string(manifest.get("variant_profile_id"), max_length=MAX_PROFILE_ID_LENGTH),
+            definition_version=normalize_optional_string(manifest.get("definitions_version") or manifest.get("definition_version"), max_length=80),
             source_root=source_root,
             source_path=source_path or normalize_optional_string(manifest.get("source_path")),
             package_root=normalize_optional_string(manifest.get("package_root")),
+            source_hash=normalize_optional_string(manifest.get("source_hash"), max_length=MAX_HASH_LENGTH),
             status=CreativeLibraryStatus.PUBLISHED.value,
             publication_status=CreativeLibraryStatus.PUBLISHED.value,
             enabled=True,
             visible=True,
             is_deleted=False,
+            editable=normalize_bool(meta_payload.get("editable"), default=True),
+            generator_editable=normalize_bool(meta_payload.get("generator_editable"), default=True),
+            locked=normalize_bool(meta_payload.get("locked"), default=False),
+            system_required=normalize_bool(meta_payload.get("system_required"), default=normalized_source_scope == CreativeLibrarySourceScope.SYSTEM.value),
             summary_payload={},
             payload=normalize_json_mapping(manifest),
-            meta=normalize_json_mapping(metadata),
-            metadata_json=normalize_json_mapping(metadata),
+            generator_payload=normalize_json_mapping(manifest.get("generator")),
+            definition_payload=normalize_json_mapping(manifest.get("definitions")),
+            file_refs_json=normalize_json_list(manifest.get("file_refs") or manifest.get("files")),
+            meta=meta_payload,
+            metadata_json=meta_payload,
             first_seen_at=now,
             last_seen_at=now,
             scanned_at=now,
@@ -681,6 +952,7 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
         source_root: str | None = None,
         source_path: str | None = None,
         metadata: Mapping[str, Any] | None = None,
+        updated_by_user_id: Any = None,
     ) -> None:
         """Aktualisiert mutable Item-Felder aus dem aktuellen Manifest."""
         uid = require_vplib_uid(manifest.get(CREATIVE_LIBRARY_UID_FIELD))
@@ -691,22 +963,23 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
 
         family_slug = normalize_optional_string(
             manifest.get("family_slug") or manifest.get("slug"),
-            max_length=160,
+            max_length=MAX_FAMILY_SLUG_LENGTH,
         )
         label = normalize_optional_string(
             manifest.get("family_name") or manifest.get("label") or manifest.get("name"),
-            max_length=255,
+            max_length=MAX_LABEL_LENGTH,
         )
 
-        domain = normalize_optional_string(manifest.get("domain") or classification.get("domain"), max_length=80)
-        category = normalize_optional_string(manifest.get("category") or classification.get("category"), max_length=120)
-        subcategory = normalize_optional_string(manifest.get("subcategory") or classification.get("subcategory"), max_length=120)
-        taxonomy_path = "/".join(part for part in (domain, category, subcategory) if part) or None
+        domain = normalize_optional_string(manifest.get("domain") or classification.get("domain"), max_length=MAX_TAXONOMY_DOMAIN_LENGTH)
+        category = normalize_optional_string(manifest.get("category") or classification.get("category"), max_length=MAX_TAXONOMY_CATEGORY_LENGTH)
+        subcategory = normalize_optional_string(manifest.get("subcategory") or classification.get("subcategory"), max_length=MAX_TAXONOMY_CATEGORY_LENGTH)
+        taxonomy_path = taxonomy_path_for(domain=domain, category=category, subcategory=subcategory)
 
         now = utc_now()
+        meta_payload = normalize_json_mapping(metadata)
 
-        self.package_id = normalize_optional_string(manifest.get("package_id"), max_length=255)
-        self.family_id = normalize_optional_string(manifest.get("family_id"), max_length=255)
+        self.package_id = normalize_optional_string(manifest.get("package_id"), max_length=MAX_PACKAGE_ID_LENGTH)
+        self.family_id = normalize_optional_string(manifest.get("family_id"), max_length=MAX_FAMILY_ID_LENGTH)
         self.family_slug = family_slug
         self.slug = family_slug
         self.label = label
@@ -717,16 +990,23 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
         self.subcategory = subcategory
         self.classification_path = normalize_optional_string(
             manifest.get("classification_path") or classification.get("classification_path"),
-            max_length=512,
+            max_length=MAX_TAXONOMY_PATH_LENGTH,
         )
         self.taxonomy_path = taxonomy_path
-        self.object_kind = normalize_optional_string(manifest.get("object_kind"), max_length=80)
+        self.object_kind = normalize_optional_string(manifest.get("object_kind"), max_length=MAX_OBJECT_KIND_LENGTH)
+        self.family_profile_id = normalize_optional_string(manifest.get("family_profile_id"), max_length=MAX_PROFILE_ID_LENGTH)
+        self.variant_profile_id = normalize_optional_string(manifest.get("variant_profile_id"), max_length=MAX_PROFILE_ID_LENGTH)
+        self.definition_version = normalize_optional_string(manifest.get("definitions_version") or manifest.get("definition_version"), max_length=80)
         self.source_root = source_root if source_root is not None else self.source_root
         self.source_path = source_path or normalize_optional_string(manifest.get("source_path")) or self.source_path
         self.package_root = normalize_optional_string(manifest.get("package_root")) or self.package_root
+        self.source_hash = normalize_optional_string(manifest.get("source_hash"), max_length=MAX_HASH_LENGTH) or self.source_hash
         self.payload = normalize_json_mapping(manifest)
-        self.meta = merge_json(self.meta, metadata)
-        self.metadata_json = merge_json(self.metadata_json, metadata)
+        self.generator_payload = normalize_json_mapping(manifest.get("generator"))
+        self.definition_payload = normalize_json_mapping(manifest.get("definitions"))
+        self.file_refs_json = normalize_json_list(manifest.get("file_refs") or manifest.get("files"))
+        self.meta = merge_json(self.meta, meta_payload)
+        self.metadata_json = merge_json(self.metadata_json, meta_payload)
         self.status = CreativeLibraryStatus.PUBLISHED.value
         self.publication_status = CreativeLibraryStatus.PUBLISHED.value
         self.enabled = True
@@ -735,8 +1015,15 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
         self.deleted_at = None
         self.last_seen_at = now
         self.scanned_at = now
+
+        updater_id = normalize_user_id(updated_by_user_id, default=None)
+        if updater_id is not None:
+            self.updated_by_user_id = updater_id
+            self.last_edited_at = now
+
         if self.published_at is None:
             self.published_at = now
+
         self.touch()
 
     def mark_seen(self) -> None:
@@ -760,6 +1047,9 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
         self.touch()
 
     def mark_deleted(self) -> None:
+        if self.locked or self.system_required:
+            raise ValueError("Cannot delete a locked or system-required Creative Library item directly.")
+
         self.is_deleted = True
         self.status = CreativeLibraryStatus.DELETED.value
         self.publication_status = CreativeLibraryStatus.DELETED.value
@@ -782,6 +1072,15 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
         self.deleted_at = None
         self.last_seen_at = utc_now()
         self.published_at = self.published_at or utc_now()
+        self.revision_count = max(normalize_int(self.revision_count, default=0, minimum=0) or 0, 1)
+        self.touch()
+
+    def mark_generator_updated(self, *, user_id: Any = None, payload: Mapping[str, Any] | None = None) -> None:
+        self.last_generated_at = utc_now()
+        self.generator_payload = merge_json(self.generator_payload, payload)
+        updater_id = normalize_user_id(user_id, default=None)
+        if updater_id is not None:
+            self.updated_by_user_id = updater_id
         self.touch()
 
     def to_dict(self, *, include_current_revision: bool = False) -> dict[str, Any]:
@@ -789,6 +1088,11 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
             "id": self.id,
             "family_db_id": self.id,
             "vplib_uid": self.vplib_uid,
+            "owner_user_id": self.owner_user_id,
+            "source_scope": self.source_scope,
+            "owner_scope": self.owner_scope,
+            "created_by_user_id": self.created_by_user_id,
+            "updated_by_user_id": self.updated_by_user_id,
             "package_id": self.package_id,
             "family_id": self.family_id,
             "family_slug": self.family_slug,
@@ -802,9 +1106,13 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
             "classification_path": self.classification_path,
             "taxonomy_path": self.taxonomy_path,
             "object_kind": self.object_kind,
+            "family_profile_id": self.family_profile_id,
+            "variant_profile_id": self.variant_profile_id,
+            "definition_version": self.definition_version,
             "source_root": self.source_root,
             "source_path": self.source_path,
             "package_root": self.package_root,
+            "source_hash": self.source_hash,
             "current_revision_id": self.current_revision_id,
             "current_revision_hash": self.current_revision_hash,
             "latest_revision_hash": self.latest_revision_hash,
@@ -820,15 +1128,24 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
             "enabled": self.enabled,
             "visible": self.visible,
             "is_deleted": self.is_deleted,
+            "editable": self.editable,
+            "generator_editable": self.generator_editable,
+            "locked": self.locked,
+            "system_required": self.system_required,
             "first_seen_at": self.first_seen_at.isoformat() if self.first_seen_at else None,
             "last_seen_at": self.last_seen_at.isoformat() if self.last_seen_at else None,
             "scanned_at": self.scanned_at.isoformat() if self.scanned_at else None,
             "published_at": self.published_at.isoformat() if self.published_at else None,
+            "last_edited_at": self.last_edited_at.isoformat() if self.last_edited_at else None,
+            "last_generated_at": self.last_generated_at.isoformat() if self.last_generated_at else None,
             "deleted_at": self.deleted_at.isoformat() if self.deleted_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "summary_payload": normalize_json_mapping(self.summary_payload),
             "payload": normalize_json_mapping(self.payload),
+            "generator_payload": normalize_json_mapping(self.generator_payload),
+            "definition_payload": normalize_json_mapping(self.definition_payload),
+            "file_refs": normalize_json_list(self.file_refs_json),
             "meta": normalize_json_mapping(self.meta),
             "metadata": normalize_json_mapping(self.metadata_json),
         }
@@ -850,16 +1167,31 @@ class CreativeLibraryScanRun(TimestampMixin, JsonMixin, db.Model):
 
     id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
 
-    scan_uid = db.Column(db.String(80), nullable=False, unique=True, index=True, default=lambda: str(uuid.uuid4()).lower())
+    scan_uid = db.Column(db.String(MAX_UID_LENGTH), nullable=False, unique=True, index=True, default=new_uid)
+
+    owner_user_id = db.Column(db.BigInteger, nullable=True, index=True)
+    source_scope = db.Column(
+        db.String(MAX_SOURCE_SCOPE_LENGTH),
+        nullable=False,
+        default=CreativeLibrarySourceScope.SYSTEM.value,
+        index=True,
+    )
+    owner_scope = db.Column(
+        db.String(MAX_OWNER_SCOPE_LENGTH),
+        nullable=False,
+        default=CreativeLibrarySourceScope.SYSTEM.value,
+        index=True,
+    )
+
     source_root = db.Column(db.Text, nullable=True)
     mode = db.Column(db.String(80), nullable=True, index=True)
-    triggered_by = db.Column(db.String(255), nullable=True, index=True)
+    triggered_by = db.Column(db.String(MAX_LABEL_LENGTH), nullable=True, index=True)
 
     started_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
     finished_at = db.Column(db.DateTime(timezone=True), nullable=True)
     duration_ms = db.Column(db.BigInteger, nullable=True)
 
-    status = db.Column(db.String(40), nullable=False, default=CreativeLibraryScanStatus.RUNNING.value, index=True)
+    status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=False, default=CreativeLibraryScanStatus.RUNNING.value, index=True)
 
     total_count = db.Column(db.Integer, nullable=False, default=0)
     scanned_count = db.Column(db.Integer, nullable=False, default=0)
@@ -893,6 +1225,7 @@ class CreativeLibraryScanRun(TimestampMixin, JsonMixin, db.Model):
     __table_args__ = (
         db.Index("ix_creative_library_scan_runs_status_started", "status", "started_at"),
         db.Index("ix_creative_library_scan_runs_mode_status", "mode", "status"),
+        db.Index("ix_creative_library_scan_runs_owner", "owner_scope", "status"),
     )
 
     def __repr__(self) -> str:
@@ -906,9 +1239,17 @@ class CreativeLibraryScanRun(TimestampMixin, JsonMixin, db.Model):
         mode: str | None = None,
         triggered_by: str | None = None,
         metadata: Mapping[str, Any] | None = None,
+        owner_user_id: Any = None,
+        source_scope: Any = CreativeLibrarySourceScope.SYSTEM.value,
     ) -> "CreativeLibraryScanRun":
+        normalized_source_scope = normalize_source_scope(source_scope)
+        normalized_owner_user_id = normalize_user_id(owner_user_id, default=None)
+
         return cls(
-            scan_uid=str(uuid.uuid4()).lower(),
+            scan_uid=new_uid(),
+            owner_user_id=normalized_owner_user_id,
+            source_scope=normalized_source_scope,
+            owner_scope=owner_scope_for(source_scope=normalized_source_scope, owner_user_id=normalized_owner_user_id),
             source_root=source_root,
             mode=mode or "filesystem_sync",
             triggered_by=triggered_by,
@@ -937,20 +1278,20 @@ class CreativeLibraryScanRun(TimestampMixin, JsonMixin, db.Model):
     def apply_counts(self, *, counts: Mapping[str, Any] | None = None) -> None:
         payload = normalize_json_mapping(counts)
 
-        self.total_count = normalize_int(first_non_empty(payload.get("total_count"), payload.get("total")), default=self.total_count, minimum=0)
-        self.scanned_count = normalize_int(first_non_empty(payload.get("scanned_count"), payload.get("scanned")), default=self.scanned_count, minimum=0)
-        self.valid_count = normalize_int(first_non_empty(payload.get("valid_count"), payload.get("valid")), default=self.valid_count, minimum=0)
-        self.invalid_count = normalize_int(first_non_empty(payload.get("invalid_count"), payload.get("invalid")), default=self.invalid_count, minimum=0)
-        self.created_count = normalize_int(first_non_empty(payload.get("created_count"), payload.get("created")), default=self.created_count, minimum=0)
-        self.inserted_count = normalize_int(first_non_empty(payload.get("inserted_count"), payload.get("inserted")), default=self.inserted_count, minimum=0)
-        self.updated_count = normalize_int(first_non_empty(payload.get("updated_count"), payload.get("updated")), default=self.updated_count, minimum=0)
-        self.unchanged_count = normalize_int(first_non_empty(payload.get("unchanged_count"), payload.get("unchanged")), default=self.unchanged_count, minimum=0)
-        self.published_count = normalize_int(first_non_empty(payload.get("published_count"), payload.get("published")), default=self.published_count, minimum=0)
-        self.skipped_count = normalize_int(first_non_empty(payload.get("skipped_count"), payload.get("skipped")), default=self.skipped_count, minimum=0)
-        self.deleted_count = normalize_int(first_non_empty(payload.get("deleted_count"), payload.get("deleted")), default=self.deleted_count, minimum=0)
-        self.duplicate_count = normalize_int(first_non_empty(payload.get("duplicate_count"), payload.get("duplicates")), default=self.duplicate_count, minimum=0)
-        self.warning_count = normalize_int(first_non_empty(payload.get("warning_count"), payload.get("warnings")), default=self.warning_count, minimum=0)
-        self.error_count = normalize_int(first_non_empty(payload.get("error_count"), payload.get("errors")), default=self.error_count, minimum=0)
+        self.total_count = normalize_int(first_non_empty(payload.get("total_count"), payload.get("total")), default=self.total_count, minimum=0) or 0
+        self.scanned_count = normalize_int(first_non_empty(payload.get("scanned_count"), payload.get("scanned")), default=self.scanned_count, minimum=0) or 0
+        self.valid_count = normalize_int(first_non_empty(payload.get("valid_count"), payload.get("valid")), default=self.valid_count, minimum=0) or 0
+        self.invalid_count = normalize_int(first_non_empty(payload.get("invalid_count"), payload.get("invalid")), default=self.invalid_count, minimum=0) or 0
+        self.created_count = normalize_int(first_non_empty(payload.get("created_count"), payload.get("created")), default=self.created_count, minimum=0) or 0
+        self.inserted_count = normalize_int(first_non_empty(payload.get("inserted_count"), payload.get("inserted")), default=self.inserted_count, minimum=0) or 0
+        self.updated_count = normalize_int(first_non_empty(payload.get("updated_count"), payload.get("updated")), default=self.updated_count, minimum=0) or 0
+        self.unchanged_count = normalize_int(first_non_empty(payload.get("unchanged_count"), payload.get("unchanged")), default=self.unchanged_count, minimum=0) or 0
+        self.published_count = normalize_int(first_non_empty(payload.get("published_count"), payload.get("published")), default=self.published_count, minimum=0) or 0
+        self.skipped_count = normalize_int(first_non_empty(payload.get("skipped_count"), payload.get("skipped")), default=self.skipped_count, minimum=0) or 0
+        self.deleted_count = normalize_int(first_non_empty(payload.get("deleted_count"), payload.get("deleted")), default=self.deleted_count, minimum=0) or 0
+        self.duplicate_count = normalize_int(first_non_empty(payload.get("duplicate_count"), payload.get("duplicates")), default=self.duplicate_count, minimum=0) or 0
+        self.warning_count = normalize_int(first_non_empty(payload.get("warning_count"), payload.get("warnings")), default=self.warning_count, minimum=0) or 0
+        self.error_count = normalize_int(first_non_empty(payload.get("error_count"), payload.get("errors")), default=self.error_count, minimum=0) or 0
         self.touch()
 
     def to_dict(self, *, include_issues: bool = False) -> dict[str, Any]:
@@ -958,6 +1299,9 @@ class CreativeLibraryScanRun(TimestampMixin, JsonMixin, db.Model):
             "id": self.id,
             "scan_run_id": self.id,
             "scan_uid": self.scan_uid,
+            "owner_user_id": self.owner_user_id,
+            "source_scope": self.source_scope,
+            "owner_scope": self.owner_scope,
             "source_root": self.source_root,
             "mode": self.mode,
             "triggered_by": self.triggered_by,
@@ -1021,25 +1365,55 @@ class CreativeLibraryRevision(TimestampMixin, JsonMixin, db.Model):
     )
     scan_run_db_id = db.Column(db.BigInteger, nullable=True, index=True)
 
-    vplib_uid = db.Column(db.String(80), nullable=True, index=True)
-    family_id = db.Column(db.String(255), nullable=True, index=True)
-    package_id = db.Column(db.String(255), nullable=True, index=True)
+    # Draft source pointer. String-only draft_uid remains useful even if the
+    # draft row was discarded or archived.
+    source_draft_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey(
+            "creative_library_drafts.id",
+            name="fk_creative_library_revisions_source_draft_id",
+            use_alter=True,
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        index=True,
+    )
+    source_draft_uid = db.Column(db.String(MAX_UID_LENGTH), nullable=True, index=True)
 
-    revision_id = db.Column(db.String(160), nullable=True, index=True)
-    revision_hash = db.Column(db.String(128), nullable=False, index=True)
-    previous_revision_hash = db.Column(db.String(128), nullable=True)
+    owner_user_id = db.Column(db.BigInteger, nullable=True, index=True)
+    source_scope = db.Column(
+        db.String(MAX_SOURCE_SCOPE_LENGTH),
+        nullable=False,
+        default=CreativeLibrarySourceScope.SYSTEM.value,
+        index=True,
+    )
+    owner_scope = db.Column(
+        db.String(MAX_OWNER_SCOPE_LENGTH),
+        nullable=False,
+        default=CreativeLibrarySourceScope.SYSTEM.value,
+        index=True,
+    )
+
+    vplib_uid = db.Column(db.String(MAX_VPLIB_UID_LENGTH), nullable=True, index=True)
+    family_id = db.Column(db.String(MAX_FAMILY_ID_LENGTH), nullable=True, index=True)
+    package_id = db.Column(db.String(MAX_PACKAGE_ID_LENGTH), nullable=True, index=True)
+
+    revision_id = db.Column(db.String(MAX_VARIANT_ID_LENGTH), nullable=True, index=True)
+    revision_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=False, index=True)
+    previous_revision_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True)
 
     package_version = db.Column(db.String(80), nullable=True)
     schema_version = db.Column(db.String(80), nullable=True)
+    definitions_version = db.Column(db.String(80), nullable=True, index=True)
 
     source_root = db.Column(db.Text, nullable=True)
     source_path = db.Column(db.Text, nullable=True, index=True)
     source_mtime_ns = db.Column(db.BigInteger, nullable=True)
     source_size_bytes = db.Column(db.BigInteger, nullable=True)
 
-    validation_status = db.Column(db.String(40), nullable=True, index=True)
-    status = db.Column(db.String(40), nullable=False, default=CreativeLibraryStatus.PUBLISHED.value, index=True)
-    publication_status = db.Column(db.String(40), nullable=False, default=CreativeLibraryStatus.PUBLISHED.value, index=True)
+    validation_status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=True, index=True)
+    status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=False, default=CreativeLibraryStatus.PUBLISHED.value, index=True)
+    publication_status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=False, default=CreativeLibraryStatus.PUBLISHED.value, index=True)
     published_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     manifest_json = db.Column(db.JSON, nullable=False, default=dict)
@@ -1054,9 +1428,14 @@ class CreativeLibraryRevision(TimestampMixin, JsonMixin, db.Model):
     raw_documents = db.Column(db.JSON, nullable=False, default=dict)
     documents = db.Column(db.JSON, nullable=False, default=dict)
     validation_payload = db.Column(db.JSON, nullable=False, default=dict)
+    generator_payload = db.Column(db.JSON, nullable=False, default=dict)
+    file_refs_json = db.Column(db.JSON, nullable=False, default=list)
     payload = db.Column(db.JSON, nullable=False, default=dict)
     meta = db.Column(db.JSON, nullable=False, default=dict)
     metadata_json = db.Column(db.JSON, nullable=False, default=dict)
+
+    created_by_user_id = db.Column(db.BigInteger, nullable=True, index=True)
+    published_by_user_id = db.Column(db.BigInteger, nullable=True, index=True)
 
     family = db.relationship(
         "CreativeLibraryItem",
@@ -1101,6 +1480,8 @@ class CreativeLibraryRevision(TimestampMixin, JsonMixin, db.Model):
         db.Index("ix_creative_library_revisions_family_status", "family_db_id", "publication_status"),
         db.Index("ix_creative_library_revisions_scan_status", "scan_run_id", "status"),
         db.Index("ix_creative_library_revisions_uid_created", "vplib_uid", "created_at"),
+        db.Index("ix_creative_library_revisions_owner_status", "owner_scope", "publication_status"),
+        db.Index("ix_creative_library_revisions_draft", "source_draft_uid", "source_draft_id"),
     )
 
     def __repr__(self) -> str:
@@ -1124,12 +1505,17 @@ class CreativeLibraryRevision(TimestampMixin, JsonMixin, db.Model):
         source_mtime_ns: int | None = None,
         source_size_bytes: int | None = None,
         metadata: Mapping[str, Any] | None = None,
+        source_draft_id: Any = None,
+        source_draft_uid: Any = None,
+        created_by_user_id: Any = None,
+        published_by_user_id: Any = None,
     ) -> "CreativeLibraryRevision":
         uid = require_vplib_uid(manifest.get(CREATIVE_LIBRARY_UID_FIELD))
         if item.vplib_uid != uid:
             raise ValueError(f"Manifest vplib_uid {uid!r} does not match item {item.vplib_uid!r}.")
 
         now = utc_now()
+        metadata_payload = normalize_json_mapping(metadata)
 
         return cls(
             family=item,
@@ -1139,11 +1525,18 @@ class CreativeLibraryRevision(TimestampMixin, JsonMixin, db.Model):
             item_id=item.id,
             scan_run_id=scan_run.id if scan_run is not None else None,
             scan_run_db_id=scan_run.id if scan_run is not None else None,
+            source_draft_id=normalize_int(source_draft_id, default=None, minimum=1),
+            source_draft_uid=normalize_optional_string(source_draft_uid, max_length=MAX_UID_LENGTH),
+            owner_user_id=item.owner_user_id,
+            source_scope=item.source_scope,
+            owner_scope=item.owner_scope,
             vplib_uid=uid,
             family_id=item.family_id,
             package_id=item.package_id,
-            revision_hash=normalize_required_string(revision_hash, field_name="revision_hash", max_length=128),
+            revision_hash=normalize_required_string(revision_hash, field_name="revision_hash", max_length=MAX_HASH_LENGTH),
+            previous_revision_hash=item.current_revision_hash,
             schema_version=normalize_optional_string(manifest.get("schema_version"), max_length=80),
+            definitions_version=normalize_optional_string(manifest.get("definitions_version") or manifest.get("definition_version"), max_length=80),
             source_root=source_root,
             source_path=source_path,
             source_mtime_ns=source_mtime_ns,
@@ -1159,8 +1552,12 @@ class CreativeLibraryRevision(TimestampMixin, JsonMixin, db.Model):
             status=CreativeLibraryStatus.PUBLISHED.value,
             publication_status=CreativeLibraryStatus.PUBLISHED.value,
             published_at=now,
-            meta=normalize_json_mapping(metadata),
-            metadata_json=normalize_json_mapping(metadata),
+            generator_payload=normalize_json_mapping(manifest.get("generator")),
+            file_refs_json=normalize_json_list(manifest.get("file_refs") or manifest.get("files")),
+            meta=metadata_payload,
+            metadata_json=metadata_payload,
+            created_by_user_id=normalize_user_id(created_by_user_id, default=None),
+            published_by_user_id=normalize_user_id(published_by_user_id, default=None),
         )
 
     def to_dict(self, *, include_documents: bool = True) -> dict[str, Any]:
@@ -1171,6 +1568,11 @@ class CreativeLibraryRevision(TimestampMixin, JsonMixin, db.Model):
             "item_id": self.item_id,
             "scan_run_id": self.scan_run_id,
             "scan_run_db_id": self.scan_run_db_id,
+            "source_draft_id": self.source_draft_id,
+            "source_draft_uid": self.source_draft_uid,
+            "owner_user_id": self.owner_user_id,
+            "source_scope": self.source_scope,
+            "owner_scope": self.owner_scope,
             "vplib_uid": self.vplib_uid,
             "family_id": self.family_id,
             "package_id": self.package_id,
@@ -1179,6 +1581,7 @@ class CreativeLibraryRevision(TimestampMixin, JsonMixin, db.Model):
             "previous_revision_hash": self.previous_revision_hash,
             "package_version": self.package_version,
             "schema_version": self.schema_version,
+            "definitions_version": self.definitions_version,
             "source_root": self.source_root,
             "source_path": self.source_path,
             "source_mtime_ns": self.source_mtime_ns,
@@ -1187,11 +1590,15 @@ class CreativeLibraryRevision(TimestampMixin, JsonMixin, db.Model):
             "status": self.status,
             "publication_status": self.publication_status,
             "published_at": self.published_at.isoformat() if self.published_at else None,
+            "created_by_user_id": self.created_by_user_id,
+            "published_by_user_id": self.published_by_user_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "summary_payload": normalize_json_mapping(self.summary_payload),
             "detail_payload": normalize_json_mapping(self.detail_payload),
             "validation_payload": normalize_json_mapping(self.validation_payload),
+            "generator_payload": normalize_json_mapping(self.generator_payload),
+            "file_refs": normalize_json_list(self.file_refs_json),
             "payload": normalize_json_mapping(self.payload),
             "meta": normalize_json_mapping(self.meta),
             "metadata": normalize_json_mapping(self.metadata_json),
@@ -1241,44 +1648,78 @@ class CreativeLibraryVariant(TimestampMixin, JsonMixin, db.Model):
     )
     revision_db_id = db.Column(db.BigInteger, nullable=True, index=True)
 
-    vplib_uid = db.Column(db.String(80), nullable=True, index=True)
-    family_id = db.Column(db.String(255), nullable=True, index=True)
-    revision_hash = db.Column(db.String(128), nullable=True, index=True)
+    source_draft_variant_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey(
+            "creative_library_draft_variants.id",
+            name="fk_creative_library_variants_source_draft_variant_id",
+            use_alter=True,
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        index=True,
+    )
+    source_draft_variant_uid = db.Column(db.String(MAX_UID_LENGTH), nullable=True, index=True)
 
-    variant_id = db.Column(db.String(160), nullable=False, index=True)
-    id_in_family = db.Column(db.String(160), nullable=True, index=True)
-    slug = db.Column(db.String(160), nullable=True, index=True)
-    label = db.Column(db.String(255), nullable=True)
-    name = db.Column(db.String(255), nullable=True)
+    vplib_uid = db.Column(db.String(MAX_VPLIB_UID_LENGTH), nullable=True, index=True)
+    family_id = db.Column(db.String(MAX_FAMILY_ID_LENGTH), nullable=True, index=True)
+    package_id = db.Column(db.String(MAX_PACKAGE_ID_LENGTH), nullable=True, index=True)
+    revision_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
+
+    variant_id = db.Column(db.String(MAX_VARIANT_ID_LENGTH), nullable=False, index=True)
+    id_in_family = db.Column(db.String(MAX_VARIANT_ID_LENGTH), nullable=True, index=True)
+    slug = db.Column(db.String(MAX_VARIANT_ID_LENGTH), nullable=True, index=True)
+    label = db.Column(db.String(MAX_LABEL_LENGTH), nullable=True)
+    name = db.Column(db.String(MAX_LABEL_LENGTH), nullable=True)
     description = db.Column(db.Text, nullable=True)
     is_default = db.Column(db.Boolean, nullable=False, default=False, index=True)
     enabled = db.Column(db.Boolean, nullable=False, default=True, index=True)
     visible = db.Column(db.Boolean, nullable=False, default=True, index=True)
 
-    family_profile_id = db.Column(db.String(160), nullable=True, index=True)
-    variant_profile_id = db.Column(db.String(160), nullable=True, index=True)
+    family_profile_id = db.Column(db.String(MAX_PROFILE_ID_LENGTH), nullable=True, index=True)
+    variant_profile_id = db.Column(db.String(MAX_PROFILE_ID_LENGTH), nullable=True, index=True)
 
     definition_values_json = db.Column(db.JSON, nullable=False, default=dict)
     additional_field_keys_json = db.Column(db.JSON, nullable=False, default=list)
     summary_json = db.Column(db.JSON, nullable=False, default=dict)
     resolved_payload = db.Column(db.JSON, nullable=False, default=dict)
+    validation_payload = db.Column(db.JSON, nullable=False, default=dict)
+    generator_payload = db.Column(db.JSON, nullable=False, default=dict)
+    file_refs_json = db.Column(db.JSON, nullable=False, default=list)
     payload = db.Column(db.JSON, nullable=False, default=dict)
     meta = db.Column(db.JSON, nullable=False, default=dict)
     metadata_json = db.Column(db.JSON, nullable=False, default=dict)
 
-    status = db.Column(db.String(40), nullable=False, default=CreativeLibraryStatus.PUBLISHED.value, index=True)
-    publication_status = db.Column(db.String(40), nullable=True, index=True)
+    status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=False, default=CreativeLibraryStatus.PUBLISHED.value, index=True)
+    publication_status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=True, index=True)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+    created_by_user_id = db.Column(db.BigInteger, nullable=True, index=True)
+    updated_by_user_id = db.Column(db.BigInteger, nullable=True, index=True)
 
     family = db.relationship("CreativeLibraryItem", back_populates="variants", foreign_keys=[family_db_id], lazy="joined")
     item = db.relationship("CreativeLibraryItem", foreign_keys=[item_id], lazy="joined")
     revision = db.relationship("CreativeLibraryRevision", back_populates="variants", foreign_keys=[revision_id], lazy="joined")
+
+    assets = db.relationship(
+        "CreativeLibraryAsset",
+        back_populates="variant",
+        foreign_keys="CreativeLibraryAsset.variant_db_id",
+        lazy="selectin",
+    )
+    documents = db.relationship(
+        "CreativeLibraryDocument",
+        back_populates="variant",
+        foreign_keys="CreativeLibraryDocument.variant_db_id",
+        lazy="selectin",
+    )
 
     __table_args__ = (
         db.UniqueConstraint("revision_id", "variant_id", name="uq_creative_library_variant_revision_variant"),
         db.Index("ix_creative_library_variants_family_default", "family_db_id", "is_default"),
         db.Index("ix_creative_library_variants_uid_variant", "vplib_uid", "variant_id"),
         db.Index("ix_creative_library_variants_profiles", "family_profile_id", "variant_profile_id"),
+        db.Index("ix_creative_library_variants_draft", "source_draft_variant_uid", "source_draft_variant_id"),
     )
 
     def __repr__(self) -> str:
@@ -1292,12 +1733,12 @@ class CreativeLibraryVariant(TimestampMixin, JsonMixin, db.Model):
         revision: CreativeLibraryRevision,
         payload: Mapping[str, Any],
         sort_order: int = 0,
+        source_draft_variant_id: Any = None,
+        source_draft_variant_uid: Any = None,
     ) -> "CreativeLibraryVariant":
-        variant_id = normalize_required_string(
-            payload.get("variant_id") or payload.get("variantId") or payload.get("id") or payload.get("slug"),
-            field_name="variant_id",
-            max_length=160,
-        )
+        variant_id = extract_variant_id(payload)
+
+        definition_values = normalize_json_mapping(payload.get("definition_values") or payload.get("definitionValues") or payload.get("values"))
 
         return cls(
             family=item,
@@ -1307,30 +1748,38 @@ class CreativeLibraryVariant(TimestampMixin, JsonMixin, db.Model):
             item_id=item.id,
             revision_id=revision.id,
             revision_db_id=revision.id,
+            source_draft_variant_id=normalize_int(source_draft_variant_id, default=None, minimum=1),
+            source_draft_variant_uid=normalize_optional_string(source_draft_variant_uid, max_length=MAX_UID_LENGTH),
             vplib_uid=item.vplib_uid,
             family_id=item.family_id,
+            package_id=item.package_id,
             revision_hash=revision.revision_hash,
             variant_id=variant_id,
             id_in_family=variant_id,
-            slug=normalize_optional_string(payload.get("slug") or variant_id, max_length=160),
-            label=normalize_optional_string(payload.get("label") or payload.get("name"), max_length=255),
-            name=normalize_optional_string(payload.get("name") or payload.get("label"), max_length=255),
-            description=normalize_optional_string(payload.get("description")),
+            slug=normalize_optional_string(payload.get("slug") or variant_id, max_length=MAX_VARIANT_ID_LENGTH),
+            label=normalize_optional_string(payload.get("label") or payload.get("name") or definition_values.get("variant.label"), max_length=MAX_LABEL_LENGTH),
+            name=normalize_optional_string(payload.get("name") or payload.get("label") or definition_values.get("variant.label"), max_length=MAX_LABEL_LENGTH),
+            description=normalize_optional_string(payload.get("description") or definition_values.get("variant.description")),
             is_default=normalize_bool(payload.get("is_default") or payload.get("isDefault") or payload.get("default"), default=False),
             enabled=normalize_bool(payload.get("enabled"), default=True),
             visible=normalize_bool(payload.get("visible"), default=True),
-            family_profile_id=normalize_optional_string(payload.get("family_profile_id") or payload.get("familyProfileId"), max_length=160),
-            variant_profile_id=normalize_optional_string(payload.get("variant_profile_id") or payload.get("variantProfileId"), max_length=160),
-            definition_values_json=normalize_json_mapping(payload.get("definition_values") or payload.get("definitionValues")),
+            family_profile_id=normalize_optional_string(payload.get("family_profile_id") or payload.get("familyProfileId") or item.family_profile_id, max_length=MAX_PROFILE_ID_LENGTH),
+            variant_profile_id=normalize_optional_string(payload.get("variant_profile_id") or payload.get("variantProfileId") or item.variant_profile_id, max_length=MAX_PROFILE_ID_LENGTH),
+            definition_values_json=definition_values,
             additional_field_keys_json=normalize_json_list(payload.get("additional_field_keys") or payload.get("additionalFieldKeys")),
             summary_json=normalize_json_mapping(payload.get("summary")),
             resolved_payload=normalize_json_mapping(payload.get("resolved_payload") or payload.get("resolved")),
+            validation_payload=normalize_json_mapping(payload.get("validation") or payload.get("validation_payload")),
+            generator_payload=normalize_json_mapping(payload.get("generator") or payload.get("generator_payload")),
+            file_refs_json=normalize_json_list(payload.get("file_refs") or payload.get("files")),
             payload=normalize_json_mapping(payload),
             meta=normalize_json_mapping(payload.get("metadata")),
             metadata_json=normalize_json_mapping(payload.get("metadata")),
             status=enum_value(payload.get("status"), default=CreativeLibraryStatus.PUBLISHED.value),
             publication_status=enum_value(payload.get("publication_status"), default=CreativeLibraryStatus.PUBLISHED.value),
-            sort_order=normalize_int(sort_order, default=0, minimum=0),
+            sort_order=normalize_int(sort_order, default=0, minimum=0) or 0,
+            created_by_user_id=revision.created_by_user_id,
+            updated_by_user_id=revision.created_by_user_id,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1341,8 +1790,11 @@ class CreativeLibraryVariant(TimestampMixin, JsonMixin, db.Model):
             "item_id": self.item_id,
             "revision_id": self.revision_id,
             "revision_db_id": self.revision_db_id,
+            "source_draft_variant_id": self.source_draft_variant_id,
+            "source_draft_variant_uid": self.source_draft_variant_uid,
             "vplib_uid": self.vplib_uid,
             "family_id": self.family_id,
+            "package_id": self.package_id,
             "revision_hash": self.revision_hash,
             "variant_id": self.variant_id,
             "id_in_family": self.id_in_family,
@@ -1359,10 +1811,15 @@ class CreativeLibraryVariant(TimestampMixin, JsonMixin, db.Model):
             "additional_field_keys": normalize_json_list(self.additional_field_keys_json),
             "summary": normalize_json_mapping(self.summary_json),
             "resolved_payload": normalize_json_mapping(self.resolved_payload),
+            "validation_payload": normalize_json_mapping(self.validation_payload),
+            "generator_payload": normalize_json_mapping(self.generator_payload),
+            "file_refs": normalize_json_list(self.file_refs_json),
             "payload": normalize_json_mapping(self.payload),
             "status": self.status,
             "publication_status": self.publication_status,
             "sort_order": self.sort_order,
+            "created_by_user_id": self.created_by_user_id,
+            "updated_by_user_id": self.updated_by_user_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "meta": normalize_json_mapping(self.meta),
@@ -1371,7 +1828,7 @@ class CreativeLibraryVariant(TimestampMixin, JsonMixin, db.Model):
 
 
 class CreativeLibraryAsset(TimestampMixin, JsonMixin, db.Model):
-    """Asset-/Preview-/Mesh-Verweis einer Revision."""
+    """Asset-/Preview-/Mesh-/File-Verweis einer Revision."""
 
     __tablename__ = "creative_library_assets"
 
@@ -1397,25 +1854,54 @@ class CreativeLibraryAsset(TimestampMixin, JsonMixin, db.Model):
     )
     revision_db_id = db.Column(db.BigInteger, nullable=True, index=True)
 
-    vplib_uid = db.Column(db.String(80), nullable=True, index=True)
-    family_id = db.Column(db.String(255), nullable=True, index=True)
-    revision_hash = db.Column(db.String(128), nullable=True, index=True)
+    variant_db_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("creative_library_variants.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    variant_id = db.Column(db.String(MAX_VARIANT_ID_LENGTH), nullable=True, index=True)
 
-    role = db.Column(db.String(80), nullable=True, index=True)
-    asset_kind = db.Column(db.String(80), nullable=True, index=True)
-    asset_type = db.Column(db.String(80), nullable=True, index=True)
+    library_file_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("library_files.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    library_file_version_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("library_file_versions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    vplib_uid = db.Column(db.String(MAX_VPLIB_UID_LENGTH), nullable=True, index=True)
+    family_id = db.Column(db.String(MAX_FAMILY_ID_LENGTH), nullable=True, index=True)
+    package_id = db.Column(db.String(MAX_PACKAGE_ID_LENGTH), nullable=True, index=True)
+    revision_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
+
+    role = db.Column(db.String(MAX_ROLE_LENGTH), nullable=True, index=True)
+    asset_kind = db.Column(db.String(MAX_ROLE_LENGTH), nullable=True, index=True)
+    asset_type = db.Column(db.String(MAX_ROLE_LENGTH), nullable=True, index=True)
+    document_type = db.Column(db.String(MAX_ROLE_LENGTH), nullable=True, index=True)
+    field_key = db.Column(db.String(MAX_FIELD_LENGTH), nullable=True, index=True)
 
     asset_path = db.Column(db.Text, nullable=True)
     path = db.Column(db.Text, nullable=True)
     relative_path = db.Column(db.Text, nullable=True)
     uri = db.Column(db.Text, nullable=True)
 
-    label = db.Column(db.String(255), nullable=True)
-    asset_hash = db.Column(db.String(128), nullable=True, index=True)
-    checksum = db.Column(db.String(128), nullable=True, index=True)
-    mime_type = db.Column(db.String(160), nullable=True)
+    label = db.Column(db.String(MAX_LABEL_LENGTH), nullable=True)
+    asset_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
+    checksum = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
+    mime_type = db.Column(db.String(MAX_MIME_TYPE_LENGTH), nullable=True)
     size_bytes = db.Column(db.BigInteger, nullable=True)
     exists = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    is_primary = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+    bounds_json = db.Column(db.JSON, nullable=False, default=dict)
+    transform_json = db.Column(db.JSON, nullable=False, default=dict)
 
     payload = db.Column(db.JSON, nullable=False, default=dict)
     meta = db.Column(db.JSON, nullable=False, default=dict)
@@ -1424,11 +1910,16 @@ class CreativeLibraryAsset(TimestampMixin, JsonMixin, db.Model):
     family = db.relationship("CreativeLibraryItem", back_populates="assets", foreign_keys=[family_db_id], lazy="joined")
     item = db.relationship("CreativeLibraryItem", foreign_keys=[item_id], lazy="joined")
     revision = db.relationship("CreativeLibraryRevision", back_populates="assets", foreign_keys=[revision_id], lazy="joined")
+    variant = db.relationship("CreativeLibraryVariant", back_populates="assets", foreign_keys=[variant_db_id], lazy="joined")
+    library_file = db.relationship("LibraryFile", foreign_keys=[library_file_id], lazy="joined")
+    library_file_version = db.relationship("LibraryFileVersion", foreign_keys=[library_file_version_id], lazy="joined")
 
     __table_args__ = (
         db.Index("ix_creative_library_assets_family_role", "family_db_id", "role"),
         db.Index("ix_creative_library_assets_revision_role", "revision_id", "role"),
         db.Index("ix_creative_library_assets_uid_role", "vplib_uid", "role"),
+        db.Index("ix_creative_library_assets_file", "library_file_id", "library_file_version_id"),
+        db.Index("ix_creative_library_assets_variant_field", "variant_db_id", "field_key"),
     )
 
     def __repr__(self) -> str:
@@ -1458,22 +1949,33 @@ class CreativeLibraryAsset(TimestampMixin, JsonMixin, db.Model):
             item_id=item.id,
             revision_id=revision.id,
             revision_db_id=revision.id,
+            variant_db_id=normalize_int(payload.get("variant_db_id"), default=None, minimum=1),
+            variant_id=normalize_optional_string(payload.get("variant_id") or payload.get("variantId"), max_length=MAX_VARIANT_ID_LENGTH),
+            library_file_id=normalize_int(payload.get("library_file_id") or payload.get("file_id"), default=None, minimum=1),
+            library_file_version_id=normalize_int(payload.get("library_file_version_id") or payload.get("file_version_id"), default=None, minimum=1),
             vplib_uid=item.vplib_uid,
             family_id=item.family_id,
+            package_id=item.package_id,
             revision_hash=revision.revision_hash,
             role=role,
             asset_kind=enum_value(payload.get("asset_kind") or payload.get("kind") or role, default=CreativeLibraryAssetKind.OTHER.value),
-            asset_type=normalize_optional_string(payload.get("asset_type") or payload.get("type"), max_length=80),
+            asset_type=normalize_optional_string(payload.get("asset_type") or payload.get("type"), max_length=MAX_ROLE_LENGTH),
+            document_type=normalize_optional_string(payload.get("document_type") or payload.get("documentType"), max_length=MAX_ROLE_LENGTH),
+            field_key=normalize_optional_string(payload.get("field_key") or payload.get("fieldKey"), max_length=MAX_FIELD_LENGTH),
             asset_path=normalize_optional_string(path),
             path=normalize_optional_string(path),
             relative_path=normalize_optional_string(payload.get("relative_path") or payload.get("path")),
             uri=normalize_optional_string(payload.get("uri") or payload.get("url")),
-            label=normalize_optional_string(payload.get("label") or role, max_length=255),
-            asset_hash=normalize_optional_string(payload.get("asset_hash") or payload.get("hash"), max_length=128),
-            checksum=normalize_optional_string(payload.get("checksum") or payload.get("sha256"), max_length=128),
-            mime_type=normalize_optional_string(payload.get("mime_type") or payload.get("mimeType"), max_length=160),
+            label=normalize_optional_string(payload.get("label") or role, max_length=MAX_LABEL_LENGTH),
+            asset_hash=normalize_optional_string(payload.get("asset_hash") or payload.get("hash"), max_length=MAX_HASH_LENGTH),
+            checksum=normalize_optional_string(payload.get("checksum") or payload.get("sha256"), max_length=MAX_HASH_LENGTH),
+            mime_type=normalize_optional_string(payload.get("mime_type") or payload.get("mimeType"), max_length=MAX_MIME_TYPE_LENGTH),
             size_bytes=payload.get("size_bytes") if payload.get("size_bytes") is not None else payload.get("sizeBytes"),
             exists=normalize_bool(payload.get("exists"), default=True),
+            is_primary=normalize_bool(payload.get("is_primary") or payload.get("primary"), default=False),
+            sort_order=normalize_int(payload.get("sort_order"), default=0, minimum=0) or 0,
+            bounds_json=normalize_json_mapping(payload.get("bounds")),
+            transform_json=normalize_json_mapping(payload.get("transform")),
             payload=normalize_json_mapping(payload),
             meta=normalize_json_mapping(payload.get("metadata")),
             metadata_json=normalize_json_mapping(payload.get("metadata")),
@@ -1487,13 +1989,20 @@ class CreativeLibraryAsset(TimestampMixin, JsonMixin, db.Model):
             "item_id": self.item_id,
             "revision_id": self.revision_id,
             "revision_db_id": self.revision_db_id,
+            "variant_db_id": self.variant_db_id,
+            "variant_id": self.variant_id,
+            "library_file_id": self.library_file_id,
+            "library_file_version_id": self.library_file_version_id,
             "vplib_uid": self.vplib_uid,
             "family_id": self.family_id,
+            "package_id": self.package_id,
             "revision_hash": self.revision_hash,
             "role": self.role,
             "asset_kind": self.asset_kind,
             "asset_type": self.asset_type,
             "type": self.asset_type,
+            "document_type": self.document_type,
+            "field_key": self.field_key,
             "asset_path": self.asset_path,
             "path": self.path,
             "relative_path": self.relative_path,
@@ -1504,6 +2013,10 @@ class CreativeLibraryAsset(TimestampMixin, JsonMixin, db.Model):
             "mime_type": self.mime_type,
             "size_bytes": self.size_bytes,
             "exists": self.exists,
+            "is_primary": self.is_primary,
+            "sort_order": self.sort_order,
+            "bounds": normalize_json_mapping(self.bounds_json),
+            "transform": normalize_json_mapping(self.transform_json),
             "payload": normalize_json_mapping(self.payload),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
@@ -1539,15 +2052,38 @@ class CreativeLibraryDocument(TimestampMixin, JsonMixin, db.Model):
     )
     revision_db_id = db.Column(db.BigInteger, nullable=True, index=True)
 
-    vplib_uid = db.Column(db.String(80), nullable=True, index=True)
-    family_id = db.Column(db.String(255), nullable=True, index=True)
-    revision_hash = db.Column(db.String(128), nullable=True, index=True)
+    variant_db_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("creative_library_variants.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    variant_id = db.Column(db.String(MAX_VARIANT_ID_LENGTH), nullable=True, index=True)
+
+    library_file_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("library_files.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    library_file_version_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("library_file_versions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    vplib_uid = db.Column(db.String(MAX_VPLIB_UID_LENGTH), nullable=True, index=True)
+    family_id = db.Column(db.String(MAX_FAMILY_ID_LENGTH), nullable=True, index=True)
+    package_id = db.Column(db.String(MAX_PACKAGE_ID_LENGTH), nullable=True, index=True)
+    revision_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
 
     relative_path = db.Column(db.Text, nullable=False)
     path = db.Column(db.Text, nullable=True)
-    document_type = db.Column(db.String(80), nullable=True, index=True)
-    module = db.Column(db.String(120), nullable=True, index=True)
-    checksum = db.Column(db.String(128), nullable=True, index=True)
+    document_type = db.Column(db.String(MAX_ROLE_LENGTH), nullable=True, index=True)
+    module = db.Column(db.String(MAX_ROLE_LENGTH), nullable=True, index=True)
+    field_key = db.Column(db.String(MAX_FIELD_LENGTH), nullable=True, index=True)
+    checksum = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
 
     document = db.Column(db.JSON, nullable=False, default=dict)
     payload = db.Column(db.JSON, nullable=False, default=dict)
@@ -1557,11 +2093,16 @@ class CreativeLibraryDocument(TimestampMixin, JsonMixin, db.Model):
     family = db.relationship("CreativeLibraryItem", back_populates="documents", foreign_keys=[family_db_id], lazy="joined")
     item = db.relationship("CreativeLibraryItem", foreign_keys=[item_id], lazy="joined")
     revision = db.relationship("CreativeLibraryRevision", back_populates="document_rows", foreign_keys=[revision_id], lazy="joined")
+    variant = db.relationship("CreativeLibraryVariant", back_populates="documents", foreign_keys=[variant_db_id], lazy="joined")
+    library_file = db.relationship("LibraryFile", foreign_keys=[library_file_id], lazy="joined")
+    library_file_version = db.relationship("LibraryFileVersion", foreign_keys=[library_file_version_id], lazy="joined")
 
     __table_args__ = (
         db.UniqueConstraint("revision_id", "relative_path", name="uq_creative_library_document_revision_path"),
         db.Index("ix_creative_library_documents_uid_path", "vplib_uid", "relative_path"),
         db.Index("ix_creative_library_documents_revision_module", "revision_id", "module"),
+        db.Index("ix_creative_library_documents_file", "library_file_id", "library_file_version_id"),
+        db.Index("ix_creative_library_documents_variant_field", "variant_db_id", "field_key"),
     )
 
     def __repr__(self) -> str:
@@ -1575,12 +2116,12 @@ class CreativeLibraryDocument(TimestampMixin, JsonMixin, db.Model):
         revision: CreativeLibraryRevision,
         payload: Mapping[str, Any],
     ) -> "CreativeLibraryDocument":
-        relative_path = normalize_required_string(
+        relative_path = normalize_relative_path(
             payload.get("relative_path") or payload.get("path"),
             field_name="relative_path",
         )
 
-        module = normalize_optional_string(payload.get("module"), max_length=120)
+        module = normalize_optional_string(payload.get("module"), max_length=MAX_ROLE_LENGTH)
         if not module and "/" in relative_path:
             module = relative_path.split("/", 1)[0]
 
@@ -1598,14 +2139,20 @@ class CreativeLibraryDocument(TimestampMixin, JsonMixin, db.Model):
             item_id=item.id,
             revision_id=revision.id,
             revision_db_id=revision.id,
+            variant_db_id=normalize_int(payload.get("variant_db_id"), default=None, minimum=1),
+            variant_id=normalize_optional_string(payload.get("variant_id") or payload.get("variantId"), max_length=MAX_VARIANT_ID_LENGTH),
+            library_file_id=normalize_int(payload.get("library_file_id") or payload.get("file_id"), default=None, minimum=1),
+            library_file_version_id=normalize_int(payload.get("library_file_version_id") or payload.get("file_version_id"), default=None, minimum=1),
             vplib_uid=item.vplib_uid,
             family_id=item.family_id,
+            package_id=item.package_id,
             revision_hash=revision.revision_hash,
             relative_path=relative_path,
             path=relative_path,
-            document_type=normalize_optional_string(payload.get("document_type") or payload.get("type"), max_length=80),
+            document_type=normalize_optional_string(payload.get("document_type") or payload.get("type"), max_length=MAX_ROLE_LENGTH),
             module=module,
-            checksum=normalize_optional_string(payload.get("checksum"), max_length=128),
+            field_key=normalize_optional_string(payload.get("field_key") or payload.get("fieldKey"), max_length=MAX_FIELD_LENGTH),
+            checksum=normalize_optional_string(payload.get("checksum"), max_length=MAX_HASH_LENGTH) or stable_json_hash(document_payload),
             document=normalize_json_mapping(document_payload if isinstance(document_payload, Mapping) else {"value": document_payload}),
             payload=normalize_json_mapping(document_payload if isinstance(document_payload, Mapping) else {"value": document_payload}),
             meta=normalize_json_mapping(payload.get("metadata")),
@@ -1620,14 +2167,20 @@ class CreativeLibraryDocument(TimestampMixin, JsonMixin, db.Model):
             "item_id": self.item_id,
             "revision_id": self.revision_id,
             "revision_db_id": self.revision_db_id,
+            "variant_db_id": self.variant_db_id,
+            "variant_id": self.variant_id,
+            "library_file_id": self.library_file_id,
+            "library_file_version_id": self.library_file_version_id,
             "vplib_uid": self.vplib_uid,
             "family_id": self.family_id,
+            "package_id": self.package_id,
             "revision_hash": self.revision_hash,
             "relative_path": self.relative_path,
             "path": self.path or self.relative_path,
             "document_type": self.document_type,
             "type": self.document_type,
             "module": self.module,
+            "field_key": self.field_key,
             "checksum": self.checksum,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
@@ -1671,21 +2224,24 @@ class CreativeLibraryScanIssue(TimestampMixin, JsonMixin, db.Model):
     )
     revision_db_id = db.Column(db.BigInteger, nullable=True, index=True)
 
-    severity = db.Column(db.String(40), nullable=False, default=CreativeLibraryIssueSeverity.ERROR.value, index=True)
+    severity = db.Column(db.String(MAX_SEVERITY_LENGTH if "MAX_SEVERITY_LENGTH" in globals() else 40), nullable=False, default=CreativeLibraryIssueSeverity.ERROR.value, index=True)
     level = db.Column(db.String(40), nullable=True, index=True)
     code = db.Column(db.String(160), nullable=True, index=True)
     message = db.Column(db.Text, nullable=True)
 
     path = db.Column(db.Text, nullable=True)
-    field = db.Column(db.String(255), nullable=True)
-    scope = db.Column(db.String(120), nullable=True, index=True)
+    field = db.Column(db.String(MAX_FIELD_LENGTH), nullable=True)
+    scope = db.Column(db.String(MAX_SCOPE_LENGTH), nullable=True, index=True)
     source_path = db.Column(db.Text, nullable=True)
     relative_path = db.Column(db.Text, nullable=True)
 
-    vplib_uid = db.Column(db.String(80), nullable=True, index=True)
-    package_id = db.Column(db.String(255), nullable=True, index=True)
-    family_id = db.Column(db.String(255), nullable=True, index=True)
-    revision_hash = db.Column(db.String(128), nullable=True, index=True)
+    vplib_uid = db.Column(db.String(MAX_VPLIB_UID_LENGTH), nullable=True, index=True)
+    package_id = db.Column(db.String(MAX_PACKAGE_ID_LENGTH), nullable=True, index=True)
+    family_id = db.Column(db.String(MAX_FAMILY_ID_LENGTH), nullable=True, index=True)
+    revision_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
+
+    active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    resolved = db.Column(db.Boolean, nullable=False, default=False, index=True)
 
     context_json = db.Column(db.JSON, nullable=False, default=dict)
     payload = db.Column(db.JSON, nullable=False, default=dict)
@@ -1721,19 +2277,26 @@ class CreativeLibraryScanIssue(TimestampMixin, JsonMixin, db.Model):
             code=normalize_optional_string(payload.get("code"), max_length=160),
             message=normalize_optional_string(payload.get("message") or payload.get("detail") or payload.get("error")),
             path=normalize_optional_string(payload.get("path")),
-            field=normalize_optional_string(payload.get("field"), max_length=255),
-            scope=normalize_optional_string(payload.get("scope"), max_length=120),
+            field=normalize_optional_string(payload.get("field"), max_length=MAX_FIELD_LENGTH),
+            scope=normalize_optional_string(payload.get("scope"), max_length=MAX_SCOPE_LENGTH),
             source_path=normalize_optional_string(payload.get("source_path") or payload.get("sourcePath")),
             relative_path=normalize_optional_string(payload.get("relative_path") or payload.get("relativePath")),
             vplib_uid=normalize_vplib_uid(payload.get("vplib_uid") or payload.get("vplibUid")),
-            package_id=normalize_optional_string(payload.get("package_id") or payload.get("packageId"), max_length=255),
-            family_id=normalize_optional_string(payload.get("family_id") or payload.get("familyId"), max_length=255),
-            revision_hash=normalize_optional_string(payload.get("revision_hash"), max_length=128),
+            package_id=normalize_optional_string(payload.get("package_id") or payload.get("packageId"), max_length=MAX_PACKAGE_ID_LENGTH),
+            family_id=normalize_optional_string(payload.get("family_id") or payload.get("familyId"), max_length=MAX_FAMILY_ID_LENGTH),
+            revision_hash=normalize_optional_string(payload.get("revision_hash"), max_length=MAX_HASH_LENGTH),
+            active=normalize_bool(payload.get("active"), default=True),
+            resolved=normalize_bool(payload.get("resolved"), default=False),
             context_json=normalize_json_mapping(payload.get("context") or payload.get("details")),
             payload=normalize_json_mapping(payload.get("payload") or payload),
             meta=normalize_json_mapping(payload.get("metadata")),
             metadata_json=normalize_json_mapping(payload.get("metadata")),
         )
+
+    def mark_resolved(self) -> None:
+        self.resolved = True
+        self.active = False
+        self.touch()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -1757,6 +2320,8 @@ class CreativeLibraryScanIssue(TimestampMixin, JsonMixin, db.Model):
             "package_id": self.package_id,
             "family_id": self.family_id,
             "revision_hash": self.revision_hash,
+            "active": self.active,
+            "resolved": self.resolved,
             "context": normalize_json_mapping(self.context_json),
             "payload": normalize_json_mapping(self.payload),
             "meta": normalize_json_mapping(self.meta),
@@ -1768,10 +2333,11 @@ class CreativeLibraryScanIssue(TimestampMixin, JsonMixin, db.Model):
 
 class CreativeLibraryInventorySlot(TimestampMixin, JsonMixin, db.Model):
     """
-    Inventar-/Hotbar-Slot für Creative Library.
+    Legacy/system Creative-Library-Inventar-Slot.
 
-    Für Phase 1 gibt es ein Default-Inventar.
-    Später kann `inventory_key` mehrere Inventare/Profile erlauben.
+    Für user-spezifische Creative-Library-Sichten wird künftig
+    models/creative_library_user.py verwendet. Diese Tabelle bleibt als
+    rückwärtskompatible Default-/System-Inventar-Tabelle bestehen.
     """
 
     __tablename__ = "creative_library_inventory_slots"
@@ -1781,6 +2347,20 @@ class CreativeLibraryInventorySlot(TimestampMixin, JsonMixin, db.Model):
     inventory_key = db.Column(db.String(120), nullable=False, default=DEFAULT_INVENTORY_KEY, index=True)
     slot_index = db.Column(db.Integer, nullable=False)
     slot_id = db.Column(db.String(120), nullable=True, index=True)
+
+    owner_user_id = db.Column(db.BigInteger, nullable=True, index=True)
+    source_scope = db.Column(
+        db.String(MAX_SOURCE_SCOPE_LENGTH),
+        nullable=False,
+        default=CreativeLibrarySourceScope.SYSTEM.value,
+        index=True,
+    )
+    owner_scope = db.Column(
+        db.String(MAX_OWNER_SCOPE_LENGTH),
+        nullable=False,
+        default=CreativeLibrarySourceScope.SYSTEM.value,
+        index=True,
+    )
 
     family_db_id = db.Column(
         db.BigInteger,
@@ -1795,22 +2375,22 @@ class CreativeLibraryInventorySlot(TimestampMixin, JsonMixin, db.Model):
         index=True,
     )
 
-    vplib_uid = db.Column(db.String(80), nullable=True, index=True)
-    family_id = db.Column(db.String(255), nullable=True, index=True)
-    package_id = db.Column(db.String(255), nullable=True, index=True)
-    variant_id = db.Column(db.String(160), nullable=True, index=True)
+    vplib_uid = db.Column(db.String(MAX_VPLIB_UID_LENGTH), nullable=True, index=True)
+    family_id = db.Column(db.String(MAX_FAMILY_ID_LENGTH), nullable=True, index=True)
+    package_id = db.Column(db.String(MAX_PACKAGE_ID_LENGTH), nullable=True, index=True)
+    variant_id = db.Column(db.String(MAX_VARIANT_ID_LENGTH), nullable=True, index=True)
 
-    label = db.Column(db.String(255), nullable=True)
+    label = db.Column(db.String(MAX_LABEL_LENGTH), nullable=True)
     description = db.Column(db.Text, nullable=True)
-    family_slug = db.Column(db.String(160), nullable=True)
-    object_kind = db.Column(db.String(80), nullable=True, index=True)
+    family_slug = db.Column(db.String(MAX_FAMILY_SLUG_LENGTH), nullable=True)
+    object_kind = db.Column(db.String(MAX_OBJECT_KIND_LENGTH), nullable=True, index=True)
 
-    domain = db.Column(db.String(80), nullable=True, index=True)
-    category = db.Column(db.String(120), nullable=True, index=True)
-    subcategory = db.Column(db.String(120), nullable=True, index=True)
-    taxonomy_path = db.Column(db.String(512), nullable=True)
+    domain = db.Column(db.String(MAX_TAXONOMY_DOMAIN_LENGTH), nullable=True, index=True)
+    category = db.Column(db.String(MAX_TAXONOMY_CATEGORY_LENGTH), nullable=True, index=True)
+    subcategory = db.Column(db.String(MAX_TAXONOMY_CATEGORY_LENGTH), nullable=True, index=True)
+    taxonomy_path = db.Column(db.String(MAX_TAXONOMY_PATH_LENGTH), nullable=True)
 
-    status = db.Column(db.String(40), nullable=False, default=CreativeLibraryStatus.ACTIVE.value, index=True)
+    status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=False, default=CreativeLibraryStatus.ACTIVE.value, index=True)
     source = db.Column(db.String(60), nullable=True, default="database")
     scope = db.Column(db.String(60), nullable=True, default="editor")
     mode = db.Column(db.String(60), nullable=True, default="creative")
@@ -1830,9 +2410,9 @@ class CreativeLibraryInventorySlot(TimestampMixin, JsonMixin, db.Model):
     variant = db.Column(db.JSON, nullable=False, default=dict)
     placement = db.Column(db.JSON, nullable=False, default=dict)
 
-    revision_hash = db.Column(db.String(128), nullable=True, index=True)
-    publication_status = db.Column(db.String(40), nullable=True, index=True)
-    validation_status = db.Column(db.String(40), nullable=True, index=True)
+    revision_hash = db.Column(db.String(MAX_HASH_LENGTH), nullable=True, index=True)
+    publication_status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=True, index=True)
+    validation_status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=True, index=True)
 
     selected_at = db.Column(db.DateTime(timezone=True), nullable=True)
     published_at = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -1849,6 +2429,7 @@ class CreativeLibraryInventorySlot(TimestampMixin, JsonMixin, db.Model):
         db.Index("ix_creative_library_inventory_lookup", "inventory_key", "enabled", "sort_order"),
         db.Index("ix_creative_library_inventory_uid_variant", "vplib_uid", "variant_id"),
         db.Index("ix_creative_library_inventory_taxonomy", "domain", "category", "subcategory"),
+        db.Index("ix_creative_library_inventory_owner", "owner_scope", "inventory_key"),
     )
 
     def __repr__(self) -> str:
@@ -1865,12 +2446,15 @@ class CreativeLibraryInventorySlot(TimestampMixin, JsonMixin, db.Model):
         label: str | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> "CreativeLibraryInventorySlot":
-        taxonomy_path = "/".join(part for part in (item.domain, item.category, item.subcategory) if part) or None
+        taxonomy_path = taxonomy_path_for(domain=item.domain, category=item.category, subcategory=item.subcategory)
 
         return cls(
             inventory_key=normalize_required_string(inventory_key, field_name="inventory_key", max_length=120),
-            slot_index=normalize_int(slot_index, default=0, minimum=0),
-            slot_id=f"slot_{normalize_int(slot_index, default=0, minimum=0)}",
+            slot_index=normalize_int(slot_index, default=0, minimum=0) or 0,
+            slot_id=f"slot_{normalize_int(slot_index, default=0, minimum=0) or 0}",
+            owner_user_id=item.owner_user_id,
+            source_scope=item.source_scope,
+            owner_scope=item.owner_scope,
             family=item,
             item=item,
             family_db_id=item.id,
@@ -1878,8 +2462,8 @@ class CreativeLibraryInventorySlot(TimestampMixin, JsonMixin, db.Model):
             vplib_uid=require_vplib_uid(item.vplib_uid),
             family_id=item.family_id,
             package_id=item.package_id,
-            variant_id=normalize_optional_string(variant_id or item.default_variant_id, max_length=160),
-            label=normalize_optional_string(label or item.label or item.name, max_length=255),
+            variant_id=normalize_optional_string(variant_id or item.default_variant_id, max_length=MAX_VARIANT_ID_LENGTH),
+            label=normalize_optional_string(label or item.label or item.name, max_length=MAX_LABEL_LENGTH),
             description=item.description,
             family_slug=item.family_slug or item.slug,
             object_kind=item.object_kind,
@@ -1890,7 +2474,7 @@ class CreativeLibraryInventorySlot(TimestampMixin, JsonMixin, db.Model):
             enabled=True,
             visible=True,
             active=True,
-            sort_order=normalize_int(slot_index, default=0, minimum=0),
+            sort_order=normalize_int(slot_index, default=0, minimum=0) or 0,
             revision_hash=item.revision_hash or item.current_revision_hash,
             publication_status=item.publication_status,
             published_at=item.published_at,
@@ -1904,6 +2488,9 @@ class CreativeLibraryInventorySlot(TimestampMixin, JsonMixin, db.Model):
             "slot_id": self.slot_id or f"slot_{self.slot_index}",
             "inventory_key": self.inventory_key,
             "slot_index": self.slot_index,
+            "owner_user_id": self.owner_user_id,
+            "source_scope": self.source_scope,
+            "owner_scope": self.owner_scope,
             "family_db_id": self.family_db_id,
             "item_id": self.item_id,
             "vplib_uid": self.vplib_uid,
@@ -1973,6 +2560,16 @@ def iter_creative_library_models() -> tuple[type[Any], ...]:
     )
 
 
+def iter_models() -> tuple[type[Any], ...]:
+    """Kompatibler Alias für models.__init__.py."""
+    return iter_creative_library_models()
+
+
+def get_models() -> tuple[type[Any], ...]:
+    """Kompatibler Alias für Modelle-Discovery."""
+    return iter_creative_library_models()
+
+
 def iter_creative_library_model_aliases() -> tuple[type[Any], ...]:
     """Gibt Alias-Klassen für Repository-Kompatibilität zurück."""
     return (
@@ -2007,31 +2604,82 @@ def get_creative_library_models_health() -> dict[str, Any]:
     models = iter_creative_library_models()
     table_names = get_creative_library_table_names()
 
-    return {
-        "ok": True,
-        "healthy": True,
-        "schema_version": CREATIVE_LIBRARY_MODELS_SCHEMA_VERSION,
-        "model_count": len(models),
-        "model_names": [model.__name__ for model in models],
-        "alias_names": list(get_creative_library_alias_names()),
-        "table_count": len(table_names),
-        "tables": list(table_names),
-        "vplib_uid_field": CREATIVE_LIBRARY_UID_FIELD,
-        "database_creates_vplib_uid": False,
-        "uses_sqlalchemy_extension": True,
-        "supports_repository_family_alias": True,
-        "supports_repository_revision_alias": True,
-        "supports_document_table": True,
-        "supports_inventory_slots": True,
-    }
+    try:
+        metadata = getattr(db, "metadata", None)
+        tables = getattr(metadata, "tables", None)
+
+        if tables is None:
+            metadata_table_names: tuple[str, ...] = tuple()
+        else:
+            metadata_table_names = tuple(sorted(str(name) for name in tables.keys()))
+
+        missing_tables = [table_name for table_name in table_names if table_name not in metadata_table_names]
+        healthy = len(models) > 0 and len(table_names) > 0 and not missing_tables
+
+        return {
+            "ok": healthy,
+            "healthy": healthy,
+            "schema_version": CREATIVE_LIBRARY_MODELS_SCHEMA_VERSION,
+            "model_count": len(models),
+            "model_names": [model.__name__ for model in models],
+            "alias_names": list(get_creative_library_alias_names()),
+            "table_count": len(table_names),
+            "tables": list(table_names),
+            "metadata_table_count": len(metadata_table_names),
+            "metadata_table_names": list(metadata_table_names),
+            "missing_tables": missing_tables,
+            "vplib_uid_field": CREATIVE_LIBRARY_UID_FIELD,
+            "database_creates_vplib_uid": False,
+            "uses_sqlalchemy_extension": True,
+            "supports_repository_family_alias": True,
+            "supports_repository_revision_alias": True,
+            "supports_document_table": True,
+            "supports_inventory_slots": True,
+            "supports_owner_scope": True,
+            "supports_generator_metadata": True,
+            "supports_library_file_links": True,
+            "supports_draft_source_pointers": True,
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "healthy": False,
+            "schema_version": CREATIVE_LIBRARY_MODELS_SCHEMA_VERSION,
+            "model_count": len(models),
+            "model_names": [model.__name__ for model in models],
+            "table_count": len(table_names),
+            "tables": list(table_names),
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+
+def assert_creative_library_models_ready() -> None:
+    """Wirft RuntimeError, wenn die Creative-Library-Models nicht bereit sind."""
+    health = get_creative_library_models_health()
+
+    if health.get("healthy"):
+        return
+
+    raise RuntimeError(f"Creative library models are not ready: {health}")
 
 
 def clear_creative_library_models_cache() -> dict[str, Any]:
     """Leert lokale Caches dieser Datei."""
-    _load_db.cache_clear()
+    cleared: list[str] = []
+
+    for cached_func in (
+        _load_db,
+        _cached_vplib_uid_fallback,
+    ):
+        try:
+            cached_func.cache_clear()
+            cleared.append(getattr(cached_func, "__name__", str(cached_func)))
+        except Exception:
+            continue
+
     return {
         "ok": True,
-        "cleared": ["_load_db"],
+        "cleared": cleared,
     }
 
 
@@ -2039,6 +2687,7 @@ __all__ = [
     "CREATIVE_LIBRARY_MODELS_SCHEMA_VERSION",
     "CREATIVE_LIBRARY_UID_FIELD",
     "DEFAULT_INVENTORY_KEY",
+    "DEFAULT_USER_ID",
 
     # Models
     "CreativeLibraryAsset",
@@ -2056,6 +2705,7 @@ __all__ = [
     "CreativeLibraryAssetKind",
     "CreativeLibraryIssueSeverity",
     "CreativeLibraryScanStatus",
+    "CreativeLibrarySourceScope",
     "CreativeLibraryStatus",
 
     # Mixins
@@ -2063,26 +2713,38 @@ __all__ = [
     "TimestampMixin",
 
     # Helpers
+    "assert_creative_library_models_ready",
     "clear_creative_library_models_cache",
     "enum_value",
     "extract_manifest_classification",
+    "extract_variant_id",
     "first_non_empty",
     "get_creative_library_alias_names",
     "get_creative_library_model_names",
     "get_creative_library_models_health",
     "get_creative_library_table_names",
+    "get_models",
     "identity_dict",
     "iter_creative_library_model_aliases",
     "iter_creative_library_models",
+    "iter_models",
     "merge_json",
+    "new_uid",
     "normalize_bool",
     "normalize_int",
     "normalize_json_list",
     "normalize_json_mapping",
     "normalize_json_value",
     "normalize_optional_string",
+    "normalize_relative_path",
     "normalize_required_string",
+    "normalize_source_scope",
+    "normalize_status",
+    "normalize_user_id",
     "normalize_vplib_uid",
+    "owner_scope_for",
     "require_vplib_uid",
+    "stable_json_hash",
+    "taxonomy_path_for",
     "utc_now",
 ]

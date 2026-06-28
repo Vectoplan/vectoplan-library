@@ -1,4 +1,4 @@
-# services/vectoplan-library/src/routes/vplib_routes.py
+# services/vectoplan-library/routes/vplib_routes.py
 """
 Flask routes for VPLIB creation and diagnostics.
 

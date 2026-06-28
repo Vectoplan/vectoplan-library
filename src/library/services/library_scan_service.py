@@ -15,6 +15,7 @@ Ziel:
       -> LibraryItem Read-Models
       -> LibraryIndex
       -> API-taugliches Scan-Ergebnis
+      -> optional Sync-Payload-Preview ohne DB-Schreibzugriff
 
 Diese Datei ist die zentrale Backend-Service-Schicht für:
 
@@ -45,43 +46,40 @@ Taxonomie-Regel:
     - Tree-Sortierung
     - Create-/Library-Konsistenz
 
-Version 0.2.1:
+Version 1.0.0:
 
-- Scan-Service-Optionen werden jetzt auch aus dict/Mapping/Dataclass robust normalisiert.
-- Fix für AttributeError: dict object has no attribute require_taxonomy.
-- HTTP-Routen und DB-Sync dürfen options als Mapping übergeben, ohne die Scan-Pipeline zu brechen.
-
-Version 0.2.0:
-
-- Pipeline propagiert Taxonomie-Optionen in Discovery, Reader, Validator,
-  Summary Builder und Index Builder.
-- Health enthält Taxonomie-Health.
-- Scan-Metadata enthält Taxonomie-Version und Taxonomie-Status.
-- Blocks-Response unterstützt Filter:
-    domain, category, subcategory, object_kind, q
-- Tree kann optional leere Backend-Taxonomie-Knoten enthalten.
-- Cache-Key berücksichtigt Taxonomie-Version, damit geänderte Taxonomie nicht
-  versehentlich alte Tree-/Options-Daten ausliefert.
-- Bestehende Public-APIs bleiben rückwärtskompatibel.
+- Alle optionalen Backend-Module werden lazy geladen.
+- Optionen werden aus Mapping/Dataclass/Object robust normalisiert.
+- Keine DB-Abhängigkeit.
+- Keine Schreiboperation.
+- Cache-Key berücksichtigt Source-Root, Taxonomie-Version und relevante Optionen.
+- Blocks-/Tree-Responses bleiben rückwärtskompatibel.
+- Sync-Payload-Preview kann aus Scan-Ergebnissen erzeugt werden, schreibt aber nicht.
 """
 
 from __future__ import annotations
 
+import hashlib
+import importlib
+import inspect
+import json
 import os
 import time
 import traceback
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, Final
+from types import ModuleType
+from typing import Any, Callable, Final, Sequence
 
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-LIBRARY_SCAN_SERVICE_VERSION: Final[str] = "0.2.1"
+LIBRARY_SCAN_SERVICE_VERSION: Final[str] = "1.0.0"
 LIBRARY_SCAN_SERVICE_COMPONENT: Final[str] = "library-scan-service"
 
 DEFAULT_SCAN_SERVICE_STATUS: Final[str] = "unknown"
@@ -94,16 +92,89 @@ SCAN_SERVICE_STATUS_VALUES: Final[tuple[str, ...]] = (
     "partial",
     "invalid",
     "error",
+    "unavailable",
 )
 
 DEFAULT_CACHE_KEY: Final[str] = "default"
 DEFAULT_CACHE_TTL_SECONDS: Final[int] = 5
 MAX_CACHE_TTL_SECONDS: Final[int] = 86400
 
+DEFAULT_LIMIT: Final[int] = 500
+MAX_LIMIT: Final[int] = 5000
+
 SOURCE_ROOT_ENV_NAMES: Final[tuple[str, ...]] = (
     "VECTOPLAN_LIBRARY_SOURCE_ROOT",
     "VPLIB_CREATE_SOURCE_ROOT",
     "LIBRARY_SOURCE_ROOT",
+)
+
+VPLIB_UID_KEYS: Final[tuple[str, ...]] = (
+    "vplib_uid",
+    "vplibUid",
+    "vplib_uid_v1",
+)
+
+SETTINGS_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "config.library_settings",
+    "src.config.library_settings",
+    "vectoplan_library.config.library_settings",
+    "vectoplan_library.src.config.library_settings",
+)
+
+DISCOVERY_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.scanner.package_discovery",
+    "src.library.scanner.package_discovery",
+    "vectoplan_library.library.scanner.package_discovery",
+    "vectoplan_library.src.library.scanner.package_discovery",
+)
+
+READER_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.scanner.package_reader",
+    "src.library.scanner.package_reader",
+    "vectoplan_library.library.scanner.package_reader",
+    "vectoplan_library.src.library.scanner.package_reader",
+)
+
+FINGERPRINT_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.scanner.package_fingerprint",
+    "src.library.scanner.package_fingerprint",
+    "vectoplan_library.library.scanner.package_fingerprint",
+    "vectoplan_library.src.library.scanner.package_fingerprint",
+)
+
+VALIDATOR_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.validation.library_package_validator",
+    "src.library.validation.library_package_validator",
+    "vectoplan_library.library.validation.library_package_validator",
+    "vectoplan_library.src.library.validation.library_package_validator",
+)
+
+SUMMARY_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.read_models.block_summary_builder",
+    "src.library.read_models.block_summary_builder",
+    "vectoplan_library.library.read_models.block_summary_builder",
+    "vectoplan_library.src.library.read_models.block_summary_builder",
+)
+
+INDEX_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.read_models.library_index_builder",
+    "src.library.read_models.library_index_builder",
+    "vectoplan_library.library.read_models.library_index_builder",
+    "vectoplan_library.src.library.read_models.library_index_builder",
+)
+
+DOMAIN_SCAN_RESULT_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.domain.scan_result",
+    "src.library.domain.scan_result",
+    "vectoplan_library.library.domain.scan_result",
+    "vectoplan_library.src.library.domain.scan_result",
+)
+
+TAXONOMY_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.taxonomy",
+    "src.library.taxonomy",
+    "vectoplan_library.library.taxonomy",
+    "vectoplan_library.src.library.taxonomy",
 )
 
 
@@ -160,6 +231,9 @@ def json_safe(value: Any) -> Any:
         if isinstance(value, (str, int, float, bool)):
             return value
 
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
+
         if isinstance(value, Path):
             return str(value)
 
@@ -186,6 +260,12 @@ def json_safe(value: Any) -> Any:
         if callable(to_summary_dict):
             return json_safe(to_summary_dict())
 
+        if hasattr(value, "isoformat") and callable(value.isoformat):
+            try:
+                return value.isoformat()
+            except Exception:
+                return str(value)
+
         return str(value)
 
     except Exception as exc:
@@ -202,9 +282,9 @@ def safe_str(value: Any, *, default: str = "") -> str:
             return default
 
         if isinstance(value, bytes):
-            text = value.decode("utf-8", errors="replace").strip()
+            text = value.decode("utf-8", errors="replace").replace("\x00", "").strip()
         else:
-            text = str(value).strip()
+            text = str(value).replace("\x00", "").strip()
 
         return text if text else default
 
@@ -472,11 +552,25 @@ def get_item_attr(item: Any, key: str, *, default: Any = None) -> Any:
         return default
 
 
+def nested_mapping_value(mapping: Any, *keys: str, default: Any = None) -> Any:
+    current = mapping
+
+    for key in keys:
+        if not isinstance(current, Mapping):
+            return default
+        current = current.get(key)
+        if current is None:
+            return default
+
+    return current
+
+
 def get_item_id(item: Any) -> str | None:
     """Extrahiert stabile Item-ID."""
     try:
         value = (
             get_item_attr(item, "id")
+            or get_item_attr(item, "vplib_uid")
             or get_item_attr(item, "family_id")
             or get_item_attr(item, "package_id")
             or get_item_attr(item, "slug")
@@ -526,13 +620,18 @@ def monotonic_ms_safe() -> int:
         return 0
 
 
+def monotonic_ms() -> int:
+    """Alias für Domain-Fallback-Kompatibilität."""
+    return monotonic_ms_safe()
+
+
 def calculate_duration_ms(started_monotonic_ms: int | None) -> int:
     """Berechnet Dauer in Millisekunden."""
     try:
         if started_monotonic_ms is None:
             return 0
 
-        current = monotonic_ms()
+        current = monotonic_ms_safe()
 
         return max(0, current - int(started_monotonic_ms))
 
@@ -540,396 +639,231 @@ def calculate_duration_ms(started_monotonic_ms: int | None) -> int:
         return 0
 
 
+def hash_json_safe(value: Any) -> str:
+    """Hash für Cache-Key/Debug."""
+    try:
+        data = json.dumps(json_safe(value), sort_keys=True, ensure_ascii=False).encode("utf-8")
+        return hashlib.sha256(data).hexdigest()
+    except Exception:
+        return "unhashable"
+
+
 # ---------------------------------------------------------------------------
-# Optional imports
+# Lazy imports
 # ---------------------------------------------------------------------------
 
-_SETTINGS_IMPORT_ERROR: BaseException | None = None
-_SCANNER_IMPORT_ERROR: BaseException | None = None
-_VALIDATION_IMPORT_ERROR: BaseException | None = None
-_READ_MODELS_IMPORT_ERROR: BaseException | None = None
-_DOMAIN_IMPORT_ERROR: BaseException | None = None
-_TAXONOMY_IMPORT_ERROR: BaseException | None = None
+@lru_cache(maxsize=128)
+def _load_first_module(module_names: tuple[str, ...]) -> ModuleType:
+    errors: list[str] = []
 
-try:
-    from config.library_settings import (
-        LibrarySettings,
-        get_library_cache_options,
-        get_library_read_options,
-        get_library_scan_options,
-        get_library_settings,
-        get_settings_summary,
-        get_source_root,
-    )
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _SETTINGS_IMPORT_ERROR = import_exc
-
-    LibrarySettings = Any  # type: ignore[assignment]
-
-    def get_default_source_root() -> Path:
-        """
-        Ermittelt den Standard-Source-Root ohne config.library_settings.
-
-        Erwarteter Pfad:
-            services/vectoplan-library/src/library/source
-        """
-        for env_name in SOURCE_ROOT_ENV_NAMES:
-            env_value = safe_str(os.getenv(env_name), default="")
-            if env_value:
-                env_path = safe_path(env_value)
-                if env_path is not None:
-                    return safe_resolve(env_path)
-
+    for module_name in module_names:
         try:
-            return safe_resolve(Path(__file__).resolve().parents[1] / "source")
+            return importlib.import_module(module_name)
+        except Exception as exc:
+            errors.append(f"{module_name}: {type(exc).__name__}: {exc}")
+
+    raise ImportError("Could not import any module. " + " | ".join(errors))
+
+
+def _try_load_first_module(module_names: Sequence[str]) -> tuple[ModuleType | None, BaseException | None]:
+    try:
+        return _load_first_module(tuple(module_names)), None
+    except Exception as exc:
+        return None, exc
+
+
+def _try_get_optional_attr(module_names: Sequence[str], attr_name: str) -> tuple[Any | None, BaseException | None]:
+    module, exc = _try_load_first_module(module_names)
+
+    if module is None:
+        return None, exc
+
+    try:
+        return getattr(module, attr_name), None
+    except Exception as attr_exc:
+        return None, attr_exc
+
+
+def _call_function_flexible(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    """Ruft Funktion mit Signatur-Fallback auf."""
+    try:
+        signature = inspect.signature(func)
+        supports_kwargs = any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in signature.parameters.values()
+        )
+        if supports_kwargs:
+            return func(*args, **kwargs)
+
+        supported = set(signature.parameters.keys())
+        filtered = {key: value for key, value in kwargs.items() if key in supported}
+        return func(*args, **filtered)
+    except TypeError:
+        if kwargs:
+            try:
+                return func(*args)
+            except TypeError:
+                pass
+        return func(*args)
+    except Exception:
+        raise
+
+
+def _instantiate_flexible(class_or_factory: Any, *args: Any, **kwargs: Any) -> Any:
+    """Instanziiert Optionsklassen mit Signatur-Fallback."""
+    if class_or_factory is None:
+        return None
+
+    try:
+        return _call_function_flexible(class_or_factory, *args, **kwargs)
+    except Exception:
+        try:
+            return class_or_factory()
         except Exception:
-            return safe_resolve(Path.cwd() / "src" / "library" / "source")
-
-    def get_source_root(*, refresh: bool = False) -> Path:
-        return get_default_source_root()
-
-    def get_library_settings(*, refresh: bool = False) -> Any:
-        return None
-
-    def get_library_scan_options(*, refresh: bool = False) -> Any:
-        return None
-
-    def get_library_read_options(*, refresh: bool = False) -> Any:
-        return None
-
-    def get_library_cache_options(*, refresh: bool = False) -> Any:
-        return None
-
-    def get_settings_summary(*, refresh: bool = False) -> dict[str, Any]:
-        source_root = get_default_source_root()
-
-        return {
-            "ok": False,
-            "fallback_active": True,
-            "source_root": str(source_root),
-            "error": exception_to_dict(_SETTINGS_IMPORT_ERROR) if _SETTINGS_IMPORT_ERROR else None,
-        }
+            return None
 
 
-try:
-    from library.scanner.package_discovery import (
-        PackageDiscoveryOptions,
-        PackageDiscoveryResult,
-        discover_library_packages,
-    )
-    from library.scanner.package_reader import (
-        PackageReaderOptions,
-        PackageReadResult,
-        read_package_candidates,
-    )
-    from library.scanner.package_fingerprint import (
-        PackageFingerprintOptions,
-        PackageFingerprintResult,
-        fingerprint_read_result,
-    )
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _SCANNER_IMPORT_ERROR = import_exc
-
-    PackageDiscoveryOptions = Any  # type: ignore[assignment]
-    PackageDiscoveryResult = Any  # type: ignore[assignment]
-    PackageReaderOptions = Any  # type: ignore[assignment]
-    PackageReadResult = Any  # type: ignore[assignment]
-    PackageFingerprintOptions = Any  # type: ignore[assignment]
-    PackageFingerprintResult = Any  # type: ignore[assignment]
-
-    def discover_library_packages(*args: Any, **kwargs: Any) -> Any:
-        raise RuntimeError(f"package discovery is unavailable: {_SCANNER_IMPORT_ERROR}")
-
-    def read_package_candidates(*args: Any, **kwargs: Any) -> list[Any]:
-        raise RuntimeError(f"package reader is unavailable: {_SCANNER_IMPORT_ERROR}")
-
-    def fingerprint_read_result(*args: Any, **kwargs: Any) -> Any:
-        raise RuntimeError(f"package fingerprint is unavailable: {_SCANNER_IMPORT_ERROR}")
+def get_optional_import_status() -> dict[str, Any]:
+    """Status aller optionalen Lazy-Import-Gruppen."""
+    return {
+        "settings": _module_status(SETTINGS_MODULE_NAMES),
+        "discovery": _module_status(DISCOVERY_MODULE_NAMES),
+        "reader": _module_status(READER_MODULE_NAMES),
+        "fingerprint": _module_status(FINGERPRINT_MODULE_NAMES),
+        "validation": _module_status(VALIDATOR_MODULE_NAMES),
+        "summary": _module_status(SUMMARY_MODULE_NAMES),
+        "index": _module_status(INDEX_MODULE_NAMES),
+        "domain_scan_result": _module_status(DOMAIN_SCAN_RESULT_MODULE_NAMES),
+        "taxonomy": _module_status(TAXONOMY_MODULE_NAMES),
+    }
 
 
-try:
-    from library.validation.library_package_validator import (
-        LibraryPackageValidatorOptions,
-        LibraryPackageValidationResult,
-        validate_read_results,
-    )
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _VALIDATION_IMPORT_ERROR = import_exc
-
-    LibraryPackageValidatorOptions = Any  # type: ignore[assignment]
-    LibraryPackageValidationResult = Any  # type: ignore[assignment]
-
-    def validate_read_results(
-        read_results: Iterable[Any],
-        *,
-        options: Any = None,
-    ) -> list[Any]:
-        result: list[dict[str, Any]] = []
-
-        for read_result in read_results:
-            ok = bool(get_item_attr(read_result, "ok", default=False))
-            result.append(
-                {
-                    "ok": ok,
-                    "valid": ok,
-                    "status": "valid" if ok else "invalid",
-                    "package_id": get_item_attr(read_result, "package_id"),
-                    "family_id": get_item_attr(read_result, "family_id"),
-                    "item_id": get_item_attr(read_result, "item_id"),
-                    "warnings": [],
-                    "errors": [] if ok else ["validation layer unavailable"],
-                    "metadata": {
-                        "taxonomy": get_item_attr(read_result, "metadata", default={}).get("taxonomy")
-                        if isinstance(get_item_attr(read_result, "metadata", default={}), Mapping)
-                        else {},
-                    },
-                }
-            )
-
-        return result
-
-
-try:
-    from library.read_models.block_summary_builder import (
-        BlockSummaryBuilderOptions,
-        build_library_items_from_results,
-        clear_taxonomy_cache as clear_summary_taxonomy_cache,
-    )
-    from library.read_models.library_index_builder import (
-        LibraryIndex,
-        LibraryIndexBuilderOptions,
-        build_blocks_response_from_index,
-        build_index_response,
-        build_library_index_from_items,
-        build_tree_response_from_index,
-    )
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _READ_MODELS_IMPORT_ERROR = import_exc
-
-    BlockSummaryBuilderOptions = Any  # type: ignore[assignment]
-    LibraryIndex = Any  # type: ignore[assignment]
-    LibraryIndexBuilderOptions = Any  # type: ignore[assignment]
-
-    def clear_summary_taxonomy_cache() -> None:
-        return None
-
-    def build_library_items_from_results(
-        *,
-        read_results: Iterable[Any],
-        validation_results: Iterable[Any] | None = None,
-        fingerprint_results: Iterable[Any] | None = None,
-        options: Any = None,
-    ) -> list[Any]:
-        items: list[dict[str, Any]] = []
-
-        for read_result in read_results:
-            taxonomy = {}
-            metadata = ensure_mapping(get_item_attr(read_result, "metadata"))
-            if isinstance(metadata.get("taxonomy"), Mapping):
-                taxonomy = dict(metadata.get("taxonomy"))
-
-            family_id = (
-                get_item_attr(read_result, "family_id")
-                or get_item_attr(read_result, "package_id")
-                or get_item_attr(read_result, "relative_package_root")
-                or "unknown.library_item"
-            )
-            valid = bool(get_item_attr(read_result, "ok", default=False))
-            normalized_id = normalize_stable_id(family_id, fallback="unknown.library_item")
-
-            items.append(
-                {
-                    "id": normalized_id,
-                    "family_id": normalized_id,
-                    "package_id": get_item_attr(read_result, "package_id"),
-                    "label": humanize_identifier(family_id),
-                    "status": "valid" if valid else "invalid",
-                    "enabled": True,
-                    "domain": taxonomy.get("domain") or get_item_attr(read_result, "domain"),
-                    "category": taxonomy.get("category") or get_item_attr(read_result, "category"),
-                    "subcategory": taxonomy.get("subcategory") or get_item_attr(read_result, "subcategory"),
-                    "source_path": get_item_attr(read_result, "package_root"),
-                    "taxonomy": taxonomy,
-                    "metadata": {
-                        "taxonomy": taxonomy,
-                    },
-                    "validation": {
-                        "valid": valid,
-                        "warning_count": 0,
-                        "error_count": 0 if valid else 1,
-                        "fatal_count": 0,
-                    },
-                }
-            )
-
-        return items
-
-    def build_library_index_from_items(
-        items: Iterable[Any] | None,
-        *,
-        source_root: Any = None,
-        options: Any = None,
-    ) -> dict[str, Any]:
-        item_list = list(items or ())
-        include_invalid = safe_bool(get_item_attr(options, "include_invalid"), default=False)
-        enabled_only = safe_bool(get_item_attr(options, "enabled_only"), default=False)
-
-        visible_items: list[Any] = []
-        invalid_items: list[Any] = []
-
-        for item in item_list:
-            if enabled_only and not safe_bool(get_item_attr(item, "enabled"), default=True):
-                continue
-
-            if get_item_status(item) == "valid":
-                visible_items.append(item)
-            else:
-                invalid_items.append(item)
-                if include_invalid:
-                    visible_items.append(item)
-
+def _module_status(module_names: Sequence[str]) -> dict[str, Any]:
+    module, exc = _try_load_first_module(module_names)
+    if module is not None:
         return {
             "ok": True,
-            "status": "ok" if visible_items else "empty",
-            "source_root": safe_path_str(source_root),
-            "items": visible_items,
-            "invalid_items": invalid_items,
-            "items_by_id": {
-                get_item_id(item): item
-                for item in visible_items
-                if get_item_id(item)
-            },
-            "count": len(visible_items),
-            "invalid_count": len(invalid_items),
+            "module": getattr(module, "__name__", ""),
         }
 
-    def build_blocks_response_from_index(index: Any, **kwargs: Any) -> dict[str, Any]:
-        items = get_item_attr(index, "items", default=[])
-
-        if isinstance(index, Mapping):
-            items = index.get("items", [])
-
-        item_list = list(items or ())
-
-        return {
-            "ok": True,
-            "status": "ok" if item_list else "empty",
-            "count": len(item_list),
-            "items": [json_safe(item) for item in item_list],
-        }
-
-    def build_tree_response_from_index(index: Any) -> dict[str, Any]:
-        items = get_item_attr(index, "items", default=[])
-
-        if isinstance(index, Mapping):
-            items = index.get("items", [])
-
-        tree: dict[str, Any] = {}
-
-        for item in items or ():
-            item_payload = json_safe(item)
-            if not isinstance(item_payload, Mapping):
-                continue
-
-            domain = safe_str(item_payload.get("domain"), default="unknown")
-            category = safe_str(item_payload.get("category"), default="unknown")
-            subcategory = safe_str(item_payload.get("subcategory"), default="unknown")
-
-            tree.setdefault(domain, {})
-            tree[domain].setdefault(category, {})
-            tree[domain][category].setdefault(subcategory, [])
-            tree[domain][category][subcategory].append(dict(item_payload))
-
-        return {
-            "ok": True,
-            "status": "ok" if tree else "empty",
-            "tree": tree,
-            "stats": {
-                "domain_count": len(tree),
-            },
-        }
-
-    def build_index_response(index: Any) -> dict[str, Any]:
-        return json_safe(index)
+    return {
+        "ok": False,
+        "error": exception_to_dict(exc),
+    }
 
 
-try:
-    from library.domain.scan_result import (
-        LibraryScanResult,
-        build_error_scan_result,
-        build_scan_result_from_items,
-        monotonic_ms,
-    )
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _DOMAIN_IMPORT_ERROR = import_exc
+# ---------------------------------------------------------------------------
+# Settings
+# ---------------------------------------------------------------------------
 
-    LibraryScanResult = Any  # type: ignore[assignment]
+def get_default_source_root() -> Path:
+    """Ermittelt den Standard-Source-Root ohne config.library_settings."""
+    for env_name in SOURCE_ROOT_ENV_NAMES:
+        env_value = safe_str(os.getenv(env_name), default="")
+        if env_value:
+            env_path = safe_path(env_value)
+            if env_path is not None:
+                return safe_resolve(env_path)
 
-    def monotonic_ms() -> int:
-        return monotonic_ms_safe()
-
-    def build_error_scan_result(
-        exc: BaseException,
-        *,
-        source_root: Any = None,
-        started_at: Any = None,
-        started_monotonic_ms: int | None = None,
-        include_traceback: bool = False,
-        settings: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        return {
-            "ok": False,
-            "status": "error",
-            "source_root": safe_path_str(source_root),
-            "started_at": safe_str(started_at, default="") or utc_now_iso(),
-            "finished_at": utc_now_iso(),
-            "duration_ms": calculate_duration_ms(started_monotonic_ms),
-            "errors": [str(exc)],
-            "error": exception_to_dict(exc, include_traceback=include_traceback),
-            "settings": dict(settings or {}),
-        }
-
-    def build_scan_result_from_items(
-        *,
-        source_root: Any = None,
-        items: Iterable[Any] | None = None,
-        warnings: Iterable[Any] | None = None,
-        errors: Iterable[Any] | None = None,
-        started_at: Any = None,
-        started_monotonic_ms: int | None = None,
-        settings: Mapping[str, Any] | None = None,
-        metadata: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        item_list = list(items or ())
-        valid_items = [
-            item
-            for item in item_list
-            if get_item_status(item) == "valid"
-        ]
-
-        return {
-            "ok": True,
-            "status": "ok" if valid_items else "empty",
-            "source_root": safe_path_str(source_root),
-            "started_at": safe_str(started_at, default="") or utc_now_iso(),
-            "finished_at": utc_now_iso(),
-            "duration_ms": calculate_duration_ms(started_monotonic_ms),
-            "candidate_count": len(item_list),
-            "valid_count": len(valid_items),
-            "invalid_count": len(item_list) - len(valid_items),
-            "items": [json_safe(item) for item in item_list],
-            "warnings": list(warnings or ()),
-            "errors": list(errors or ()),
-            "settings": dict(settings or {}),
-            "metadata": dict(metadata or {}),
-        }
+    try:
+        return safe_resolve(Path(__file__).resolve().parents[1] / "source")
+    except Exception:
+        return safe_resolve(Path.cwd() / "src" / "library" / "source")
 
 
-try:
-    from library.taxonomy import get_default_taxonomy_service
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _TAXONOMY_IMPORT_ERROR = import_exc
-    get_default_taxonomy_service = None  # type: ignore[assignment]
+def get_source_root(*, refresh: bool = False) -> Path:
+    func, _exc = _try_get_optional_attr(SETTINGS_MODULE_NAMES, "get_source_root")
+    if callable(func):
+        try:
+            return safe_resolve(Path(func(refresh=refresh)))
+        except TypeError:
+            try:
+                return safe_resolve(Path(func()))
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    return get_default_source_root()
+
+
+def get_library_settings(*, refresh: bool = False) -> Any:
+    func, _exc = _try_get_optional_attr(SETTINGS_MODULE_NAMES, "get_library_settings")
+    if callable(func):
+        try:
+            return func(refresh=refresh)
+        except TypeError:
+            try:
+                return func()
+            except Exception:
+                pass
+    return None
+
+
+def get_library_scan_options(*, refresh: bool = False) -> Any:
+    func, _exc = _try_get_optional_attr(SETTINGS_MODULE_NAMES, "get_library_scan_options")
+    if callable(func):
+        try:
+            return func(refresh=refresh)
+        except TypeError:
+            try:
+                return func()
+            except Exception:
+                pass
+    return None
+
+
+def get_library_read_options(*, refresh: bool = False) -> Any:
+    func, _exc = _try_get_optional_attr(SETTINGS_MODULE_NAMES, "get_library_read_options")
+    if callable(func):
+        try:
+            return func(refresh=refresh)
+        except TypeError:
+            try:
+                return func()
+            except Exception:
+                pass
+    return None
+
+
+def get_library_cache_options(*, refresh: bool = False) -> Any:
+    func, _exc = _try_get_optional_attr(SETTINGS_MODULE_NAMES, "get_library_cache_options")
+    if callable(func):
+        try:
+            return func(refresh=refresh)
+        except TypeError:
+            try:
+                return func()
+            except Exception:
+                pass
+    return None
+
+
+def get_settings_summary(*, refresh: bool = False) -> dict[str, Any]:
+    func, _exc = _try_get_optional_attr(SETTINGS_MODULE_NAMES, "get_settings_summary")
+    if callable(func):
+        try:
+            result = func(refresh=refresh)
+            if isinstance(result, Mapping):
+                return dict(result)
+        except TypeError:
+            try:
+                result = func()
+                if isinstance(result, Mapping):
+                    return dict(result)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    source_root = get_default_source_root()
+
+    return {
+        "ok": False,
+        "fallback_active": True,
+        "source_root": str(source_root),
+        "refresh_requested": bool(refresh),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -937,15 +871,17 @@ except Exception as import_exc:  # pragma: no cover - defensive fallback
 # ---------------------------------------------------------------------------
 
 def taxonomy_available() -> bool:
-    return get_default_taxonomy_service is not None and _TAXONOMY_IMPORT_ERROR is None
+    factory, _exc = _try_get_optional_attr(TAXONOMY_MODULE_NAMES, "get_default_taxonomy_service")
+    return callable(factory)
 
 
 def get_taxonomy_service_safe() -> Any | None:
-    if not taxonomy_available():
+    factory, _exc = _try_get_optional_attr(TAXONOMY_MODULE_NAMES, "get_default_taxonomy_service")
+    if not callable(factory):
         return None
 
     try:
-        return get_default_taxonomy_service()  # type: ignore[misc]
+        return factory()
     except Exception:
         return None
 
@@ -963,19 +899,32 @@ def get_taxonomy_payload_safe(
             "healthy": False,
             "available": False,
             "taxonomy_version": None,
-            "error": exception_to_dict(_TAXONOMY_IMPORT_ERROR),
         }
 
     try:
-        return ensure_mapping(
-            service.get_taxonomy_payload(
-                include_inactive=include_inactive,
-                include_tree=True,
-                include_options=True,
-                include_lookup=True,
-                force_reload=force_reload,
+        method = getattr(service, "get_taxonomy_payload", None)
+        if callable(method):
+            return ensure_mapping(
+                _call_function_flexible(
+                    method,
+                    include_inactive=include_inactive,
+                    include_tree=True,
+                    include_options=True,
+                    include_lookup=True,
+                    force_reload=force_reload,
+                )
             )
-        )
+
+        method = getattr(service, "get_create_options_payload", None)
+        if callable(method):
+            return ensure_mapping(method())
+
+        return {
+            "ok": True,
+            "healthy": True,
+            "available": True,
+            "taxonomy_version": None,
+        }
     except Exception as exc:
         return {
             "ok": False,
@@ -998,16 +947,28 @@ def get_taxonomy_health_safe(
             "ok": False,
             "healthy": False,
             "available": False,
-            "error": exception_to_dict(_TAXONOMY_IMPORT_ERROR),
         }
 
     try:
-        return ensure_mapping(
-            service.health(
-                force_reload=force_reload,
-                include_registry_state=include_registry_state,
+        method = getattr(service, "health", None)
+        if callable(method):
+            return ensure_mapping(
+                _call_function_flexible(
+                    method,
+                    force_reload=force_reload,
+                    include_registry_state=include_registry_state,
+                )
             )
-        )
+
+        method = getattr(service, "get_health", None)
+        if callable(method):
+            return ensure_mapping(method())
+
+        return {
+            "ok": True,
+            "healthy": True,
+            "available": True,
+        }
     except Exception as exc:
         return {
             "ok": False,
@@ -1024,6 +985,9 @@ def extract_taxonomy_version(payload: Mapping[str, Any] | None) -> str | None:
     if not value:
         value = get_item_attr(get_item_attr(data, "tree", default={}), "taxonomy_version")
 
+    if not value:
+        value = nested_mapping_value(data, "payload", "taxonomy_version")
+
     text = safe_str(value, default="")
     return text or None
 
@@ -1034,9 +998,7 @@ def extract_taxonomy_version(payload: Mapping[str, Any] | None) -> str | None:
 
 @dataclass(frozen=True)
 class LibraryScanServiceOptions:
-    """
-    Optionen für den Library Scan Service.
-    """
+    """Optionen für den Library Scan Service."""
 
     include_invalid: bool = True
     enabled_only: bool = False
@@ -1059,6 +1021,9 @@ class LibraryScanServiceOptions:
     include_inactive_taxonomy_nodes: bool = False
     include_taxonomy_payload: bool = False
     force_taxonomy_reload: bool = False
+
+    limit: int = DEFAULT_LIMIT
+    offset: int = 0
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "include_invalid", safe_bool(self.include_invalid, default=True))
@@ -1090,6 +1055,8 @@ class LibraryScanServiceOptions:
         object.__setattr__(self, "include_inactive_taxonomy_nodes", safe_bool(self.include_inactive_taxonomy_nodes, default=False))
         object.__setattr__(self, "include_taxonomy_payload", safe_bool(self.include_taxonomy_payload, default=False))
         object.__setattr__(self, "force_taxonomy_reload", safe_bool(self.force_taxonomy_reload, default=False))
+        object.__setattr__(self, "limit", safe_int(self.limit, default=DEFAULT_LIMIT, minimum=1, maximum=MAX_LIMIT))
+        object.__setattr__(self, "offset", safe_int(self.offset, default=0, minimum=0))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -1113,6 +1080,8 @@ class LibraryScanServiceOptions:
             "include_inactive_taxonomy_nodes": self.include_inactive_taxonomy_nodes,
             "include_taxonomy_payload": self.include_taxonomy_payload,
             "force_taxonomy_reload": self.force_taxonomy_reload,
+            "limit": self.limit,
+            "offset": self.offset,
         }
 
     @classmethod
@@ -1169,7 +1138,7 @@ def coerce_scan_service_options(
     value: Any = None,
     *,
     refresh: bool = False,
-) -> "LibraryScanServiceOptions":
+) -> LibraryScanServiceOptions:
     """
     Normalisiert Scan-Service-Optionen.
 
@@ -1180,16 +1149,8 @@ def coerce_scan_service_options(
     - Tests
 
     Einige dieser Pfade übergeben echte LibraryScanServiceOptions, andere
-    übergeben dict/Mapping-Payloads. Ohne diese Normalisierung landet ein dict
-    in der Pipeline und spätere Zugriffe wie `options.require_taxonomy` brechen
-    mit:
-
-        AttributeError: 'dict' object has no attribute 'require_taxonomy'
-
-    Diese Funktion ist deshalb der zentrale Eingangsschutz für alle
-    scan_library_source*-Funktionen.
+    dict/Mapping-Payloads. Diese Funktion ist der zentrale Eingangsschutz.
     """
-
     if isinstance(value, LibraryScanServiceOptions):
         return value
 
@@ -1212,7 +1173,6 @@ def coerce_scan_service_options(
             raw = value.to_dict()
             data = dict(raw) if isinstance(raw, Mapping) else {}
         else:
-            # Best-effort Objektadapter: nur bekannte Optionsfelder lesen.
             for field_name in LibraryScanServiceOptions.__dataclass_fields__:
                 if hasattr(value, field_name):
                     data[field_name] = getattr(value, field_name)
@@ -1223,7 +1183,6 @@ def coerce_scan_service_options(
     if not data:
         return base
 
-    # Aliase aus Routen-/Sync-Payloads auf die echten Scan-Service-Felder mappen.
     alias_map = {
         "require_taxonomy_validation": "validate_taxonomy",
         "require_taxonomy_service": "require_taxonomy",
@@ -1232,14 +1191,13 @@ def coerce_scan_service_options(
         "taxonomy_required": "require_taxonomy",
         "include_read_artifacts": "include_read_results",
         "include_raw_documents": "include_read_results",
+        "force_refresh": "refresh_settings",
     }
 
     for source_key, target_key in alias_map.items():
         if source_key in data and target_key not in data:
             data[target_key] = data[source_key]
 
-    # include_read_artifacts soll bei Debug-/Sync-Tests optional auch die
-    # Pipeline-Zwischenergebnisse freischalten, ohne Standardantworten zu blähen.
     if safe_bool(data.get("include_read_artifacts"), default=False):
         data.setdefault("include_read_results", True)
         data.setdefault("include_validation_results", True)
@@ -1267,14 +1225,9 @@ def coerce_scan_service_options(
         return base
 
 
-
 @dataclass
 class _CacheEntry:
-    """
-    Interner Cache-Eintrag.
-
-    Der Cache ist absichtlich simpel und optional. Standardmäßig ist er aus.
-    """
+    """Interner Cache-Eintrag."""
 
     created_at_monotonic: float
     result: "LibraryScanPipelineResult"
@@ -1301,14 +1254,18 @@ def clear_library_scan_cache() -> None:
         pass
 
     try:
-        clear_summary_taxonomy_cache()
+        clear_func, _exc = _try_get_optional_attr(SUMMARY_MODULE_NAMES, "clear_taxonomy_cache")
+        if callable(clear_func):
+            clear_func()
     except Exception:
         pass
 
     taxonomy_service = get_taxonomy_service_safe()
     if taxonomy_service is not None:
         try:
-            taxonomy_service.clear_cache()
+            clear_func = getattr(taxonomy_service, "clear_cache", None)
+            if callable(clear_func):
+                clear_func()
         except Exception:
             pass
 
@@ -1317,11 +1274,24 @@ def make_cache_key(
     source_root: Any = None,
     *,
     taxonomy_version: Any = None,
+    options: LibraryScanServiceOptions | Mapping[str, Any] | None = None,
 ) -> str:
-    """Baut Cache-Key aus Source-Root und Taxonomie-Version."""
+    """Baut Cache-Key aus Source-Root, Taxonomie-Version und relevanten Optionen."""
     root_text = safe_path_str(source_root) or DEFAULT_CACHE_KEY
     version_text = safe_str(taxonomy_version, default="noversion")
-    return f"{root_text}|taxonomy:{version_text}"
+    options_payload = coerce_scan_service_options(options).to_dict() if options is not None else {}
+    options_hash = hash_json_safe(
+        {
+            "include_invalid": options_payload.get("include_invalid"),
+            "enabled_only": options_payload.get("enabled_only"),
+            "validate_taxonomy": options_payload.get("validate_taxonomy"),
+            "require_taxonomy": options_payload.get("require_taxonomy"),
+            "use_taxonomy_labels": options_payload.get("use_taxonomy_labels"),
+            "include_empty_taxonomy_nodes": options_payload.get("include_empty_taxonomy_nodes"),
+            "include_inactive_taxonomy_nodes": options_payload.get("include_inactive_taxonomy_nodes"),
+        }
+    )[:16]
+    return f"{root_text}|taxonomy:{version_text}|options:{options_hash}"
 
 
 def get_cached_scan_result(
@@ -1421,7 +1391,7 @@ class LibraryScanPipelineResult:
             else:
                 status = "empty"
 
-        object.__setattr__(self, "ok", bool(self.ok and status not in {"error", "invalid"}))
+        object.__setattr__(self, "ok", bool(self.ok and status not in {"error", "invalid", "unavailable"}))
         object.__setattr__(self, "status", status)
         object.__setattr__(self, "source_root", safe_path_str(self.source_root))
         object.__setattr__(self, "duration_ms", safe_int(self.duration_ms, default=0, minimum=0))
@@ -1497,7 +1467,7 @@ class LibraryScanPipelineResult:
             return sum(
                 1
                 for item in self.items
-                if get_item_status(item) == "valid"
+                if get_item_status(item) in {"valid", "ok", "active"}
                 or safe_bool(get_item_attr(item, "is_valid"), default=False)
             )
 
@@ -1549,6 +1519,8 @@ class LibraryScanPipelineResult:
             "settings_summary": json_safe(self.settings_summary),
             "metadata": json_safe(self.metadata),
             "version": self.version,
+            "component": LIBRARY_SCAN_SERVICE_COMPONENT,
+            "writes_database": False,
         }
 
         if self.options.include_taxonomy_payload or include_raw:
@@ -1578,10 +1550,7 @@ class LibraryScanPipelineResult:
         return result
 
     def to_scan_response_dict(self) -> dict[str, Any]:
-        """
-        Antwort für:
-            GET /api/v1/vplib/library/scan
-        """
+        """Antwort für GET /api/v1/vplib/library/scan."""
         result = self.to_dict(include_raw_pipeline=False)
 
         result["items"] = [
@@ -1602,11 +1571,8 @@ class LibraryScanPipelineResult:
         object_kind: Any = None,
         q: Any = None,
     ) -> dict[str, Any]:
-        """
-        Antwort für:
-            GET /api/v1/vplib/library/blocks
-        """
-        response = build_blocks_response_from_index(
+        """Antwort für GET /api/v1/vplib/library/blocks."""
+        response = build_blocks_response_from_index_safe(
             self.index,
             domain=domain,
             category=category,
@@ -1637,11 +1603,8 @@ class LibraryScanPipelineResult:
         }
 
     def to_tree_response_dict(self) -> dict[str, Any]:
-        """
-        Antwort für:
-            GET /api/v1/vplib/library/tree
-        """
-        response = build_tree_response_from_index(self.index)
+        """Antwort für GET /api/v1/vplib/library/tree."""
+        response = build_tree_response_from_index_safe(self.index)
 
         if isinstance(response, Mapping):
             payload = dict(response)
@@ -1662,6 +1625,22 @@ class LibraryScanPipelineResult:
             "status": "error",
             "tree": {},
             "errors": ["invalid tree response from index builder"],
+        }
+
+    def to_sync_preview_dict(self) -> dict[str, Any]:
+        """Erzeugt DB-Sync-kompatible Publish-Payloads ohne zu schreiben."""
+        payloads = build_sync_payloads_from_scan_result(self)
+
+        return {
+            "ok": self.ok,
+            "status": self.status,
+            "source_root": self.source_root,
+            "item_count": len(payloads),
+            "publish_payloads": payloads,
+            "writes_database": False,
+            "target_write_route": "/api/v1/vplib/library/sync",
+            "warnings": list(self.warnings),
+            "errors": list(self.errors),
         }
 
     @classmethod
@@ -1767,6 +1746,8 @@ def object_to_options_dict(value: Any) -> dict[str, Any]:
 def rebuild_options_object(cls: Any, data: Mapping[str, Any]) -> Any:
     """Baut Options-Objekte defensiv aus dict."""
     try:
+        if cls is None:
+            return dict(data)
         return cls(**dict(data))
     except Exception:
         try:
@@ -1778,67 +1759,62 @@ def rebuild_options_object(cls: Any, data: Mapping[str, Any]) -> Any:
 def make_discovery_options(service_options: LibraryScanServiceOptions | None = None) -> Any:
     """Baut Discovery-Optionen defensiv und propagiert Taxonomieoptionen."""
     resolved_options = service_options or LibraryScanServiceOptions()
+    cls, _exc = _try_get_optional_attr(DISCOVERY_MODULE_NAMES, "PackageDiscoveryOptions")
 
     try:
-        if hasattr(PackageDiscoveryOptions, "from_settings"):
+        if cls is not None and hasattr(cls, "from_settings"):
             try:
-                base = PackageDiscoveryOptions.from_settings(get_library_scan_options())
+                base = cls.from_settings(get_library_scan_options())
             except TypeError:
-                base = PackageDiscoveryOptions.from_settings()
+                base = cls.from_settings()
+        elif cls is not None:
+            base = cls()
         else:
-            base = PackageDiscoveryOptions()
+            base = {}
 
         data = object_to_options_dict(base)
         data["validate_taxonomy_path"] = resolved_options.validate_taxonomy
         data.setdefault("include_legacy_source_layout", True)
         data.setdefault("read_minimal_metadata", True)
 
-        return rebuild_options_object(PackageDiscoveryOptions, data)
+        return rebuild_options_object(cls, data)
 
     except Exception:
-        try:
-            return PackageDiscoveryOptions()
-        except Exception:
-            return None
+        return _instantiate_flexible(cls) if cls is not None else None
 
 
 def make_reader_options(service_options: LibraryScanServiceOptions | None = None) -> Any:
     """Baut Reader-Optionen defensiv."""
-    try:
-        if hasattr(PackageReaderOptions, "from_settings"):
-            try:
-                return PackageReaderOptions.from_settings(get_library_scan_options())
-            except TypeError:
-                return PackageReaderOptions.from_settings()
+    cls, _exc = _try_get_optional_attr(READER_MODULE_NAMES, "PackageReaderOptions")
 
-        return PackageReaderOptions()
+    try:
+        if cls is not None and hasattr(cls, "from_settings"):
+            try:
+                return cls.from_settings(get_library_scan_options())
+            except TypeError:
+                return cls.from_settings()
+
+        return cls() if cls is not None else None
 
     except Exception:
-        try:
-            return PackageReaderOptions()
-        except Exception:
-            return None
+        return _instantiate_flexible(cls) if cls is not None else None
 
 
 def make_fingerprint_options(service_options: LibraryScanServiceOptions | None = None) -> Any:
     """Baut Fingerprint-Optionen defensiv."""
-    try:
-        return PackageFingerprintOptions()
-    except Exception:
-        return None
+    cls, _exc = _try_get_optional_attr(FINGERPRINT_MODULE_NAMES, "PackageFingerprintOptions")
+    return _instantiate_flexible(cls) if cls is not None else None
 
 
 def make_validation_options(service_options: LibraryScanServiceOptions | None = None) -> Any:
     """Baut Validation-Optionen defensiv und propagiert Taxonomiepflicht."""
     resolved_options = service_options or LibraryScanServiceOptions()
+    cls, _exc = _try_get_optional_attr(VALIDATOR_MODULE_NAMES, "LibraryPackageValidatorOptions")
 
     try:
-        base = LibraryPackageValidatorOptions()
+        base = cls() if cls is not None else {}
         data = object_to_options_dict(base)
 
-        # Namen verwenden, die LibraryPackageValidatorOptions direkt versteht.
-        # Ältere Alias-Namen bleiben zusätzlich enthalten, falls ein älterer
-        # Validator sie erwartet.
         data["require_taxonomy"] = resolved_options.require_taxonomy
         data["require_classification"] = resolved_options.validate_taxonomy
         data["strict_taxonomy"] = resolved_options.require_taxonomy
@@ -1849,85 +1825,115 @@ def make_validation_options(service_options: LibraryScanServiceOptions | None = 
         data.setdefault("require_manifest_taxonomy_match", True)
         data.setdefault("require_canonical_family_id", True)
 
-        return rebuild_options_object(LibraryPackageValidatorOptions, data)
+        return rebuild_options_object(cls, data)
 
     except Exception:
-        try:
-            return LibraryPackageValidatorOptions()
-        except Exception:
-            return None
+        return _instantiate_flexible(cls) if cls is not None else None
 
 
 def make_summary_options(service_options: LibraryScanServiceOptions | None = None) -> Any:
     """Baut Summary-Builder-Optionen defensiv und propagiert Taxonomie-Labeling."""
     resolved_options = service_options or LibraryScanServiceOptions()
+    cls, _exc = _try_get_optional_attr(SUMMARY_MODULE_NAMES, "BlockSummaryBuilderOptions")
 
-    try:
-        return BlockSummaryBuilderOptions(
-            include_invalid=True,
-            enabled_only=False,
-            sort=True,
-            sort_by="classification",
-            include_metadata=True,
-            include_validation_details=False,
-            include_taxonomy_labels=resolved_options.use_taxonomy_labels,
-            force_taxonomy_reload=resolved_options.force_taxonomy_reload,
-        )
-    except TypeError:
+    if cls is None:
+        return {
+            "include_invalid": True,
+            "enabled_only": False,
+            "sort": True,
+            "sort_by": "classification",
+            "include_metadata": True,
+            "include_validation_details": False,
+            "include_taxonomy_labels": resolved_options.use_taxonomy_labels,
+            "force_taxonomy_reload": resolved_options.force_taxonomy_reload,
+        }
+
+    attempts = (
+        {
+            "include_invalid": True,
+            "enabled_only": False,
+            "sort": True,
+            "sort_by": "classification",
+            "include_metadata": True,
+            "include_validation_details": False,
+            "include_taxonomy_labels": resolved_options.use_taxonomy_labels,
+            "force_taxonomy_reload": resolved_options.force_taxonomy_reload,
+        },
+        {
+            "include_invalid": True,
+            "enabled_only": False,
+            "sort": True,
+            "sort_by": "classification",
+            "include_metadata": True,
+            "include_validation_details": False,
+        },
+        {},
+    )
+
+    for kwargs in attempts:
         try:
-            return BlockSummaryBuilderOptions(
-                include_invalid=True,
-                enabled_only=False,
-                sort=True,
-                sort_by="classification",
-                include_metadata=True,
-                include_validation_details=False,
-            )
+            return cls(**kwargs)
         except Exception:
-            return None
-    except Exception:
-        try:
-            return BlockSummaryBuilderOptions()
-        except Exception:
-            return None
+            continue
+
+    return None
 
 
 def make_index_options(options: LibraryScanServiceOptions) -> Any:
     """Baut Index-Optionen aus Service-Optionen."""
-    try:
-        return LibraryIndexBuilderOptions(
-            include_invalid=options.include_invalid,
-            enabled_only=options.enabled_only,
-            fail_on_duplicates=False,
-            sort=True,
-            sort_by="classification",
-            include_tree=True,
-            include_items_by_id=True,
-            include_metadata=True,
-            use_taxonomy_labels=options.use_taxonomy_labels,
-            include_empty_taxonomy_nodes=options.include_empty_taxonomy_nodes,
-            include_inactive_taxonomy_nodes=options.include_inactive_taxonomy_nodes,
-            force_taxonomy_reload=options.force_taxonomy_reload,
-        )
-    except TypeError:
+    cls, _exc = _try_get_optional_attr(INDEX_MODULE_NAMES, "LibraryIndexBuilderOptions")
+
+    if cls is None:
+        return {
+            "include_invalid": options.include_invalid,
+            "enabled_only": options.enabled_only,
+            "fail_on_duplicates": False,
+            "sort": True,
+            "sort_by": "classification",
+            "include_tree": True,
+            "include_items_by_id": True,
+            "include_metadata": True,
+            "use_taxonomy_labels": options.use_taxonomy_labels,
+            "include_empty_taxonomy_nodes": options.include_empty_taxonomy_nodes,
+            "include_inactive_taxonomy_nodes": options.include_inactive_taxonomy_nodes,
+            "force_taxonomy_reload": options.force_taxonomy_reload,
+        }
+
+    attempts = (
+        {
+            "include_invalid": options.include_invalid,
+            "enabled_only": options.enabled_only,
+            "fail_on_duplicates": False,
+            "sort": True,
+            "sort_by": "classification",
+            "include_tree": True,
+            "include_items_by_id": True,
+            "include_metadata": True,
+            "use_taxonomy_labels": options.use_taxonomy_labels,
+            "include_empty_taxonomy_nodes": options.include_empty_taxonomy_nodes,
+            "include_inactive_taxonomy_nodes": options.include_inactive_taxonomy_nodes,
+            "force_taxonomy_reload": options.force_taxonomy_reload,
+        },
+        {
+            "include_invalid": options.include_invalid,
+            "enabled_only": options.enabled_only,
+            "fail_on_duplicates": False,
+            "sort": True,
+            "sort_by": "classification",
+            "include_tree": True,
+            "include_items_by_id": True,
+            "include_metadata": True,
+        },
+        {},
+    )
+
+    for kwargs in attempts:
         try:
-            return LibraryIndexBuilderOptions(
-                include_invalid=options.include_invalid,
-                enabled_only=options.enabled_only,
-                fail_on_duplicates=False,
-                sort=True,
-                sort_by="classification",
-                include_tree=True,
-                include_items_by_id=True,
-                include_metadata=True,
-            )
+            return cls(**kwargs)
         except Exception:
-            return None
-    except Exception:
-        try:
-            return LibraryIndexBuilderOptions()
-        except Exception:
-            return None
+            continue
+
+    return None
 
 
 def discover_library_packages_safe(
@@ -1937,22 +1943,16 @@ def discover_library_packages_safe(
     refresh_settings: bool = False,
 ) -> Any:
     """Führt Package Discovery mit Signatur-Fallbacks aus."""
-    try:
-        return discover_library_packages(
-            source_root=source_root,
-            options=options,
-            refresh_settings=refresh_settings,
-        )
-    except TypeError:
-        try:
-            return discover_library_packages(
-                source_root=source_root,
-                options=options,
-            )
-        except TypeError:
-            return discover_library_packages(source_root)
-    except Exception:
-        raise
+    func, exc = _try_get_optional_attr(DISCOVERY_MODULE_NAMES, "discover_library_packages")
+    if not callable(func):
+        raise RuntimeError(f"package discovery is unavailable: {exc}")
+
+    return _call_function_flexible(
+        func,
+        source_root=source_root,
+        options=options,
+        refresh_settings=refresh_settings,
+    )
 
 
 def read_package_candidates_safe(
@@ -1961,17 +1961,19 @@ def read_package_candidates_safe(
     options: Any = None,
 ) -> tuple[Any, ...]:
     """Liest Package Candidates mit Signatur-Fallbacks."""
+    func, exc = _try_get_optional_attr(READER_MODULE_NAMES, "read_package_candidates")
+    if not callable(func):
+        raise RuntimeError(f"package reader is unavailable: {exc}")
+
     candidate_tuple = tuple(candidates or ())
 
     try:
-        return tuple(read_package_candidates(candidate_tuple, options=options))
+        return tuple(func(candidate_tuple, options=options))
     except TypeError:
         try:
-            return tuple(read_package_candidates(candidates=candidate_tuple, options=options))
+            return tuple(func(candidates=candidate_tuple, options=options))
         except TypeError:
-            return tuple(read_package_candidates(candidate_tuple))
-    except Exception:
-        raise
+            return tuple(func(candidate_tuple))
 
 
 def validate_read_results_safe(
@@ -1980,17 +1982,34 @@ def validate_read_results_safe(
     options: Any = None,
 ) -> tuple[Any, ...]:
     """Validiert ReadResults mit Signatur-Fallbacks."""
+    func, exc = _try_get_optional_attr(VALIDATOR_MODULE_NAMES, "validate_read_results")
     read_result_tuple = tuple(read_results or ())
 
+    if not callable(func):
+        result: list[dict[str, Any]] = []
+        for read_result in read_result_tuple:
+            ok = bool(get_item_attr(read_result, "ok", default=False))
+            result.append(
+                {
+                    "ok": ok,
+                    "valid": ok,
+                    "status": "valid" if ok else "invalid",
+                    "package_id": get_item_attr(read_result, "package_id"),
+                    "family_id": get_item_attr(read_result, "family_id"),
+                    "item_id": get_item_attr(read_result, "item_id"),
+                    "warnings": [],
+                    "errors": [] if ok else [f"validation layer unavailable: {exc}"],
+                }
+            )
+        return tuple(result)
+
     try:
-        return tuple(validate_read_results(read_result_tuple, options=options))
+        return tuple(func(read_result_tuple, options=options))
     except TypeError:
         try:
-            return tuple(validate_read_results(read_results=read_result_tuple, options=options))
+            return tuple(func(read_results=read_result_tuple, options=options))
         except TypeError:
-            return tuple(validate_read_results(read_result_tuple))
-    except Exception:
-        raise
+            return tuple(func(read_result_tuple))
 
 
 def fingerprint_read_results_safe(
@@ -2002,13 +2021,18 @@ def fingerprint_read_results_safe(
     Erzeugt Fingerprints für ReadResults.
     Einzelne Fingerprint-Fehler zerstören nicht die gesamte Pipeline.
     """
+    func, exc = _try_get_optional_attr(FINGERPRINT_MODULE_NAMES, "fingerprint_read_result")
     fingerprint_results: list[Any] = []
 
     for read_result in read_results or ():
+        if not callable(func):
+            fingerprint_results.append(build_fallback_fingerprint(read_result, error=exc))
+            continue
+
         try:
             try:
                 fingerprint_results.append(
-                    fingerprint_read_result(
+                    func(
                         read_result,
                         options=options,
                     )
@@ -2016,30 +2040,34 @@ def fingerprint_read_results_safe(
             except TypeError:
                 try:
                     fingerprint_results.append(
-                        fingerprint_read_result(
+                        func(
                             read_result=read_result,
                             options=options,
                         )
                     )
                 except TypeError:
-                    fingerprint_results.append(
-                        fingerprint_read_result(read_result)
-                    )
+                    fingerprint_results.append(func(read_result))
 
         except Exception as fingerprint_exc:
-            fingerprint_results.append(
-                {
-                    "ok": False,
-                    "status": "error",
-                    "revision_hash": None,
-                    "package_id": get_item_attr(read_result, "package_id"),
-                    "family_id": get_item_attr(read_result, "family_id"),
-                    "errors": [str(fingerprint_exc)],
-                    "error": exception_to_dict(fingerprint_exc),
-                }
-            )
+            fingerprint_results.append(build_fallback_fingerprint(read_result, error=fingerprint_exc))
 
     return tuple(fingerprint_results)
+
+
+def build_fallback_fingerprint(read_result: Any, *, error: BaseException | None = None) -> dict[str, Any]:
+    payload = json_safe(read_result)
+    fingerprint_source = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+
+    return {
+        "ok": error is None,
+        "status": "ok" if error is None else "error",
+        "revision_hash": hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest(),
+        "package_id": get_item_attr(read_result, "package_id"),
+        "family_id": get_item_attr(read_result, "family_id"),
+        "errors": [] if error is None else [str(error)],
+        "error": exception_to_dict(error),
+        "fallback": True,
+    }
 
 
 def build_library_items_from_results_safe(
@@ -2050,34 +2078,162 @@ def build_library_items_from_results_safe(
     options: Any = None,
 ) -> tuple[Any, ...]:
     """Baut LibraryItems mit Signatur-Fallbacks."""
-    try:
-        return tuple(
-            build_library_items_from_results(
-                read_results=tuple(read_results or ()),
-                validation_results=tuple(validation_results or ()),
-                fingerprint_results=tuple(fingerprint_results or ()),
-                options=options,
-            )
-        )
-    except TypeError:
+    func, _exc = _try_get_optional_attr(SUMMARY_MODULE_NAMES, "build_library_items_from_results")
+    read_tuple = tuple(read_results or ())
+    validation_tuple = tuple(validation_results or ())
+    fingerprint_tuple = tuple(fingerprint_results or ())
+
+    if callable(func):
         try:
             return tuple(
-                build_library_items_from_results(
-                    read_results=tuple(read_results or ()),
-                    validation_results=tuple(validation_results or ()),
-                    fingerprint_results=tuple(fingerprint_results or ()),
+                func(
+                    read_results=read_tuple,
+                    validation_results=validation_tuple,
+                    fingerprint_results=fingerprint_tuple,
+                    options=options,
                 )
             )
         except TypeError:
-            return tuple(
-                build_library_items_from_results(
-                    tuple(read_results or ()),
-                    tuple(validation_results or ()),
-                    tuple(fingerprint_results or ()),
+            try:
+                return tuple(
+                    func(
+                        read_results=read_tuple,
+                        validation_results=validation_tuple,
+                        fingerprint_results=fingerprint_tuple,
+                    )
                 )
+            except TypeError:
+                return tuple(func(read_tuple, validation_tuple, fingerprint_tuple))
+
+    return build_library_items_from_results_fallback(
+        read_results=read_tuple,
+        validation_results=validation_tuple,
+        fingerprint_results=fingerprint_tuple,
+    )
+
+
+def build_library_items_from_results_fallback(
+    *,
+    read_results: Iterable[Any],
+    validation_results: Iterable[Any],
+    fingerprint_results: Iterable[Any],
+) -> tuple[dict[str, Any], ...]:
+    """Fallback Read-Model-Builder."""
+    read_tuple = tuple(read_results or ())
+    validation_tuple = tuple(validation_results or ())
+    fingerprint_tuple = tuple(fingerprint_results or ())
+
+    items: list[dict[str, Any]] = []
+
+    for index, read_result in enumerate(read_tuple):
+        read_payload = json_safe(read_result)
+        if not isinstance(read_payload, Mapping):
+            read_payload = {"value": read_payload}
+
+        validation = validation_tuple[index] if index < len(validation_tuple) else {}
+        fingerprint = fingerprint_tuple[index] if index < len(fingerprint_tuple) else {}
+
+        validation_payload = ensure_mapping(validation)
+        fingerprint_payload = ensure_mapping(fingerprint)
+
+        documents = ensure_mapping(read_payload.get("documents"))
+        manifest = ensure_mapping(
+            read_payload.get("manifest")
+            or read_payload.get("manifest_payload")
+            or documents.get("vplib.manifest.json")
+        )
+        family = ensure_mapping(
+            read_payload.get("family")
+            or read_payload.get("family_payload")
+            or documents.get("family/identity.json")
+        )
+        classification = ensure_mapping(
+            read_payload.get("classification")
+            or read_payload.get("classification_payload")
+            or documents.get("family/classification.json")
+        )
+
+        metadata = ensure_mapping(read_payload.get("metadata"))
+        taxonomy = ensure_mapping(metadata.get("taxonomy"))
+        if classification:
+            taxonomy.update(
+                {
+                    "domain": classification.get("domain") or taxonomy.get("domain"),
+                    "category": classification.get("category") or taxonomy.get("category"),
+                    "subcategory": classification.get("subcategory") or taxonomy.get("subcategory"),
+                    "classification_path": classification.get("classification_path") or taxonomy.get("classification_path"),
+                    "object_kind": classification.get("object_kind") or taxonomy.get("object_kind"),
+                }
             )
-    except Exception:
-        raise
+
+        vplib_uid = (
+            extract_vplib_uid_from_mapping(read_payload)
+            or extract_vplib_uid_from_mapping(manifest)
+        )
+        family_id = (
+            read_payload.get("family_id")
+            or manifest.get("family_id")
+            or family.get("family_id")
+            or read_payload.get("package_id")
+            or read_payload.get("relative_package_root")
+            or "unknown.library_item"
+        )
+        package_id = (
+            read_payload.get("package_id")
+            or manifest.get("package_id")
+            or f"vplib.{family_id}"
+        )
+
+        valid = result_is_valid(validation_payload) or result_is_ok(read_payload)
+        stable_id = normalize_stable_id(vplib_uid or family_id or package_id, fallback="unknown.library_item")
+
+        items.append(
+            {
+                "id": stable_id,
+                "vplib_uid": vplib_uid,
+                "family_id": safe_str(family_id),
+                "package_id": safe_str(package_id),
+                "label": (
+                    family.get("label")
+                    or family.get("name")
+                    or manifest.get("family_name")
+                    or humanize_identifier(family_id)
+                ),
+                "description": family.get("description") or manifest.get("description") or read_payload.get("description"),
+                "status": "valid" if valid else "invalid",
+                "enabled": True,
+                "is_valid": bool(valid),
+                "domain": taxonomy.get("domain"),
+                "category": taxonomy.get("category"),
+                "subcategory": taxonomy.get("subcategory"),
+                "object_kind": taxonomy.get("object_kind") or manifest.get("object_kind"),
+                "classification_path": taxonomy.get("classification_path") or manifest.get("classification_path"),
+                "source_path": read_payload.get("package_root") or read_payload.get("source_path") or manifest.get("source_path"),
+                "taxonomy": taxonomy,
+                "manifest": manifest,
+                "family": family,
+                "classification": classification,
+                "validation": {
+                    "valid": bool(valid),
+                    "status": validation_payload.get("status"),
+                    "warnings": validation_payload.get("warnings", []),
+                    "errors": validation_payload.get("errors", []),
+                    "warning_count": len(tuple_of_strings(validation_payload.get("warnings"))),
+                    "error_count": len(tuple_of_strings(validation_payload.get("errors"))),
+                    "fatal_count": 0,
+                },
+                "fingerprint": fingerprint_payload,
+                "revision_hash": fingerprint_payload.get("revision_hash"),
+                "documents": documents,
+                "metadata": {
+                    "taxonomy": taxonomy,
+                    "read_result": read_payload,
+                    "fallback_builder": True,
+                },
+            }
+        )
+
+    return tuple(items)
 
 
 def build_library_index_from_items_safe(
@@ -2087,25 +2243,292 @@ def build_library_index_from_items_safe(
     options: Any = None,
 ) -> Any:
     """Baut LibraryIndex mit Signatur-Fallbacks."""
+    func, _exc = _try_get_optional_attr(INDEX_MODULE_NAMES, "build_library_index_from_items")
     item_tuple = tuple(items or ())
 
-    try:
-        return build_library_index_from_items(
-            item_tuple,
-            source_root=source_root,
-            options=options,
-        )
-    except TypeError:
+    if callable(func):
         try:
-            return build_library_index_from_items(
-                items=item_tuple,
+            return func(
+                item_tuple,
                 source_root=source_root,
                 options=options,
             )
         except TypeError:
-            return build_library_index_from_items(item_tuple)
-    except Exception:
-        raise
+            try:
+                return func(
+                    items=item_tuple,
+                    source_root=source_root,
+                    options=options,
+                )
+            except TypeError:
+                return func(item_tuple)
+
+    return build_library_index_from_items_fallback(item_tuple, source_root=source_root, options=options)
+
+
+def build_library_index_from_items_fallback(
+    items: Iterable[Any],
+    *,
+    source_root: Any = None,
+    options: Any = None,
+) -> dict[str, Any]:
+    """Fallback LibraryIndex."""
+    item_list = list(items or ())
+    options_payload = object_to_options_dict(options)
+    include_invalid = safe_bool(options_payload.get("include_invalid"), default=False)
+    enabled_only = safe_bool(options_payload.get("enabled_only"), default=False)
+
+    visible_items: list[Any] = []
+    invalid_items: list[Any] = []
+
+    for item in item_list:
+        if enabled_only and not safe_bool(get_item_attr(item, "enabled"), default=True):
+            continue
+
+        item_status = get_item_status(item)
+        is_valid = item_status in {"valid", "ok", "active"} or safe_bool(get_item_attr(item, "is_valid"), default=False)
+
+        if is_valid:
+            visible_items.append(item)
+        else:
+            invalid_items.append(item)
+            if include_invalid:
+                visible_items.append(item)
+
+    return {
+        "ok": True,
+        "status": "ok" if visible_items else "empty",
+        "source_root": safe_path_str(source_root),
+        "items": visible_items,
+        "invalid_items": invalid_items,
+        "items_by_id": {
+            get_item_id(item): item
+            for item in visible_items
+            if get_item_id(item)
+        },
+        "tree": build_tree_from_items(visible_items),
+        "count": len(visible_items),
+        "invalid_count": len(invalid_items),
+        "fallback_builder": True,
+    }
+
+
+def build_blocks_response_from_index_safe(index: Any, **filters: Any) -> dict[str, Any]:
+    func, _exc = _try_get_optional_attr(INDEX_MODULE_NAMES, "build_blocks_response_from_index")
+    if callable(func):
+        try:
+            response = _call_function_flexible(func, index, **filters)
+            if isinstance(response, Mapping):
+                return dict(response)
+        except Exception:
+            pass
+
+    items = extract_index_items(index)
+    filtered = filter_items(items, **filters)
+
+    return {
+        "ok": True,
+        "status": "ok" if filtered else "empty",
+        "count": len(filtered),
+        "items": [json_safe(item) for item in filtered],
+        "filters": {
+            key: value
+            for key, value in filters.items()
+            if value not in {None, ""}
+        },
+        "fallback_builder": True,
+    }
+
+
+def build_tree_response_from_index_safe(index: Any) -> dict[str, Any]:
+    func, _exc = _try_get_optional_attr(INDEX_MODULE_NAMES, "build_tree_response_from_index")
+    if callable(func):
+        try:
+            response = func(index)
+            if isinstance(response, Mapping):
+                return dict(response)
+        except Exception:
+            pass
+
+    items = extract_index_items(index)
+    tree = build_tree_from_items(items)
+
+    return {
+        "ok": True,
+        "status": "ok" if tree.get("domains") else "empty",
+        "tree": tree,
+        "stats": {
+            "domain_count": len(tree.get("domains", [])),
+        },
+        "fallback_builder": True,
+    }
+
+
+def build_index_response_safe(index: Any) -> dict[str, Any]:
+    func, _exc = _try_get_optional_attr(INDEX_MODULE_NAMES, "build_index_response")
+    if callable(func):
+        try:
+            response = func(index)
+            if isinstance(response, Mapping):
+                return dict(response)
+        except Exception:
+            pass
+
+    return json_safe(index) if isinstance(json_safe(index), Mapping) else {"index": json_safe(index)}
+
+
+def extract_index_items(index: Any) -> list[Any]:
+    if isinstance(index, Mapping):
+        items = index.get("items")
+        if isinstance(items, list):
+            return items
+        if isinstance(items, tuple):
+            return list(items)
+
+    items = get_item_attr(index, "items", default=[])
+    if isinstance(items, tuple):
+        return list(items)
+    if isinstance(items, list):
+        return items
+
+    return []
+
+
+def filter_items(items: Iterable[Any], **filters: Any) -> list[Any]:
+    domain = normalize_query_value(filters.get("domain"))
+    category = normalize_query_value(filters.get("category"))
+    subcategory = normalize_query_value(filters.get("subcategory"))
+    object_kind = normalize_query_value(filters.get("object_kind"))
+    q = normalize_query_value(filters.get("q"))
+
+    result: list[Any] = []
+
+    for item in items or ():
+        item_payload = json_safe(item)
+        if not isinstance(item_payload, Mapping):
+            continue
+
+        taxonomy = ensure_mapping(item_payload.get("taxonomy"))
+        item_domain = safe_str(item_payload.get("domain") or taxonomy.get("domain"), default="")
+        item_category = safe_str(item_payload.get("category") or taxonomy.get("category"), default="")
+        item_subcategory = safe_str(item_payload.get("subcategory") or taxonomy.get("subcategory"), default="")
+        item_object_kind = safe_str(item_payload.get("object_kind") or taxonomy.get("object_kind") or item_payload.get("kind"), default="")
+
+        if domain and item_domain != domain:
+            continue
+        if category and item_category != category:
+            continue
+        if subcategory and item_subcategory != subcategory:
+            continue
+        if object_kind and item_object_kind != object_kind:
+            continue
+
+        if q:
+            haystack = " ".join(
+                [
+                    safe_str(item_payload.get("id")),
+                    safe_str(item_payload.get("vplib_uid")),
+                    safe_str(item_payload.get("family_id")),
+                    safe_str(item_payload.get("package_id")),
+                    safe_str(item_payload.get("label")),
+                    safe_str(item_payload.get("name")),
+                    safe_str(item_payload.get("title")),
+                    safe_str(item_payload.get("description")),
+                    item_domain,
+                    item_category,
+                    item_subcategory,
+                    item_object_kind,
+                ]
+            ).lower()
+            if q.lower() not in haystack:
+                continue
+
+        result.append(item)
+
+    return result
+
+
+def normalize_query_value(value: Any) -> str | None:
+    text = safe_str(value, default="")
+    return text or None
+
+
+def build_tree_from_items(items: Iterable[Any]) -> dict[str, Any]:
+    by_domain: dict[str, dict[str, Any]] = {}
+
+    for item in items or ():
+        payload = json_safe(item)
+        if not isinstance(payload, Mapping):
+            continue
+
+        taxonomy = ensure_mapping(payload.get("taxonomy"))
+        domain = safe_str(payload.get("domain") or taxonomy.get("domain"), default="unknown")
+        category = safe_str(payload.get("category") or taxonomy.get("category"), default="unknown")
+        subcategory = safe_str(payload.get("subcategory") or taxonomy.get("subcategory"), default="unknown")
+
+        domain_node = by_domain.setdefault(
+            domain,
+            {
+                "id": domain,
+                "label": domain,
+                "item_count": 0,
+                "by_category": {},
+                "categories": [],
+            },
+        )
+        domain_node["item_count"] += 1
+
+        by_category = domain_node["by_category"]
+        category_node = by_category.setdefault(
+            category,
+            {
+                "id": category,
+                "label": category,
+                "item_count": 0,
+                "by_subcategory": {},
+                "subcategories": [],
+            },
+        )
+        category_node["item_count"] += 1
+
+        by_subcategory = category_node["by_subcategory"]
+        subcategory_node = by_subcategory.setdefault(
+            subcategory,
+            {
+                "id": subcategory,
+                "label": subcategory,
+                "item_count": 0,
+                "items": [],
+            },
+        )
+        subcategory_node["item_count"] += 1
+        subcategory_node["items"].append(payload)
+
+    domains: list[dict[str, Any]] = []
+
+    for domain_key in sorted(by_domain.keys()):
+        domain_node = by_domain[domain_key]
+        category_nodes = []
+
+        for category_key in sorted(domain_node["by_category"].keys()):
+            category_node = domain_node["by_category"][category_key]
+            subcategory_nodes = []
+
+            for subcategory_key in sorted(category_node["by_subcategory"].keys()):
+                subcategory_nodes.append(category_node["by_subcategory"][subcategory_key])
+
+            category_node["subcategories"] = subcategory_nodes
+            category_node.pop("by_subcategory", None)
+            category_nodes.append(category_node)
+
+        domain_node["categories"] = category_nodes
+        domain_node.pop("by_category", None)
+        domains.append(domain_node)
+
+    return {
+        "domains": domains,
+        "by_domain": by_domain,
+    }
 
 
 def build_scan_result_from_items_safe(
@@ -2120,45 +2543,42 @@ def build_scan_result_from_items_safe(
     metadata: Mapping[str, Any] | None = None,
 ) -> Any:
     """Baut ScanResult mit defensiven Signatur-Fallbacks."""
+    func, _exc = _try_get_optional_attr(DOMAIN_SCAN_RESULT_MODULE_NAMES, "build_scan_result_from_items")
+
     item_tuple = tuple(items or ())
     warning_tuple = tuple_of_strings(warnings)
     error_tuple = tuple_of_strings(errors)
 
-    try:
-        return build_scan_result_from_items(
-            source_root=source_root,
-            items=item_tuple,
-            warnings=warning_tuple,
-            errors=error_tuple,
-            started_at=started_at,
-            started_monotonic_ms=started_monotonic_ms,
-            settings=settings or {},
-            metadata=metadata or {},
-        )
-    except TypeError:
+    if callable(func):
         try:
-            return build_scan_result_from_items(
+            return _call_function_flexible(
+                func,
                 source_root=source_root,
                 items=item_tuple,
                 warnings=warning_tuple,
                 errors=error_tuple,
+                started_at=started_at,
+                started_monotonic_ms=started_monotonic_ms,
                 settings=settings or {},
                 metadata=metadata or {},
             )
-        except TypeError:
-            return {
-                "ok": True,
-                "status": "ok" if item_tuple else "empty",
-                "source_root": safe_path_str(source_root),
-                "started_at": safe_str(started_at, default="") or utc_now_iso(),
-                "finished_at": utc_now_iso(),
-                "duration_ms": calculate_duration_ms(started_monotonic_ms),
-                "items": [json_safe(item) for item in item_tuple],
-                "warnings": list(warning_tuple),
-                "errors": list(error_tuple),
-                "settings": dict(settings or {}),
-                "metadata": dict(metadata or {}),
-            }
+        except Exception:
+            pass
+
+    return {
+        "ok": not bool(error_tuple),
+        "status": "ok" if item_tuple and not error_tuple else ("empty" if not item_tuple else "partial"),
+        "source_root": safe_path_str(source_root),
+        "started_at": safe_str(started_at, default="") or utc_now_iso(),
+        "finished_at": utc_now_iso(),
+        "duration_ms": calculate_duration_ms(started_monotonic_ms),
+        "items": [json_safe(item) for item in item_tuple],
+        "warnings": list(warning_tuple),
+        "errors": list(error_tuple),
+        "settings": dict(settings or {}),
+        "metadata": dict(metadata or {}),
+        "fallback_builder": True,
+    }
 
 
 def build_error_scan_result_safe(
@@ -2171,35 +2591,34 @@ def build_error_scan_result_safe(
     settings: Mapping[str, Any] | None = None,
 ) -> Any:
     """Baut Error-ScanResult mit defensiven Signatur-Fallbacks."""
-    try:
-        return build_error_scan_result(
-            exc,
-            source_root=source_root,
-            started_at=started_at,
-            started_monotonic_ms=started_monotonic_ms,
-            include_traceback=include_traceback,
-            settings=settings or {},
-        )
-    except TypeError:
+    func, _load_exc = _try_get_optional_attr(DOMAIN_SCAN_RESULT_MODULE_NAMES, "build_error_scan_result")
+
+    if callable(func):
         try:
-            return build_error_scan_result(
+            return _call_function_flexible(
+                func,
                 exc,
                 source_root=source_root,
                 started_at=started_at,
+                started_monotonic_ms=started_monotonic_ms,
+                include_traceback=include_traceback,
                 settings=settings or {},
             )
-        except TypeError:
-            return {
-                "ok": False,
-                "status": "error",
-                "source_root": safe_path_str(source_root),
-                "started_at": safe_str(started_at, default="") or utc_now_iso(),
-                "finished_at": utc_now_iso(),
-                "duration_ms": calculate_duration_ms(started_monotonic_ms),
-                "errors": [str(exc)],
-                "error": exception_to_dict(exc, include_traceback=include_traceback),
-                "settings": dict(settings or {}),
-            }
+        except Exception:
+            pass
+
+    return {
+        "ok": False,
+        "status": "error",
+        "source_root": safe_path_str(source_root),
+        "started_at": safe_str(started_at, default="") or utc_now_iso(),
+        "finished_at": utc_now_iso(),
+        "duration_ms": calculate_duration_ms(started_monotonic_ms),
+        "errors": [str(exc)],
+        "error": exception_to_dict(exc, include_traceback=include_traceback),
+        "settings": dict(settings or {}),
+        "fallback_builder": True,
+    }
 
 
 def collect_pipeline_warnings(
@@ -2230,13 +2649,7 @@ def collect_pipeline_warnings(
     if taxonomy_health and not safe_bool(taxonomy_health.get("healthy"), default=False):
         warnings.append("taxonomy service is not healthy")
 
-    deduped: list[str] = []
-
-    for warning in warnings:
-        if warning not in deduped:
-            deduped.append(warning)
-
-    return deduped
+    return dedupe_strings(warnings)
 
 
 def collect_pipeline_errors(
@@ -2268,13 +2681,21 @@ def collect_pipeline_errors(
     if require_taxonomy and taxonomy_health and not safe_bool(taxonomy_health.get("healthy"), default=False):
         errors.append("taxonomy service is required but not healthy")
 
-    deduped: list[str] = []
+    return dedupe_strings(errors)
 
-    for error in errors:
-        if error not in deduped:
-            deduped.append(error)
 
-    return deduped
+def dedupe_strings(values: Iterable[Any]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+
+    for value in values or ():
+        text = safe_str(value)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+
+    return result
 
 
 def derive_pipeline_status(
@@ -2295,7 +2716,7 @@ def derive_pipeline_status(
     valid_count = sum(
         1
         for item in item_list
-        if get_item_status(item) == "valid"
+        if get_item_status(item) in {"valid", "ok", "active"}
         or safe_bool(get_item_attr(item, "is_valid"), default=False)
     )
 
@@ -2339,7 +2760,7 @@ def derive_pipeline_status(
 def scan_library_source(
     *,
     source_root: Any = None,
-    options: LibraryScanServiceOptions | None = None,
+    options: Any = None,
     refresh_settings: bool | None = None,
     force_refresh: bool = False,
 ) -> LibraryScanPipelineResult:
@@ -2369,30 +2790,14 @@ def scan_library_source(
 
     if refresh_settings is not None:
         service_options = LibraryScanServiceOptions(
-            include_invalid=service_options.include_invalid,
-            enabled_only=service_options.enabled_only,
-            use_cache=service_options.use_cache,
-            cache_ttl_seconds=service_options.cache_ttl_seconds,
-            refresh_settings=bool(refresh_settings),
-            include_raw_pipeline=service_options.include_raw_pipeline,
-            include_index=service_options.include_index,
-            include_scan_result=service_options.include_scan_result,
-            include_discovery_result=service_options.include_discovery_result,
-            include_read_results=service_options.include_read_results,
-            include_validation_results=service_options.include_validation_results,
-            include_fingerprint_results=service_options.include_fingerprint_results,
-            strict_errors=service_options.strict_errors,
-            validate_taxonomy=service_options.validate_taxonomy,
-            require_taxonomy=service_options.require_taxonomy,
-            use_taxonomy_labels=service_options.use_taxonomy_labels,
-            include_empty_taxonomy_nodes=service_options.include_empty_taxonomy_nodes,
-            include_inactive_taxonomy_nodes=service_options.include_inactive_taxonomy_nodes,
-            include_taxonomy_payload=service_options.include_taxonomy_payload,
-            force_taxonomy_reload=service_options.force_taxonomy_reload,
+            **{
+                **service_options.to_dict(),
+                "refresh_settings": bool(refresh_settings),
+            }
         )
 
     started_at = utc_now_iso()
-    started_monotonic = monotonic_ms()
+    started_monotonic = monotonic_ms_safe()
 
     taxonomy_payload: dict[str, Any] = {}
     taxonomy_health: dict[str, Any] = {}
@@ -2420,6 +2825,7 @@ def scan_library_source(
         cache_key = make_cache_key(
             resolved_source_root,
             taxonomy_version=taxonomy_version or "noversion",
+            options=service_options,
         )
 
         if service_options.use_cache and not force_refresh:
@@ -2548,7 +2954,7 @@ def scan_library_source(
         )
 
         result = LibraryScanPipelineResult(
-            ok=status not in {"error", "invalid"},
+            ok=status not in {"error", "invalid", "unavailable"},
             status=status,
             source_root=str(resolved_source_root),
             started_at=started_at,
@@ -2573,6 +2979,7 @@ def scan_library_source(
                 "taxonomy_version": taxonomy_version,
                 "taxonomy_healthy": bool(taxonomy_health.get("healthy", taxonomy_payload.get("ok", False))),
                 "imports": get_import_status(),
+                "writes_database": False,
             },
         )
 
@@ -2601,38 +3008,23 @@ def scan_library_source(
             settings_summary=settings_summary if isinstance(settings_summary, Mapping) else {},
             taxonomy_payload=taxonomy_payload,
             taxonomy_health=taxonomy_health,
+            include_traceback=service_options.include_raw_pipeline,
         )
 
 
 def scan_library_source_no_cache(
     *,
     source_root: Any = None,
-    options: LibraryScanServiceOptions | None = None,
+    options: Any = None,
 ) -> LibraryScanPipelineResult:
     """Führt Scan ohne Cache aus."""
     service_options = coerce_scan_service_options(options)
 
     service_options = LibraryScanServiceOptions(
-        include_invalid=service_options.include_invalid,
-        enabled_only=service_options.enabled_only,
-        use_cache=False,
-        cache_ttl_seconds=service_options.cache_ttl_seconds,
-        refresh_settings=service_options.refresh_settings,
-        include_raw_pipeline=service_options.include_raw_pipeline,
-        include_index=service_options.include_index,
-        include_scan_result=service_options.include_scan_result,
-        include_discovery_result=service_options.include_discovery_result,
-        include_read_results=service_options.include_read_results,
-        include_validation_results=service_options.include_validation_results,
-        include_fingerprint_results=service_options.include_fingerprint_results,
-        strict_errors=service_options.strict_errors,
-        validate_taxonomy=service_options.validate_taxonomy,
-        require_taxonomy=service_options.require_taxonomy,
-        use_taxonomy_labels=service_options.use_taxonomy_labels,
-        include_empty_taxonomy_nodes=service_options.include_empty_taxonomy_nodes,
-        include_inactive_taxonomy_nodes=service_options.include_inactive_taxonomy_nodes,
-        include_taxonomy_payload=service_options.include_taxonomy_payload,
-        force_taxonomy_reload=service_options.force_taxonomy_reload,
+        **{
+            **service_options.to_dict(),
+            "use_cache": False,
+        }
     )
 
     return scan_library_source(
@@ -2649,13 +3041,10 @@ def scan_library_source_no_cache(
 def get_library_scan_response(
     *,
     source_root: Any = None,
-    options: LibraryScanServiceOptions | None = None,
+    options: Any = None,
     force_refresh: bool = False,
 ) -> dict[str, Any]:
-    """
-    Baut Antwort für:
-        GET /api/v1/vplib/library/scan
-    """
+    """Baut Antwort für GET /api/v1/vplib/library/scan."""
     result = scan_library_source(
         source_root=source_root,
         options=options,
@@ -2673,36 +3062,24 @@ def get_library_blocks_response(
     subcategory: Any = None,
     object_kind: Any = None,
     q: Any = None,
-    options: LibraryScanServiceOptions | None = None,
+    options: Any = None,
     force_refresh: bool = False,
 ) -> dict[str, Any]:
-    """
-    Baut Antwort für:
-        GET /api/v1/vplib/library/blocks
-    """
+    """Baut Antwort für GET /api/v1/vplib/library/blocks."""
     service_options = coerce_scan_service_options(options)
 
     service_options = LibraryScanServiceOptions(
-        include_invalid=service_options.include_invalid,
-        enabled_only=service_options.enabled_only,
-        use_cache=service_options.use_cache,
-        cache_ttl_seconds=service_options.cache_ttl_seconds,
-        refresh_settings=service_options.refresh_settings,
-        include_raw_pipeline=False,
-        include_index=True,
-        include_scan_result=False,
-        include_discovery_result=False,
-        include_read_results=False,
-        include_validation_results=False,
-        include_fingerprint_results=False,
-        strict_errors=service_options.strict_errors,
-        validate_taxonomy=service_options.validate_taxonomy,
-        require_taxonomy=service_options.require_taxonomy,
-        use_taxonomy_labels=service_options.use_taxonomy_labels,
-        include_empty_taxonomy_nodes=service_options.include_empty_taxonomy_nodes,
-        include_inactive_taxonomy_nodes=service_options.include_inactive_taxonomy_nodes,
-        include_taxonomy_payload=False,
-        force_taxonomy_reload=service_options.force_taxonomy_reload,
+        **{
+            **service_options.to_dict(),
+            "include_raw_pipeline": False,
+            "include_index": True,
+            "include_scan_result": False,
+            "include_discovery_result": False,
+            "include_read_results": False,
+            "include_validation_results": False,
+            "include_fingerprint_results": False,
+            "include_taxonomy_payload": False,
+        }
     )
 
     result = scan_library_source(
@@ -2736,6 +3113,7 @@ def get_library_blocks_response(
             "duration_ms": result.duration_ms,
             "generated_at": result.finished_at,
             "taxonomy_version": result.taxonomy_version,
+            "writes_database": False,
         },
     )
 
@@ -2745,36 +3123,24 @@ def get_library_blocks_response(
 def get_library_tree_response(
     *,
     source_root: Any = None,
-    options: LibraryScanServiceOptions | None = None,
+    options: Any = None,
     force_refresh: bool = False,
 ) -> dict[str, Any]:
-    """
-    Baut Antwort für:
-        GET /api/v1/vplib/library/tree
-    """
+    """Baut Antwort für GET /api/v1/vplib/library/tree."""
     service_options = coerce_scan_service_options(options)
 
     service_options = LibraryScanServiceOptions(
-        include_invalid=service_options.include_invalid,
-        enabled_only=service_options.enabled_only,
-        use_cache=service_options.use_cache,
-        cache_ttl_seconds=service_options.cache_ttl_seconds,
-        refresh_settings=service_options.refresh_settings,
-        include_raw_pipeline=False,
-        include_index=True,
-        include_scan_result=False,
-        include_discovery_result=False,
-        include_read_results=False,
-        include_validation_results=False,
-        include_fingerprint_results=False,
-        strict_errors=service_options.strict_errors,
-        validate_taxonomy=service_options.validate_taxonomy,
-        require_taxonomy=service_options.require_taxonomy,
-        use_taxonomy_labels=service_options.use_taxonomy_labels,
-        include_empty_taxonomy_nodes=service_options.include_empty_taxonomy_nodes,
-        include_inactive_taxonomy_nodes=service_options.include_inactive_taxonomy_nodes,
-        include_taxonomy_payload=False,
-        force_taxonomy_reload=service_options.force_taxonomy_reload,
+        **{
+            **service_options.to_dict(),
+            "include_raw_pipeline": False,
+            "include_index": True,
+            "include_scan_result": False,
+            "include_discovery_result": False,
+            "include_read_results": False,
+            "include_validation_results": False,
+            "include_fingerprint_results": False,
+            "include_taxonomy_payload": False,
+        }
     )
 
     result = scan_library_source(
@@ -2802,6 +3168,7 @@ def get_library_tree_response(
             "duration_ms": result.duration_ms,
             "generated_at": result.finished_at,
             "taxonomy_version": result.taxonomy_version,
+            "writes_database": False,
         },
     )
 
@@ -2811,7 +3178,7 @@ def get_library_tree_response(
 def get_library_index(
     *,
     source_root: Any = None,
-    options: LibraryScanServiceOptions | None = None,
+    options: Any = None,
     force_refresh: bool = False,
 ) -> Any:
     """Gibt nur den LibraryIndex zurück."""
@@ -2824,38 +3191,190 @@ def get_library_index(
     return result.index
 
 
+def get_library_sync_preview_response(
+    *,
+    source_root: Any = None,
+    options: Any = None,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
+    """
+    Baut Sync-Payload-Preview ohne zu schreiben.
+
+    Diese Antwort kann später an POST /api/v1/vplib/library/sync gegeben werden.
+    """
+    result = scan_library_source(
+        source_root=source_root,
+        options=options,
+        force_refresh=force_refresh,
+    )
+    return result.to_sync_preview_dict()
+
+
+# ---------------------------------------------------------------------------
+# Sync payload preview helpers
+# ---------------------------------------------------------------------------
+
+def build_sync_payloads_from_scan_result(result: LibraryScanPipelineResult | Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Erzeugt CreativeLibraryService.publish_bundle-kompatible Payloads aus Scan-Items."""
+    if isinstance(result, LibraryScanPipelineResult):
+        items = list(result.items)
+        source_root = result.source_root
+        taxonomy_version = result.taxonomy_version
+    else:
+        items = result.get("items", []) if isinstance(result.get("items"), list) else []
+        source_root = result.get("source_root")
+        taxonomy_version = nested_mapping_value(result, "taxonomy", "taxonomy_version")
+
+    payloads: list[dict[str, Any]] = []
+
+    for item in items:
+        item_payload = json_safe(item)
+        if not isinstance(item_payload, Mapping):
+            continue
+
+        publish_payload = build_publish_payload_from_scan_item(
+            item_payload,
+            source_root=source_root,
+            taxonomy_version=taxonomy_version,
+        )
+        if publish_payload:
+            payloads.append(publish_payload)
+
+    return payloads
+
+
+def build_publish_payload_from_scan_item(
+    item: Mapping[str, Any],
+    *,
+    source_root: Any = None,
+    taxonomy_version: Any = None,
+) -> dict[str, Any]:
+    """Baut Publish-Bundle-Payload aus einem Scan-Item."""
+    payload = ensure_mapping(item)
+    manifest = ensure_mapping(payload.get("manifest") or payload.get("manifest_payload"))
+    family = ensure_mapping(payload.get("family") or payload.get("family_payload"))
+    classification = ensure_mapping(payload.get("classification") or payload.get("classification_payload"))
+    documents = ensure_mapping(payload.get("documents"))
+    taxonomy = ensure_mapping(payload.get("taxonomy"))
+
+    if not manifest and isinstance(documents.get("vplib.manifest.json"), Mapping):
+        manifest = ensure_mapping(documents.get("vplib.manifest.json"))
+
+    if not family and isinstance(documents.get("family/identity.json"), Mapping):
+        family = ensure_mapping(documents.get("family/identity.json"))
+
+    if not classification and isinstance(documents.get("family/classification.json"), Mapping):
+        classification = ensure_mapping(documents.get("family/classification.json"))
+
+    uid = (
+        extract_vplib_uid_from_mapping(payload)
+        or extract_vplib_uid_from_mapping(manifest)
+    )
+
+    family_id = (
+        payload.get("family_id")
+        or manifest.get("family_id")
+        or family.get("family_id")
+    )
+    package_id = (
+        payload.get("package_id")
+        or manifest.get("package_id")
+    )
+
+    if not family_id and not package_id and not uid:
+        return {}
+
+    document_rows = []
+
+    for path, content in documents.items():
+        document_rows.append(
+            {
+                "document_kind": "source_document",
+                "document_type": "json" if str(path).endswith(".json") else "text",
+                "field_key": path,
+                "title": path,
+                "payload": {
+                    "path": path,
+                    "content": json_safe(content),
+                    "source": "library_scan_service",
+                },
+            }
+        )
+
+    variants = payload.get("variants")
+    if not isinstance(variants, list):
+        variants = []
+
+    return {
+        "schema_version": LIBRARY_SCAN_SERVICE_VERSION,
+        "source": LIBRARY_SCAN_SERVICE_COMPONENT,
+        "vplib_uid": uid,
+        "family_id": family_id,
+        "package_id": package_id,
+        "title": payload.get("label") or payload.get("title") or family.get("label") or manifest.get("family_name"),
+        "description": payload.get("description") or family.get("description"),
+        "source_path": payload.get("source_path") or manifest.get("source_path"),
+        "source_root": safe_path_str(source_root),
+        "taxonomy_version": taxonomy_version,
+        "domain": payload.get("domain") or classification.get("domain") or taxonomy.get("domain"),
+        "category": payload.get("category") or classification.get("category") or taxonomy.get("category"),
+        "subcategory": payload.get("subcategory") or classification.get("subcategory") or taxonomy.get("subcategory"),
+        "object_kind": payload.get("object_kind") or classification.get("object_kind") or taxonomy.get("object_kind") or manifest.get("object_kind"),
+        "classification_path": payload.get("classification_path") or classification.get("classification_path") or taxonomy.get("classification_path"),
+        "manifest_payload": manifest,
+        "family_payload": family,
+        "classification_payload": classification,
+        "modules_payload": ensure_mapping(documents.get("vplib.modules.json")),
+        "generator_payload": {
+            "component": LIBRARY_SCAN_SERVICE_COMPONENT,
+            "version": LIBRARY_SCAN_SERVICE_VERSION,
+            "source_item": payload,
+        },
+        "variants": variants,
+        "assets": payload.get("assets") if isinstance(payload.get("assets"), list) else [],
+        "documents": document_rows,
+        "document_bundle": {
+            "manifest": manifest,
+            "family": family,
+            "classification": classification,
+            "documents": documents,
+            "variants": variants,
+            "assets": payload.get("assets") if isinstance(payload.get("assets"), list) else [],
+        },
+    }
+
+
+def extract_vplib_uid_from_mapping(value: Any) -> str | None:
+    if value is None:
+        return None
+
+    if isinstance(value, Mapping):
+        for key in VPLIB_UID_KEYS:
+            uid = safe_str(value.get(key), default="")
+            if uid:
+                return uid
+
+        for nested_key in ("manifest", "manifest_payload", "vplib_manifest", "payload", "data", "metadata"):
+            nested = value.get(nested_key)
+            uid = extract_vplib_uid_from_mapping(nested)
+            if uid:
+                return uid
+
+        if "vplib.manifest.json" in value:
+            uid = extract_vplib_uid_from_mapping(value.get("vplib.manifest.json"))
+            if uid:
+                return uid
+
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
 
 def get_import_status() -> dict[str, Any]:
     """Liefert Importstatus optionaler Abhängigkeiten."""
-    return {
-        "settings": {
-            "ok": _SETTINGS_IMPORT_ERROR is None,
-            "error": exception_to_dict(_SETTINGS_IMPORT_ERROR),
-        },
-        "scanner": {
-            "ok": _SCANNER_IMPORT_ERROR is None,
-            "error": exception_to_dict(_SCANNER_IMPORT_ERROR),
-        },
-        "validation": {
-            "ok": _VALIDATION_IMPORT_ERROR is None,
-            "error": exception_to_dict(_VALIDATION_IMPORT_ERROR),
-        },
-        "read_models": {
-            "ok": _READ_MODELS_IMPORT_ERROR is None,
-            "error": exception_to_dict(_READ_MODELS_IMPORT_ERROR),
-        },
-        "domain": {
-            "ok": _DOMAIN_IMPORT_ERROR is None,
-            "error": exception_to_dict(_DOMAIN_IMPORT_ERROR),
-        },
-        "taxonomy": {
-            "ok": _TAXONOMY_IMPORT_ERROR is None,
-            "error": exception_to_dict(_TAXONOMY_IMPORT_ERROR),
-        },
-    }
+    return get_optional_import_status()
 
 
 def get_library_scan_service_health(
@@ -2874,7 +3393,7 @@ def get_library_scan_service_health(
 
     for name, status in imports.items():
         if not status.get("ok"):
-            if name in {"scanner", "validation", "read_models", "taxonomy"}:
+            if name in {"discovery", "reader", "validation", "summary", "index", "taxonomy"}:
                 errors.append(f"{name} import failed")
             else:
                 warnings.append(f"{name} import failed; fallback may be active")
@@ -2949,6 +3468,12 @@ def get_library_scan_service_health(
         },
         "imports": imports,
         "settings_summary": json_safe(settings_summary),
+        "supports_scan": True,
+        "supports_blocks": True,
+        "supports_tree": True,
+        "supports_sync_preview": True,
+        "writes_database": False,
+        "writes_filesystem": False,
         "warnings": warnings,
         "errors": errors,
     }
@@ -2997,13 +3522,16 @@ __all__: Final[tuple[str, ...]] = (
     "normalize_stable_id",
     "humanize_identifier",
     "get_item_attr",
+    "nested_mapping_value",
     "get_item_id",
     "get_item_status",
     "get_result_status",
     "result_is_ok",
     "result_is_valid",
     "monotonic_ms_safe",
+    "monotonic_ms",
     "calculate_duration_ms",
+    "hash_json_safe",
     "taxonomy_available",
     "get_taxonomy_service_safe",
     "get_taxonomy_payload_safe",
@@ -3026,12 +3554,23 @@ __all__: Final[tuple[str, ...]] = (
     "read_package_candidates_safe",
     "validate_read_results_safe",
     "fingerprint_read_results_safe",
+    "build_fallback_fingerprint",
     "build_library_items_from_results_safe",
+    "build_library_items_from_results_fallback",
     "build_library_index_from_items_safe",
+    "build_library_index_from_items_fallback",
+    "build_blocks_response_from_index_safe",
+    "build_tree_response_from_index_safe",
+    "build_index_response_safe",
+    "extract_index_items",
+    "filter_items",
+    "normalize_query_value",
+    "build_tree_from_items",
     "build_scan_result_from_items_safe",
     "build_error_scan_result_safe",
     "collect_pipeline_warnings",
     "collect_pipeline_errors",
+    "dedupe_strings",
     "derive_pipeline_status",
     "scan_library_source",
     "scan_library_source_no_cache",
@@ -3039,6 +3578,10 @@ __all__: Final[tuple[str, ...]] = (
     "get_library_blocks_response",
     "get_library_tree_response",
     "get_library_index",
+    "get_library_sync_preview_response",
+    "build_sync_payloads_from_scan_result",
+    "build_publish_payload_from_scan_item",
+    "extract_vplib_uid_from_mapping",
     "get_import_status",
     "get_library_scan_service_health",
     "assert_library_scan_service_ready",

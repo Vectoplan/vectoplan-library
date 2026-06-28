@@ -1,4 +1,4 @@
-# services/vectoplan-library/src/routes/inventar_user.py
+# services/vectoplan-library/routes/inventar_user.py
 """
 User-Inventar API routes for vectoplan-library.
 

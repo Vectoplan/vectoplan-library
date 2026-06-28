@@ -1,205 +1,239 @@
 # IST-Zustand – `services/vectoplan-library/src/library`
 
-Stand: **2026-06-05**  
-Letzte Aktualisierung: **2026-06-05 07:20 UTC**  
-Scope: `services/vectoplan-library/src/library` plus relevante Außenkanten `routes/`, `models/creative_library.py`, `entrypoint.sh`, `docker-compose.yml`, PostgreSQL/Alembic, API-Tests und aktuelle Debug-Ergebnisse.
+Stand: **2026-06-28**  
+Letzte Aktualisierung: **2026-06-28**  
+Scope: `services/vectoplan-library/src/library` plus relevante Außenkanten in `routes/`, `src/routes/`, `models/`, `migrations/`, PostgreSQL/Alembic und API-Testpfade.
+
+Dieses Dokument beschreibt den aktuellen Aufbau der Library-Schicht so, dass ein Entwickler die Ordner, Dateien, Datenflüsse, Zuständigkeiten und Testreihenfolge nachvollziehen kann.
 
 ---
 
-## 0. Kurzstatus
+## Inhaltsverzeichnis
 
-Die Library-Schicht ist inzwischen nicht mehr nur ein dateibasierter Katalog, sondern besitzt einen real getesteten DB-Sync- und DB-Read-Pfad.
+1. Kurzstatus
+2. Grundidee und Systemgrenzen
+3. Source-of-Truth-Modell
+4. Gesamtarchitektur als Schichtenmodell
+5. Ordner- und Filestruktur
+6. Ordner `definitions/`
+7. Ordner `taxonomy/`
+8. Ordner `scanner/`
+9. Ordner `validation/`
+10. Ordner `domain/`
+11. Ordner `read_models/`
+12. Ordner `services/`
+13. Ordner `repositories/`
+14. Ordner `source/`
+15. Wichtige Außenkanten außerhalb von `src/library`
+16. Datenbankmodell und Tabellenfamilien
+17. Hauptdatenflüsse
+18. API-Routen und Verantwortlichkeiten
+19. Create-, Draft-, Publish- und Sync-Zusammenhang
+20. Files-/Upload-Schicht
+21. User-Library, Collections und Inventory
+22. Cache-, Health- und Diagnostics-Konzept
+23. Teststrategie
+24. Typische Fehlerbilder und Debug-Reihenfolge
+25. Konventionen für neue Dateien und Erweiterungen
+26. Offene Punkte / nächste Arbeit
+27. Definition of Done
 
-### Aktuell nachgewiesen
+---
+
+## 1. Kurzstatus
+
+Die Library-Schicht ist nicht mehr nur ein dateibasierter Katalog. Sie besitzt jetzt mehrere gekoppelte, aber getrennte Pfade:
 
 ```text
-✅ PostgreSQL läuft.
-✅ Alembic / Flask-Migrate funktioniert.
-✅ Creative-Library-Tabellen existieren.
-✅ Der erste Testblock wurde nach PostgreSQL synchronisiert.
-✅ creative_library_items enthält 1 Family.
-✅ creative_library_revisions enthält 1 Revision.
-✅ creative_library_variants enthält 1 gespeicherte Variante.
-✅ creative_library_assets enthält 1 Asset-Datensatz.
-✅ creative_library_documents enthält 13 Dokumentzeilen.
-✅ Aggregates/Pointers der Family wurden repariert:
-   current_revision_id      = 1
-   current_revision_hash    = 3e86f507...
-   latest_revision_hash     = 3e86f507...
-   published_revision_hash  = 3e86f507...
-   revision_hash            = 3e86f507...
-   variant_count            = 1
-   asset_count              = 1
-   document_count           = 13
-   revision_count           = 1
-✅ GET /api/v1/vplib/library/scan?force_refresh=true funktioniert.
-✅ GET /api/v1/vplib/library/blocks?source=db&limit=20 funktioniert.
-✅ GET /api/v1/vplib/library/tree?source=db funktioniert.
-✅ routes/api.py ist syntaktisch gültig.
-✅ library_scan_service.py ist syntaktisch gültig.
-✅ library_db_sync_service.py ist syntaktisch gültig.
-✅ creative_library_repository.py ist syntaktisch grundsätzlich importierbar.
+1. Dateibasierter Source-Pfad
+   src/library/source/*
+   -> Scanner/Reader/Validator/Fingerprint
+   -> Debug-/Preview-Responses
+
+2. DB-Sync-Pfad
+   src/library/source/* oder vorhandenes ScanResult
+   -> LibraryDbSyncService
+   -> CreativeLibraryService / CreativeLibraryRepository
+   -> PostgreSQL
+
+3. Published-Read-Pfad
+   PostgreSQL
+   -> CreativeLibraryRepository
+   -> CreativeLibraryService / Read-Models
+   -> API-Routen
+
+4. Create-/Draft-Pfad
+   /create Payload
+   -> Create Route Service
+   -> Create Service
+   -> Draft Service oder .vplib Package/Source Package
+
+5. Definition-/Taxonomie-Pfad
+   JSON-Definitionen und DB-Definitionen
+   -> Definition Catalog Service
+   -> Create Options / Validation / Profile-Auflösung
 ```
 
-### Aktuell offen
+Aktuell getestet und grundsätzlich funktionsfähig:
 
 ```text
-⚠️ GET /blocks/<block_id>/variants?source=db antwortet technisch ok,
-   liefert aber count = 0, obwohl variant_count = 1 und eine DB-Variante existiert.
-
-⚠️ Ursache sehr wahrscheinlich:
-   creative_library_repository.py / get_family_variants(...)
-   beziehungsweise _filter_not_deleted(...), weil NULL-Statuswerte durch
-   `status != 'deleted'` oder `publication_status != 'deleted'` weggefiltert
-   werden können.
-
-⚠️ GET /blocks/<block_id>?source=db wurde nach den letzten Repository-Fixes
-   nicht vollständig mit Response-Payload dokumentiert. Frühere Fehler waren:
-   - doppelte identifier/block_id Übergabe in routes/api.py
-   - bigint-vs-varchar Fehler in get_family_by_identifier(...)
-   Beide Fehler sind verstanden und durch Ziel-Patches adressiert.
-
-⚠️ POST /sync muss nach allen letzten Fixes erneut final getestet werden:
-   - keine Timeout-Response
-   - keine rekursive SyncResult-Serialisierung
-   - keine neue Revision bei gleichem revision_hash
+✅ Container startet nach den Model-/FK-Fixes.
+✅ Alembic-Migrationen laufen durch.
+✅ SQLAlchemy-Modelle werden importiert.
+✅ PostgreSQL ist erreichbar.
+✅ Health-Routen funktionieren.
+✅ /api/v1/vplib/library/scan?source=file funktioniert.
+✅ /api/v1/vplib/definitions/health funktioniert.
+✅ /api/v1/vplib/files/health funktioniert.
+✅ /api/v1/vplib/taxonomy/health funktioniert.
+✅ /api/v1/vplib/creative-library/health funktioniert.
+✅ /api/v1/vplib/library/drafts/health funktioniert.
+✅ /api/v1/vplib/library/health funktioniert.
 ```
 
-### Wichtigster aktueller technischer Fokus
+Aktuell besonders wichtig:
 
 ```text
-services/vectoplan-library/src/library/repositories/sql/creative_library_repository.py
-
-P0:
-- get_family_by_identifier(...) darf String-Identifier nicht gegen bigint id vergleichen.
-- _filter_not_deleted(...) muss NULL als "nicht gelöscht" behandeln.
-- get_family_variants(...) muss die gespeicherte default-Variante zurückgeben.
+- GET /scan bleibt read-only.
+- POST /sync ist der explizite DB-Write-Entry-Point.
+- DB erzeugt keine vplib_uid.
+- vplib_uid kommt aus dem Package/Manifest oder aus dem Create-Flow.
+- Drafts sind Arbeitszustand, nicht Published State.
+- Published Tables sind die produktive sichtbare Library.
+- User Collections/Overrides sind getrennt vom Systemkatalog.
 ```
 
 ---
 
-## 1. Zweck dieses Dokuments
+## 2. Grundidee und Systemgrenzen
 
-Dieses Dokument beschreibt den aktuellen Zustand der Library-Schicht von `vectoplan-library`.
+### 2.1 Was ist `src/library`?
 
-Es ersetzt die bisherigen additiven IST-Notizen durch einen bereinigten Stand und dokumentiert:
-
-```text
-- aktuelle Architektur
-- Ordnerstruktur
-- Rolle jeder Datei und Schicht
-- Source-of-Truth-Modell
-- DB-Sync-Pfad
-- Published-DB-Read-Pfad
-- API-Routen
-- reale Tests
-- behobene Fehler
-- offene Fehler
-- nächste Arbeitsschritte
-```
-
----
-
-## 2. Grundverständnis
-
-`src/library` ist die fachliche Creative-Library-Schicht oberhalb von `src/vplib`.
+`src/library` ist die fachliche Creative-Library-Schicht. Sie liegt oberhalb des technischen VPLIB-Kerns.
 
 ```text
 src/vplib
   technischer VPLIB-Kern
-  - Package-Modelle
-  - Defaults
-  - technische Validatoren
-  - Creator
-  - Source-Scanner
-  - Loader
-  - Archive
-  - vplib_uid-Service
+  - VPLIB UID Service
+  - Package-/Manifest-Grundlogik
+  - Creator/Defaults
+  - Archiv-/Package-Mechanik
+  - technische Validierung
 
 src/library
   fachliche Creative-Library-Schicht
   - Taxonomie
   - Definitions/Profile
   - Source-Scan-Orchestrierung
-  - fachliche Validierung
+  - fachliche Library-Validierung
   - Read-Models
   - DB-Sync
-  - Published-DB-Read
-  - Inventory
-  - API-nahe Domain-Modelle
+  - Published-DB-Reads
+  - Draft Working State
+  - User Collections/Overrides
+  - File-/Upload-Metadaten
 ```
 
-Aktuelle Implementierungsstufe:
+`src/library` beantwortet nicht nur die Frage „Kann dieses Package technisch gelesen werden?“, sondern:
 
 ```text
-filesystem-taxonomy-db-sync-published-read-model
+- Wo liegt es in der Taxonomie?
+- Welche Object-Kind/Profile gelten?
+- Ist es als Creative-Library-Block publishbar?
+- Welche Varianten/Dokumente/Assets gehören dazu?
+- Was ist der aktuelle veröffentlichte Stand?
+- Welche User-Overlays existieren zusätzlich?
 ```
 
-Bedeutung:
+### 2.2 Was gehört bewusst nicht in `src/library`?
 
 ```text
-1. src/library/source bleibt die dateibasierte Quelle für VPLIB-Directory-Packages.
-2. Scanner/Reader/Validator/Fingerprint erzeugen dateibasierte Pipeline-Ergebnisse.
-3. DB-Sync schreibt gültige Packages nach PostgreSQL.
-4. Published-Service liest produktive Library-Daten aus PostgreSQL.
-5. routes/api.py stellt die HTTP-Außenkante für Scan, Sync und DB-Reads bereit.
-6. source=db ist der produktive Zielpfad.
-7. source=filesystem bleibt Debug-/Vergleichspfad.
+- Keine Flask-Routen direkt in Domain-/Repository-/Service-Dateien.
+- Keine Datenbankmigrationen in Services.
+- Kein db.create_all().
+- Keine Tabellenanlage durch Runtime-Code.
+- Keine UI-Komponenten.
+- Keine direkte Frontend-Logik.
+- Keine automatische DB-Schreiboperation bei GET /scan.
+```
+
+### 2.3 Außenkanten
+
+Wichtige Außenkanten liegen außerhalb von `src/library`:
+
+```text
+routes/
+  Flask-Blueprints und HTTP-Adapter
+
+src/routes/
+  Blueprint-Registry / Import- und Registrierungslogik
+
+models/
+  SQLAlchemy-Modelle
+
+migrations/
+  Alembic-/Flask-Migrate-Versionen
+
+PostgreSQL
+  persistierter Published-/Draft-/Definitions-/File-/User-Zustand
 ```
 
 ---
 
-## 3. Source of Truth und Speicherorte
+## 3. Source-of-Truth-Modell
 
-### 3.1 Dateibasierte Package-Quelle
+Die Schicht arbeitet mit mehreren bewusst getrennten Wahrheiten.
+
+### 3.1 Source Packages
 
 ```text
 services/vectoplan-library/src/library/source/
 ```
 
-Aktueller Testblock:
+Das ist die menschlich lesbare Source-Struktur für VPLIB Directory Packages.
+
+Eigenschaften:
 
 ```text
-services/vectoplan-library/src/library/source/hochbau/bloecke/basic_stone_block/
+- versionierbar im Repository
+- gut lesbar und reviewbar
+- Quelle für /scan und /sync
+- keine DB-Tabelle
+- kein Runtime-Cache
 ```
 
-Wichtige Dateien im Testblock:
+Kanonisches Ziel-Layout:
 
 ```text
-vplib.manifest.json
-vplib.modules.json
-family/identity.json
-family/classification.json
-editor/inventory.json
-variants/index.json
-variants/default.json
-editor/placement.json
-manufacturer/contract.json
-physical/base.json
-physical/collision.json
-physical/dimensions.json
-render/render_variants.json
+src/library/source/{domain}/{category}/{subcategory}/{family_slug}/
+├── vplib.manifest.json
+├── vplib.modules.json
+├── family/
+│   ├── identity.json
+│   └── classification.json
+├── variants/
+│   ├── index.json
+│   └── default.json
+├── editor/
+├── render/
+├── physical/
+├── material/
+├── calculation/
+├── manufacturer/
+├── analysis/
+├── dynamic/
+├── docs/
+├── tests/
+└── assets/
 ```
 
-Aktuelle Test-IDs:
+### 3.2 Published DB State
 
-```text
-vplib_uid      = 2cd32d24-0758-4663-be1b-63f39b9b44af
-family_id      = vp.hochbau.bloecke.basic_stone_block
-package_id     = vplib.vp.hochbau.bloecke.basic_stone_block
-revision_hash  = 3e86f507dd7af84365bdb2f9bd242647401a6f8e8ee7416b3ce7f5a5f8c01010
-```
-
-### 3.2 Persistierter produktiver Zustand
-
-```text
-PostgreSQL Datenbank: vectoplan_library
-```
+Published State liegt in PostgreSQL und ist der produktive Lesezustand der Library.
 
 Wichtige Tabellen:
 
 ```text
-alembic_version
 creative_library_items
 creative_library_revisions
 creative_library_variants
@@ -210,43 +244,170 @@ creative_library_scan_issues
 creative_library_inventory_slots
 ```
 
-### 3.3 Runtime-/Output-Verzeichnis
+Eigenschaften:
 
 ```text
-services/vectoplan-library/generated/
+- produktiver API-Lesepfad
+- wird durch POST /sync oder Publish geschrieben
+- enthält current_revision_id und Zähler/Aggregate
+- enthält Revisionen und Child Rows
+- wird nicht durch GET /scan verändert
 ```
 
-Bedeutung:
+### 3.3 Draft State
+
+Drafts sind Arbeitszustand für Generator/Edit/Publish.
+
+Tabellen:
 
 ```text
-- Output
-- Cache
-- Testartefakte
-- Archive
-- keine kanonische Quelle für Library-Blöcke
+creative_library_drafts
+creative_library_draft_variants
+creative_library_draft_assets
+creative_library_draft_documents
+creative_library_draft_validation_issues
+creative_library_draft_audit_events
 ```
 
-### 3.4 Migrationen
+Eigenschaften:
 
 ```text
-services/vectoplan-library/migrations/
-services/vectoplan-library/migrations/versions/
+- nicht automatisch published
+- darf unfertig/invalid sein
+- kann später in Published Payload umgewandelt werden
+- getrennt von System-Library und User Collections
 ```
 
-Aktueller Stand:
+### 3.4 Definitions State
+
+Definitionen beschreiben fachliche Kataloge:
 
 ```text
-✅ migrations/versions wird lokal sichtbar.
-✅ Alembic-State ist konsistent.
-✅ Tabellen existieren.
+variables
+units
+materials
+document_types
+object_kinds
+family_profiles
+variant_profiles
+profile_bindings
+```
+
+Es gibt zwei Ebenen:
+
+```text
+1. JSON-Seeds unter src/library/definitions/data/*.json
+2. Persistierte Definitionen in PostgreSQL über models/library_definitions.py
+```
+
+### 3.5 Taxonomy State
+
+Taxonomie beschreibt:
+
+```text
+domain -> category -> subcategory
+```
+
+Sie existiert in:
+
+```text
+src/library/taxonomy/data/taxonomy.v1.json
+models/library_taxonomy.py
+```
+
+Aktuell ist die Taxonomie Backend-kanonisch. Der Create-Wizard und der Scan sollen Taxonomie nicht hardcoden.
+
+### 3.6 User State
+
+User-spezifische Dinge liegen separat:
+
+```text
+creative_library_collections
+creative_library_collection_items
+creative_library_user_overrides
+creative_library_user_audit_events
+user_inventory_state
+user_inventory_slots
+```
+
+Phase 1:
+
+```text
+user_id = 1
+Hotbar Slots = 9
 ```
 
 ---
 
-## 4. Architekturkarte
+## 4. Gesamtarchitektur als Schichtenmodell
 
 ```text
-services/vectoplan-library/src/library
+HTTP / Flask
+  routes/*.py
+  src/routes/__init__.py
+      ↓
+Route Services / API-near Services
+  src/services/library_route_service.py
+  src/services/library_create_route_service.py
+      ↓
+Fachliche Library Services
+  src/library/services/library_scan_service.py
+  src/library/services/library_db_sync_service.py
+  src/library/services/creative_library_service.py
+  src/library/services/creative_library_draft_service.py
+  src/library/services/creative_library_user_service.py
+  src/library/services/library_definition_catalog_service.py
+  src/library/services/library_file_service.py
+  src/library/services/library_taxonomy_user_service.py
+      ↓
+Repositories
+  src/library/repositories/*.py
+      ↓
+SQLAlchemy Models
+  models/*.py
+      ↓
+PostgreSQL
+```
+
+### 4.1 Read-/Write-Trennung
+
+```text
+GET /api/v1/vplib/library/scan
+  -> read-only
+  -> liest source directory
+  -> schreibt nicht DB
+
+POST /api/v1/vplib/library/sync
+  -> write
+  -> scannt oder nimmt ScanResult entgegen
+  -> schreibt Published DB
+
+GET /api/v1/vplib/library/published
+GET /api/v1/vplib/library/items
+GET /api/v1/vplib/library/blocks
+GET /api/v1/vplib/library/tree
+  -> read
+  -> liest Published DB
+```
+
+### 4.2 Warum diese Trennung wichtig ist
+
+```text
+- Scan kann beliebig oft ausgeführt werden, ohne DB-Zustand zu ändern.
+- Sync ist explizit und nachvollziehbar.
+- Tests können zuerst /scan prüfen und danach /sync.
+- Published API ist stabil, auch wenn Source-Dateien temporär kaputt sind.
+- Drafts können invalid sein, ohne produktive Library zu beschädigen.
+```
+
+---
+
+## 5. Ordner- und Filestruktur
+
+Aktuelle Zielstruktur von `src/library`:
+
+```text
+services/vectoplan-library/src/library/
 │
 ├── __init__.py
 │
@@ -309,11 +470,23 @@ services/vectoplan-library/src/library
 │   ├── library_block_service.py
 │   ├── library_create_service.py
 │   ├── library_db_sync_service.py
-│   └── library_published_service.py
+│   ├── creative_library_service.py
+│   ├── creative_library_draft_service.py
+│   ├── creative_library_user_service.py
+│   ├── library_definition_catalog_service.py
+│   ├── library_definition_seed_service.py
+│   ├── library_file_service.py
+│   └── library_taxonomy_user_service.py
 │
 ├── repositories/
 │   ├── __init__.py
-│   └── sql/
+│   ├── creative_library_repository.py
+│   ├── creative_library_draft_repository.py
+│   ├── creative_library_user_repository.py
+│   ├── library_definition_repository.py
+│   ├── library_file_repository.py
+│   ├── library_taxonomy_repository.py
+│   └── sql/                         # legacy/compatibility, falls vorhanden
 │       ├── __init__.py
 │       └── creative_library_repository.py
 │
@@ -321,1639 +494,1855 @@ services/vectoplan-library/src/library
     └── {domain}/{category}/{subcategory}/{family_slug}/
 ```
 
-Relevante Außenkante:
+Wichtig: In deinem Projekt können alte und neue Pfade parallel existieren. Die neue Richtung ist:
 
 ```text
-services/vectoplan-library/routes/
-└── api.py
-
-services/vectoplan-library/src/routes/
-└── __init__.py
-
-services/vectoplan-library/models/
-└── creative_library.py
-
-services/vectoplan-library/entrypoint.sh
-services/vectoplan-library/docker-compose.yml
+src/library/repositories/creative_library_repository.py
+src/library/services/creative_library_service.py
+routes/library_routes.py
 ```
 
-Wichtig: Im Container ist für die aktive API-Datei der Pfad sichtbar als:
+Ältere Dokumentation oder alte APIs können noch auf diese Pfade zeigen:
 
 ```text
+src/library/repositories/sql/creative_library_repository.py
 routes/api.py
+library_published_service.py
 ```
 
-Im Repo-Kontext wurde teils auch `src/routes/api.py` erwähnt. Für die getesteten Containerbefehle gilt:
-
-```text
-docker compose exec -T vectoplan-library python -m py_compile routes/api.py
-```
+Diese Legacy-Pfade sind nicht automatisch falsch; sie müssen aber sauber als Compatibility-Layer verstanden werden.
 
 ---
 
-## 5. Zentrale Architekturregeln
+## 6. Ordner `definitions/`
 
-### 5.1 Read-/Write-Trennung
+### 6.1 Zweck
 
-```text
-GET /api/v1/vplib/library/scan
-  liest/scant dateibasiert
-  schreibt nicht in PostgreSQL
-
-POST /api/v1/vplib/library/sync
-  scannt dateibasiert
-  schreibt über Repository nach PostgreSQL
-
-GET /api/v1/vplib/library/blocks
-GET /api/v1/vplib/library/blocks/<block_id>
-GET /api/v1/vplib/library/blocks/<block_id>/variants
-GET /api/v1/vplib/library/tree
-GET /api/v1/vplib/library/inventory
-  lesen standardmäßig aus DB
-```
-
-### 5.2 DB erzeugt keine `vplib_uid`
-
-```text
-vplib_uid entsteht im Create-Flow oder steht im Source-Package.
-vplib_uid wird aus vplib.manifest.json gelesen.
-Repository und DB-Sync übernehmen diese ID.
-DB erzeugt sie nicht.
-DB repariert sie nicht.
-```
-
-### 5.3 Revisionsregel
-
-```text
-revision_hash beschreibt den Inhaltsstand.
-Neue Revision nur bei geändertem revision_hash.
-Gleicher revision_hash = idempotenter Sync ohne neue Revision.
-```
-
-### 5.4 Scanner bleibt DB-frei
-
-```text
-Scanner:
-  findet, liest und fingerprintet Packages
-
-Validation:
-  bewertet Packages fachlich
-
-DB-Sync-Service:
-  schreibt valide Ergebnisse über Repository in DB
-```
-
-### 5.5 Repository bleibt Scanner-frei
-
-```text
-Repository kennt SQLAlchemy und Models.
-Repository kennt keine Scanner- oder Validatorlogik.
-```
-
----
-
-## 6. ID- und Pfadmodell
-
-### 6.1 Kanonische Taxonomie
-
-```text
-domain      = oberster Reiter / Hauptdomäne
-category    = Kategorie innerhalb der Domain
-subcategory = Unterkategorie innerhalb der Kategorie
-family_slug = Paket-/Family-Slug
-```
-
-Kanonischer Zielpfad:
-
-```text
-src/library/source/{domain}/{category}/{subcategory}/{family_slug}
-```
-
-Aktueller Testblock liegt noch im Legacy-Pfad:
-
-```text
-src/library/source/hochbau/bloecke/basic_stone_block
-```
-
-Im Inhalt steht aber:
-
-```text
-domain      = hochbau
-category    = bloecke
-subcategory = basis
-```
-
-Daher ordnet der DB-Tree den Block korrekt ein:
-
-```text
-root
-└── hochbau
-    └── bloecke
-        └── basis
-            └── vp.hochbau.bloecke.basic_stone_block
-```
-
-Für neue Pakete sollte die kanonische Tiefe 4 verwendet werden:
-
-```text
-src/library/source/hochbau/bloecke/basis/basic_stone_block
-```
-
-### 6.2 Aktuelle IDs
-
-```text
-vplib_uid
-  stabile technische Package-UID
-  Beispiel: 2cd32d24-0758-4663-be1b-63f39b9b44af
-
-family_id
-  semantische Family-ID
-  Beispiel: vp.hochbau.bloecke.basic_stone_block
-
-package_id
-  semantische Package-ID
-  Beispiel: vplib.vp.hochbau.bloecke.basic_stone_block
-
-revision_hash
-  Inhaltsfingerprint
-  Beispiel: 3e86f507dd7af84365bdb2f9bd242647401a6f8e8ee7416b3ce7f5a5f8c01010
-
-id / *_db_id
-  interne technische DB-IDs
-  Beispiel: creative_library_items.id = 1
-```
-
----
-
-## 7. Dateien und Ordner im Detail
-
-## 7.1 `src/library/__init__.py`
-
-Aufgabe:
-
-```text
-Root-Fassade der Library-Schicht.
-```
-
-Verantwortung:
-
-```text
-- Lazy Imports
-- Health Checks
-- Cache-Clear
-- Root-Informationen
-- Source-Root-Ermittlung
-- Subpackage-Status
-- DB-/Repository-/Published-Capabilities
-```
-
-Wichtige Konzepte:
-
-```text
-CORE_SUBPACKAGES
-DB_SUBPACKAGES
-OPTIONAL_SUBPACKAGES
-CONTENT_DIRECTORIES
-SUBPACKAGE_HEALTH_FUNCTIONS
-```
-
-Status:
-
-```text
-✅ grün
-```
-
----
-
-## 7.2 `definitions/`
-
-Aufgabe:
-
-```text
-Backend-eigene Definitionen für Object-Kinds, Profile, Varianten,
-Einheiten, Materialien, Dokumenttypen und spätere Product-Overlay-Fähigkeit.
-```
-
-### `definitions/__init__.py`
-
-```text
-Fassade für Definitions-Schicht.
-Exportiert zentrale Models, Registry- und Service-Funktionen.
-```
-
-### `definition_models.py`
-
-```text
-Dataclass-/Domain-Modelle für:
-- ObjectKinds
-- FamilyProfiles
-- VariantProfiles
-- Units
-- Materials
-- Variables
-- DocumentTypes
-- ProfileBindings
-```
-
-### `definition_registry.py`
-
-```text
-Lädt JSON-Definitionsdaten aus definitions/data/.
-Stellt Registry-Zugriffe bereit.
-Soll keine API- oder DB-Logik enthalten.
-```
-
-### `definition_service.py`
-
-```text
-Service-Schicht über der Registry.
-Gedacht für Create-Flow, UI-Optionen, Profile Resolver und Validierung.
-```
-
-### `definitions/data/*.json`
-
-```text
-document_types.v1.json
-family_profiles.v1.json
-materials.v1.json
-object_kinds.v1.json
-profile_bindings.v1.json
-units.v1.json
-variables.v1.json
-variant_profiles.v1.json
-```
-
-Status:
-
-```text
-✅ grün
-⚠️ Taxonomie/Profile-Abgleich später weiter schärfen.
-```
-
----
-
-## 7.3 `taxonomy/`
-
-Aufgabe:
-
-```text
-Kanonische Backend-Taxonomie.
-```
-
-### `taxonomy/__init__.py`
-
-```text
-Fassade für Taxonomie.
-Exportiert Registry, Service, Validator und Health.
-```
-
-### `taxonomy_models.py`
-
-```text
-Modelle für Domain, Category, Subcategory, TaxonomySelection,
-TaxonomyPath und Create-Optionen.
-```
-
-### `taxonomy_registry.py`
-
-```text
-Lädt taxonomy.v1.json.
-Stellt Lookup und Normalisierung für domain/category/subcategory bereit.
-```
-
-### `taxonomy_validator.py`
-
-```text
-Validiert Taxonomie-Auswahl, Source-Pfad-Tiefe,
-object_kind-Regeln und Legacy-Pfadfälle.
-```
-
-### `taxonomy_service.py`
-
-```text
-Service-Fassade für Routen/Create-Flow:
-- verfügbare Taxonomie liefern
-- Auswahl validieren
-- IDs und Source-Pfade ableiten
-```
-
-### `taxonomy/data/taxonomy.v1.json`
-
-```text
-Kanonische Taxonomie-Datenbasis.
-Aktuell relevant:
-domain = hochbau
-category = bloecke
-subcategory = basis
-```
-
-Status:
-
-```text
-✅ grün
-⚠️ Legacy-Pfad des Testblocks bleibt Übergangsfall.
-```
-
----
-
-## 7.4 `scanner/`
-
-Aufgabe:
-
-```text
-Dateibasierter Scan von src/library/source.
-```
-
-### `scanner/__init__.py`
-
-```text
-Fassade für Discovery, Reader und Fingerprint.
-```
-
-### `package_discovery.py`
+`definitions/` enthält fachliche Definitionen für Create, Validation und UI-Optionen.
 
-```text
-Findet VPLIB-Directory-Packages.
-Erkennt canonical und legacy Source-Pfade.
-Leitet Pfadklassifikation ab.
-Schreibt nicht in DB.
-```
-
-### `package_reader.py`
-
-```text
-Liest JSON-Dokumente aus gefundenen Package-Kandidaten.
-Prüft technische Lesbarkeit.
-Soll vplib.manifest.json und Module lesen.
-Schreibt nicht in DB.
-```
-
-### `package_fingerprint.py`
-
-```text
-Erzeugt revision_hash / Inhaltsfingerprint aus gelesenen Dokumenten.
-Schreibt nicht in DB.
-```
-
-Status:
-
-```text
-✅ grün
-⚠️ vollständige vplib_uid-Durchreichung weiterhin prüfen.
-```
-
----
-
-## 7.5 `validation/`
-
-Aufgabe:
-
-```text
-Fachliche Creative-Library-Validierung gelesener Packages.
-```
-
-### `validation/__init__.py`
-
-```text
-Fassade für Validatoren und Health.
-```
-
-### `library_package_validator.py`
-
-```text
-Validiert Library-Tauglichkeit:
-- Identity
-- Classification
-- Varianten
-- sichtbare Summary-Daten
-- Module
-- optionale VPLIB-Core-Validation
-```
-
-Bereits behoben:
-
-```text
-✅ Dict/Options-Bruch wurde erkannt.
-✅ Validator-Optionen müssen dict/dataclass/Namespace-kompatibel normalisiert werden.
-```
-
-Offen:
-
-```text
-⚠️ vplib_uid als publish-kritisches Pflichtfeld final erzwingen.
-⚠️ subcategory bei require_taxonomy final hart prüfen.
-⚠️ Legacy depth 3 nur noch kontrolliert erlauben.
-```
-
----
-
-## 7.6 `domain/`
-
-Aufgabe:
-
-```text
-API-taugliche fachliche Datenmodelle.
-```
-
-### `domain/__init__.py`
-
-```text
-Fassade für Domain-Modelle.
-Enthält Exporte und Health.
-```
-
-### `library_item.py`
-
-```text
-Altes dateibasiertes Summary-Modell:
-- LibraryItem
-- Classification
-- ValidationSummary
-- AssetRefs
-Wird für filesystem Debug-Pfad genutzt.
-```
-
-### `library_detail.py`
-
-```text
-Altes dateibasiertes Detailmodell:
-- LibraryItemDetail
-- VariantDetail
-- ModuleDetail
-- DocumentEntry
-Wird für filesystem Detailpfad genutzt.
-```
-
-### `scan_result.py`
-
-```text
-ScanResult-Domain:
-- LibraryScanResult
-- LibraryScanCandidate
-- ScanStats
-- Messages
-- DuplicateId
-```
-
-### `sync_result.py`
-
-```text
-DB-Sync-Ergebnis-Domain:
-- LibrarySyncResult
-- LibrarySyncCandidateResult
-- LibrarySyncIssue
-- LibrarySyncOperationResult
-- LibrarySyncStats
-- LibrarySyncRunInfo
-```
-
-Bekannter Fix:
-
-```text
-✅ dataclasses.field-Kollision wurde durch dataclass_field-Alias gelöst.
-```
-
-### `publication.py`
-
-```text
-Published-Read-Domain:
-- PublishedFamilySummary
-- PublishedFamilyDetail
-- PublishedVariantSummary
-- PublishedAssetRef
-- PublishedRevisionSummary
-- PublishedValidationSummary
-- PublishedLibraryStats
-- PublishedLibraryListResult
-```
-
-Wird durch `library_published_service.py` und DB-Read-Routen genutzt.
-
-### `inventory.py`
-
-```text
-Inventory-Domain:
-- InventoryState
-- InventorySlot
-- InventoryVariantRef
-- InventoryAssetRef
-- InventoryPlacementInfo
-- InventoryStats
-```
+Beispiele:
 
-Wird durch `/inventory` und Fallback aus Published Families genutzt.
-
-Status:
-
-```text
-✅ neue Domain-Modelle grün
-⚠️ alte filesystem Domain-Modelle sollten vplib_uid sauber durchreichen.
-```
-
----
-
-## 7.7 `read_models/`
-
-Aufgabe:
-
-```text
-API-nahe Builder für dateibasierte und DB-basierte Antworten.
-```
-
-### `read_models/__init__.py`
-
-```text
-Fassade und Health für Read-Model-Builder.
-```
-
-### `block_summary_builder.py`
-
-```text
-Baut filesystem-basierte Block-Summaries aus Scan-/Read-Ergebnissen.
-```
-
-### `block_detail_builder.py`
-
-```text
-Baut filesystem-basierte Detailansichten.
-```
-
-### `library_index_builder.py`
-
-```text
-Baut In-Memory-Index und Tree für filesystem Debug-Pfad.
-```
-
-### `db_block_summary_builder.py`
-
-```text
-Baut DB-basierte PublishedFamilySummary/Blocks-Responses aus DB-Zeilen.
-```
-
-### `db_block_detail_builder.py`
-
-```text
-Baut DB-basierte Detail- und Variantenantworten aus Repository-Detailpayloads.
-```
-
-### `db_library_tree_builder.py`
-
-```text
-Baut Tree:
-root -> domain -> category -> subcategory -> item_ids
-```
-
-Aktuell nachgewiesen:
-
-```text
-✅ /tree?source=db funktioniert.
-✅ Block erscheint unter hochbau/bloecke/basis.
-```
-
-### `db_inventory_builder.py`
-
-```text
-Baut InventoryState aus:
-- echten creative_library_inventory_slots
-- oder Fallback aus Published Families
-```
-
-Status:
-
-```text
-✅ DB-Tree grün
-✅ DB-Blocks-Liste grün
-⚠️ DB-Detail/Variants abhängig von Repository-Lookup und Child-Filtern.
-```
-
----
-
-## 7.8 `services/`
-
-Aufgabe:
-
-```text
-Orchestrierung zwischen Scanner, Validation, ReadModels, Repository und API.
-```
-
-### `services/__init__.py`
-
-```text
-Service-Fassade.
-Exportiert filesystem Services, DB-Sync-Service und Published-Service.
-```
-
-Wichtige Wrapper:
-
-```text
-sync_library_to_database()
-sync_library_to_database_response()
-list_published_blocks_db_response()
-published_block_detail_db_response()
-published_block_variants_db_response()
-published_tree_db_response()
-published_inventory_db_response()
-publication_status_response()
-```
-
-### `library_scan_service.py`
-
-```text
-Orchestriert dateibasierten Scan:
-Discovery -> Reader -> Validation -> Fingerprint -> ReadModel.
-```
-
-Wichtiger Fix:
-
 ```text
-✅ options werden dict/dataclass/Namespace-kompatibel normalisiert.
-✅ Fehler `'dict' object has no attribute 'require_taxonomy'` wurde behoben.
-✅ /scan?force_refresh=true funktioniert.
+- Welche Object-Kinds gibt es?
+- Welche Family-Profile existieren?
+- Welche Variant-Profile existieren?
+- Welche Einheiten sind erlaubt?
+- Welche Materialien sind bekannt?
+- Welche Dokumenttypen gibt es?
+- Welche Variablen sind technisch/fachlich bekannt?
+- Welche Profile binden welche Variablen?
 ```
 
-### `library_block_service.py`
+### 6.2 Dateien
 
-```text
-Filesystem Debug-Pfad:
-- list blocks
-- detail
-- variants
-- tree
-```
+#### `definition_models.py`
 
-Bleibt wichtig für Vergleich mit DB-Pfad.
+Dataclass-/Domain-Modelle für die Definitionsschicht.
 
-### `library_create_service.py`
+Typische Konzepte:
 
 ```text
-Create-Flow für neue Source Packages:
-- draft
-- validate
-- package-plan
-- download
-- save
+DefinitionDataset
+DefinitionVariable
+DefinitionUnit
+DefinitionMaterial
+DefinitionDocumentType
+DefinitionObjectKind
+DefinitionFamilyProfile
+DefinitionVariantProfile
+DefinitionProfileBinding
 ```
 
-Offen:
-
-```text
-⚠️ needs_sync=true nach save stärker sichtbar machen.
-⚠️ optional save?sync=true später.
-```
+#### `definition_registry.py`
 
-### `library_db_sync_service.py`
+Lädt JSON-Dateien aus:
 
 ```text
-Filesystem/PipelineResult -> PostgreSQL.
+src/library/definitions/data/*.json
 ```
 
 Aufgaben:
 
 ```text
-- Scan auslösen
-- Kandidaten extrahieren
-- Manifest-Fallback
-- vplib_uid extrahieren
-- family_id/package_id/revision_hash extrahieren
-- Family upserten
-- Revision erzeugen oder überspringen
-- Varianten/Assets/Dokumente speichern
-- Issues speichern
-- SyncResult bauen
+- JSON lesen
+- Einträge normalisieren
+- Lookup nach key/id bereitstellen
+- Registry-Health liefern
 ```
 
-Wichtige Fixes:
+Keine Aufgaben:
 
 ```text
-✅ Manifest-Fallback ergänzt.
-✅ Dokument-Fallback aus Package-Root ergänzt.
-✅ rekursive to_dict/asdict-Serialisierung entschärft.
+- keine DB-Writes
+- keine Flask-Routen
+- keine UI-Logik
 ```
 
-Status:
+#### `definition_service.py`
+
+Service über der Registry.
+
+Aufgaben:
 
 ```text
-✅ strukturell grün
-⚠️ HTTP-/End-to-End-Sync nach letzten Repository-Fixes erneut final testen.
+- Create-Optionen erzeugen
+- Profile auflösen
+- Profile-Bindings auswerten
+- Definitionen API-fähig serialisieren
 ```
 
-### `library_published_service.py`
+### 6.3 Neue DB-backed Definition-Schicht
+
+Zusätzlich existieren neue Dateien außerhalb von `definitions/`:
 
 ```text
-Produktiver DB-Read-Service.
-Liest über CreativeLibraryRepository und baut Published-Domain-Antworten.
+models/library_definitions.py
+src/library/repositories/library_definition_repository.py
+src/library/services/library_definition_catalog_service.py
+src/library/services/library_definition_seed_service.py
+routes/library_definition_routes.py
 ```
 
-Wichtige Pfade:
+Zusammenhang:
 
 ```text
-list_published_blocks_response()
-get_published_block_detail_response()
-get_published_block_variants_response()
-get_published_tree_response()
-get_inventory_response()
+JSON Seed Files
+  -> library_definition_seed_service
+  -> library_definition_repository
+  -> PostgreSQL definition tables
+  -> library_definition_catalog_service
+  -> /api/v1/vplib/definitions/*
+  -> /api/v1/vplib/create/options
 ```
 
-Aktueller Stand:
+### 6.4 Typische Routen
 
 ```text
-✅ Blocks-Liste funktioniert.
-✅ Tree funktioniert.
-⚠️ Detail abhängig von Repository Identifier Lookup.
-⚠️ Variants gibt derzeit count=0, obwohl DB variant_count=1 zeigt.
+GET  /api/v1/vplib/definitions/health
+GET  /api/v1/vplib/definitions/catalog
+GET  /api/v1/vplib/definitions/current
+GET  /api/v1/vplib/definitions/create-options
+GET  /api/v1/vplib/definitions/create-context
+GET  /api/v1/vplib/definitions/datasets
+POST /api/v1/vplib/definitions/seed/preview
+POST /api/v1/vplib/definitions/seed
 ```
 
 ---
 
-## 7.9 `repositories/`
+## 7. Ordner `taxonomy/`
 
-### `repositories/__init__.py`
+### 7.1 Zweck
+
+Taxonomie ist die kanonische Struktur für Library-Pfade und UI-Kategorien.
 
 ```text
-Repository-Fassade.
-Lazy Import.
-Backend-Auswahl.
-Health.
-Cache-Clear.
+domain -> category -> subcategory
 ```
 
-### `repositories/sql/__init__.py`
+Beispiel:
 
 ```text
-SQL-Repository-Fassade.
-Löst Model- und Extension-Module.
-Stellt Factory für CreativeLibraryRepository bereit.
+hochbau -> bloecke -> basis
 ```
 
-### `repositories/sql/creative_library_repository.py`
+### 7.2 Dateien
+
+#### `taxonomy_models.py`
+
+Modelle für:
 
 ```text
-Zentrale SQLAlchemy-Zugriffsschicht.
+TaxonomyNode
+TaxonomyDomain
+TaxonomyCategory
+TaxonomySubcategory
+TaxonomySelection
+TaxonomyPath
+TaxonomyValidationResult
 ```
 
-Wichtige Aufgaben:
+#### `taxonomy_registry.py`
+
+Lädt:
 
 ```text
-- Session holen
-- Model-Klassen tolerant finden
-- ScanRuns speichern
-- Issues speichern
-- Families upserten
-- Revisionen anlegen
-- Varianten/Assets/Dokumente ersetzen
-- Published Families listen
-- Detaildaten laden
-- Varianten/Assets/Dokumente laden
-- Inventory Slots lesen
+src/library/taxonomy/data/taxonomy.v1.json
 ```
 
-Wichtige aktuelle Fixes/Ziel-Fixes:
+Aufgaben:
 
 ```text
-1. get_family_by_identifier(...)
-   darf String-Identifier nicht gegen bigint id vergleichen.
-
-2. _filter_not_deleted(...)
-   muss NULL-Werte als "nicht gelöscht" behandeln.
-
-3. Idempotenter Sync darf keine aggressive Aggregate-Reparatur ausführen.
-
-4. current_revision_* und Counts werden konservativ gesetzt
-   oder gezielt per repair_family_aggregate_fields(...) repariert.
+- Registry aufbauen
+- IDs normalisieren
+- Parent/Child-Zusammenhänge liefern
+- Lookup für domain/category/subcategory
 ```
 
-Status:
+#### `taxonomy_validator.py`
+
+Validiert:
 
 ```text
-⚠️ wichtigste aktuelle Datei
+- existiert domain?
+- existiert category unter domain?
+- existiert subcategory unter category?
+- passt Source-Pfad zur Classification?
+- ist Legacy-Pfad erlaubt?
+- passt object_kind zur Taxonomie?
+```
+
+#### `taxonomy_service.py`
+
+Fassade für Routen und Services:
+
+```text
+- get_create_options_payload
+- validate_selection
+- health
+- clear_cache
+- Taxonomie-Tree liefern
+```
+
+### 7.3 DB-backed Taxonomy-Schicht
+
+Neue persistente Taxonomie-User-/Override-Schicht:
+
+```text
+models/library_taxonomy.py
+src/library/repositories/library_taxonomy_repository.py
+src/library/services/library_taxonomy_user_service.py
+routes/taxonomy.py
+```
+
+Aufgaben:
+
+```text
+- System-Taxonomie lesen
+- User-Taxonomie/Overrides verwalten
+- Resolved Taxonomy erzeugen
+- Audit Events schreiben
+```
+
+Typische Routen:
+
+```text
+GET /api/v1/vplib/taxonomy/health
+GET /api/v1/vplib/taxonomy/routes
+GET /api/v1/vplib/taxonomy/resolved
+GET /api/v1/vplib/taxonomy/tree
+GET /api/v1/vplib/taxonomy/nodes
+GET /api/v1/vplib/taxonomy/create-options
 ```
 
 ---
 
-## 7.10 `source/`
+## 8. Ordner `scanner/`
 
-Aufgabe:
+### 8.1 Zweck
+
+`scanner/` liest die dateibasierte Source-Library.
+
+Es schreibt nicht in die DB und verändert keine Source-Dateien.
+
+Pipeline:
 
 ```text
-Content-Verzeichnis für echte VPLIB-Directory-Packages.
+source root
+  -> package_discovery
+  -> package_reader
+  -> package_fingerprint
 ```
 
-Kanonisches Layout:
+### 8.2 `package_discovery.py`
+
+Findet VPLIB Directory Packages.
+
+Aufgaben:
+
+```text
+- source root durchlaufen
+- Kandidaten erkennen
+- canonical layout erkennen
+- legacy layout erkennen
+- path classification ableiten
+- PackageCandidate-ähnliche Objekte erzeugen
+```
+
+Canonical Layout:
 
 ```text
 source/{domain}/{category}/{subcategory}/{family_slug}/
-├── vplib.manifest.json
-├── vplib.modules.json
-├── family/
-├── variants/
-├── editor/
-├── render/
-├── physical/
-├── material/
-├── calculation/
-├── manufacturer/
-├── analysis/
-├── dynamic/
-├── docs/
-├── tests/
-└── assets/
 ```
 
-Aktueller Testblock ist noch Legacy-Tiefe 3:
+Legacy Layout kann noch vorkommen:
+
+```text
+source/{domain}/{category}/{family_slug}/
+```
+
+### 8.3 `package_reader.py`
+
+Liest Dokumente eines Kandidaten.
+
+Aufgaben:
+
+```text
+- JSON-Dateien lesen
+- manifest finden
+- identity/classification finden
+- Module und Varianten lesen
+- ReadResult erzeugen
+```
+
+Wichtige Dokumente:
+
+```text
+vplib.manifest.json
+vplib.modules.json
+family/identity.json
+family/classification.json
+editor/inventory.json
+variants/index.json
+variants/default.json
+```
+
+### 8.4 `package_fingerprint.py`
+
+Erzeugt `revision_hash`.
+
+Aufgaben:
+
+```text
+- gelesene Dokumente stabil serialisieren
+- Inhaltsfingerprint erzeugen
+- Revisionserkennung ermöglichen
+```
+
+Regel:
+
+```text
+Gleicher revision_hash = gleicher Inhaltsstand.
+Geänderter revision_hash = neue Revision möglich.
+```
+
+---
+
+## 9. Ordner `validation/`
+
+### 9.1 Zweck
+
+`validation/` prüft, ob ein gelesenes Package fachlich publishbar ist.
+
+### 9.2 `library_package_validator.py`
+
+Prüft typischerweise:
+
+```text
+- manifest vorhanden
+- vplib_uid vorhanden
+- family_id vorhanden
+- package_id vorhanden
+- classification vorhanden
+- domain/category/subcategory gültig
+- Varianten lesbar
+- relevante Dokumente vorhanden
+- object_kind bekannt
+- Profile/Definitionen konsistent
+```
+
+### 9.3 Verhältnis zu Scanner
+
+Scanner beantwortet:
+
+```text
+Kann ich das Package finden und lesen?
+```
+
+Validator beantwortet:
+
+```text
+Darf dieses Package in die Creative Library published werden?
+```
+
+### 9.4 Verhältnis zu DB-Sync
+
+DB-Sync nutzt Validation-Ergebnis:
+
+```text
+valid + vplib_uid + revision_hash
+  -> publishbar
+
+invalid oder missing vplib_uid
+  -> Issue speichern / Kandidat skippen
+```
+
+---
+
+## 10. Ordner `domain/`
+
+### 10.1 Zweck
+
+`domain/` enthält API-nahe, fachliche Datenmodelle. Diese Modelle sollen möglichst unabhängig von Flask und SQLAlchemy bleiben.
+
+### 10.2 `library_item.py`
+
+Dateibasierte Summary-Modelle.
+
+Typische Inhalte:
+
+```text
+LibraryItem
+Classification
+ValidationSummary
+AssetRefs
+```
+
+Verwendung:
+
+```text
+- /scan source=file
+- /blocks source=file
+- filesystem debug path
+```
+
+### 10.3 `library_detail.py`
+
+Dateibasierte Detailansicht.
+
+Typische Inhalte:
+
+```text
+LibraryItemDetail
+VariantDetail
+ModuleDetail
+DocumentEntry
+```
+
+### 10.4 `scan_result.py`
+
+Domain für Scan-Ergebnisse.
+
+Typische Inhalte:
+
+```text
+LibraryScanResult
+LibraryScanCandidate
+ScanStats
+ScanMessage
+DuplicateId
+```
+
+### 10.5 `sync_result.py`
+
+Domain für DB-Sync-Ergebnisse.
+
+Typische Inhalte:
+
+```text
+LibrarySyncResult
+LibrarySyncCandidateResult
+LibrarySyncIssue
+LibrarySyncOperationResult
+LibrarySyncStats
+LibrarySyncRunInfo
+```
+
+Wichtig:
+
+```text
+- darf nicht rekursiv riesige ORM-/Scan-Objekte serialisieren
+- sollte kompakte to_dict()-Methoden liefern
+- ist API-Antwort-nah
+```
+
+### 10.6 `publication.py`
+
+Domain für Published-DB-Readmodelle.
+
+Typische Inhalte:
+
+```text
+PublishedFamilySummary
+PublishedFamilyDetail
+PublishedVariantSummary
+PublishedAssetRef
+PublishedRevisionSummary
+PublishedValidationSummary
+PublishedLibraryStats
+PublishedLibraryListResult
+```
+
+### 10.7 `inventory.py`
+
+Domain für Inventory-/Hotbar-Zustand.
+
+Typische Inhalte:
+
+```text
+InventoryState
+InventorySlot
+InventoryVariantRef
+InventoryAssetRef
+InventoryPlacementInfo
+InventoryStats
+```
+
+---
+
+## 11. Ordner `read_models/`
+
+### 11.1 Zweck
+
+`read_models/` übersetzt interne Scan- oder DB-Daten in API-nahe Antwortformen.
+
+Es gibt zwei Richtungen:
+
+```text
+1. Filesystem Read-Models
+   ScanResult/ReadResults -> Blocks/Tree/Detail
+
+2. DB Read-Models
+   Published DB Rows -> Blocks/Tree/Detail/Inventory
+```
+
+### 11.2 Filesystem Builder
+
+#### `block_summary_builder.py`
+
+Baut Block-Summaries aus Scan-/Read-Ergebnissen.
+
+#### `block_detail_builder.py`
+
+Baut Detailansichten aus dateibasierten Dokumenten.
+
+#### `library_index_builder.py`
+
+Baut In-Memory-Index:
+
+```text
+items
+items_by_id
+tree
+duplicate ids
+stats
+```
+
+### 11.3 DB Builder
+
+#### `db_block_summary_builder.py`
+
+Baut DB-basierte Blocks-Liste.
+
+Input:
+
+```text
+CreativeLibraryItem rows / repository payloads
+```
+
+Output:
+
+```text
+items[] mit id, label, family_id, vplib_uid, counts, taxonomy
+```
+
+#### `db_block_detail_builder.py`
+
+Baut Detailansicht aus Published DB.
+
+Input:
+
+```text
+item + current revision + variants + assets + documents
+```
+
+Output:
+
+```text
+summary
+revision
+variants
+assets
+documents
+metadata
+```
+
+#### `db_library_tree_builder.py`
+
+Baut Tree:
+
+```text
+root
+└── domain
+    └── category
+        └── subcategory
+            └── item refs
+```
+
+#### `db_inventory_builder.py`
+
+Baut Inventory-Zustand aus:
+
+```text
+- echten inventory slot rows
+- oder Fallback aus published families
+```
+
+---
+
+## 12. Ordner `services/`
+
+### 12.1 Zweck
+
+`services/` orchestriert fachliche Abläufe. Services sprechen Repositories, Scanner, Validatoren und Read-Models an.
+
+Services sind keine Flask-Routen und sollten keine Tabellen definieren.
+
+### 12.2 `library_scan_service.py`
+
+Orchestriert read-only Scan.
+
+Pipeline:
+
+```text
+resolve source root
+  -> taxonomy health/payload
+  -> package discovery
+  -> package reader
+  -> package validation
+  -> package fingerprint
+  -> library items
+  -> library index
+  -> scan/tree/blocks response
+```
+
+Wichtige Public API:
+
+```text
+scan_library_source()
+scan_library_source_no_cache()
+get_library_scan_response()
+get_library_blocks_response()
+get_library_tree_response()
+get_library_index()
+get_library_sync_preview_response()
+get_library_scan_service_health()
+clear_library_scan_cache()
+```
+
+Garantien:
+
+```text
+- keine DB-Writes
+- kein Schreiben in source
+- Cache nur in-memory
+- Optionen robust aus dict/dataclass/Namespace
+```
+
+### 12.3 `library_block_service.py`
+
+Compatibility-/Filesystem-Debug-Service für:
+
+```text
+- blocks list
+- block detail
+- variants
+- tree
+```
+
+Wird besonders für `source=file` oder legacy/debug genutzt.
+
+### 12.4 `library_db_sync_service.py`
+
+Persistenz-Entry-Point für Source/ScanResult -> DB.
+
+Ablauf:
+
+```text
+sync_library_source()
+  -> scan_library_source()
+  -> extract candidates
+  -> build publish payload per candidate
+  -> CreativeLibraryService.publish_bundle()
+     oder Repository-Fallback
+  -> ScanRun/Issues/Stats
+```
+
+Wichtige Public API:
+
+```text
+sync_library_to_db()
+sync_library_to_database_response()
+sync_scan_result_to_db()
+get_library_db_sync_service_health()
+assert_library_db_sync_service_ready()
+clear_library_db_sync_service_caches()
+```
+
+Regeln:
+
+```text
+- erzeugt keine vplib_uid
+- repariert keine fehlende vplib_uid
+- fehlende vplib_uid = Issue/Skip
+- source scan + write nur bei POST /sync
+```
+
+### 12.5 `creative_library_service.py`
+
+Published-DB-Service.
+
+Aufgaben:
+
+```text
+- Published Library lesen
+- Items lesen
+- Revisions/Variants/Assets/Documents lesen
+- Publish Bundle in DB schreiben
+- ScanRuns/Issues verwalten
+- Inventory Slots verwalten
+```
+
+Wichtige Public API:
+
+```text
+get_library()
+list_items()
+get_item()
+get_item_by_vplib_uid()
+list_revisions()
+list_variants()
+list_assets()
+list_documents()
+publish_bundle()
+sync_package_payload()
+start_scan_run()
+finish_scan_run()
+record_scan_issue()
+list_scan_runs()
+list_scan_issues()
+list_inventory_slots()
+set_inventory_slot()
+clear_inventory_slot()
+get_health()
+```
+
+### 12.6 `creative_library_draft_service.py`
+
+Draft Working State.
+
+Aufgaben:
+
+```text
+- Draft anlegen
+- Draft lesen/aktualisieren
+- Varianten/Assets/Dokumente am Draft verwalten
+- Draft validieren
+- Publish vorbereiten
+- Publish-Service optional aufrufen
+```
+
+Routen:
+
+```text
+/api/v1/vplib/library/drafts/*
+```
+
+### 12.7 `creative_library_user_service.py`
+
+User-spezifische Library-Schicht.
+
+Aufgaben:
+
+```text
+- Collections
+- Collection Items
+- User Overrides
+- Resolved Library pro User
+- Inventory-nahe User-Sichten
+```
+
+Routen:
+
+```text
+/api/v1/vplib/creative-library/*
+```
+
+### 12.8 `library_definition_catalog_service.py`
+
+DB-/Registry-backed Definitions-Service.
+
+Aufgaben:
+
+```text
+- aktuellen Catalog liefern
+- Definition nach key/id liefern
+- Create Options liefern
+- Create Context liefern
+- Profile/Binding auflösen
+- Health liefern
+```
+
+### 12.9 `library_definition_seed_service.py`
+
+Seed-Service.
+
+Aufgaben:
+
+```text
+- JSON-Dateien unter definitions/data lesen
+- Validierung/Preview
+- idempotent in DB schreiben
+```
+
+### 12.10 `library_file_service.py`
+
+File-/Upload-Service.
+
+Aufgaben:
+
+```text
+- Upload-Metadaten normalisieren
+- Storage-Ziel bestimmen
+- Datei-/Version-/Link-Datensätze verwalten
+- Upload-Constraints liefern
+```
+
+### 12.11 `library_taxonomy_user_service.py`
+
+Service über Taxonomy Repository.
+
+Aufgaben:
+
+```text
+- resolved taxonomy
+- nodes create/update/delete/restore/move/reorder
+- overrides
+- audit
+```
+
+### 12.12 `library_create_service.py`
+
+Create-Service für neue Packages.
+
+Aufgaben:
+
+```text
+- Create Options
+- Create Context
+- Draft Payload bauen
+- Draft validieren
+- Package Plan bauen
+- .vplib Archive bauen
+- Source Package speichern, wenn Write Mode aktiv
+- Persistent Draft Payload bauen
+- Publish Bundle aus Create Payload bauen
+```
+
+---
+
+## 13. Ordner `repositories/`
+
+### 13.1 Zweck
+
+Repositories kapseln Datenbankzugriffe. Sie kennen SQLAlchemy-Models und Session, aber keine Flask-Routen und keine Scannerlogik.
+
+### 13.2 Grundregeln
+
+```text
+- keine Flask-Imports
+- keine Response-Objekte
+- keine Source-Discovery
+- kein db.create_all()
+- keine Migration
+- commit optional
+- flush bei IDs, wenn commit=False
+```
+
+### 13.3 `creative_library_repository.py`
+
+Repository für Published Creative Library.
+
+Tabellen:
+
+```text
+creative_library_items
+creative_library_revisions
+creative_library_variants
+creative_library_assets
+creative_library_documents
+creative_library_scan_runs
+creative_library_scan_issues
+creative_library_inventory_slots
+```
+
+Aufgaben:
+
+```text
+- Items upserten
+- Revisions erzeugen/current setzen
+- Varianten erzeugen/upserten
+- Assets/Dokumente erzeugen
+- ScanRuns starten/beenden
+- Issues speichern
+- Published payloads lesen
+- Inventory Slots lesen/setzen
+```
+
+### 13.4 `creative_library_draft_repository.py`
+
+Repository für Draft Working State.
+
+Tabellen:
+
+```text
+creative_library_drafts
+creative_library_draft_variants
+creative_library_draft_assets
+creative_library_draft_documents
+creative_library_draft_validation_issues
+creative_library_draft_audit_events
+```
+
+### 13.5 `creative_library_user_repository.py`
+
+Repository für User Collections/Overrides.
+
+Tabellen:
+
+```text
+creative_library_collections
+creative_library_collection_items
+creative_library_user_overrides
+creative_library_user_audit_events
+```
+
+### 13.6 `library_definition_repository.py`
+
+Repository für Definitions-Catalog.
+
+Tabellen aus:
+
+```text
+models/library_definitions.py
+```
+
+### 13.7 `library_file_repository.py`
+
+Repository für Uploads und Datei-Verknüpfungen.
+
+Tabellen:
+
+```text
+library_files
+library_file_versions
+library_file_links
+library_file_audit_events
+```
+
+### 13.8 `library_taxonomy_repository.py`
+
+Repository für Taxonomie-Nodes, Overrides und Audit.
+
+Tabellen:
+
+```text
+library_taxonomy_nodes
+library_taxonomy_overrides
+library_taxonomy_audit_events
+```
+
+---
+
+## 14. Ordner `source/`
+
+### 14.1 Zweck
+
+`source/` enthält echte VPLIB Directory Packages.
+
+Beispiel:
+
+```text
+src/library/source/hochbau/bloecke/basis/basic_stone_block/
+```
+
+### 14.2 Erwartete Kerndokumente
+
+```text
+vplib.manifest.json
+vplib.modules.json
+family/identity.json
+family/classification.json
+editor/inventory.json
+variants/index.json
+variants/default.json
+```
+
+### 14.3 Was wird daraus gelesen?
+
+```text
+vplib_uid
+family_id
+package_id
+object_kind
+domain/category/subcategory
+variant_ids
+revision_hash
+metadata
+documents
+assets
+```
+
+### 14.4 Legacy-Pfade
+
+Ältere Pakete können in Tiefe 3 liegen:
 
 ```text
 source/hochbau/bloecke/basic_stone_block/
 ```
 
----
+Wenn `family/classification.json` `subcategory=basis` enthält, kann der DB-Tree trotzdem korrekt einsortieren.
 
-## 7.11 `routes/api.py`
-
-Aufgabe:
+Ziel für neue Pakete:
 
 ```text
-HTTP-API für Library Scan, Sync und DB-Reads.
+source/hochbau/bloecke/basis/basic_stone_block/
 ```
+
+---
+
+## 15. Wichtige Außenkanten außerhalb von `src/library`
+
+### 15.1 `models/`
+
+Wichtige Model-Dateien:
+
+```text
+models/creative_library.py
+models/creative_library_drafts.py
+models/creative_library_user.py
+models/library_definitions.py
+models/library_files.py
+models/library_taxonomy.py
+models/user_inventory.py
+models/__init__.py
+```
+
+#### `models/creative_library.py`
+
+Published Creative Library.
+
+Wichtige Tabellen:
+
+```text
+CreativeLibraryItem
+CreativeLibraryRevision
+CreativeLibraryVariant
+CreativeLibraryAsset
+CreativeLibraryDocument
+CreativeLibraryScanRun
+CreativeLibraryScanIssue
+CreativeLibraryInventorySlot
+```
+
+Wichtigster letzter Fix:
+
+```text
+Zyklische FKs zu Draft-Tabellen use_alter=True.
+```
+
+#### `models/creative_library_drafts.py`
+
+Draft Working State.
+
+Wichtigster letzter Fix:
+
+```text
+Optionale Rückverweise auf Published-Tabellen use_alter=True.
+```
+
+### 15.2 `routes/`
 
 Wichtige Routen:
 
 ```text
-GET  /api/v1/vplib/library/health
-GET  /api/v1/vplib/library/db/health
-GET  /api/v1/vplib/library/scan
-POST /api/v1/vplib/library/sync
-GET  /api/v1/vplib/library/sync-runs
-GET  /api/v1/vplib/library/publication-status
-GET  /api/v1/vplib/library/blocks
-GET  /api/v1/vplib/library/blocks/<block_id>
-GET  /api/v1/vplib/library/blocks/<block_id>/variants
-GET  /api/v1/vplib/library/tree
-GET  /api/v1/vplib/library/inventory
+routes/library_routes.py
+routes/library_definition_routes.py
+routes/taxonomy.py
+routes/create.py
 ```
 
-Wichtige Fixes:
+### 15.3 `src/routes/`
+
+Blueprint Registry:
 
 ```text
-✅ /sync gibt nicht mehr rohes LibrarySyncResult zurück.
-✅ sync_response_payload(...) kompakt eingeführt.
-✅ json_safe(...) nutzt to_dict vor Dataclass-Fallback.
-✅ Dataclass-Fallback ist shallow statt asdict-deep.
-✅ Detail-/Variants-Route nutzt call_block_identifier_function(...)
-   und verhindert doppelte identifier/block_id Übergabe.
-✅ Tree-DB-Route übergibt keine inkompatiblen Filter mehr.
+src/routes/__init__.py
 ```
 
-Status:
+Aufgaben:
 
 ```text
-✅ /blocks list grün
-✅ /tree grün
-⚠️ /detail und /variants abhängig vom Repository-Fix
+- Blueprints lazy importieren
+- Required/optional Blueprints unterscheiden
+- Aliase wie bp/blueprint unterstützen
+- Health/Registry-Info liefern
+```
+
+### 15.4 `src/services/`
+
+Route-nahe Services außerhalb von `src/library`:
+
+```text
+src/services/library_route_service.py
+src/services/library_create_route_service.py
+src/services/library_create_variant_payload_service.py
+```
+
+Diese liegen außerhalb von `src/library`, weil sie HTTP-/Route-nahe Adapter sind.
+
+---
+
+## 16. Datenbankmodell und Tabellenfamilien
+
+### 16.1 Published Library
+
+```text
+creative_library_items
+  ein veröffentlichter Family-/Block-Kopf
+
+creative_library_revisions
+  versionierter Inhaltsstand eines Items
+
+creative_library_variants
+  Varianten einer Revision/eines Items
+
+creative_library_assets
+  Asset-Metadaten einer Revision/eines Items
+
+creative_library_documents
+  Dokumentzeilen einer Revision/eines Items
+
+creative_library_scan_runs
+  Sync-/Scan-Run-Protokoll
+
+creative_library_scan_issues
+  Fehler/Warnungen aus Scan/Sync
+
+creative_library_inventory_slots
+  einfache Hotbar-/Slot-Brücke
+```
+
+### 16.2 Draft Library
+
+```text
+creative_library_drafts
+creative_library_draft_variants
+creative_library_draft_assets
+creative_library_draft_documents
+creative_library_draft_validation_issues
+creative_library_draft_audit_events
+```
+
+### 16.3 User Library
+
+```text
+creative_library_collections
+creative_library_collection_items
+creative_library_user_overrides
+creative_library_user_audit_events
+```
+
+### 16.4 Definitions
+
+```text
+library_definition_datasets
+library_definition_seed_runs
+library_definition_variables
+library_definition_units
+library_definition_materials
+library_definition_document_types
+library_definition_object_kinds
+library_definition_family_profiles
+library_definition_variant_profiles
+library_definition_profile_bindings
+library_definition_overrides
+```
+
+### 16.5 Files
+
+```text
+library_files
+library_file_versions
+library_file_links
+library_file_audit_events
+```
+
+### 16.6 Taxonomy
+
+```text
+library_taxonomy_nodes
+library_taxonomy_overrides
+library_taxonomy_audit_events
 ```
 
 ---
 
-## 7.12 `models/creative_library.py`
+## 17. Hauptdatenflüsse
 
-Aufgabe:
-
-```text
-SQLAlchemy-Modelle für Creative Library.
-```
-
-Tabellen:
+### 17.1 Dateibasierter Scan
 
 ```text
-CreativeLibraryItem              -> creative_library_items
-CreativeLibraryRevision          -> creative_library_revisions
-CreativeLibraryVariant           -> creative_library_variants
-CreativeLibraryAsset             -> creative_library_assets
-CreativeLibraryDocument          -> creative_library_documents
-CreativeLibraryScanRun           -> creative_library_scan_runs
-CreativeLibraryScanIssue         -> creative_library_scan_issues
-CreativeLibraryInventorySlot     -> creative_library_inventory_slots
-```
-
-Aliase:
-
-```text
-CreativeLibraryFamily = CreativeLibraryItem
-CreativeLibraryFamilyRevision = CreativeLibraryRevision
-```
-
-Aktuell bewiesen:
-
-```text
-✅ Tabellen existieren.
-✅ Daten wurden geschrieben.
-✅ Alembic erkennt Schema.
-```
-
----
-
-## 8. Hauptdatenflüsse
-
-### 8.1 Dateibasierter Scan
-
-```text
-GET /api/v1/vplib/library/scan?force_refresh=true
+GET /api/v1/vplib/library/scan?source=file
   ↓
-routes/api.py
+routes/library_routes.py
   ↓
-library_scan_service.scan_library_source()
+src/services/library_route_service.py
   ↓
-package_discovery
+src/library/services/library_scan_service.py
   ↓
-package_reader
+scanner/package_discovery.py
   ↓
-library_package_validator
+scanner/package_reader.py
   ↓
-package_fingerprint
+validation/library_package_validator.py
   ↓
-read_models
+scanner/package_fingerprint.py
+  ↓
+read_models/library_index_builder.py
   ↓
 JSON Response
 ```
 
-Status:
+Eigenschaften:
 
 ```text
-✅ funktioniert
+- schreibt nicht DB
+- eignet sich für Debug
+- zeigt, ob Source-Pakete lesbar sind
 ```
 
-### 8.2 DB-Sync
+### 17.2 DB-Sync aus Source
 
 ```text
 POST /api/v1/vplib/library/sync
   ↓
-routes/api.py
+routes/library_routes.py
   ↓
-services.sync_library_to_database_response()
+src/library/services/library_db_sync_service.py
   ↓
-library_db_sync_service.sync_library_to_db()
+src/library/services/library_scan_service.py
   ↓
-library_scan_service.scan_library_source()
+build publish payloads
   ↓
-CreativeLibraryRepository
+src/library/services/creative_library_service.py
+  ↓
+src/library/repositories/creative_library_repository.py
+  ↓
+models/creative_library.py
+  ↓
+PostgreSQL
+```
+
+Eigenschaften:
+
+```text
+- expliziter Write
+- scannt oder nimmt ScanResult entgegen
+- erzeugt ScanRun/Issues
+- upsertet Items
+- erzeugt Revisionen
+- schreibt Varianten/Assets/Dokumente
+```
+
+### 17.3 Published Library Read
+
+```text
+GET /api/v1/vplib/library/published
+GET /api/v1/vplib/library/items
+GET /api/v1/vplib/library/blocks
+GET /api/v1/vplib/library/tree
+  ↓
+routes/library_routes.py
+  ↓
+creative_library_service.py
+  ↓
+creative_library_repository.py
   ↓
 PostgreSQL
   ↓
-LibrarySyncResult / kompakte Sync-Response
+Read-Model / API Response
 ```
 
-Status:
+### 17.4 Create Flow
 
 ```text
-⚠️ strukturell funktioniert
-⚠️ nach letzten Fixes erneut final testen
+POST /api/v1/vplib/create/draft
+  ↓
+routes/create.py
+  ↓
+src/services/library_create_route_service.py
+  ↓
+src/services/library_create_variant_payload_service.py
+  ↓
+src/library/services/library_create_service.py
+  ↓
+CreateResult / PackagePlan / Archive / PersistentDraftPayload
 ```
 
-### 8.3 Blocks-Liste aus DB
+### 17.5 Draft Publish Prepare
 
 ```text
-GET /api/v1/vplib/library/blocks?source=db&limit=20
+POST /api/v1/vplib/library/drafts/<draft_ref>/publish/prepare
   ↓
-routes/api.py
+creative_library_draft_routes.py
   ↓
-services.list_published_blocks_db_response()
+creative_library_draft_service.py
   ↓
-library_published_service.list_published_blocks_response()
+build publish payload
   ↓
-CreativeLibraryRepository.list_published_families()
-  ↓
-PublishedFamilySummary[]
-  ↓
-JSON
-```
-
-Status:
-
-```text
-✅ funktioniert
-✅ count = 1
-```
-
-### 8.4 Block-Detail aus DB
-
-```text
-GET /api/v1/vplib/library/blocks/<block_id>?source=db
-  ↓
-routes/api.py
-  ↓
-services.published_block_detail_db_response()
-  ↓
-library_published_service.get_published_block_detail_response()
-  ↓
-CreativeLibraryRepository.get_published_family_detail()
-  ↓
-CreativeLibraryRepository.get_family_by_identifier()
-  ↓
-CreativeLibraryRepository.get_latest_revision()
-  ↓
-CreativeLibraryRepository.get_family_variants/assets/documents()
-  ↓
-JSON
-```
-
-Status:
-
-```text
-⚠️ frühere Fehler verstanden:
-   - doppelte identifier/block_id Übergabe
-   - bigint-vs-varchar in get_family_by_identifier()
-
-⚠️ finaler Detail-Response nach Repository-Fix noch vollständig dokumentieren.
-```
-
-### 8.5 Varianten aus DB
-
-```text
-GET /api/v1/vplib/library/blocks/<block_id>/variants?source=db
-  ↓
-routes/api.py
-  ↓
-services.published_block_variants_db_response()
-  ↓
-library_published_service.get_published_block_variants_response()
-  ↓
-CreativeLibraryRepository.get_family_variants()
-  ↓
-JSON
-```
-
-Aktueller Test:
-
-```json
-{
-  "ok": true,
-  "status": "ok",
-  "block_id": "vp.hochbau.bloecke.basic_stone_block",
-  "identifier": "vp.hochbau.bloecke.basic_stone_block",
-  "count": 0,
-  "variants": [],
-  "source": "database"
-}
-```
-
-Bewertung:
-
-```text
-HTTP-Route und Published-Service laufen.
-Fehler ist nicht mehr Transport/Route.
-Daten sind aber fachlich unvollständig, weil eine Variante in DB existiert.
-```
-
-Wahrscheinliche Ursache:
-
-```text
-CreativeLibraryRepository._filter_not_deleted(...)
-filtert Varianten mit NULL status/publication_status weg.
-```
-
-Ziel:
-
-```text
-count = 1
-variants[0].variant_id = default
-```
-
-### 8.6 Tree aus DB
-
-```text
-GET /api/v1/vplib/library/tree?source=db
-```
-
-Aktueller Test:
-
-```text
-ok = true
-count = 1
-root/hochbau/bloecke/basis enthält item_id:
-vp.hochbau.bloecke.basic_stone_block
-```
-
-Status:
-
-```text
-✅ funktioniert
-```
-
-### 8.7 Inventory aus DB
-
-```text
-GET /api/v1/vplib/library/inventory
-```
-
-Status:
-
-```text
-⚠️ Fallback vorbereitet
-⚠️ nicht final mit aktuellem Stand dokumentiert
+optional creative_library_service.publish_bundle()
 ```
 
 ---
 
-## 9. Reale Testhistorie und Fehlerchronik
+## 18. API-Routen und Verantwortlichkeiten
 
-### 9.1 PowerShell-Syntaxfehler
-
-Problem:
+### 18.1 Library Core
 
 ```text
-Bash-Syntax wie \ und <<'PY' wurde in PowerShell verwendet.
+GET  /api/v1/vplib/library/health
+GET  /api/v1/vplib/library/routes
+GET  /api/v1/vplib/library/selftest
+GET  /api/v1/vplib/library/scan
+POST /api/v1/vplib/library/sync
+GET  /api/v1/vplib/library/blocks
+GET  /api/v1/vplib/library/blocks/<block_id>
+GET  /api/v1/vplib/library/blocks/<block_id>/variants
+GET  /api/v1/vplib/library/tree
+GET  /api/v1/vplib/library/published
+GET  /api/v1/vplib/library/items
+GET  /api/v1/vplib/library/items/<item_ref>
+GET  /api/v1/vplib/library/scan-runs
+GET  /api/v1/vplib/library/inventory/slots
 ```
 
-Fix:
+### 18.2 Definitions
 
 ```text
-PowerShell Here-String:
-@'
-python code
-'@ | docker compose exec -T vectoplan-library python
+GET  /api/v1/vplib/definitions/health
+GET  /api/v1/vplib/definitions/routes
+GET  /api/v1/vplib/definitions/catalog
+GET  /api/v1/vplib/definitions/current
+GET  /api/v1/vplib/definitions/create-options
+GET  /api/v1/vplib/definitions/create-context
+POST /api/v1/vplib/definitions/seed/preview
+POST /api/v1/vplib/definitions/seed
 ```
 
-Status:
+### 18.3 Taxonomy
 
 ```text
-✅ geklärt
+GET /api/v1/vplib/taxonomy/health
+GET /api/v1/vplib/taxonomy/routes
+GET /api/v1/vplib/taxonomy/resolved
+GET /api/v1/vplib/taxonomy/tree
+GET /api/v1/vplib/taxonomy/nodes
+GET /api/v1/vplib/taxonomy/create-options
 ```
 
-### 9.2 `require_taxonomy` Fehler
-
-Fehler:
+### 18.4 Files
 
 ```text
-'dict' object has no attribute 'require_taxonomy'
+GET  /api/v1/vplib/files/health
+GET  /api/v1/vplib/files/routes
+GET  /api/v1/vplib/files/constraints
+GET  /api/v1/vplib/files
+GET  /api/v1/vplib/files/links
+GET  /api/v1/vplib/files/context
+POST /api/v1/vplib/files/upload
 ```
 
-Ursache:
+### 18.5 Drafts
 
 ```text
-library_scan_service.py übernahm options als dict,
-nutzte später aber options.require_taxonomy.
+GET  /api/v1/vplib/library/drafts/health
+GET  /api/v1/vplib/library/drafts/routes
+GET  /api/v1/vplib/library/drafts
+POST /api/v1/vplib/library/drafts
+GET  /api/v1/vplib/library/drafts/<draft_ref>
+PATCH/PUT /api/v1/vplib/library/drafts/<draft_ref>
+POST /api/v1/vplib/library/drafts/<draft_ref>/validate
+POST /api/v1/vplib/library/drafts/<draft_ref>/publish/prepare
+POST /api/v1/vplib/library/drafts/<draft_ref>/publish
 ```
 
-Fix:
+### 18.6 Create
 
 ```text
-coerce_scan_service_options(...)
+GET  /api/v1/vplib/create/health
+GET  /api/v1/vplib/create/options
+GET  /api/v1/vplib/create/context
+POST /api/v1/vplib/create/draft
+POST /api/v1/vplib/create/validate
+POST /api/v1/vplib/create/package-plan
+POST /api/v1/vplib/create/download
+POST /api/v1/vplib/create/save
 ```
 
-Status:
+### 18.7 User Creative Library
 
 ```text
-✅ behoben
-✅ /scan funktioniert
-```
-
-### 9.3 Validator-Options-Risiko
-
-Problem:
-
-```text
-library_package_validator.py konnte ebenfalls dict/options unsauber behandeln.
-```
-
-Fix:
-
-```text
-coerce_validator_options(...)
-```
-
-Status:
-
-```text
-✅ stabilisiert
-```
-
-### 9.4 `/sync` Timeout durch rekursive Serialisierung
-
-Problem:
-
-```text
-routes/api.py gab rohes LibrarySyncResult an json_response(...)
-json_safe/asdict konnte große Strukturen rekursiv serialisieren.
-```
-
-Fix:
-
-```text
-sync_response_payload(...)
-shallow dataclass serialization
-to_dict vor dataclass fallback
-```
-
-Status:
-
-```text
-✅ Route stabilisiert
-⚠️ Sync final erneut testen
-```
-
-### 9.5 Detail-/Variants-Routen Parameterfehler
-
-Fehler 1:
-
-```text
-got multiple values for argument 'identifier'
-```
-
-Fehler 2:
-
-```text
-missing required positional argument: 'block_id'
-```
-
-Ursache:
-
-```text
-Unterschiedliche Service-Ebenen erwarten teils block_id, teils identifier.
-```
-
-Fix:
-
-```text
-call_block_identifier_function(...)
-```
-
-Status:
-
-```text
-✅ Route stabilisiert
-```
-
-### 9.6 Tree-Route Fehler
-
-Fehler:
-
-```text
-Failed to build published library tree.
-TypeError
-```
-
-Ursache:
-
-```text
-DB-Tree-Wrapper bekam inkompatible Filter.
-```
-
-Fix:
-
-```text
-DB-Tree-Aufruf ohne **filters
-```
-
-Status:
-
-```text
-✅ /tree?source=db funktioniert
-```
-
-### 9.7 Identifier-Lookup Fehler
-
-Fehler:
-
-```text
-operator does not exist: bigint = character varying
-```
-
-Ursache:
-
-```text
-get_family_by_identifier() verglich:
-creative_library_items.id = 'vp.hochbau.bloecke.basic_stone_block'
-```
-
-Fix:
-
-```text
-id nur prüfen, wenn identifier numerisch ist.
-Nach SQLAlchemy/PostgreSQL Fehler rollback() vor Fallback-Queries.
-```
-
-Status:
-
-```text
-⚠️ muss im Repository dauerhaft enthalten sein
-```
-
-### 9.8 Varianten leer trotz DB-Variante
-
-Fehlerbild:
-
-```text
-GET /blocks/<id>/variants?source=db
-ok=true
-count=0
-variants=[]
-```
-
-Gleichzeitig:
-
-```text
-creative_library_items.variant_count = 1
-creative_library_variants enthält 1 Variante
-```
-
-Wahrscheinliche Ursache:
-
-```text
-_filter_not_deleted() behandelt NULL nicht als "nicht gelöscht".
-SQL `status != 'deleted'` schließt NULL-Zeilen aus.
-```
-
-Fix-Ziel:
-
-```text
-or_(column.is_(None), column != 'deleted')
-or_(is_deleted.is_(None), is_deleted == False)
-```
-
-Status:
-
-```text
-⚠️ aktuell offen / zu prüfen
+GET  /api/v1/vplib/creative-library/health
+GET  /api/v1/vplib/creative-library/routes
+GET  /api/v1/vplib/creative-library/resolved
+GET  /api/v1/vplib/creative-library/inventory
+GET  /api/v1/vplib/creative-library/defaults
+GET  /api/v1/vplib/creative-library/collections
+POST /api/v1/vplib/creative-library/collections
 ```
 
 ---
 
-## 10. Aktueller API-Teststand
+## 19. Create-, Draft-, Publish- und Sync-Zusammenhang
 
-### 10.1 Funktioniert
+### 19.1 Create ohne Persistenz
 
 ```text
-GET http://localhost:5001/api/v1/vplib/library/blocks?source=db&limit=20
+/create Payload
+  -> normalize_create_variant_payload
+  -> build_draft
+  -> validate
+  -> package-plan
+  -> download
 ```
 
-Erwartung / Ist:
+Das erzeugt noch keinen Published DB State.
+
+### 19.2 Create mit Source Save
 
 ```text
-ok = true
-status = ok
-count = 1
-items[0].id = vp.hochbau.bloecke.basic_stone_block
-variant_count = 1
-asset_count = 1
-document_count = 13
-revision_count = 1
+/create Payload
+  -> build Package Documents
+  -> save_package
+  -> src/library/source/...
 ```
 
+Danach ist ein expliziter Sync nötig:
+
 ```text
-GET http://localhost:5001/api/v1/vplib/library/tree?source=db
+POST /api/v1/vplib/library/sync
 ```
 
-Erwartung / Ist:
+### 19.3 Create mit Persistent Draft
 
 ```text
-ok = true
-count = 1
-tree.children[0].id = hochbau
-tree.children[0].children[0].id = hochbau/bloecke
-subcategory basis enthält item_id vp.hochbau.bloecke.basic_stone_block
+/create Payload
+  -> build_persistent_draft_payload
+  -> creative_library_draft_service.create_draft
+  -> draft tables
 ```
 
-### 10.2 Teilweise funktioniert
+### 19.4 Draft Publish
 
 ```text
-GET http://localhost:5001/api/v1/vplib/library/blocks/vp.hochbau.bloecke.basic_stone_block/variants?source=db
+Draft
+  -> validate
+  -> prepare publish payload
+  -> publish_bundle
+  -> published tables
 ```
 
-Ist:
+### 19.5 Source Sync
 
 ```text
-ok = true
-status = ok
-count = 0
-variants = []
+src/library/source Package
+  -> scan
+  -> build publish payload
+  -> publish_bundle
+  -> published tables
 ```
 
-Bewertung:
+### 19.6 Warum beides existiert
 
 ```text
-Transport/Route funktioniert.
-Fachliches Ergebnis ist noch falsch, weil eine Variante existiert.
-```
-
-### 10.3 Noch zu dokumentieren
-
-```text
-GET http://localhost:5001/api/v1/vplib/library/blocks/vp.hochbau.bloecke.basic_stone_block?source=db
-```
-
-Status:
-
-```text
-Nach den letzten Fixes wurde kein vollständiger Response-Payload in den Logs dokumentiert.
-Muss erneut getestet und in dieses Dokument übernommen werden.
-```
-
-### 10.4 Erneut testen
-
-```text
-POST http://localhost:5001/api/v1/vplib/library/sync
-```
-
-Status:
-
-```text
-Nach den Serialisierungs- und Repository-Fixes erneut vollständig testen.
+Create/Draft ist der Bearbeitungs- und Generatorpfad.
+Source/Sync ist der repo- und filesystembasierte Publishingpfad.
+Published DB ist der produktive Lesepfad.
 ```
 
 ---
 
-## 11. Datenbankteststand
+## 20. Files-/Upload-Schicht
 
-### 11.1 Family-Aggregate
+### 20.1 Zweck
 
-Zuletzt erwarteter guter Zustand:
+Die File-Schicht verwaltet Uploads, Versionen und Links.
+
+```text
+LibraryFile
+LibraryFileVersion
+LibraryFileLink
+LibraryFileAuditEvent
+```
+
+### 20.2 Warum getrennt von Creative Library?
+
+Creative Library Items referenzieren fachliche Dokumente/Assets. Die File-Schicht verwaltet technische Upload-Metadaten.
+
+```text
+library_files
+  technische Datei
+
+creative_library_documents/assets
+  fachliche Einbindung in Library Item/Revision/Variant
+```
+
+### 20.3 Große 3D-Modelle
+
+Regel:
+
+```text
+Große 3D-Modelle nicht primär als bytea speichern.
+Stattdessen Storage/Object-Store/Local Storage + Metadaten verwenden.
+```
+
+---
+
+## 21. User-Library, Collections und Inventory
+
+### 21.1 System Library vs User Library
+
+```text
+System Library
+  Published Creative Library aus DB
+
+User Library
+  Collections, Overrides, User Inventory
+```
+
+### 21.2 Collections
+
+```text
+CreativeLibraryCollection
+CreativeLibraryCollectionItem
+```
+
+Nutzung:
+
+```text
+- Favoriten
+- eigene Gruppen
+- projektspezifische Sammlungen
+```
+
+### 21.3 User Overrides
+
+```text
+CreativeLibraryUserOverride
+```
+
+Kann überschreiben:
+
+```text
+- Label
+- Sichtbarkeit
+- Sortierung
+- Metadaten
+- evtl. Default-Auswahl
+```
+
+### 21.4 Inventory
+
+Phase 1:
+
+```text
+user_id = 1
+slot_count = 9
+```
+
+Inventory ist bewusst getrennt von Published Library, damit User-Zustand nicht die System-Library verändert.
+
+---
+
+## 22. Cache-, Health- und Diagnostics-Konzept
+
+### 22.1 Health-Routen
+
+Health soll prüfen:
+
+```text
+- Importierbarkeit
+- verfügbare Dependencies
+- optionale Subhealth
+- DB Session optional
+- keine schweren Scans beim Import
+```
+
+Bereits getestet:
+
+```text
+/api/v1/vplib/library/health
+/api/v1/vplib/definitions/health
+/api/v1/vplib/files/health
+/api/v1/vplib/taxonomy/health
+/api/v1/vplib/creative-library/health
+/api/v1/vplib/library/drafts/health
+```
+
+### 22.2 Cache Clear
+
+Cache Clear soll nur Runtime-Caches leeren:
+
+```text
+- lazy import caches
+- taxonomy caches
+- scan caches
+- definition catalog caches
+```
+
+Es soll keine DB-Daten löschen.
+
+### 22.3 Lazy Imports
+
+Viele Services verwenden lazy imports, damit:
+
+```text
+- Modulimport nicht sofort DB/Flask braucht
+- Health kontrolliert Fehler anzeigen kann
+- zirkuläre Imports reduziert werden
+```
+
+---
+
+## 23. Teststrategie
+
+### 23.1 Reihenfolge
+
+1. Syntax/Import
+2. Container Start
+3. Migration/Alembic
+4. Health-Routen
+5. Source Scan
+6. DB Sync
+7. Published Reads
+8. Detail/Variants/Documents
+9. Draft/Create
+10. User/Inventory
+
+### 23.2 Minimaltests
+
+```text
+GET  /api/v1/vplib/library/health
+GET  /api/v1/vplib/library/routes
+GET  /api/v1/vplib/library/selftest
+GET  /api/v1/vplib/library/scan?source=file
+GET  /api/v1/vplib/library/blocks?source=file
+GET  /api/v1/vplib/library/tree?source=file
+POST /api/v1/vplib/library/sync
+GET  /api/v1/vplib/library/published
+GET  /api/v1/vplib/library/items
+GET  /api/v1/vplib/library/blocks
+GET  /api/v1/vplib/library/tree
+```
+
+### 23.3 Nach Sync testen
+
+```text
+GET /api/v1/vplib/library/published
+GET /api/v1/vplib/library/items
+GET /api/v1/vplib/library/blocks
+GET /api/v1/vplib/library/tree
+GET /api/v1/vplib/library/scan-runs
+GET /api/v1/vplib/library/inventory/slots
+```
+
+### 23.4 Detailtests
+
+```text
+GET /api/v1/vplib/library/items/<item_ref>
+GET /api/v1/vplib/library/items/<item_ref>/variants
+GET /api/v1/vplib/library/items/<item_ref>/assets
+GET /api/v1/vplib/library/items/<item_ref>/documents
+GET /api/v1/vplib/library/vplib/<vplib_uid>
+```
+
+### 23.5 DB-Checks
 
 ```sql
-select
-  id,
-  vplib_uid,
-  current_revision_id,
-  current_revision_hash,
-  latest_revision_hash,
-  published_revision_hash,
-  revision_hash,
-  variant_count,
-  asset_count,
-  document_count,
-  revision_count
+select id, vplib_uid, family_id, package_id, current_revision_id,
+       variant_count, asset_count, document_count, revision_count
 from creative_library_items
 order by id desc
 limit 20;
 ```
 
-Erwartung:
-
-```text
-id                       = 1
-vplib_uid                = 2cd32d24-0758-4663-be1b-63f39b9b44af
-current_revision_id      = 1
-current_revision_hash    = 3e86f507...
-latest_revision_hash     = 3e86f507...
-published_revision_hash  = 3e86f507...
-revision_hash            = 3e86f507...
-variant_count            = 1
-asset_count              = 1
-document_count           = 13
-revision_count           = 1
-```
-
-### 11.2 Variante
-
-Zu prüfen:
-
 ```sql
-select
-  id,
-  family_db_id,
-  item_id,
-  revision_id,
-  revision_db_id,
-  vplib_uid,
-  family_id,
-  revision_hash,
-  variant_id,
-  id_in_family,
-  label,
-  is_default,
-  status,
-  publication_status
+select id, item_id, revision_id, vplib_uid, family_id,
+       variant_id, label, is_default, status
 from creative_library_variants
 order by id;
 ```
 
-Erwartung:
+---
+
+## 24. Typische Fehlerbilder und Debug-Reihenfolge
+
+### 24.1 Container unhealthy
+
+Prüfen:
 
 ```text
-variant_id      = default
-id_in_family    = default
-label           = Default Stone Block
-is_default      = true
-status/publication_status können NULL sein
+- Model import error?
+- Alembic migration error?
+- Blueprint import error?
+- DB connection error?
 ```
 
-Wenn `status` und `publication_status` NULL sind, muss `_filter_not_deleted()` NULL-kompatibel sein.
+### 24.2 `relation does not exist` bei Migration
 
-### 11.3 Dokumente
+Wahrscheinliche Ursache:
 
-Zu prüfen:
+```text
+zyklische Foreign Keys
+```
+
+Fix:
+
+```text
+use_alter=True + fester Constraint-Name bei optionalen Rückverweisen
+```
+
+### 24.3 `name MAX_* is not defined`
+
+Ursache:
+
+```text
+Model-Konstante fehlt.
+```
+
+Fix:
+
+```text
+Konstantenblock im Model ergänzen.
+```
+
+### 24.4 `/scan` geht, `/sync` nicht
+
+Prüfen:
+
+```text
+- library_db_sync_service importierbar?
+- creative_library_repository importierbar?
+- fehlende vplib_uid?
+- fehlender revision_hash?
+- DB Session Rollback nach Fehler?
+- SyncResult serialisiert zu große Objekte?
+```
+
+### 24.5 `/blocks` leer nach Sync
+
+Prüfen:
+
+```text
+- creative_library_items enthält Rows?
+- status/publication_status Filter?
+- active/visible Flags?
+- source=db oder source=file?
+```
+
+### 24.6 `/variants` leer, aber DB enthält Varianten
+
+Wahrscheinlich:
+
+```text
+status != 'deleted' filtert NULL weg.
+```
+
+SQL-Regel:
 
 ```sql
-select relative_path, document_type, module
-from creative_library_documents
-order by relative_path;
+status is null OR status != 'deleted'
 ```
 
-Erwartung:
+### 24.7 `bigint = character varying`
+
+Ursache:
 
 ```text
-13 rows
+String-Identifier wurde gegen numeric id verglichen.
+```
+
+Fix:
+
+```text
+id nur vergleichen, wenn identifier numerisch ist.
 ```
 
 ---
 
-## 12. Aktuelle Statusmatrix
+## 25. Konventionen für neue Dateien und Erweiterungen
 
-| Bereich | Status | Detail |
-|---|---:|---|
-| Docker Compose Mount | grün | Migrationsdateien lokal sichtbar |
-| Alembic / Flask-Migrate | grün | Tabellen existieren, DB konsistent |
-| PostgreSQL | grün | Daten sind vorhanden |
-| `models/creative_library.py` | grün | 8 Tabellen aktiv |
-| `domain/sync_result.py` | grün | field-Kollision behoben |
-| `library_scan_service.py` | grün | /scan funktioniert |
-| `library_package_validator.py` | grün-gelb | Options normalisiert, Taxonomie-Strenge offen |
-| `library_db_sync_service.py` | grün-gelb | Manifest-Fallback und kompakte Serialisierung, finaler Sync-Test offen |
-| `library_published_service.py` | grün-gelb | Liste/Tree grün, Variants leer |
-| `routes/api.py` | grün-gelb | Liste/Tree grün, Sync/Detail final testen |
-| `creative_library_repository.py` | gelb | Identifier-/NULL-Filter-Fixes sind entscheidend |
-| `/blocks?source=db` | grün | count=1 |
-| `/tree?source=db` | grün | count=1 |
-| `/blocks/<id>?source=db` | gelb | vollständiger Payload noch einmal testen |
-| `/blocks/<id>/variants?source=db` | gelb | ok=true, aber count=0 |
-| `/inventory` | gelb | Fallback vorbereitet, final testen |
-| `/sync` | gelb | erneut final testen |
-| Route/Startup-Warnungen | gelb | nicht blockierend |
-| Legacy Source-Pfad | gelb | Testblock liegt in Tiefe 3 |
+### 25.1 Neue Source Packages
+
+Pfad:
+
+```text
+src/library/source/{domain}/{category}/{subcategory}/{family_slug}/
+```
+
+Pflicht:
+
+```text
+vplib.manifest.json mit vplib_uid
+family/identity.json
+family/classification.json
+variants/index.json
+mindestens eine Variant-Datei
+```
+
+### 25.2 Neue Definitionen
+
+1. JSON unter `definitions/data/*.json` ergänzen.
+2. Seed Preview testen.
+3. Seed ausführen.
+4. Create Options prüfen.
+
+### 25.3 Neue Taxonomie
+
+1. `taxonomy/data/taxonomy.v1.json` ergänzen.
+2. Taxonomy Health testen.
+3. Create Options prüfen.
+4. Source Package in neue Taxonomie legen.
+5. Scan und Sync testen.
+
+### 25.4 Neue DB-Modelle
+
+1. Model-Datei ergänzen.
+2. `models/__init__.py` registrieren.
+3. Importtest.
+4. Migration erzeugen.
+5. Migration prüfen.
+6. Upgrade ausführen.
+
+### 25.5 Neue Routen
+
+1. Route-Datei erstellen.
+2. Blueprint-Aliase exportieren:
+
+```python
+bp = your_blueprint
+blueprint = your_blueprint
+```
+
+3. `src/routes/__init__.py` Registry ergänzen.
+4. `/routes` und Health testen.
 
 ---
 
-## 13. Priorisierte offene Punkte
+## 26. Offene Punkte / nächste Arbeit
 
-### P0 – Varianten korrekt aus DB lesen
-
-Datei:
-
-```text
-src/library/repositories/sql/creative_library_repository.py
-```
-
-Korrigieren/prüfen:
-
-```text
-_filter_not_deleted(...)
-```
-
-Soll:
-
-```text
-NULL status/publication_status nicht wegfiltern.
-```
-
-Ziel:
-
-```text
-GET /blocks/<id>/variants?source=db
-→ count = 1
-→ variants[0].variant_id = default
-```
-
-### P0 – Identifier-Lookup dauerhaft korrekt halten
-
-Datei:
-
-```text
-src/library/repositories/sql/creative_library_repository.py
-```
-
-Korrigieren/prüfen:
-
-```text
-get_family_by_identifier(...)
-```
-
-Soll:
-
-```text
-String-Identifier nur mit Textfeldern vergleichen.
-id bigint nur bei numerischem Identifier vergleichen.
-Nach DB-Fehler rollback() ausführen.
-```
-
-### P1 – Detail-Response final prüfen
-
-Route:
-
-```text
-GET /api/v1/vplib/library/blocks/vp.hochbau.bloecke.basic_stone_block?source=db
-```
-
-Erwartung:
-
-```text
-ok = true
-summary/id/family_id/vplib_uid vorhanden
-revision vorhanden
-variants enthält default oder wenigstens count konsistent
-documents enthält 13 Dokumente, wenn include_raw_documents=true
-```
-
-### P1 – Sync final erneut testen
-
-Route:
+### P0 – End-to-End Sync final testen
 
 ```text
 POST /api/v1/vplib/library/sync
@@ -1962,195 +2351,112 @@ POST /api/v1/vplib/library/sync
 Erwartung:
 
 ```text
-ok = true
+ok=true oder partial ohne Crash
 kein Timeout
-keine neue Revision bei gleichem revision_hash
-kein ExitCode=-1
-keine idle-in-transaction Sessions
+keine rekursive Serialisierung
+ScanRun wird geschrieben
+Items/Revisions/Variants/Documents werden geschrieben
 ```
 
-### P1 – Inventory testen
-
-Route:
+### P0 – Wiederholter Sync idempotent
 
 ```text
-GET /api/v1/vplib/library/inventory
+Gleicher revision_hash darf keine neue Revision erzeugen.
 ```
 
-Erwartung:
+### P1 – Published Detail und Child-Routen testen
 
 ```text
-ok = true
-slots enthält mindestens einen Fallback-Slot aus Published Families
+GET /api/v1/vplib/library/items/<item_ref>
+GET /api/v1/vplib/library/items/<item_ref>/variants
+GET /api/v1/vplib/library/items/<item_ref>/assets
+GET /api/v1/vplib/library/items/<item_ref>/documents
 ```
 
-### P2 – Legacy-Pfad auf kanonischen Pfad migrieren
-
-Aktuell:
+### P1 – Definitions Seed testen
 
 ```text
-source/hochbau/bloecke/basic_stone_block
+POST /api/v1/vplib/definitions/seed/preview
+POST /api/v1/vplib/definitions/seed
+GET  /api/v1/vplib/definitions/catalog
 ```
 
-Ziel:
+### P1 – Draft Create/Validate testen
 
 ```text
-source/hochbau/bloecke/basis/basic_stone_block
+POST /api/v1/vplib/library/drafts
+POST /api/v1/vplib/library/drafts/<draft_ref>/validate
+POST /api/v1/vplib/library/drafts/<draft_ref>/publish/prepare
 ```
 
-Danach:
+### P2 – Source Layout vereinheitlichen
 
-```text
-Scan/Synchronisation erneut ausführen.
-classification_path und source_path sollten konsistent sein.
-```
-
-### P2 – Asset-Policy klären
-
-Aktuell:
-
-```text
-asset_count = 1
-role = material_refs
-path war zeitweise strukturiert/leer
-```
-
-Zu entscheiden:
-
-```text
-A) material_refs nicht als Asset speichern
-B) payload-only Asset erlauben
-C) leere Mapping-Assets überspringen
-```
+Legacy-Tiefe 3 auf kanonische Tiefe 4 migrieren.
 
 ### P2 – Startup-Warnungen bereinigen
 
-Beobachtete Warnungen:
+Nicht blockierend, aber später säubern:
 
 ```text
-Extension error [routes]: One or more required blueprints are missing.
-Directory check failed for routes_root.
-VPLIB settings check failed: 'NoneType' object has no attribute '__dict__'
-Library settings check failed: 'NoneType' object has no attribute '__dict__'
-```
-
-Aktuell:
-
-```text
-nicht blockierend
+- missing optional blueprints
+- settings None warnings
+- route root checks
 ```
 
 ---
 
-## 14. Testbefehle
+## 27. Definition of Done
 
-### 14.1 Syntax
-
-```powershell
-docker compose exec -T vectoplan-library python -m py_compile routes/api.py
-docker compose exec -T vectoplan-library python -m py_compile src/library/services/library_scan_service.py
-docker compose exec -T vectoplan-library python -m py_compile src/library/services/library_db_sync_service.py
-docker compose exec -T vectoplan-library python -m py_compile src/library/repositories/sql/creative_library_repository.py
-```
-
-### 14.2 API-Tests
+Der Abschnitt gilt als stabil, wenn:
 
 ```text
-http://localhost:5001/api/v1/vplib/library/blocks?source=db&limit=20
-```
-
-```text
-http://localhost:5001/api/v1/vplib/library/tree?source=db
-```
-
-```text
-http://localhost:5001/api/v1/vplib/library/blocks/vp.hochbau.bloecke.basic_stone_block?source=db
-```
-
-```text
-http://localhost:5001/api/v1/vplib/library/blocks/vp.hochbau.bloecke.basic_stone_block/variants?source=db
-```
-
-```text
-http://localhost:5001/api/v1/vplib/library/inventory
-```
-
-### 14.3 DB-Aggregate
-
-```powershell
-docker compose exec -T vectoplan-library-db psql -U vectoplan -d vectoplan_library -c "select id, vplib_uid, current_revision_id, current_revision_hash, latest_revision_hash, published_revision_hash, revision_hash, variant_count, asset_count, document_count, revision_count from creative_library_items order by id desc limit 20;"
-```
-
-### 14.4 Varianten direkt prüfen
-
-```powershell
-docker compose exec -T vectoplan-library-db psql -U vectoplan -d vectoplan_library -c "select id, family_db_id, item_id, revision_id, revision_db_id, vplib_uid, family_id, revision_hash, variant_id, id_in_family, label, is_default, status, publication_status from creative_library_variants order by id;"
-```
-
-### 14.5 DB-Session-Hänger prüfen
-
-```powershell
-docker compose exec -T vectoplan-library-db psql -U vectoplan -d vectoplan_library -c "select pid, state, wait_event_type, wait_event, now() - query_start as age, left(query, 300) as query from pg_stat_activity where datname = 'vectoplan_library' order by query_start;"
+1. Container startet ohne unhealthy.
+2. Alembic-Migrationen laufen durch.
+3. /library/health ist ok.
+4. /library/scan?source=file funktioniert.
+5. /library/sync läuft ohne Timeout.
+6. Wiederholter /sync erzeugt keine neue Revision bei gleichem revision_hash.
+7. /library/published liefert DB-Daten.
+8. /library/items liefert DB-Daten.
+9. /library/blocks liefert DB-Daten.
+10. /library/tree liefert DB-Daten.
+11. Item Detail liefert current revision.
+12. Variantenroute liefert gespeicherte Varianten.
+13. Dokumentroute liefert gespeicherte Dokumente.
+14. Inventory liefert sinnvolle Slots oder validen leeren Zustand.
+15. Definitions Seed und Catalog funktionieren.
+16. Create Options enthalten Taxonomie und Definitionen.
+17. Draft Create/Validate/Prepare funktioniert.
+18. Keine PostgreSQL-Session bleibt idle-in-transaction hängen.
+19. Keine Route serialisiert rohe ORM- oder riesige ScanResult-Objekte rekursiv.
+20. Source-of-Truth-Regeln sind eingehalten.
 ```
 
 ---
 
-## 15. Definition of Done für den aktuellen Abschnitt
+## Kurzfazit
 
-Der aktuelle DB-Read-/Sync-Abschnitt gilt als stabil, wenn:
+`src/library` ist jetzt die zentrale fachliche Library-Schicht zwischen VPLIB-Core, Source-Dateien, PostgreSQL und API. Die wichtigsten Architekturentscheidungen sind:
 
 ```text
-1. /scan funktioniert.
-2. /blocks?source=db liefert count=1.
-3. /tree?source=db liefert count=1 und korrekte Taxonomie.
-4. /blocks/<id>?source=db liefert ok=true und vollständiges Detail.
-5. /blocks/<id>/variants?source=db liefert count=1 und variant_id=default.
-6. /inventory liefert sinnvollen Slot.
-7. /sync läuft ohne Timeout.
-8. Wiederholter /sync erzeugt keine neue Revision.
-9. creative_library_items enthält korrekte current_revision_* Werte.
-10. creative_library_items enthält korrekte Counts.
-11. Keine PostgreSQL-Transaction bleibt idle-in-transaction hängen.
-12. Keine Route serialisiert rohe ORM- oder große SyncResult-Objekte rekursiv.
+- source/ bleibt die lesbare Package-Quelle.
+- /scan ist read-only.
+- /sync ist der bewusste DB-Write-Pfad.
+- Published DB ist der produktive Read-Pfad.
+- Drafts sind Arbeitszustand.
+- User Collections/Overrides sind getrennt vom Systemkatalog.
+- Taxonomie und Definitionen sind Backend-kanonisch.
+- vplib_uid wird nicht von der DB erzeugt.
 ```
 
----
-
-## 16. Kurzfazit
-
-Die Library-DB-Integration ist inzwischen real nutzbar für die wichtigsten Lesewege:
+Damit ist die Library-Schicht nicht mehr nur ein Datei-Katalog, sondern ein vollständiger Pipeline-Aufbau:
 
 ```text
-✅ DB enthält den Block.
-✅ Blocks-Liste funktioniert.
-✅ Tree funktioniert.
-✅ Scan funktioniert.
-✅ DB-Aggregates sind grundsätzlich repariert.
-```
-
-Der verbleibende fachliche Fehler ist eng begrenzt:
-
-```text
-GET /blocks/<id>/variants?source=db
-liefert technisch ok=true, aber fachlich count=0.
-```
-
-Der nächste konkrete Eingriff liegt nicht mehr in `routes/api.py`, sondern im Repository:
-
-```text
-services/vectoplan-library/src/library/repositories/sql/creative_library_repository.py
-```
-
-Genauer:
-
-```text
-- get_family_by_identifier(...)
-- _filter_not_deleted(...)
-- get_family_variants(...)
-```
-
-Ziel:
-
-```text
-Die gespeicherte default-Variante muss über den DB-Published-Pfad sichtbar werden.
+Source Package
+  -> Scan
+  -> Validation
+  -> Sync
+  -> Published DB
+  -> API Read Models
+  -> Create/Draft/User-Erweiterungen
 ```

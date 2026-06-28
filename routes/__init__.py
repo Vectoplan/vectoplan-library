@@ -1,4 +1,4 @@
-# services/vectoplan-library/src/routes/__init__.py
+# services/vectoplan-library/routes/__init__.py
 """
 Central Blueprint registration for the vectoplan-library microservice.
 
@@ -24,6 +24,9 @@ Required:
 Optional:
 - routes.api:api_bp
 - routes.library_definition_routes:library_definition_bp
+- routes.library_files:file_bp
+- routes.creative_library_user_routes:creative_library_user_bp
+- routes.creative_library_draft_routes:creative_library_drafts_bp
 - routes.create:create_bp
 - routes.inventar:inventar_bp
 - routes.inventar_user:inventar_user_bp
@@ -40,6 +43,12 @@ User-Inventar-API:
 - PUT    /api/v1/vplib/inventar_user/slots/<slot_index>
 - PATCH  /api/v1/vplib/inventar_user/slots/<slot_index>
 - DELETE /api/v1/vplib/inventar_user/slots/<slot_index>
+
+Neue Definition-/File-/User-/Draft-Schicht:
+- /api/v1/vplib/definitions/*
+- /api/v1/vplib/files/*
+- /api/v1/vplib/creative-library/*
+- /api/v1/vplib/library/drafts/*
 """
 
 from __future__ import annotations
@@ -60,8 +69,8 @@ from flask import Blueprint, Flask
 # Constants
 # ---------------------------------------------------------------------------
 
-ROUTES_PACKAGE_SCHEMA_VERSION: Final[str] = "vplib.routes.registry.v9"
-ROUTES_PACKAGE_VERSION: Final[str] = "0.9.1"
+ROUTES_PACKAGE_SCHEMA_VERSION: Final[str] = "vplib.routes.registry.v10"
+ROUTES_PACKAGE_VERSION: Final[str] = "1.0.0"
 ROUTES_COMPONENT_NAME: Final[str] = "vectoplan-library-routes"
 
 EXTENSION_REGISTRY_KEY: Final[str] = "vectoplan_library"
@@ -81,6 +90,15 @@ DEFAULT_TAXONOMY_BLUEPRINT_ATTRIBUTE: Final[str] = "taxonomy_bp"
 DEFAULT_DEFINITION_ROUTE_MODULE: Final[str] = "routes.library_definition_routes"
 DEFAULT_DEFINITION_BLUEPRINT_ATTRIBUTE: Final[str] = "library_definition_bp"
 
+DEFAULT_LIBRARY_FILES_ROUTE_MODULE: Final[str] = "routes.library_files"
+DEFAULT_LIBRARY_FILES_BLUEPRINT_ATTRIBUTE: Final[str] = "file_bp"
+
+DEFAULT_CREATIVE_LIBRARY_USER_ROUTE_MODULE: Final[str] = "routes.creative_library_user_routes"
+DEFAULT_CREATIVE_LIBRARY_USER_BLUEPRINT_ATTRIBUTE: Final[str] = "creative_library_user_bp"
+
+DEFAULT_CREATIVE_LIBRARY_DRAFT_ROUTE_MODULE: Final[str] = "routes.creative_library_draft_routes"
+DEFAULT_CREATIVE_LIBRARY_DRAFT_BLUEPRINT_ATTRIBUTE: Final[str] = "creative_library_drafts_bp"
+
 DEFAULT_CREATE_ROUTE_MODULE: Final[str] = "routes.create"
 DEFAULT_CREATE_BLUEPRINT_ATTRIBUTE: Final[str] = "create_bp"
 
@@ -99,6 +117,9 @@ DEFAULT_REQUIRED_BLUEPRINTS: Final[tuple[str, ...]] = (
 DEFAULT_OPTIONAL_BLUEPRINTS: Final[tuple[str, ...]] = (
     f"{DEFAULT_API_ROUTE_MODULE}:{DEFAULT_API_BLUEPRINT_ATTRIBUTE}",
     f"{DEFAULT_DEFINITION_ROUTE_MODULE}:{DEFAULT_DEFINITION_BLUEPRINT_ATTRIBUTE}",
+    f"{DEFAULT_LIBRARY_FILES_ROUTE_MODULE}:{DEFAULT_LIBRARY_FILES_BLUEPRINT_ATTRIBUTE}",
+    f"{DEFAULT_CREATIVE_LIBRARY_USER_ROUTE_MODULE}:{DEFAULT_CREATIVE_LIBRARY_USER_BLUEPRINT_ATTRIBUTE}",
+    f"{DEFAULT_CREATIVE_LIBRARY_DRAFT_ROUTE_MODULE}:{DEFAULT_CREATIVE_LIBRARY_DRAFT_BLUEPRINT_ATTRIBUTE}",
     f"{DEFAULT_CREATE_ROUTE_MODULE}:{DEFAULT_CREATE_BLUEPRINT_ATTRIBUTE}",
     f"{DEFAULT_INVENTAR_ROUTE_MODULE}:{DEFAULT_INVENTAR_BLUEPRINT_ATTRIBUTE}",
     f"{DEFAULT_INVENTAR_USER_ROUTE_MODULE}:{DEFAULT_INVENTAR_USER_BLUEPRINT_ATTRIBUTE}",
@@ -126,10 +147,15 @@ class BlueprintSpec:
     url_prefix: str | None = None
     required: bool = True
     description: str = ""
+    attribute_aliases: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def key(self) -> str:
         return f"{self.module_name}:{self.attribute_name}"
+
+    @property
+    def candidate_attribute_names(self) -> tuple[str, ...]:
+        return _dedupe_strings((self.attribute_name, *self.attribute_aliases, "bp", "blueprint"))
 
     def normalized(self) -> "BlueprintSpec":
         return BlueprintSpec(
@@ -138,6 +164,11 @@ class BlueprintSpec:
             url_prefix=clean_optional_string(self.url_prefix),
             required=bool(self.required),
             description=clean_optional_string(self.description) or "",
+            attribute_aliases=tuple(
+                item
+                for item in _dedupe_strings(self.attribute_aliases)
+                if item and item != self.attribute_name
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -145,6 +176,8 @@ class BlueprintSpec:
         return {
             "module_name": normalized.module_name,
             "attribute_name": normalized.attribute_name,
+            "attribute_aliases": list(normalized.attribute_aliases),
+            "candidate_attribute_names": list(normalized.candidate_attribute_names),
             "url_prefix": normalized.url_prefix,
             "required": normalized.required,
             "description": normalized.description,
@@ -159,6 +192,7 @@ class BlueprintResolutionResult:
     spec: BlueprintSpec
     resolved: bool
     blueprint_name: str | None = None
+    resolved_attribute_name: str | None = None
     error: str | None = None
     health: dict[str, Any] = field(default_factory=dict)
 
@@ -172,6 +206,7 @@ class BlueprintResolutionResult:
             "resolved": self.resolved,
             "ok": self.ok,
             "blueprint_name": self.blueprint_name,
+            "resolved_attribute_name": self.resolved_attribute_name,
             "error": self.error,
             "health": normalize_metadata(self.health),
         }
@@ -190,6 +225,7 @@ class BlueprintRegistrationResult:
     error: str | None = None
     required: bool = True
     description: str = ""
+    resolved_attribute_name: str | None = None
 
     @property
     def key(self) -> str:
@@ -207,6 +243,7 @@ class BlueprintRegistrationResult:
             "blueprint_name": self.blueprint_name,
             "module_name": self.module_name,
             "attribute_name": self.attribute_name,
+            "resolved_attribute_name": self.resolved_attribute_name,
             "key": self.key,
             "registered": self.registered,
             "skipped": self.skipped,
@@ -356,6 +393,26 @@ def dataclass_to_dict_safe(value: Any) -> dict[str, Any]:
     return {"value": str(value)}
 
 
+def _dedupe_strings(values: Iterable[str]) -> tuple[str, ...]:
+    """Dedupliziert Strings stabil in Eingabereihenfolge."""
+    result: list[str] = []
+    seen: set[str] = set()
+
+    for value in values or ():
+        try:
+            key = str(value).strip()
+        except Exception:
+            continue
+
+        if not key or key in seen:
+            continue
+
+        seen.add(key)
+        result.append(key)
+
+    return tuple(result)
+
+
 # ---------------------------------------------------------------------------
 # Flask app / registry helpers
 # ---------------------------------------------------------------------------
@@ -499,48 +556,77 @@ def get_blueprint_specs() -> tuple[BlueprintSpec, ...]:
             attribute_name=DEFAULT_VPLIB_BLUEPRINT_ATTRIBUTE,
             required=True,
             description="VPLIB creation, dry-run, health and self-test routes.",
+            attribute_aliases=("bp", "blueprint"),
         ).normalized(),
         BlueprintSpec(
             module_name=DEFAULT_API_ROUTE_MODULE,
             attribute_name=DEFAULT_API_BLUEPRINT_ATTRIBUTE,
             required=False,
             description="Creative Library API routes for DB sync, DB health, published reads, inventory and filesystem debug access.",
+            attribute_aliases=("bp", "blueprint"),
         ).normalized(),
         BlueprintSpec(
             module_name=DEFAULT_LIBRARY_ROUTE_MODULE,
             attribute_name=DEFAULT_LIBRARY_BLUEPRINT_ATTRIBUTE,
             required=True,
             description="Creative Library scan, blocks, block detail, variants and tree routes.",
+            attribute_aliases=("bp", "blueprint"),
         ).normalized(),
         BlueprintSpec(
             module_name=DEFAULT_TAXONOMY_ROUTE_MODULE,
             attribute_name=DEFAULT_TAXONOMY_BLUEPRINT_ATTRIBUTE,
             required=True,
             description="Canonical taxonomy routes.",
+            attribute_aliases=("bp", "blueprint"),
         ).normalized(),
         BlueprintSpec(
             module_name=DEFAULT_DEFINITION_ROUTE_MODULE,
             attribute_name=DEFAULT_DEFINITION_BLUEPRINT_ATTRIBUTE,
             required=False,
-            description="Definitions routes.",
+            description="DB-backed Library Definition Catalog routes.",
+            attribute_aliases=("library_definitions_bp", "definitions_bp", "bp", "blueprint"),
+        ).normalized(),
+        BlueprintSpec(
+            module_name=DEFAULT_LIBRARY_FILES_ROUTE_MODULE,
+            attribute_name=DEFAULT_LIBRARY_FILES_BLUEPRINT_ATTRIBUTE,
+            required=False,
+            description="Library file upload, file version and file link routes.",
+            attribute_aliases=("library_files_bp", "library_file_bp", "files_bp", "bp", "blueprint"),
+        ).normalized(),
+        BlueprintSpec(
+            module_name=DEFAULT_CREATIVE_LIBRARY_USER_ROUTE_MODULE,
+            attribute_name=DEFAULT_CREATIVE_LIBRARY_USER_BLUEPRINT_ATTRIBUTE,
+            required=False,
+            description="User-specific Creative Library collection, overlay and audit routes.",
+            attribute_aliases=("creative_library_user_routes_bp", "creative_user_bp", "user_library_bp", "bp", "blueprint"),
+        ).normalized(),
+        BlueprintSpec(
+            module_name=DEFAULT_CREATIVE_LIBRARY_DRAFT_ROUTE_MODULE,
+            attribute_name=DEFAULT_CREATIVE_LIBRARY_DRAFT_BLUEPRINT_ATTRIBUTE,
+            required=False,
+            description="Creative Library draft, validation and publish routes for Generator workflow.",
+            attribute_aliases=("creative_library_draft_bp", "creative_library_draft_routes_bp", "creative_drafts_bp", "drafts_bp", "bp", "blueprint"),
         ).normalized(),
         BlueprintSpec(
             module_name=DEFAULT_CREATE_ROUTE_MODULE,
             attribute_name=DEFAULT_CREATE_BLUEPRINT_ATTRIBUTE,
             required=False,
             description="Create frontend and create API routes.",
+            attribute_aliases=("bp", "blueprint"),
         ).normalized(),
         BlueprintSpec(
             module_name=DEFAULT_INVENTAR_ROUTE_MODULE,
             attribute_name=DEFAULT_INVENTAR_BLUEPRINT_ATTRIBUTE,
             required=False,
             description="HTML routes for /user-inventar and /creative-inventar.",
+            attribute_aliases=("bp", "blueprint"),
         ).normalized(),
         BlueprintSpec(
             module_name=DEFAULT_INVENTAR_USER_ROUTE_MODULE,
             attribute_name=DEFAULT_INVENTAR_USER_BLUEPRINT_ATTRIBUTE,
             required=False,
             description="Persisted User-Inventar API routes.",
+            attribute_aliases=("user_inventory_bp", "bp", "blueprint"),
         ).normalized(),
     )
 
@@ -564,7 +650,7 @@ def get_optional_blueprint_keys() -> tuple[str, ...]:
 # Module / blueprint resolution
 # ---------------------------------------------------------------------------
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=128)
 def _import_module(module_name: str) -> ModuleType:
     """Importiert ein Route-Modul gecacht und defensiv."""
     normalized_module_name = clean_required_string(module_name, "module_name")
@@ -587,6 +673,15 @@ def _get_module_health(module: ModuleType) -> dict[str, Any]:
         "get_taxonomy_routes_health",
         "get_taxonomy_routes_info",
         "get_library_definition_routes_health",
+        "get_library_files_routes_health",
+        "get_library_file_routes_health",
+        "get_files_routes_health",
+        "get_creative_library_user_routes_health",
+        "get_creative_library_user_route_health",
+        "get_user_library_routes_health",
+        "get_creative_library_draft_routes_health",
+        "get_creative_library_drafts_routes_health",
+        "get_creative_draft_routes_health",
         "get_inventar_routes_health",
         "get_inventar_route_health",
         "get_inventar_user_routes_health",
@@ -629,32 +724,40 @@ def _get_module_health(module: ModuleType) -> dict[str, Any]:
     }
 
 
-def _resolve_blueprint(spec: BlueprintSpec) -> Blueprint:
-    """Löst anhand einer BlueprintSpec das tatsächliche Blueprint-Objekt auf."""
+def _resolve_blueprint_with_attribute(spec: BlueprintSpec) -> tuple[Blueprint, str]:
+    """Löst anhand einer BlueprintSpec das tatsächliche Blueprint-Objekt und Attribut auf."""
     normalized_spec = spec.normalized()
     module = _import_module(normalized_spec.module_name)
+    errors: list[str] = []
 
-    try:
-        candidate = getattr(module, normalized_spec.attribute_name)
-    except AttributeError as exc:
-        raise RouteRegistryError(
-            f"Route module {normalized_spec.module_name!r} does not export "
-            f"{normalized_spec.attribute_name!r}."
-        ) from exc
+    for attribute_name in normalized_spec.candidate_attribute_names:
+        try:
+            candidate = getattr(module, attribute_name)
+        except AttributeError:
+            errors.append(f"{attribute_name}: missing")
+            continue
 
-    if candidate is None:
-        raise RouteRegistryError(
-            f"Attribute {normalized_spec.attribute_name!r} from "
-            f"{normalized_spec.module_name!r} is None."
-        )
+        if candidate is None:
+            errors.append(f"{attribute_name}: None")
+            continue
 
-    if not isinstance(candidate, Blueprint):
-        raise RouteRegistryError(
-            f"Attribute {normalized_spec.attribute_name!r} from "
-            f"{normalized_spec.module_name!r} is not a Flask Blueprint."
-        )
+        if not isinstance(candidate, Blueprint):
+            errors.append(f"{attribute_name}: not a Flask Blueprint")
+            continue
 
-    return candidate
+        return candidate, attribute_name
+
+    raise RouteRegistryError(
+        f"Route module {normalized_spec.module_name!r} does not export a usable Blueprint. "
+        f"Tried attributes: {', '.join(normalized_spec.candidate_attribute_names)}. "
+        f"Details: {' | '.join(errors)}"
+    )
+
+
+def _resolve_blueprint(spec: BlueprintSpec) -> Blueprint:
+    """Löst anhand einer BlueprintSpec das tatsächliche Blueprint-Objekt auf."""
+    blueprint, _attribute_name = _resolve_blueprint_with_attribute(spec)
+    return blueprint
 
 
 def resolve_blueprint_spec(spec: BlueprintSpec) -> BlueprintResolutionResult:
@@ -663,7 +766,7 @@ def resolve_blueprint_spec(spec: BlueprintSpec) -> BlueprintResolutionResult:
 
     try:
         module = _import_module(normalized_spec.module_name)
-        blueprint = _resolve_blueprint(normalized_spec)
+        blueprint, resolved_attribute_name = _resolve_blueprint_with_attribute(normalized_spec)
         blueprint_name = getattr(blueprint, "name", None)
         module_health = _get_module_health(module)
 
@@ -671,6 +774,7 @@ def resolve_blueprint_spec(spec: BlueprintSpec) -> BlueprintResolutionResult:
             spec=normalized_spec,
             resolved=True,
             blueprint_name=str(blueprint_name) if blueprint_name else None,
+            resolved_attribute_name=resolved_attribute_name,
             error=None,
             health=module_health,
         )
@@ -679,6 +783,7 @@ def resolve_blueprint_spec(spec: BlueprintSpec) -> BlueprintResolutionResult:
             spec=normalized_spec,
             resolved=False,
             blueprint_name=None,
+            resolved_attribute_name=None,
             error=str(exc),
             health={
                 "ok": False,
@@ -703,7 +808,7 @@ def _register_single_blueprint(
 ) -> BlueprintRegistrationResult:
     """Registriert genau einen Blueprint defensiv an der App."""
     normalized_spec = spec.normalized()
-    blueprint = _resolve_blueprint(normalized_spec)
+    blueprint, resolved_attribute_name = _resolve_blueprint_with_attribute(normalized_spec)
     blueprint_name = getattr(blueprint, "name", None)
 
     if not blueprint_name or not isinstance(blueprint_name, str):
@@ -717,6 +822,7 @@ def _register_single_blueprint(
             blueprint_name=blueprint_name,
             module_name=normalized_spec.module_name,
             attribute_name=normalized_spec.attribute_name,
+            resolved_attribute_name=resolved_attribute_name,
             registered=False,
             skipped=True,
             url_prefix=normalized_spec.url_prefix,
@@ -731,6 +837,7 @@ def _register_single_blueprint(
             blueprint_name=blueprint_name,
             module_name=normalized_spec.module_name,
             attribute_name=normalized_spec.attribute_name,
+            resolved_attribute_name=resolved_attribute_name,
             registered=False,
             skipped=True,
             url_prefix=normalized_spec.url_prefix,
@@ -755,6 +862,7 @@ def _register_single_blueprint(
         blueprint_name=blueprint_name,
         module_name=normalized_spec.module_name,
         attribute_name=normalized_spec.attribute_name,
+        resolved_attribute_name=resolved_attribute_name,
         registered=True,
         skipped=False,
         url_prefix=normalized_spec.url_prefix,
@@ -836,6 +944,7 @@ def register_blueprints(app: Flask) -> Flask:
                 blueprint_name=normalized_spec.attribute_name,
                 module_name=normalized_spec.module_name,
                 attribute_name=normalized_spec.attribute_name,
+                resolved_attribute_name=None,
                 registered=False,
                 skipped=False,
                 url_prefix=normalized_spec.url_prefix,
@@ -949,6 +1058,16 @@ def get_routes_health(app: Flask | None = None) -> dict[str, Any]:
         "app_snapshot": app_snapshot,
         "warnings": warnings,
         "errors": errors,
+        "supports_vplib_routes": True,
+        "supports_library_routes": True,
+        "supports_taxonomy_routes": True,
+        "supports_definition_routes": True,
+        "supports_library_files_routes": True,
+        "supports_creative_library_user_routes": True,
+        "supports_creative_library_draft_routes": True,
+        "supports_create_routes": True,
+        "supports_inventar_routes": True,
+        "supports_inventar_user_routes": True,
     }
 
 
@@ -989,6 +1108,10 @@ __all__: Final[list[str]] = [
     "DEFAULT_API_ROUTE_MODULE",
     "DEFAULT_CREATE_BLUEPRINT_ATTRIBUTE",
     "DEFAULT_CREATE_ROUTE_MODULE",
+    "DEFAULT_CREATIVE_LIBRARY_DRAFT_BLUEPRINT_ATTRIBUTE",
+    "DEFAULT_CREATIVE_LIBRARY_DRAFT_ROUTE_MODULE",
+    "DEFAULT_CREATIVE_LIBRARY_USER_BLUEPRINT_ATTRIBUTE",
+    "DEFAULT_CREATIVE_LIBRARY_USER_ROUTE_MODULE",
     "DEFAULT_DEFINITION_BLUEPRINT_ATTRIBUTE",
     "DEFAULT_DEFINITION_ROUTE_MODULE",
     "DEFAULT_INVENTAR_BLUEPRINT_ATTRIBUTE",
@@ -996,6 +1119,8 @@ __all__: Final[list[str]] = [
     "DEFAULT_INVENTAR_USER_BLUEPRINT_ATTRIBUTE",
     "DEFAULT_INVENTAR_USER_ROUTE_MODULE",
     "DEFAULT_LIBRARY_BLUEPRINT_ATTRIBUTE",
+    "DEFAULT_LIBRARY_FILES_BLUEPRINT_ATTRIBUTE",
+    "DEFAULT_LIBRARY_FILES_ROUTE_MODULE",
     "DEFAULT_LIBRARY_ROUTE_MODULE",
     "DEFAULT_OPTIONAL_BLUEPRINTS",
     "DEFAULT_REQUIRED_BLUEPRINTS",

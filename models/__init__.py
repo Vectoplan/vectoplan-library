@@ -11,11 +11,16 @@ Aktueller Fokus:
 - Revisionen
 - Varianten
 - Assets
-- ScanRuns
-- ScanIssues
+- Dokumente
+- File-/Upload-Metadaten
+- Definition Catalog
+- Taxonomie
+- Creative-Library User Collections / Overrides
+- Creative-Library Drafts / Generator-Arbeitsstände
 - Creative-Library Inventory-Slots
 - User-Inventar-State
 - User-Inventar-Slots
+- User-Inventar-Audit
 - Editor-/Hotbar-Auswahl pro User
 
 Wichtige Architekturregel:
@@ -26,6 +31,8 @@ Wichtige Architekturregel:
   VECTOPLAN-/VPLIB-Identität.
 - UserInventoryState/UserInventorySlot speichern nur User-Zustand und
   Slot-Zuordnungen; sie erzeugen keine Library-Items und keine VPLIB-UIDs.
+- Definitionen, Taxonomie, Files, Drafts und User-Collections sind eigene
+  Model-Module und werden hier nur registriert.
 
 Wichtig für Flask-Migrate:
 - `flask db migrate` lädt die App über FLASK_APP=wsgi:app.
@@ -58,7 +65,7 @@ from types import ModuleType
 from typing import Any, Final, Iterable, Mapping
 
 
-MODELS_PACKAGE_VERSION: Final[str] = "vectoplan_library.models.v4"
+MODELS_PACKAGE_VERSION: Final[str] = "vectoplan_library.models.v5"
 
 
 class ModelsImportError(ImportError):
@@ -99,6 +106,11 @@ class ModelModuleStatus:
 
 _RELATIVE_MODEL_MODULES: Final[dict[str, str]] = {
     "creative_library": ".creative_library",
+    "library_definitions": ".library_definitions",
+    "library_files": ".library_files",
+    "library_taxonomy": ".library_taxonomy",
+    "creative_library_user": ".creative_library_user",
+    "creative_library_drafts": ".creative_library_drafts",
     "user_inventory": ".user_inventory",
 }
 
@@ -112,6 +124,64 @@ _RELATIVE_MODEL_MODULE_ALIASES: Final[dict[str, str]] = {
     "inventory": "creative_library",
     "scan": "creative_library",
     "scans": "creative_library",
+    "published_library": "creative_library",
+    "creative_published": "creative_library",
+
+    # ---------------------------------------------------------------------
+    # Definition Catalog aliases
+    # ---------------------------------------------------------------------
+    "definitions": "library_definitions",
+    "definition": "library_definitions",
+    "definition_catalog": "library_definitions",
+    "library_definition": "library_definitions",
+    "library_definition_models": "library_definitions",
+    "variables": "library_definitions",
+    "units": "library_definitions",
+    "materials": "library_definitions",
+    "document_types": "library_definitions",
+    "profiles": "library_definitions",
+    "variant_profiles": "library_definitions",
+    "profile_bindings": "library_definitions",
+
+    # ---------------------------------------------------------------------
+    # File / Upload aliases
+    # ---------------------------------------------------------------------
+    "files": "library_files",
+    "file": "library_files",
+    "uploads": "library_files",
+    "upload": "library_files",
+    "assets": "library_files",
+    "library_file": "library_files",
+    "library_file_models": "library_files",
+
+    # ---------------------------------------------------------------------
+    # Taxonomy aliases
+    # ---------------------------------------------------------------------
+    "taxonomy": "library_taxonomy",
+    "taxonomies": "library_taxonomy",
+    "library_taxonomy_models": "library_taxonomy",
+    "taxonomy_nodes": "library_taxonomy",
+
+    # ---------------------------------------------------------------------
+    # Creative-Library User aliases
+    # ---------------------------------------------------------------------
+    "creative_user": "creative_library_user",
+    "creative_library_collections": "creative_library_user",
+    "collections": "creative_library_user",
+    "collection": "creative_library_user",
+    "creative_library_overrides": "creative_library_user",
+    "user_library": "creative_library_user",
+    "user_collections": "creative_library_user",
+
+    # ---------------------------------------------------------------------
+    # Creative-Library Draft aliases
+    # ---------------------------------------------------------------------
+    "drafts": "creative_library_drafts",
+    "draft": "creative_library_drafts",
+    "creative_drafts": "creative_library_drafts",
+    "creative_library_draft": "creative_library_drafts",
+    "generator_drafts": "creative_library_drafts",
+    "generator": "creative_library_drafts",
 
     # ---------------------------------------------------------------------
     # User-Inventory aliases
@@ -131,6 +201,31 @@ _MODULE_MODEL_ITERATOR_NAMES: Final[dict[str, tuple[str, ...]]] = {
         "iter_models",
         "get_models",
     ),
+    "library_definitions": (
+        "iter_library_definition_models",
+        "iter_models",
+        "get_models",
+    ),
+    "library_files": (
+        "iter_library_file_models",
+        "iter_models",
+        "get_models",
+    ),
+    "library_taxonomy": (
+        "iter_library_taxonomy_models",
+        "iter_models",
+        "get_models",
+    ),
+    "creative_library_user": (
+        "iter_creative_library_user_models",
+        "iter_models",
+        "get_models",
+    ),
+    "creative_library_drafts": (
+        "iter_creative_library_draft_models",
+        "iter_models",
+        "get_models",
+    ),
     "user_inventory": (
         "iter_user_inventory_models",
         "iter_models",
@@ -139,6 +234,10 @@ _MODULE_MODEL_ITERATOR_NAMES: Final[dict[str, tuple[str, ...]]] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Lazy symbol map
+# ---------------------------------------------------------------------------
+
 _SYMBOL_TO_MODULE: Final[dict[str, str]] = {
     # ---------------------------------------------------------------------
     # creative_library.py
@@ -146,6 +245,8 @@ _SYMBOL_TO_MODULE: Final[dict[str, str]] = {
     "CREATIVE_LIBRARY_MODELS_SCHEMA_VERSION": "creative_library",
     "CREATIVE_LIBRARY_UID_FIELD": "creative_library",
     "DEFAULT_INVENTORY_KEY": "creative_library",
+    "DEFAULT_USER_ID": "user_inventory",
+    "CreativeLibrarySourceScope": "creative_library",
     "CreativeLibraryStatus": "creative_library",
     "CreativeLibraryScanStatus": "creative_library",
     "CreativeLibraryIssueSeverity": "creative_library",
@@ -166,34 +267,185 @@ _SYMBOL_TO_MODULE: Final[dict[str, str]] = {
     "get_creative_library_model_names": "creative_library",
     "get_creative_library_models_health": "creative_library",
     "get_creative_library_table_names": "creative_library",
+    "assert_creative_library_models_ready": "creative_library",
+    "clear_creative_library_models_cache": "creative_library",
+
+    # ---------------------------------------------------------------------
+    # library_definitions.py
+    # ---------------------------------------------------------------------
+    "LIBRARY_DEFINITIONS_MODELS_SCHEMA_VERSION": "library_definitions",
+    "DEFAULT_DEFINITIONS_VERSION": "library_definitions",
+    "DEFAULT_SCHEMA_VERSION": "library_definitions",
+    "DATASET_VARIABLES": "library_definitions",
+    "DATASET_UNITS": "library_definitions",
+    "DATASET_MATERIALS": "library_definitions",
+    "DATASET_DOCUMENT_TYPES": "library_definitions",
+    "DATASET_OBJECT_KINDS": "library_definitions",
+    "DATASET_FAMILY_PROFILES": "library_definitions",
+    "DATASET_VARIANT_PROFILES": "library_definitions",
+    "DATASET_PROFILE_BINDINGS": "library_definitions",
+    "LIBRARY_DEFINITION_DATASET_KEYS": "library_definitions",
+    "MODEL_BY_DATASET_KEY": "library_definitions",
+    "LibraryDefinitionSourceScope": "library_definitions",
+    "LibraryDefinitionStatus": "library_definitions",
+    "LibraryDefinitionSeedStatus": "library_definitions",
+    "LibraryDefinitionOverrideAction": "library_definitions",
+    "LibraryDefinitionValueType": "library_definitions",
+    "LibraryDefinitionDataset": "library_definitions",
+    "LibraryDefinitionSeedRun": "library_definitions",
+    "LibraryDefinitionVariable": "library_definitions",
+    "LibraryDefinitionUnit": "library_definitions",
+    "LibraryDefinitionMaterial": "library_definitions",
+    "LibraryDefinitionDocumentType": "library_definitions",
+    "LibraryDefinitionObjectKind": "library_definitions",
+    "LibraryDefinitionFamilyProfile": "library_definitions",
+    "LibraryDefinitionVariantProfile": "library_definitions",
+    "LibraryDefinitionProfileBinding": "library_definitions",
+    "LibraryDefinitionOverride": "library_definitions",
+    "model_class_for_dataset": "library_definitions",
+    "create_definition_model_from_item": "library_definitions",
+    "iter_library_definition_models": "library_definitions",
+    "get_library_definition_model_names": "library_definitions",
+    "get_library_definition_table_names": "library_definitions",
+    "get_library_definition_models_health": "library_definitions",
+    "assert_library_definition_models_ready": "library_definitions",
+    "clear_library_definition_model_caches": "library_definitions",
+
+    # ---------------------------------------------------------------------
+    # library_files.py
+    # ---------------------------------------------------------------------
+    "LIBRARY_FILES_MODELS_SCHEMA_VERSION": "library_files",
+    "MODEL_3D_EXTENSIONS": "library_files",
+    "IMAGE_EXTENSIONS": "library_files",
+    "DRAWING_EXTENSIONS": "library_files",
+    "DOCUMENT_EXTENSIONS": "library_files",
+    "FORBIDDEN_UPLOAD_EXTENSIONS": "library_files",
+    "MANUAL_MIME_TYPES": "library_files",
+    "LibraryFileSourceScope": "library_files",
+    "LibraryFileStatus": "library_files",
+    "LibraryFileStorageBackend": "library_files",
+    "LibraryFileAssetKind": "library_files",
+    "LibraryFileRole": "library_files",
+    "LibraryFileLinkContextType": "library_files",
+    "LibraryFileAuditEventType": "library_files",
+    "LibraryFile": "library_files",
+    "LibraryFileVersion": "library_files",
+    "LibraryFileLink": "library_files",
+    "LibraryFileAuditEvent": "library_files",
+    "build_file_payload_summary": "library_files",
+    "build_link_context_payload": "library_files",
+    "iter_library_file_models": "library_files",
+    "get_library_file_model_names": "library_files",
+    "get_library_file_table_names": "library_files",
+    "get_library_file_models_health": "library_files",
+    "assert_library_file_models_ready": "library_files",
+    "clear_library_file_model_caches": "library_files",
+
+    # ---------------------------------------------------------------------
+    # library_taxonomy.py
+    # ---------------------------------------------------------------------
+    "LIBRARY_TAXONOMY_MODELS_SCHEMA_VERSION": "library_taxonomy",
+    "NODE_TYPE_DOMAIN": "library_taxonomy",
+    "NODE_TYPE_CATEGORY": "library_taxonomy",
+    "NODE_TYPE_SUBCATEGORY": "library_taxonomy",
+    "TAXONOMY_NODE_TYPES": "library_taxonomy",
+    "RESERVED_TAXONOMY_PARTS": "library_taxonomy",
+    "LibraryTaxonomySourceScope": "library_taxonomy",
+    "LibraryTaxonomyNodeType": "library_taxonomy",
+    "LibraryTaxonomyStatus": "library_taxonomy",
+    "LibraryTaxonomyOverrideAction": "library_taxonomy",
+    "LibraryTaxonomyAuditEventType": "library_taxonomy",
+    "LibraryTaxonomyNode": "library_taxonomy",
+    "LibraryTaxonomyOverride": "library_taxonomy",
+    "LibraryTaxonomyAuditEvent": "library_taxonomy",
+    "apply_override_to_node_payload": "library_taxonomy",
+    "build_taxonomy_tree_from_nodes": "library_taxonomy",
+    "iter_library_taxonomy_models": "library_taxonomy",
+    "get_library_taxonomy_model_names": "library_taxonomy",
+    "get_library_taxonomy_table_names": "library_taxonomy",
+    "get_library_taxonomy_models_health": "library_taxonomy",
+    "assert_library_taxonomy_models_ready": "library_taxonomy",
+    "clear_library_taxonomy_model_caches": "library_taxonomy",
+
+    # ---------------------------------------------------------------------
+    # creative_library_user.py
+    # ---------------------------------------------------------------------
+    "CREATIVE_LIBRARY_USER_MODELS_SCHEMA_VERSION": "creative_library_user",
+    "DEFAULT_COLLECTION_KEY": "creative_library_user",
+    "DEFAULT_USER_COLLECTION_KEY": "creative_library_user",
+    "CreativeLibraryUserSourceScope": "creative_library_user",
+    "CreativeLibraryUserStatus": "creative_library_user",
+    "CreativeLibraryCollectionKind": "creative_library_user",
+    "CreativeLibraryUserOverrideAction": "creative_library_user",
+    "CreativeLibraryUserTargetType": "creative_library_user",
+    "CreativeLibraryUserAuditEventType": "creative_library_user",
+    "CreativeLibraryCollection": "creative_library_user",
+    "CreativeLibraryCollectionItem": "creative_library_user",
+    "CreativeLibraryUserOverride": "creative_library_user",
+    "CreativeLibraryUserAuditEvent": "creative_library_user",
+    "apply_user_override_to_item_payload": "creative_library_user",
+    "build_resolved_collection_payload": "creative_library_user",
+    "iter_creative_library_user_models": "creative_library_user",
+    "get_creative_library_user_model_names": "creative_library_user",
+    "get_creative_library_user_table_names": "creative_library_user",
+    "get_creative_library_user_models_health": "creative_library_user",
+    "assert_creative_library_user_models_ready": "creative_library_user",
+    "clear_creative_library_user_model_caches": "creative_library_user",
+
+    # ---------------------------------------------------------------------
+    # creative_library_drafts.py
+    # ---------------------------------------------------------------------
+    "CREATIVE_LIBRARY_DRAFTS_MODELS_SCHEMA_VERSION": "creative_library_drafts",
+    "DEFAULT_DRAFT_KEY_PREFIX": "creative_library_drafts",
+    "DEFAULT_VARIANT_ID": "creative_library_drafts",
+    "CreativeLibraryDraftSourceScope": "creative_library_drafts",
+    "CreativeLibraryDraftMode": "creative_library_drafts",
+    "CreativeLibraryDraftStatus": "creative_library_drafts",
+    "CreativeLibraryDraftStage": "creative_library_drafts",
+    "CreativeLibraryDraftItemStatus": "creative_library_drafts",
+    "CreativeLibraryDraftAssetRole": "creative_library_drafts",
+    "CreativeLibraryDraftDocumentKind": "creative_library_drafts",
+    "CreativeLibraryDraftIssueSeverity": "creative_library_drafts",
+    "CreativeLibraryDraftAuditEventType": "creative_library_drafts",
+    "CreativeLibraryDraft": "creative_library_drafts",
+    "CreativeLibraryDraftVariant": "creative_library_drafts",
+    "CreativeLibraryDraftAsset": "creative_library_drafts",
+    "CreativeLibraryDraftDocument": "creative_library_drafts",
+    "CreativeLibraryDraftValidationIssue": "creative_library_drafts",
+    "CreativeLibraryDraftAuditEvent": "creative_library_drafts",
+    "build_draft_payload_summary": "creative_library_drafts",
+    "draft_has_blocking_issues": "creative_library_drafts",
+    "iter_creative_library_draft_models": "creative_library_drafts",
+    "get_creative_library_draft_model_names": "creative_library_drafts",
+    "get_creative_library_draft_table_names": "creative_library_drafts",
+    "get_creative_library_draft_models_health": "creative_library_drafts",
+    "assert_creative_library_draft_models_ready": "creative_library_drafts",
+    "clear_creative_library_draft_model_caches": "creative_library_drafts",
 
     # ---------------------------------------------------------------------
     # user_inventory.py
     # ---------------------------------------------------------------------
     "USER_INVENTORY_MODELS_SCHEMA_VERSION": "user_inventory",
-    "DEFAULT_USER_ID": "user_inventory",
     "DEFAULT_SLOT_COUNT": "user_inventory",
     "MIN_SLOT_INDEX": "user_inventory",
     "MAX_SLOT_INDEX": "user_inventory",
+    "UserInventoryAuditEventType": "user_inventory",
+    "UserInventoryContentType": "user_inventory",
+    "UserInventoryMode": "user_inventory",
+    "UserInventorySource": "user_inventory",
+    "UserInventoryStatus": "user_inventory",
     "UserInventoryState": "user_inventory",
     "UserInventorySlot": "user_inventory",
-    "clean_optional_string": "user_inventory",
-    "clean_required_string": "user_inventory",
-    "clean_string": "user_inventory",
+    "UserInventoryAuditEvent": "user_inventory",
+    "build_default_inventory_slots": "user_inventory",
+    "build_inventory_snapshot": "user_inventory",
+    "slot_payload_summary": "user_inventory",
     "get_user_inventory_model_names": "user_inventory",
     "get_user_inventory_models_health": "user_inventory",
     "get_user_inventory_table_names": "user_inventory",
     "iter_user_inventory_models": "user_inventory",
-    "normalize_bool": "user_inventory",
-    "normalize_int": "user_inventory",
-    "normalize_json_list": "user_inventory",
-    "normalize_json_mapping": "user_inventory",
-    "normalize_json_value": "user_inventory",
-    "normalize_slot_index": "user_inventory",
-    "normalize_user_id": "user_inventory",
-    "slot_key_for_index": "user_inventory",
-    "taxonomy_path_for": "user_inventory",
-    "utc_now": "user_inventory",
+    "assert_user_inventory_models_ready": "user_inventory",
+    "clear_user_inventory_models_cache": "user_inventory",
 }
 
 
@@ -214,7 +466,7 @@ def _canonical_module_key(module_key: str) -> str:
     return _RELATIVE_MODEL_MODULE_ALIASES.get(key, key)
 
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=128)
 def _load_model_module(module_key: str) -> ModuleType:
     """Lädt ein Model-Modul lazy über relative Imports."""
     canonical_key = _canonical_module_key(module_key)
@@ -239,8 +491,12 @@ def __getattr__(name: str) -> Any:
 
     Beispiele:
         from models import CreativeLibraryItem
+        from models import LibraryDefinitionVariable
+        from models import LibraryFile
+        from models import LibraryTaxonomyNode
+        from models import CreativeLibraryCollection
+        from models import CreativeLibraryDraft
         from models import UserInventoryState
-        from models import utc_now
         from models import import_all_models
     """
     canonical_module_name = _RELATIVE_MODEL_MODULE_ALIASES.get(name, name)
@@ -288,8 +544,7 @@ def get_model_module_keys(*, include_aliases: bool = False) -> tuple[str, ...]:
 
     Args:
         include_aliases:
-            Wenn True, werden Komfort-Aliase wie "creative", "inventory",
-            "user" und "hotbar" ergänzt.
+            Wenn True, werden Komfort-Aliase ergänzt.
     """
     keys = list(_RELATIVE_MODEL_MODULES.keys())
 
@@ -587,10 +842,16 @@ def get_models_health() -> dict[str, Any]:
         "metadata": metadata_snapshot,
         "modules": [status.to_dict() for status in statuses],
         "supports_creative_library": is_model_symbol("CreativeLibraryItem"),
+        "supports_library_definitions": is_model_symbol("LibraryDefinitionVariable"),
+        "supports_library_files": is_model_symbol("LibraryFile"),
+        "supports_library_taxonomy": is_model_symbol("LibraryTaxonomyNode"),
+        "supports_creative_library_user": is_model_symbol("CreativeLibraryCollection"),
+        "supports_creative_library_drafts": is_model_symbol("CreativeLibraryDraft"),
         "supports_user_inventory": is_model_symbol("UserInventoryState"),
         "supports_user_inventory_slots": is_model_symbol("UserInventorySlot"),
-        "exports_user_inventory_utc_now": is_model_symbol("utc_now"),
-        "exports_user_inventory_slot_key_for_index": is_model_symbol("slot_key_for_index"),
+        "supports_user_inventory_audit": is_model_symbol("UserInventoryAuditEvent"),
+        "supports_model_aliases": True,
+        "supports_lazy_imports": True,
     }
 
 
@@ -641,6 +902,33 @@ def clear_model_caches() -> None:
     except Exception:
         pass
 
+    for module_key in get_model_module_keys(include_aliases=False):
+        try:
+            module = _load_model_module(module_key)
+        except Exception:
+            continue
+
+        for function_name in (
+            "clear_creative_library_models_cache",
+            "clear_library_definition_model_caches",
+            "clear_library_file_model_caches",
+            "clear_library_taxonomy_model_caches",
+            "clear_creative_library_user_model_caches",
+            "clear_creative_library_draft_model_caches",
+            "clear_user_inventory_models_cache",
+        ):
+            try:
+                candidate = getattr(module, function_name, None)
+                if callable(candidate):
+                    candidate()
+            except Exception:
+                continue
+
+    try:
+        _load_model_module.cache_clear()
+    except Exception:
+        pass
+
 
 def model_status_to_json(status: ModelModuleStatus) -> dict[str, Any]:
     """Serialisiert einen ModelModuleStatus JSON-kompatibel."""
@@ -679,6 +967,11 @@ def _iter_model_classes_from_module(
     Bevorzugt werden explizite Iterator-Funktionen des Moduls, z.B.:
 
         iter_creative_library_models()
+        iter_library_definition_models()
+        iter_library_file_models()
+        iter_library_taxonomy_models()
+        iter_creative_library_user_models()
+        iter_creative_library_draft_models()
         iter_user_inventory_models()
 
     Fallback:
@@ -755,9 +1048,6 @@ def _is_sqlalchemy_model_class(obj: Any) -> bool:
         if not table_name:
             return False
 
-        # Wichtig:
-        # Bei Flask-SQLAlchemy kann __abstract__ geerbt sein.
-        # Eine echte __table__ ist deshalb der stärkere Beweis.
         if getattr(obj, "__table__", None) is not None:
             return True
 
@@ -858,6 +1148,7 @@ def _load_db_extension() -> Any:
 
 __version__ = MODELS_PACKAGE_VERSION
 
+
 __all__ = [
     "MODELS_PACKAGE_VERSION",
     "ModelModuleStatus",
@@ -865,9 +1156,65 @@ __all__ = [
     "__version__",
     "assert_models_ready",
     "clear_model_caches",
+
+    # Module aliases
+    "assets",
+    "collection",
+    "collections",
     "creative",
+    "creative_drafts",
     "creative_library",
+    "creative_library_collections",
+    "creative_library_draft",
+    "creative_library_drafts",
+    "creative_library_overrides",
+    "creative_published",
+    "creative_user",
+    "definition",
+    "definition_catalog",
+    "definitions",
+    "document_types",
+    "draft",
+    "drafts",
     "editor_inventory",
+    "file",
+    "files",
+    "generator",
+    "generator_drafts",
+    "hotbar",
+    "inventory",
+    "library",
+    "library_definition",
+    "library_definition_models",
+    "library_definitions",
+    "library_file",
+    "library_file_models",
+    "library_files",
+    "library_taxonomy",
+    "library_taxonomy_models",
+    "materials",
+    "profiles",
+    "published_library",
+    "scan",
+    "scans",
+    "taxonomies",
+    "taxonomy",
+    "taxonomy_nodes",
+    "units",
+    "upload",
+    "uploads",
+    "user",
+    "user_collections",
+    "user_hotbar",
+    "user_inventory",
+    "user_inventory_models",
+    "user_library",
+    "users",
+    "variables",
+    "variant_profiles",
+    "profile_bindings",
+
+    # Registry helpers
     "get_model_class_names",
     "get_model_module_alias_map",
     "get_model_module_keys",
@@ -877,22 +1224,14 @@ __all__ = [
     "get_model_table_names",
     "get_models_health",
     "get_models_metadata_snapshot",
-    "hotbar",
     "import_all_models",
-    "inventory",
     "is_model_symbol",
     "iter_model_classes",
-    "library",
     "load_all_model_modules",
     "load_model_module",
     "model_status_to_json",
     "model_statuses_to_json",
-    "scan",
-    "scans",
-    "user",
-    "user_hotbar",
-    "user_inventory",
-    "user_inventory_models",
-    "users",
+
+    # Lazy symbols
     *_SYMBOL_TO_MODULE.keys(),
 ]
