@@ -1,0 +1,17 @@
+{# services/vectoplan-library/templates/vplib/create/variants/_variant_empty_state.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · VPLIB Create Wizard · Variant Empty State Compatibility Alias
+
+  Zweck:
+  - Kompatibilitätsdatei für ältere Includes auf `_variant_empty_state.html`.
+  - Die eigentliche Empty-State-DOM-Struktur liegt in
+    `_variant_drawer_empty_state.html`.
+  - Verhindert, dass Legacy-/Fallback-Includes ins Leere laufen.
+  - Keine eigene DOM-Duplizierung.
+  - Keine API-Aufrufe.
+  - Keine Package-Erzeugung.
+  - Keine fachliche Variant-Logik.
+  - Keine Dateioperationen.
+----------------------------------------------------------------------------- #}
+
+{% include "vplib/create/variants/_variant_drawer_empty_state.html" with context %}

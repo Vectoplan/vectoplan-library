@@ -4,51 +4,13 @@
 
   Zweck:
   - Finaler Wizard-Schritt für die /create-Oberfläche.
-  - Stellt die Backend-Aktionen bereit:
-      - Draft bauen
-      - Validieren
-      - Package-Plan
-      - Download
-      - Save
-  - Vertikale Aktionsleiste für den Black-Fullscreen-Wizard.
-  - Ergebnis-/Feedbackbereich bleibt kompakt und wird nur bei brauchbarem Inhalt
-    sichtbar.
-  - Ersetzt die gelöschte _result.html durch Inline-Feedback.
+  - Stellt die Create-Backend-Aktionen als reine UI-Hooks bereit.
   - Keine Business-Logik im Template.
   - Keine direkte Dateioperation im Browser.
   - Keine Formularauswertung im Template.
   - Keine API-Aufrufe im Template.
-  - Keine Help-Section.
-  - Keine Alert-Section.
-  - Keine Hero-Section.
-
-  Backend-/JS-Vertrag:
-  Diese data-create-action Werte bleiben stabil:
-  - draft
-  - validate
-  - package-plan
-  - download
-  - save
-
-  Bestehende JS-Hooks bleiben erhalten:
-  - data-create-actions-card="true"
-  - data-create-action="draft"
-  - data-create-action="validate"
-  - data-create-action="package-plan"
-  - data-create-action="download"
-  - data-create-action="save"
-  - data-create-action-status="true"
-
-  Neue defensive Hooks:
-  - data-vp-create-section="actions"
-  - data-vp-actions-root
-  - data-vp-actions-feedback
-  - data-vp-actions-result-output
-  - data-vp-actions-result-copy
-  - data-vp-actions-result-clear
-  - window.VectoplanCreateActions
+  - Ausführung erfolgt ausschließlich über create_actions.js.
 ----------------------------------------------------------------------------- #}
-
 
 {# -----------------------------------------------------------------------------
   1. Kontext defensiv normalisieren
@@ -56,6 +18,10 @@
 
 {% if _write_enabled is defined %}
   {% set _actions_write_enabled_raw = _write_enabled %}
+{% elif _context is defined and _context is mapping and 'write_enabled' in _context %}
+  {% set _actions_write_enabled_raw = _context['write_enabled'] %}
+{% elif _context is defined and _context is mapping and 'writeEnabled' in _context %}
+  {% set _actions_write_enabled_raw = _context['writeEnabled'] %}
 {% elif create_options is defined and create_options is mapping and 'write_enabled' in create_options %}
   {% set _actions_write_enabled_raw = create_options['write_enabled'] %}
 {% elif create_options is defined and create_options is mapping and 'write' in create_options and create_options['write'] is mapping and 'enabled' in create_options['write'] %}
@@ -71,7 +37,6 @@
   {% set _actions_write_enabled = false %}
 {% endif %}
 
-
 {% if _health_ok is defined %}
   {% set _actions_health_ok_raw = _health_ok %}
 {% elif create_health is defined and create_health is mapping and 'ok' in create_health %}
@@ -83,12 +48,11 @@
 {% endif %}
 
 {% set _actions_health_ok_text = _actions_health_ok_raw | string | lower %}
-{% if _actions_health_ok_raw is sameas true or _actions_health_ok_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy'] %}
+{% if _actions_health_ok_raw is sameas true or _actions_health_ok_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy', 'ready', 'partial'] %}
   {% set _actions_health_ok = true %}
 {% else %}
   {% set _actions_health_ok = false %}
 {% endif %}
-
 
 {% if _api_prefix is defined and _api_prefix %}
   {% set _actions_api_prefix = _api_prefix %}
@@ -100,6 +64,15 @@
   {% set _actions_api_prefix = '/api/v1/vplib/create' %}
 {% endif %}
 
+{% if _routes is defined and _routes is mapping %}
+  {% set _actions_routes = _routes %}
+{% elif create_routes is defined and create_routes is mapping %}
+  {% set _actions_routes = create_routes %}
+{% elif _context is defined and _context is mapping and 'routes' in _context and _context['routes'] is mapping %}
+  {% set _actions_routes = _context['routes'] %}
+{% else %}
+  {% set _actions_routes = {} %}
+{% endif %}
 
 {% if _source_root is defined and _source_root %}
   {% set _actions_source_root = _source_root %}
@@ -111,6 +84,47 @@
   {% set _actions_source_root = '' %}
 {% endif %}
 
+{% if _create_definitions_available is defined %}
+  {% set _actions_definitions_ready = _create_definitions_available %}
+{% elif _context is defined and _context is mapping and 'definitionsReady' in _context %}
+  {% set _actions_definitions_ready = _context['definitionsReady'] %}
+{% elif _context is defined and _context is mapping and 'definitions_ready' in _context %}
+  {% set _actions_definitions_ready = _context['definitions_ready'] %}
+{% else %}
+  {% set _actions_definitions_ready = false %}
+{% endif %}
+
+{% set _actions_definitions_ready_text = _actions_definitions_ready | string | lower %}
+{% if _actions_definitions_ready is sameas true or _actions_definitions_ready_text in ['true', '1', 'yes', 'ja', 'ok', 'ready', 'partial'] %}
+  {% set _actions_definitions_ok = true %}
+{% else %}
+  {% set _actions_definitions_ok = false %}
+{% endif %}
+
+{% if _generator_context_ready is defined %}
+  {% set _actions_generator_ready = _generator_context_ready %}
+{% elif _generator_context is defined and _generator_context is mapping and (_generator_context | length) > 0 %}
+  {% set _actions_generator_ready = true %}
+{% else %}
+  {% set _actions_generator_ready = false %}
+{% endif %}
+
+{% if _payload_contract_ready is defined %}
+  {% set _actions_payload_contract_ready = _payload_contract_ready %}
+{% elif _payload_contract is defined and _payload_contract is mapping and (_payload_contract | length) > 0 %}
+  {% set _actions_payload_contract_ready = true %}
+{% else %}
+  {% set _actions_payload_contract_ready = false %}
+{% endif %}
+
+{% set _actions_route_draft = _actions_routes.get('draft', _actions_api_prefix ~ '/draft') %}
+{% set _actions_route_validate = _actions_routes.get('validate', _actions_api_prefix ~ '/validate') %}
+{% set _actions_route_package_plan = _actions_routes.get('package_plan', _actions_routes.get('packagePlan', _actions_api_prefix ~ '/package-plan')) %}
+{% set _actions_route_download = _actions_routes.get('download', _actions_api_prefix ~ '/download') %}
+{% set _actions_route_save = _actions_routes.get('save', _actions_api_prefix ~ '/save') %}
+{% set _actions_route_persistent_draft = _actions_routes.get('persistent_draft', _actions_routes.get('persistentDraft', _actions_api_prefix ~ '/drafts')) %}
+{% set _actions_route_publish_bundle = _actions_routes.get('publish_bundle', _actions_routes.get('publishBundle', _actions_api_prefix ~ '/publish-bundle')) %}
+{% set _actions_route_cache_clear = _actions_routes.get('cache_clear', _actions_routes.get('cacheClear', _actions_api_prefix ~ '/cache/clear')) %}
 
 {# -----------------------------------------------------------------------------
   2. Labels ableiten
@@ -136,6 +150,21 @@
   {% set _health_badge_state = 'warning' %}
 {% endif %}
 
+{% if _actions_definitions_ok %}
+  {% set _definitions_state_label = 'Definitionen bereit' %}
+  {% set _definitions_badge_state = 'ok' %}
+{% else %}
+  {% set _definitions_state_label = 'Definitionen prüfen' %}
+  {% set _definitions_badge_state = 'warning' %}
+{% endif %}
+
+{% if _actions_generator_ready %}
+  {% set _generator_state_label = 'Generator-Kontext bereit' %}
+  {% set _generator_badge_state = 'ok' %}
+{% else %}
+  {% set _generator_state_label = 'Generator-Kontext partiell' %}
+  {% set _generator_badge_state = 'warning' %}
+{% endif %}
 
 <div
   class="vplib-create-step__panel vp-create-card vp-create-section vp-create-section--actions vp-create-actions-card"
@@ -145,18 +174,29 @@
   data-create-write-enabled="{% if _actions_write_enabled %}true{% else %}false{% endif %}"
   data-create-health-ok="{% if _actions_health_ok %}true{% else %}false{% endif %}"
   data-create-api-prefix="{{ _actions_api_prefix }}"
+  data-vp-create-api-prefix="{{ _actions_api_prefix }}"
   data-create-source-root="{{ _actions_source_root }}"
   data-vp-step-panel="actions"
   data-vp-actions-root="true"
   data-vp-actions-ready="false"
-  data-vp-actions-version="0.6.0"
+  data-vp-actions-template-ready="true"
+  data-vp-actions-version="0.7.0"
   data-vp-actions-layout="vertical"
+  data-vp-actions-definitions-ready="{% if _actions_definitions_ok %}true{% else %}false{% endif %}"
+  data-vp-actions-generator-ready="{% if _actions_generator_ready %}true{% else %}false{% endif %}"
+  data-vp-actions-payload-contract-ready="{% if _actions_payload_contract_ready %}true{% else %}false{% endif %}"
+  data-vp-route-draft="{{ _actions_route_draft }}"
+  data-vp-route-validate="{{ _actions_route_validate }}"
+  data-vp-route-package-plan="{{ _actions_route_package_plan }}"
+  data-vp-route-download="{{ _actions_route_download }}"
+  data-vp-route-save="{{ _actions_route_save }}"
+  data-vp-route-persistent-draft="{{ _actions_route_persistent_draft }}"
+  data-vp-route-publish-bundle="{{ _actions_route_publish_bundle }}"
+  data-vp-route-cache-clear="{{ _actions_route_cache_clear }}"
   aria-labelledby="vp-create-actions-title"
 >
   <header class="vplib-create-step__header">
     <div class="vplib-create-step__header-main">
-
-
       <h2
         id="vp-create-actions-title"
         class="vplib-create-step__title"
@@ -165,7 +205,7 @@
       </h2>
 
       <p class="vplib-create-step__description">
-        Erzeuge die neue <code>.vplib</code> als Draft, Plan, Download oder Library-Save.
+        Erzeuge eine neue <code>.vplib</code> als Draft, Plan, Download oder kontrollierten Library-Save.
       </p>
     </div>
 
@@ -199,15 +239,37 @@
           </span>
 
           <span
+            class="vp-create-status-pill vp-create-status-pill--{{ _definitions_badge_state }}"
+            data-vp-actions-definitions-pill="true"
+            title="Definitions- und Variant-Profile für den Payload."
+          >
+            {{ _definitions_state_label }}
+          </span>
+
+          <span
+            class="vp-create-status-pill vp-create-status-pill--{{ _generator_badge_state }}"
+            data-vp-actions-generator-pill="true"
+            title="Generator-Kontext für Create-Aktionen."
+          >
+            {{ _generator_state_label }}
+          </span>
+
+          <span
             class="vp-create-status-pill vp-create-status-pill--{{ _save_badge_state }}"
             data-vp-actions-write-pill="true"
-            title="{% if _actions_write_enabled %}{{ _save_hint }}{% else %}{{ _save_hint }}{% endif %}"
+            title="{{ _save_hint }}"
           >
             {{ _save_state_label }}
           </span>
-
-
         </div>
+
+        <p
+          class="vp-create-actions-feedback__status"
+          data-vp-action-status
+          data-create-action-status="true"
+        >
+          Bereit. Wähle eine Aktion.
+        </p>
       </div>
 
       <div
@@ -223,13 +285,14 @@
           data-create-action-label="Draft bauen"
           data-vp-action-button
           data-vp-action-kind="draft"
+          data-vp-action-route="{{ _actions_route_draft }}"
         >
           <span class="vp-create-button__label">
             Draft bauen
           </span>
 
           <span class="vp-create-button__hint">
-            Eingaben normalisieren
+            Payload normalisieren und Draft-Vorschau erzeugen
           </span>
         </button>
 
@@ -240,13 +303,14 @@
           data-create-action-label="Validieren"
           data-vp-action-button
           data-vp-action-kind="validate"
+          data-vp-action-route="{{ _actions_route_validate }}"
         >
           <span class="vp-create-button__label">
             Validieren
           </span>
 
           <span class="vp-create-button__hint">
-            Pflichtfelder und Package-Struktur prüfen
+            Pflichtfelder, Definitionen und Package-Struktur prüfen
           </span>
         </button>
 
@@ -257,13 +321,14 @@
           data-create-action-label="Package-Plan"
           data-vp-action-button
           data-vp-action-kind="package-plan"
+          data-vp-action-route="{{ _actions_route_package_plan }}"
         >
           <span class="vp-create-button__label">
             Package-Plan
           </span>
 
           <span class="vp-create-button__hint">
-            Geplante Dateien ansehen
+            Geplante Dateien und Manifest-Struktur ansehen
           </span>
         </button>
 
@@ -274,13 +339,50 @@
           data-create-action-label="VPLIB downloaden"
           data-vp-action-button
           data-vp-action-kind="download"
+          data-vp-action-route="{{ _actions_route_download }}"
         >
           <span class="vp-create-button__label">
             VPLIB downloaden
           </span>
 
           <span class="vp-create-button__hint">
-            Archiv erzeugen, ohne zu speichern
+            Backend erzeugt Archiv, ohne Source-Save
+          </span>
+        </button>
+
+        <button
+          class="vp-create-button vp-create-button--secondary vp-create-action-button"
+          type="button"
+          data-create-action="persist-draft"
+          data-create-action-label="Draft speichern"
+          data-vp-action-button
+          data-vp-action-kind="persist-draft"
+          data-vp-action-route="{{ _actions_route_persistent_draft }}"
+        >
+          <span class="vp-create-button__label">
+            Draft speichern
+          </span>
+
+          <span class="vp-create-button__hint">
+            Arbeitsstand als persistenten Draft vorbereiten
+          </span>
+        </button>
+
+        <button
+          class="vp-create-button vp-create-button--secondary vp-create-action-button"
+          type="button"
+          data-create-action="publish-prepare"
+          data-create-action-label="Publish vorbereiten"
+          data-vp-action-button
+          data-vp-action-kind="publish-prepare"
+          data-vp-action-route="{{ _actions_route_publish_bundle }}"
+        >
+          <span class="vp-create-button__label">
+            Publish vorbereiten
+          </span>
+
+          <span class="vp-create-button__hint">
+            Bundle-/Publish-Payload prüfen
           </span>
         </button>
 
@@ -292,6 +394,7 @@
           data-create-requires-write="true"
           data-vp-action-button
           data-vp-action-kind="save"
+          data-vp-action-route="{{ _actions_route_save }}"
           {% if not _actions_write_enabled %}disabled aria-disabled="true"{% else %}aria-disabled="false"{% endif %}
         >
           <span class="vp-create-button__label">
@@ -312,6 +415,7 @@
         class="vplib-create-step__field vplib-create-step__field--full vp-create-actions-result"
         data-vp-actions-result
         data-create-result-section="true"
+        data-vp-actions-result-visible="false"
         aria-labelledby="vp-create-actions-result-title"
       >
         <header class="vp-create-actions-result__header">
@@ -356,6 +460,37 @@
           </div>
         </header>
 
+        <dl
+          class="vp-create-actions-result__meta"
+          data-vp-actions-result-meta
+          aria-label="Aktionsergebnis-Metadaten"
+        >
+          <div>
+            <dt>Aktion</dt>
+            <dd data-create-result-last-action data-vp-result-last-action>Keine</dd>
+          </div>
+
+          <div>
+            <dt>Status</dt>
+            <dd data-create-result-status data-vp-result-status>—</dd>
+          </div>
+
+          <div>
+            <dt>HTTP</dt>
+            <dd data-create-result-http-status data-vp-result-http-status>—</dd>
+          </div>
+
+          <div>
+            <dt>Fehler</dt>
+            <dd data-create-result-error-count data-vp-result-error-count>0</dd>
+          </div>
+
+          <div>
+            <dt>Warnungen</dt>
+            <dd data-create-result-warning-count data-vp-result-warning-count>0</dd>
+          </div>
+        </dl>
+
         <pre
           class="vp-create-actions-result__output"
           data-vp-actions-result-output
@@ -385,15 +520,36 @@
   <script type="application/json" data-vp-actions-config>
     {
       "component": "create.actions",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "apiPrefix": {{ _actions_api_prefix | tojson }},
       "writeEnabled": {% if _actions_write_enabled %}true{% else %}false{% endif %},
       "healthOk": {% if _actions_health_ok %}true{% else %}false{% endif %},
+      "definitionsReady": {% if _actions_definitions_ok %}true{% else %}false{% endif %},
+      "generatorContextReady": {% if _actions_generator_ready %}true{% else %}false{% endif %},
+      "payloadContractReady": {% if _actions_payload_contract_ready %}true{% else %}false{% endif %},
       "sourceRoot": {{ _actions_source_root | tojson }},
-      "actions": ["draft", "validate", "package-plan", "download", "save"],
+      "routes": {
+        "draft": {{ _actions_route_draft | tojson }},
+        "validate": {{ _actions_route_validate | tojson }},
+        "package_plan": {{ _actions_route_package_plan | tojson }},
+        "download": {{ _actions_route_download | tojson }},
+        "save": {{ _actions_route_save | tojson }},
+        "persistent_draft": {{ _actions_route_persistent_draft | tojson }},
+        "publish_bundle": {{ _actions_route_publish_bundle | tojson }},
+        "cache_clear": {{ _actions_route_cache_clear | tojson }}
+      },
+      "actions": [
+        "draft",
+        "validate",
+        "package-plan",
+        "download",
+        "persist-draft",
+        "publish-prepare",
+        "save"
+      ],
       "events": {
-        "ready": "vectoplan:create:actions-ready",
-        "stateChanged": "vectoplan:create:actions-state-changed",
+        "ready": "vectoplan:create:actions-template-ready",
+        "stateChanged": "vectoplan:create:actions-template-state-changed",
         "resultChanged": "vectoplan:create:actions-result-changed",
         "resultCopied": "vectoplan:create:actions-result-copied",
         "resultCleared": "vectoplan:create:actions-result-cleared"
@@ -406,613 +562,41 @@
   (function () {
     "use strict";
 
-    function bootActions() {
+    function bootActionsTemplate() {
       try {
-        var COMPONENT_NAME = "VECTOPLAN Create Actions";
-        var COMPONENT_VERSION = "0.6.0";
+        var root = document.querySelector("[data-vp-actions-root='true']");
+        var configNode = root ? root.querySelector("[data-vp-actions-config]") : null;
+        var config = {};
 
-        var section = document.querySelector('[data-vp-create-section="actions"]') ||
-          document.querySelector('[data-create-section="actions"]') ||
-          document.querySelector("[data-vp-actions-root='true']");
-
-        if (!section || section.getAttribute("data-vp-actions-ready") === "true") {
+        if (!root || root.getAttribute("data-vp-actions-template-booted") === "true") {
           return;
         }
 
-        var statusNode = section.querySelector("[data-vp-action-status]") ||
-          section.querySelector('[data-create-action-status="true"]');
-
-        var feedback = section.querySelector("[data-vp-actions-feedback]");
-        var resultSection = section.querySelector("[data-vp-actions-result]");
-
-        var resultSummary = section.querySelector("[data-vp-actions-result-summary]") ||
-          section.querySelector('[data-create-result-summary="true"]');
-
-        var resultOutput = section.querySelector("[data-vp-actions-result-output]") ||
-          section.querySelector('[data-create-result-output="true"]');
-
-        var resultCode = section.querySelector("[data-vp-actions-result-code]");
-        var copyButton = section.querySelector("[data-vp-actions-result-copy]") ||
-          section.querySelector('[data-create-copy-result="true"]');
-
-        var clearButton = section.querySelector("[data-vp-actions-result-clear]") ||
-          section.querySelector('[data-create-clear-result="true"]');
-
-        var actionButtons = toArray(section.querySelectorAll("[data-create-action]"));
-
-        var configScript = section.querySelector("[data-vp-actions-config]");
-        var config = {
-          component: "create.actions",
-          version: COMPONENT_VERSION,
-          apiPrefix: "/api/v1/vplib/create",
-          writeEnabled: false,
-          healthOk: false,
-          sourceRoot: "",
-          actions: ["draft", "validate", "package-plan", "download", "save"],
-          events: {
-            ready: "vectoplan:create:actions-ready",
-            stateChanged: "vectoplan:create:actions-state-changed",
-            resultChanged: "vectoplan:create:actions-result-changed",
-            resultCopied: "vectoplan:create:actions-result-copied",
-            resultCleared: "vectoplan:create:actions-result-cleared"
-          }
-        };
-
         try {
-          if (configScript && configScript.textContent) {
-            var parsedConfig = JSON.parse(configScript.textContent);
-
-            if (parsedConfig && typeof parsedConfig === "object") {
-              config = Object.assign({}, config, parsedConfig);
-              config.events = Object.assign({}, config.events || {}, parsedConfig.events || {});
-            }
+          if (configNode && configNode.textContent) {
+            config = JSON.parse(configNode.textContent);
           }
         } catch (jsonError) {
-          warn("Config parse failed.", jsonError);
+          config = {};
         }
 
-        var state = {
-          status: "idle",
-          message: "Bereit. Wähle eine Aktion.",
-          activeAction: "",
-          hasResult: false,
-          resultText: "",
-          updatedAt: "",
-          source: "initial"
-        };
+        root.setAttribute("data-vp-actions-template-booted", "true");
+        root.setAttribute("data-vp-actions-template-version", "0.7.0");
 
-        function warn(message, error) {
-          try {
-            if (window.console && typeof window.console.warn === "function") {
-              window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
-            }
-          } catch (consoleError) {
-            /* no-op */
+        document.dispatchEvent(new CustomEvent("vectoplan:create:actions-template-ready", {
+          bubbles: true,
+          cancelable: false,
+          detail: {
+            component: "create.actions.template",
+            version: "0.7.0",
+            root: root,
+            config: config
           }
-        }
-
-        function toArray(value) {
-          try {
-            return Array.prototype.slice.call(value || []);
-          } catch (error) {
-            return [];
-          }
-        }
-
-        function dispatch(node, eventName, detail, cancelable) {
-          try {
-            if (!node || !eventName) {
-              return null;
-            }
-
-            var event = new CustomEvent(eventName, {
-              bubbles: true,
-              cancelable: !!cancelable,
-              detail: detail || {}
-            });
-
-            node.dispatchEvent(event);
-            return event;
-          } catch (error) {
-            warn("Event dispatch failed: " + eventName, error);
-            return null;
-          }
-        }
-
-        function setFeedbackState(nextState, source) {
-          try {
-            var safeState = nextState || "idle";
-
-            state.status = safeState;
-            state.updatedAt = new Date().toISOString();
-            state.source = source || "state";
-
-            section.setAttribute("data-vp-actions-state", safeState);
-            section.setAttribute("data-vp-actions-last-source", state.source);
-            section.setAttribute("data-vp-actions-last-update", String(Date.now()));
-
-            if (feedback) {
-              feedback.setAttribute("data-vp-actions-feedback-state", safeState);
-            }
-
-            dispatch(section, config.events.stateChanged || "vectoplan:create:actions-state-changed", {
-              component: COMPONENT_NAME,
-              version: COMPONENT_VERSION,
-              state: Object.assign({}, state),
-              root: section,
-              source: state.source
-            });
-          } catch (error) {
-            warn("Feedback state update failed.", error);
-          }
-        }
-
-        function setStatus(message, nextState, source) {
-          try {
-            var safeMessage = message || "Bereit. Wähle eine Aktion.";
-
-            state.message = safeMessage;
-
-            if (statusNode) {
-              statusNode.textContent = safeMessage;
-            }
-
-            setFeedbackState(nextState || "idle", source || "status");
-          } catch (error) {
-            warn("Status update failed.", error);
-          }
-        }
-
-        function setButtonBusy(actionName, busy) {
-          try {
-            var active = busy ? (actionName || "") : "";
-
-            state.activeAction = active;
-            section.setAttribute("data-vp-active-action", active);
-
-            actionButtons.forEach(function (button) {
-              try {
-                var buttonAction = button.getAttribute("data-create-action");
-                var isTarget = buttonAction === actionName;
-
-                button.classList.toggle("is-running", !!busy && isTarget);
-                button.setAttribute("data-vp-action-running", !!busy && isTarget ? "true" : "false");
-
-                if (busy && isTarget) {
-                  button.setAttribute("aria-busy", "true");
-                } else {
-                  button.removeAttribute("aria-busy");
-                }
-              } catch (buttonError) {
-                warn("Button busy update skipped.", buttonError);
-              }
-            });
-          } catch (error) {
-            warn("Busy state update failed.", error);
-          }
-        }
-
-        function setToolEnabled(button, enabled) {
-          try {
-            if (!button) {
-              return;
-            }
-
-            button.disabled = !enabled;
-            button.setAttribute("aria-disabled", enabled ? "false" : "true");
-          } catch (error) {
-            /* no-op */
-          }
-        }
-
-        function getResultText() {
-          try {
-            if (!resultOutput) {
-              return "";
-            }
-
-            if (resultCode) {
-              return resultCode.textContent || "";
-            }
-
-            return resultOutput.textContent || "";
-          } catch (error) {
-            return "";
-          }
-        }
-
-        function normalizeResultText(text) {
-          try {
-            return String(text === undefined || text === null ? "" : text).trim();
-          } catch (error) {
-            return "";
-          }
-        }
-
-        function hasUsefulResult() {
-          try {
-            var text = normalizeResultText(getResultText());
-
-            return !!text && text !== "{}" && text !== "null" && text !== "undefined";
-          } catch (error) {
-            return false;
-          }
-        }
-
-        function revealResultIfNeeded(source) {
-          try {
-            var hasResult = hasUsefulResult();
-            var text = normalizeResultText(getResultText());
-
-            state.hasResult = hasResult;
-            state.resultText = text;
-
-            if (resultSection) {
-              resultSection.setAttribute("data-vp-actions-result-visible", hasResult ? "true" : "false");
-            }
-
-            if (resultOutput) {
-              resultOutput.hidden = !hasResult;
-            }
-
-            if (resultSummary) {
-              var hasSummary = String(resultSummary.textContent || "").trim();
-              resultSummary.hidden = !hasResult && !hasSummary;
-            }
-
-            setToolEnabled(copyButton, hasResult);
-            setToolEnabled(clearButton, hasResult);
-
-            if (hasResult) {
-              setFeedbackState("result", source || "result");
-            }
-
-            dispatch(section, config.events.resultChanged || "vectoplan:create:actions-result-changed", {
-              component: COMPONENT_NAME,
-              version: COMPONENT_VERSION,
-              hasResult: hasResult,
-              resultText: text,
-              root: section,
-              source: source || "result"
-            });
-
-            return hasResult;
-          } catch (error) {
-            warn("Result reveal failed.", error);
-            return false;
-          }
-        }
-
-        function clearResult() {
-          try {
-            if (resultCode) {
-              resultCode.textContent = "{}";
-            } else if (resultOutput) {
-              resultOutput.textContent = "{}";
-            }
-
-            if (resultOutput) {
-              resultOutput.hidden = true;
-            }
-
-            if (resultSummary) {
-              resultSummary.textContent = "";
-              resultSummary.hidden = true;
-            }
-
-            if (resultSection) {
-              resultSection.setAttribute("data-vp-actions-result-visible", "false");
-            }
-
-            setToolEnabled(copyButton, false);
-            setToolEnabled(clearButton, false);
-
-            state.hasResult = false;
-            state.resultText = "";
-
-            setStatus("Bereit. Wähle eine Aktion.", "idle", "clear-result");
-
-            dispatch(section, config.events.resultCleared || "vectoplan:create:actions-result-cleared", {
-              component: COMPONENT_NAME,
-              version: COMPONENT_VERSION,
-              root: section
-            });
-          } catch (error) {
-            warn("Clear result failed.", error);
-          }
-        }
-
-        function copyResult() {
-          try {
-            var text = getResultText();
-
-            if (!text || !text.trim() || text.trim() === "{}") {
-              setStatus("Kein Ergebnis zum Kopieren vorhanden.", "idle", "copy-empty");
-              return;
-            }
-
-            function finishCopy(ok) {
-              try {
-                setStatus(ok ? "Ergebnis kopiert." : "Kopieren fehlgeschlagen.", ok ? "ok" : "warning", "copy-result");
-
-                dispatch(section, config.events.resultCopied || "vectoplan:create:actions-result-copied", {
-                  component: COMPONENT_NAME,
-                  version: COMPONENT_VERSION,
-                  ok: !!ok,
-                  text: text,
-                  root: section
-                });
-              } catch (finishError) {
-                warn("Copy finish failed.", finishError);
-              }
-            }
-
-            if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-              navigator.clipboard.writeText(text).then(function () {
-                finishCopy(true);
-              }).catch(function (error) {
-                warn("Clipboard copy failed.", error);
-                fallbackCopy(text, finishCopy);
-              });
-
-              return;
-            }
-
-            fallbackCopy(text, finishCopy);
-          } catch (error) {
-            setStatus("Kopieren fehlgeschlagen.", "warning", "copy-error");
-            warn("Copy result failed.", error);
-          }
-        }
-
-        function fallbackCopy(text, done) {
-          try {
-            var textarea = document.createElement("textarea");
-            textarea.value = text;
-            textarea.setAttribute("readonly", "readonly");
-            textarea.style.position = "fixed";
-            textarea.style.left = "-9999px";
-            textarea.style.top = "0";
-            document.body.appendChild(textarea);
-            textarea.focus();
-            textarea.select();
-
-            var ok = false;
-
-            try {
-              ok = document.execCommand("copy");
-            } catch (copyError) {
-              ok = false;
-            }
-
-            document.body.removeChild(textarea);
-
-            if (typeof done === "function") {
-              done(ok);
-            }
-          } catch (error) {
-            warn("Fallback copy failed.", error);
-
-            if (typeof done === "function") {
-              done(false);
-            }
-          }
-        }
-
-        function updateResult(payload, options) {
-          try {
-            var updateOptions = options || {};
-            var value = payload;
-
-            if (payload && typeof payload === "object") {
-              try {
-                value = JSON.stringify(payload, null, 2);
-              } catch (jsonError) {
-                value = String(payload);
-              }
-            }
-
-            if (resultCode) {
-              resultCode.textContent = value === undefined || value === null ? "{}" : String(value);
-            } else if (resultOutput) {
-              resultOutput.textContent = value === undefined || value === null ? "{}" : String(value);
-            }
-
-            if (resultSummary && updateOptions.summary !== undefined) {
-              resultSummary.textContent = String(updateOptions.summary || "");
-              resultSummary.hidden = !String(updateOptions.summary || "").trim();
-            }
-
-            revealResultIfNeeded(updateOptions.source || "public-result");
-          } catch (error) {
-            warn("Result update failed.", error);
-          }
-        }
-
-        function markActionClick(button) {
-          try {
-            var action = button.getAttribute("data-create-action") || "action";
-            var label = button.getAttribute("data-create-action-label") || action;
-
-            if (button.disabled || button.getAttribute("aria-disabled") === "true") {
-              if (action === "save" && !config.writeEnabled) {
-                setStatus("Speichern ist deaktiviert. Write-Flag ist nicht aktiv.", "warning", "disabled-save");
-              } else {
-                setStatus("Aktion ist deaktiviert.", "warning", "disabled-action");
-              }
-
-              return;
-            }
-
-            setButtonBusy(action, true);
-            setStatus(label + " wird ausgeführt …", "running", "button-click");
-
-            window.setTimeout(function () {
-              try {
-                setButtonBusy(action, false);
-              } catch (error) {
-                /* no-op */
-              }
-            }, 1800);
-          } catch (error) {
-            warn("Action click marker failed.", error);
-          }
-        }
-
-        actionButtons.forEach(function (button) {
-          try {
-            button.addEventListener("click", function () {
-              markActionClick(button);
-            });
-          } catch (error) {
-            warn("Action listener binding skipped.", error);
-          }
-        });
-
-        if (copyButton) {
-          copyButton.addEventListener("click", function (event) {
-            try {
-              event.preventDefault();
-              copyResult();
-            } catch (error) {
-              warn("Copy click failed.", error);
-            }
-          });
-        }
-
-        if (clearButton) {
-          clearButton.addEventListener("click", function (event) {
-            try {
-              event.preventDefault();
-              clearResult();
-            } catch (error) {
-              warn("Clear click failed.", error);
-            }
-          });
-        }
-
-        try {
-          if (resultOutput && window.MutationObserver) {
-            var observer = new MutationObserver(function () {
-              revealResultIfNeeded("mutation");
-            });
-
-            observer.observe(resultOutput, {
-              childList: true,
-              characterData: true,
-              subtree: true
-            });
-
-            section.__vpActionsResultObserver = observer;
-          }
-        } catch (observerError) {
-          warn("Result observer failed.", observerError);
-        }
-
-        document.addEventListener("vectoplan:create:action-start", function (event) {
-          try {
-            var detail = event && event.detail ? event.detail : {};
-            var action = detail.action || "";
-            var label = detail.label || action;
-
-            setButtonBusy(action, true);
-            setStatus((label || action || "Aktion") + " wird ausgeführt …", "running", "action-start");
-          } catch (error) {
-            warn("action-start handling failed.", error);
-          }
-        });
-
-        document.addEventListener("vectoplan:create:action-complete", function (event) {
-          try {
-            var detail = event && event.detail ? event.detail : {};
-            var action = detail.action || "";
-
-            setButtonBusy(action, false);
-            setStatus("Aktion abgeschlossen.", "ok", "action-complete");
-
-            if (detail.result !== undefined) {
-              updateResult(detail.result, {
-                summary: detail.summary || "",
-                source: "action-complete"
-              });
-            } else {
-              revealResultIfNeeded("action-complete");
-            }
-          } catch (error) {
-            warn("action-complete handling failed.", error);
-          }
-        });
-
-        document.addEventListener("vectoplan:create:action-error", function (event) {
-          try {
-            var detail = event && event.detail ? event.detail : {};
-            var action = detail.action || "";
-
-            setButtonBusy(action, false);
-            setStatus("Aktion fehlgeschlagen.", "error", "action-error");
-
-            if (detail.error !== undefined) {
-              updateResult(detail.error, {
-                summary: "Fehler",
-                source: "action-error"
-              });
-            } else {
-              revealResultIfNeeded("action-error");
-            }
-          } catch (error) {
-            warn("action-error handling failed.", error);
-          }
-        });
-
-        window.VectoplanCreateActions = Object.assign({}, window.VectoplanCreateActions || {}, {
-          component: COMPONENT_NAME,
-          version: COMPONENT_VERSION,
-          root: section,
-          setStatus: setStatus,
-          setButtonBusy: setButtonBusy,
-          updateResult: updateResult,
-          revealResult: revealResultIfNeeded,
-          clearResult: clearResult,
-          copyResult: copyResult,
-          getResultText: getResultText,
-          getState: function () {
-            try {
-              return Object.assign({}, state);
-            } catch (error) {
-              return {};
-            }
-          },
-          getConfig: function () {
-            try {
-              return Object.assign({}, config);
-            } catch (error) {
-              return {};
-            }
-          },
-          getActionButtons: function () {
-            try {
-              return actionButtons.slice();
-            } catch (error) {
-              return [];
-            }
-          }
-        });
-
-        revealResultIfNeeded("boot");
-        section.setAttribute("data-vp-actions-ready", "true");
-        section.setAttribute("data-vp-actions-version", COMPONENT_VERSION);
-
-        dispatch(section, config.events.ready || "vectoplan:create:actions-ready", {
-          component: COMPONENT_NAME,
-          version: COMPONENT_VERSION,
-          state: Object.assign({}, state),
-          config: Object.assign({}, config),
-          root: section
-        });
+        }));
       } catch (error) {
         try {
           if (window.console && typeof window.console.warn === "function") {
-            window.console.warn("[VECTOPLAN Create Actions] Defensive initialization failed.", error);
+            window.console.warn("[VECTOPLAN Create Actions Template] Boot failed.", error);
           }
         } catch (consoleError) {
           /* no-op */
@@ -1022,20 +606,14 @@
 
     try {
       if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", bootActions, {
+        document.addEventListener("DOMContentLoaded", bootActionsTemplate, {
           once: true
         });
       } else {
-        bootActions();
+        bootActionsTemplate();
       }
     } catch (error) {
-      try {
-        if (window.console && typeof window.console.warn === "function") {
-          window.console.warn("[VECTOPLAN Create Actions] Boot scheduling failed.", error);
-        }
-      } catch (consoleError) {
-        /* no-op */
-      }
+      /* no-op */
     }
   })();
 </script>

@@ -3,28 +3,13 @@
 /* -----------------------------------------------------------------------------
    VECTOPLAN Library · Create Wizard · Consolidated Black UI
 
-   Ziel:
-   - Eine zentrale CSS-Datei für /create und iframe-Einbettung in /creative-inventar.
+   Zweck:
+   - Eine zentrale CSS-Datei für /create und iframe-Einbettung.
    - Schwarzes, platzsparendes, editorartiges Layout.
-   - Bestehende data-create-* und data-vp-* Hooks bleiben kompatibel.
-   - Schritte 1–2 ohne unnötiges Scrollen.
-   - Schritt 3 / Variablen-Editor mit maximaler Nutzfläche.
-   - Schritt 6 mit vertikalen Aktionen und großer Preview-Fläche.
-   - Preview aktuell bewusst als roter Platzhalterbereich.
-   - Upload-Zonen für spätere 3D- und Dokument-Uploads vorbereitet.
-
-   Hinweis:
-   - CSS hat kein try/catch. Robustheit entsteht hier durch:
-     - defensive Fallback-Variablen
-     - breite Selektoren für alte und neue DOM-Hooks
-     - reduzierte Layout-Annahmen
-     - progressive Enhancement via :has(), wo verfügbar
-     - sichere Defaults für Desktop, iframe und Mobile
------------------------------------------------------------------------------ */
-
-
-/* -----------------------------------------------------------------------------
-   0. Cascade / Base Guards
+   - Kompatibel mit bestehenden data-create-* und data-vp-* Hooks.
+   - Step 3: Variablen, Unterlagen, Variant Table und flacher Drawer.
+   - Step 6: vertikale Backend-Aktionen und große Preview-Fläche.
+   - Keine JavaScript-Logik, keine API-Aufrufe, keine Dateioperationen.
 ----------------------------------------------------------------------------- */
 
 @layer vp-create-reset,
@@ -32,7 +17,6 @@
        vp-create-base,
        vp-create-shell,
        vp-create-stepper,
-       vp-create-cards,
        vp-create-forms,
        vp-create-preview,
        vp-create-actions,
@@ -40,7 +24,6 @@
        vp-create-uploads,
        vp-create-responsive,
        vp-create-utilities;
-
 
 /* -----------------------------------------------------------------------------
    1. Tokens
@@ -172,10 +155,6 @@
   html[data-vp-create-theme="light"] {
     color-scheme: dark;
 
-    /*
-      Der Create-Wizard wird bewusst schwarz geführt, auch wenn globale App-
-      Einstellungen noch light liefern. Dadurch bleibt /create konsistent.
-    */
     --vp-create-bg: #030712;
     --vp-create-bg-page: #050816;
     --vp-create-bg-shell: #07111f;
@@ -193,7 +172,6 @@
   }
 }
 
-
 /* -----------------------------------------------------------------------------
    2. Reset / Base
 ----------------------------------------------------------------------------- */
@@ -210,8 +188,8 @@
     width: 100%;
     min-width: 320px;
     min-height: 100%;
-    background: var(--vp-create-bg-page, #050816);
-    color: var(--vp-create-text, #e5e7eb);
+    background: var(--vp-create-bg-page);
+    color: var(--vp-create-text);
     font-family: var(--vp-create-font-sans);
     text-rendering: geometricPrecision;
     -webkit-font-smoothing: antialiased;
@@ -254,7 +232,8 @@
   }
 
   button:disabled,
-  button[aria-disabled="true"] {
+  button[aria-disabled="true"],
+  button[data-vp-action-disabled-reason] {
     cursor: not-allowed;
   }
 
@@ -279,7 +258,6 @@
   }
 }
 
-
 /* -----------------------------------------------------------------------------
    3. Generic Components
 ----------------------------------------------------------------------------- */
@@ -299,9 +277,10 @@
   }
 
   .vp-create-eyebrow,
-  .vplib-create-step__kicker,
+  .vplib-create-step__eyebrow,
   .vplib-create-stepper__eyebrow,
-  .vp-create-variant-drawer__kicker {
+  .vp-create-variant-drawer__kicker,
+  .vp-create-variant-drawer-empty-state__kicker {
     color: var(--vp-create-primary);
     font-size: var(--vp-create-text-2xs);
     font-weight: var(--vp-create-weight-black);
@@ -319,7 +298,8 @@
   .vp-create-variant-drawer-footer__dirty-state,
   .vp-create-definition-profile-pill,
   .vp-create-variant-managed-pill,
-  .vp-create-variant-default-pill {
+  .vp-create-variant-default-pill,
+  .vp-create-variant-drawer__pill {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -338,15 +318,19 @@
 
   .vp-create-status-pill--ok,
   .vp-create-status-pill--success,
-  .is-ok,
   .vp-create-variant-workspace__status-pill--ready,
-  .vp-create-variant-default-pill--active {
+  .vp-create-variant-default-pill--active,
+  [data-vp-status="ready"],
+  .is-ok,
+  .is-ready {
     border-color: var(--vp-create-success-border);
     background: var(--vp-create-success-soft);
     color: #bbf7d0;
   }
 
   .vp-create-status-pill--warning,
+  .vp-create-variant-workspace__status-pill--warning,
+  [data-vp-status="partial"],
   .is-warning {
     border-color: var(--vp-create-warning-border);
     background: var(--vp-create-warning-soft);
@@ -407,6 +391,7 @@
 
   .vp-create-button:disabled,
   .vp-create-button[aria-disabled="true"],
+  .vp-create-button[data-vp-action-disabled-reason],
   .vplib-create-wizard-nav__button:disabled,
   .vplib-create-wizard-nav__button[aria-disabled="true"] {
     opacity: 0.42;
@@ -462,7 +447,6 @@
   }
 }
 
-
 /* -----------------------------------------------------------------------------
    4. Shell Layout
 ----------------------------------------------------------------------------- */
@@ -509,7 +493,14 @@
   }
 
   .vplib-create-app__main,
-  [data-vp-create-main] {
+  [data-vp-create-main],
+  .vplib-create-steps,
+  [data-vp-create-steps],
+  .vplib-create-step,
+  [data-vp-create-step] {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    height: 100%;
     min-width: 0;
     min-height: 0;
     overflow: hidden;
@@ -523,20 +514,9 @@
     overflow: hidden;
   }
 
-  .vplib-create-steps,
-  [data-vp-create-steps] {
-    display: grid;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-  }
-
   .vplib-create-step,
   [data-vp-create-step] {
     grid-area: 1 / 1;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
   }
 
   .vplib-create-step.is-hidden,
@@ -557,6 +537,7 @@
   [data-vp-create-section] {
     min-width: 0;
     min-height: 0;
+    height: 100%;
     border: 1px solid var(--vp-create-border-soft);
     border-radius: var(--vp-create-radius-xl);
     background:
@@ -569,7 +550,6 @@
   .vp-create-section {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    height: 100%;
     overflow: hidden;
   }
 
@@ -608,7 +588,9 @@
     min-width: 0;
     min-height: 0;
     padding: clamp(0.85rem, 1.25vw, 1.2rem);
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     scrollbar-gutter: stable;
   }
 
@@ -680,30 +662,7 @@
     font-size: var(--vp-create-text-xs);
     line-height: var(--vp-create-line-normal);
   }
-
-  .vp-create-derived-note {
-    padding: var(--vp-create-space-3);
-  }
-
-  .vp-create-derived-note__inner {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--vp-create-space-2);
-    align-items: center;
-    color: var(--vp-create-text-muted);
-    font-size: var(--vp-create-text-xs);
-  }
-
-  .vp-create-derived-note__label {
-    color: var(--vp-create-text-strong);
-    font-weight: var(--vp-create-weight-bold);
-  }
-
-  .vp-create-derived-note code {
-    color: #bfdbfe;
-  }
 }
-
 
 /* -----------------------------------------------------------------------------
    5. Stepper
@@ -768,10 +727,6 @@
     font-weight: var(--vp-create-weight-bold);
   }
 
-  .vplib-create-stepper__counter-label {
-    color: var(--vp-create-text-muted);
-  }
-
   .vplib-create-stepper__live {
     color: var(--vp-create-text-muted);
     font-size: var(--vp-create-text-xs);
@@ -784,13 +739,9 @@
     overflow: hidden;
   }
 
-  .vplib-create-stepper__progress-track,
   .vplib-create-stepper__progress-fill {
     display: block;
     height: 100%;
-  }
-
-  .vplib-create-stepper__progress-fill {
     border-radius: inherit;
     background: linear-gradient(90deg, var(--vp-create-primary), #60a5fa);
     transition: width var(--vp-create-duration-normal) var(--vp-create-ease);
@@ -905,7 +856,6 @@
     font-size: var(--vp-create-text-sm);
   }
 }
-
 
 /* -----------------------------------------------------------------------------
    6. Forms
@@ -1038,77 +988,7 @@
     margin: 0;
     appearance: none;
   }
-
-  .vp-create-variable-editor {
-    display: grid;
-    gap: var(--vp-create-space-3);
-    min-width: 0;
-  }
-
-  .vp-create-variable-editor__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--vp-create-space-3);
-  }
-
-  .vp-create-variable-editor__title-wrap {
-    display: grid;
-    gap: var(--vp-create-space-1);
-    min-width: 0;
-  }
-
-  .vp-create-variable-editor__tools {
-    display: flex;
-    align-items: center;
-    gap: var(--vp-create-space-2);
-  }
-
-  .vp-create-variable-editor__count {
-    color: var(--vp-create-text-muted);
-    font-size: var(--vp-create-text-xs);
-    font-weight: var(--vp-create-weight-bold);
-  }
-
-  .vp-create-variable-table {
-    display: grid;
-    min-width: 0;
-    border: 1px solid var(--vp-create-border-soft);
-    border-radius: var(--vp-create-radius-lg);
-    overflow: hidden;
-  }
-
-  .vp-create-variable-table__head,
-  .vp-create-variable-row {
-    display: grid;
-    grid-template-columns: minmax(120px, 1.1fr) minmax(100px, 0.8fr) minmax(82px, 0.55fr) minmax(160px, 1.3fr) auto;
-    gap: var(--vp-create-space-2);
-    align-items: center;
-    min-width: 0;
-    padding: var(--vp-create-space-2);
-  }
-
-  .vp-create-variable-table__head {
-    background: rgba(15, 23, 42, 0.9);
-    color: var(--vp-create-text-muted);
-    font-size: var(--vp-create-text-2xs);
-    font-weight: var(--vp-create-weight-black);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .vp-create-variable-row {
-    border-top: 1px solid var(--vp-create-border-soft);
-    background: rgba(3, 7, 18, 0.32);
-  }
-
-  .vp-create-row-action {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--vp-create-space-2);
-  }
 }
-
 
 /* -----------------------------------------------------------------------------
    7. Preview
@@ -1254,7 +1134,6 @@
   }
 }
 
-
 /* -----------------------------------------------------------------------------
    8. Wizard Navigation
 ----------------------------------------------------------------------------- */
@@ -1354,7 +1233,6 @@
     display: none;
   }
 }
-
 
 /* -----------------------------------------------------------------------------
    9. Actions / Step 6
@@ -1533,19 +1411,21 @@
   }
 }
 
-
 /* -----------------------------------------------------------------------------
    10. Object / Variables Step
 ----------------------------------------------------------------------------- */
 
 @layer vp-create-variants {
   .vp-create-section--object-variants,
-  [data-vp-create-section="object-variants"] {
+  .vp-create-section--variables,
+  [data-vp-create-section="object-variants"],
+  [data-vp-create-section-alias="variables"] {
     background:
       linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(5, 8, 22, 0.96));
   }
 
-  .vp-create-object-variants__body {
+  .vp-create-object-variants__body,
+  .vp-create-variables__body {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     gap: var(--vp-create-space-3);
@@ -1555,52 +1435,91 @@
   }
 
   .vp-create-object-variants__top,
+  .vp-create-variables__top,
   [data-vp-object-variants-top="true"],
   [data-vp-object-kind-area="true"] {
     display: grid;
-    grid-template-columns: minmax(240px, 0.42fr) minmax(0, 1fr);
+    grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr);
     gap: var(--vp-create-space-3);
     min-width: 0;
   }
 
-  .vp-create-object-variants__field,
-  .vp-create-object-kind-note {
-    min-width: 0;
-    padding: var(--vp-create-space-3);
-    border: 1px solid var(--vp-create-border-soft);
-    border-radius: var(--vp-create-radius-lg);
-    background: rgba(3, 7, 18, 0.38);
+  [data-vp-object-kind-hidden-context="true"],
+  .vp-create-sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
   }
 
-  .vp-create-object-kind-note {
-    display: flex;
-    align-items: center;
-    gap: var(--vp-create-space-3);
-  }
-
-  .vp-create-object-kind-note__icon {
+  .vp-create-variables-upload {
     display: grid;
-    place-items: center;
-    flex: 0 0 auto;
-    width: 2.25rem;
-    height: 2.25rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--vp-create-space-3);
+    align-items: center;
+    min-width: 0;
+  }
+
+  .vp-create-variables-upload__copy {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  .vp-create-variables-upload__title {
+    color: var(--vp-create-text-strong);
+    font-size: var(--vp-create-text-sm);
+    font-weight: var(--vp-create-weight-black);
+  }
+
+  .vp-create-variables-upload__description {
+    color: var(--vp-create-text-muted);
+    font-size: var(--vp-create-text-xs);
+  }
+
+  .vp-create-variables-upload__control {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vp-create-space-2);
+  }
+
+  .vp-create-upload-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0.68rem 1rem;
     border: 1px solid var(--vp-create-primary-border);
     border-radius: var(--vp-create-radius-md);
-    color: #bfdbfe;
-    background: var(--vp-create-primary-soft);
+    background: rgba(37, 99, 235, 0.15);
+    color: #dbeafe;
+    font-size: var(--vp-create-text-sm);
+    font-weight: var(--vp-create-weight-bold);
+    cursor: pointer;
   }
 
-  .vp-create-object-kind-note__copy {
-    display: grid;
-    gap: 0.15rem;
+  .vp-create-file-input {
+    max-width: 18rem;
+  }
+
+  .vp-create-variables-upload__summary {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: var(--vp-create-space-2);
     min-width: 0;
     color: var(--vp-create-text-muted);
     font-size: var(--vp-create-text-xs);
   }
 
-  .vp-create-object-kind-note__copy strong {
-    color: var(--vp-create-text-strong);
-    font-size: var(--vp-create-text-sm);
+  .vp-create-variables-upload__files {
+    grid-column: 1 / -1;
   }
 
   [data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] [data-vp-object-variants-top],
@@ -1610,16 +1529,18 @@
   }
 
   .vp-create-object-variants__workspace,
+  .vp-create-variables__workspace,
   [data-vp-object-variants-workspace-slot="true"] {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
     min-width: 0;
     min-height: 0;
     overflow: hidden;
   }
 }
 
-
 /* -----------------------------------------------------------------------------
-   11. Variant Workspace / Table / Drawer
+   11. Variant Workspace / Table
 ----------------------------------------------------------------------------- */
 
 @layer vp-create-variants {
@@ -1660,14 +1581,10 @@
     line-height: var(--vp-create-line-tight);
   }
 
-  .vp-create-variant-workspace__description {
-    overflow: hidden;
-    max-width: 80ch;
+  .vp-create-variant-workspace__description,
+  .vp-create-variant-workspace__status {
     color: var(--vp-create-text-muted);
     font-size: var(--vp-create-text-xs);
-    line-height: var(--vp-create-line-snug);
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .vp-create-variant-workspace__tools {
@@ -1675,12 +1592,6 @@
     align-items: center;
     gap: var(--vp-create-space-2);
     flex: 0 0 auto;
-  }
-
-  .vp-create-variant-workspace__count {
-    color: var(--vp-create-text-muted);
-    font-size: var(--vp-create-text-xs);
-    font-weight: var(--vp-create-weight-bold);
   }
 
   .vp-create-variant-workspace__status-text {
@@ -1693,6 +1604,8 @@
   [data-vp-variant-table-slot="true"],
   .vp-create-variant-workspace__drawer-slot,
   [data-vp-variant-drawer-slot="true"] {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
     min-width: 0;
     min-height: 0;
     overflow: hidden;
@@ -1703,7 +1616,6 @@
   }
 
   .vp-create-variant-workspace__drawer-slot {
-    display: grid;
     padding: 0 var(--vp-create-space-3) var(--vp-create-space-3);
   }
 
@@ -1732,7 +1644,10 @@
   .vp-create-variant-table,
   [data-vp-variant-table-root="true"] {
     display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
     min-width: 0;
+    min-height: 0;
+    height: 100%;
     max-height: 100%;
     border: 1px solid var(--vp-create-border-soft);
     border-radius: var(--vp-create-radius-lg);
@@ -1759,9 +1674,14 @@
     text-transform: uppercase;
   }
 
-  .vp-create-variant-table__body {
+  .vp-create-variant-table__body,
+  [data-vp-variant-table-body="true"] {
     min-width: 0;
-    overflow: auto;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
   }
 
   .vp-create-variant-row {
@@ -1797,12 +1717,25 @@
     white-space: nowrap;
   }
 
+  .vp-create-row-action,
   .vp-create-row-action--definition {
     display: flex;
     justify-content: flex-end;
     gap: var(--vp-create-space-2);
   }
 
+  .vp-create-variant-table__empty {
+    padding: var(--vp-create-space-4);
+    color: var(--vp-create-text-muted);
+    font-size: var(--vp-create-text-sm);
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   12. Variant Drawer
+----------------------------------------------------------------------------- */
+
+@layer vp-create-variants {
   .vp-create-variant-drawer,
   [data-vp-variant-drawer-root="true"] {
     min-width: 0;
@@ -1939,7 +1872,8 @@
     gap: var(--vp-create-space-3);
     min-width: 0;
     max-height: 100%;
-    overflow: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding-right: var(--vp-create-space-1);
   }
 
@@ -1982,10 +1916,57 @@
     min-width: 0;
   }
 
+  .vp-create-variant-field--invalid .vp-create-input,
+  .vp-create-variant-field--invalid .vp-create-select,
+  .vp-create-variant-field--invalid .vp-create-textarea,
+  .vp-create-variant-field[data-vp-field-validation-state="invalid"] input,
+  .vp-create-variant-field[data-vp-field-validation-state="invalid"] select,
+  .vp-create-variant-field[data-vp-field-validation-state="invalid"] textarea {
+    border-color: var(--vp-create-danger-border);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+  }
+
+  .vp-create-variant-field--warning .vp-create-input,
+  .vp-create-variant-field--warning .vp-create-select,
+  .vp-create-variant-field--warning .vp-create-textarea,
+  .vp-create-variant-field[data-vp-field-validation-state="warning"] input,
+  .vp-create-variant-field[data-vp-field-validation-state="warning"] select,
+  .vp-create-variant-field[data-vp-field-validation-state="warning"] textarea {
+    border-color: var(--vp-create-warning-border);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
+  }
+
   .vp-create-variant-field__control {
     min-width: 0;
   }
 
+  .vp-create-variant-field__money {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--vp-create-space-2);
+    align-items: center;
+  }
+
+  .vp-create-variant-field__unit {
+    color: var(--vp-create-text-muted);
+    font-size: var(--vp-create-text-xs);
+    font-weight: var(--vp-create-weight-bold);
+  }
+
+  .vp-create-variant-field__checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vp-create-space-2);
+    color: var(--vp-create-text);
+    font-size: var(--vp-create-text-sm);
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   13. Optional Fields
+----------------------------------------------------------------------------- */
+
+@layer vp-create-variants {
   .vp-create-variant-optional-fields,
   [data-vp-variant-optional-fields-root="true"] {
     display: grid;
@@ -2063,10 +2044,12 @@
     min-width: 0;
     max-height: min(32dvh, 320px);
     padding: var(--vp-create-space-3);
-    overflow: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
-  .vp-create-variant-optional-fields__available-row {
+  .vp-create-variant-optional-fields__available-row,
+  .vp-create-variant-optional-fields__variable {
     display: grid;
     grid-template-columns: minmax(120px, 0.9fr) minmax(150px, 1fr) minmax(80px, 0.5fr);
     gap: var(--vp-create-space-2);
@@ -2080,7 +2063,8 @@
     text-align: left;
   }
 
-  .vp-create-variant-optional-fields__available-row:hover {
+  .vp-create-variant-optional-fields__available-row:hover,
+  .vp-create-variant-optional-fields__variable:hover {
     border-color: var(--vp-create-primary-border);
     background: var(--vp-create-primary-soft);
   }
@@ -2130,7 +2114,8 @@
     gap: var(--vp-create-space-2);
     padding: var(--vp-create-space-3);
     max-height: min(24dvh, 240px);
-    overflow: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .vp-create-variant-optional-fields__row {
@@ -2169,6 +2154,26 @@
     font-size: var(--vp-create-text-2xs);
   }
 
+  .vp-create-variant-optional-fields__row-control {
+    min-width: 0;
+  }
+
+  .vp-create-variant-optional-fields__input {
+    width: 100%;
+  }
+
+  .vp-create-variant-optional-fields__row-unit {
+    color: var(--vp-create-text-muted);
+    font-size: var(--vp-create-text-xs);
+    font-weight: var(--vp-create-weight-bold);
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   14. Drawer Footer / Empty State
+----------------------------------------------------------------------------- */
+
+@layer vp-create-variants {
   .vp-create-variant-drawer__footer,
   .vp-create-variant-drawer-footer,
   [data-vp-variant-drawer-footer-root="true"] {
@@ -2202,11 +2207,152 @@
     max-width: 28ch;
     text-overflow: ellipsis;
   }
+
+  .vp-create-variant-drawer-empty-state,
+  [data-vp-variant-drawer-empty-state-root="true"] {
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    padding: var(--vp-create-space-3);
+    color: var(--vp-create-text);
+  }
+
+  .vp-create-variant-drawer-empty-state__card {
+    display: grid;
+    gap: var(--vp-create-space-3);
+    width: min(100%, 720px);
+    padding: var(--vp-create-space-4);
+    border: 1px solid var(--vp-create-border-soft);
+    border-radius: var(--vp-create-radius-xl);
+    background: rgba(3, 7, 18, 0.58);
+  }
+
+  .vp-create-variant-drawer-empty-state__header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--vp-create-space-3);
+  }
+
+  .vp-create-variant-drawer-empty-state__icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid var(--vp-create-warning-border);
+    border-radius: var(--vp-create-radius-md);
+    color: #fde68a;
+    background: var(--vp-create-warning-soft);
+    font-weight: var(--vp-create-weight-black);
+  }
+
+  .vp-create-variant-drawer-empty-state__copy {
+    display: grid;
+    gap: var(--vp-create-space-1);
+    min-width: 0;
+  }
+
+  .vp-create-variant-drawer-empty-state__title {
+    color: var(--vp-create-text-strong);
+    font-size: var(--vp-create-text-md);
+    font-weight: var(--vp-create-weight-black);
+  }
+
+  .vp-create-variant-drawer-empty-state__description {
+    color: var(--vp-create-text-muted);
+    font-size: var(--vp-create-text-sm);
+    line-height: var(--vp-create-line-normal);
+  }
+
+  .vp-create-variant-drawer-empty-state__status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vp-create-space-2);
+  }
+
+  .vp-create-variant-drawer-empty-state__status-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.6rem;
+    padding: 0.25rem 0.55rem;
+    border: 1px solid var(--vp-create-warning-border);
+    border-radius: var(--vp-create-radius-full);
+    background: var(--vp-create-warning-soft);
+    color: #fde68a;
+    font-size: var(--vp-create-text-2xs);
+    font-weight: var(--vp-create-weight-black);
+  }
+
+  .vp-create-variant-drawer-empty-state__status-pill--ready {
+    border-color: var(--vp-create-success-border);
+    background: var(--vp-create-success-soft);
+    color: #bbf7d0;
+  }
+
+  .vp-create-variant-drawer-empty-state__status-text,
+  .vp-create-variant-drawer-empty-state__compact-context {
+    color: var(--vp-create-text-muted);
+    font-size: var(--vp-create-text-xs);
+  }
+
+  .vp-create-variant-drawer-empty-state__compact-context {
+    display: grid;
+    gap: var(--vp-create-space-2);
+    padding: var(--vp-create-space-3);
+    border: 1px solid var(--vp-create-border-soft);
+    border-radius: var(--vp-create-radius-lg);
+    background: rgba(15, 23, 42, 0.32);
+  }
+
+  .vp-create-variant-drawer-empty-state__compact-context > div {
+    display: grid;
+    grid-template-columns: minmax(90px, auto) minmax(0, 1fr);
+    gap: var(--vp-create-space-2);
+  }
+
+  .vp-create-variant-drawer-empty-state__compact-context dt {
+    color: var(--vp-create-text-soft);
+    font-weight: var(--vp-create-weight-bold);
+  }
+
+  .vp-create-variant-drawer-empty-state__compact-context dd {
+    color: var(--vp-create-text);
+  }
+
+  .vp-create-variant-drawer-empty-state__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--vp-create-space-2);
+  }
+
+  .vp-create-variant-drawer-empty-state__diagnostics {
+    border: 1px solid var(--vp-create-border-soft);
+    border-radius: var(--vp-create-radius-lg);
+    background: rgba(3, 7, 18, 0.58);
+    overflow: hidden;
+  }
+
+  .vp-create-variant-drawer-empty-state__diagnostics-header {
+    padding: var(--vp-create-space-3);
+    border-bottom: 1px solid var(--vp-create-border-soft);
+  }
+
+  .vp-create-variant-drawer-empty-state__diagnostics-pre {
+    max-height: 14rem;
+    margin: 0;
+    padding: var(--vp-create-space-3);
+    overflow: auto;
+    color: #dbeafe;
+    font-size: var(--vp-create-text-xs);
+    white-space: pre-wrap;
+  }
 }
 
-
 /* -----------------------------------------------------------------------------
-   12. Upload Controls
+   15. Upload Controls
 ----------------------------------------------------------------------------- */
 
 @layer vp-create-uploads {
@@ -2328,51 +2474,22 @@
   }
 
   .vp-create-upload--geometry,
-  [data-vp-upload-kind="geometry-model"] {
+  [data-vp-upload-kind="geometry-model"],
+  [data-vp-upload-kind="geometry_model"] {
     border-color: rgba(56, 189, 248, 0.36);
   }
 
   .vp-create-upload--documents,
   [data-vp-upload-kind="documents"],
+  [data-vp-upload-kind="technical_documents"],
+  [data-vp-upload-kind="variant_documents"],
   [data-vp-field-value-type="document_list"] {
     border-color: rgba(245, 158, 11, 0.38);
   }
 }
 
-
 /* -----------------------------------------------------------------------------
-   13. Compact Step Specifics
------------------------------------------------------------------------------ */
-
-@layer vp-create-shell {
-  .vp-create-section--identity .vplib-create-step__panel,
-  .vp-create-section--taxonomy .vplib-create-step__panel {
-    grid-template-rows: auto auto;
-  }
-
-  .vp-create-section--identity .vplib-create-step__body,
-  .vp-create-section--taxonomy .vplib-create-step__body {
-    align-self: start;
-  }
-
-  .vp-create-section--identity .vp-create-field-grid,
-  .vp-create-section--taxonomy .vp-create-field-grid {
-    align-items: start;
-  }
-
-  .vp-create-section--identity textarea {
-    min-height: clamp(5rem, 14dvh, 8rem);
-  }
-
-  .vp-create-section--geometry .vplib-create-step__body,
-  .vp-create-section--technical .vplib-create-step__body {
-    overflow: auto;
-  }
-}
-
-
-/* -----------------------------------------------------------------------------
-   14. Modern Layout Enhancement via :has()
+   16. Modern Layout Enhancement
 ----------------------------------------------------------------------------- */
 
 @layer vp-create-variants {
@@ -2407,9 +2524,8 @@
   }
 }
 
-
 /* -----------------------------------------------------------------------------
-   15. Scrollbars
+   17. Scrollbars
 ----------------------------------------------------------------------------- */
 
 @layer vp-create-base {
@@ -2437,9 +2553,8 @@
   }
 }
 
-
 /* -----------------------------------------------------------------------------
-   16. Responsive
+   18. Responsive
 ----------------------------------------------------------------------------- */
 
 @layer vp-create-responsive {
@@ -2486,26 +2601,24 @@
     }
 
     .vplib-create-app__form,
-    .vp-create-form {
+    .vp-create-form,
+    .vplib-create-app__workspace,
+    [data-vp-create-workspace],
+    .vplib-create-steps,
+    [data-vp-create-steps],
+    .vplib-create-step,
+    [data-vp-create-step] {
       overflow: visible;
     }
 
     .vplib-create-app__workspace,
     [data-vp-create-workspace] {
       grid-template-columns: minmax(0, 1fr);
-      overflow: visible;
     }
 
     .vplib-create-app__aside,
     [data-vp-create-aside] {
       min-height: 260px;
-    }
-
-    .vplib-create-steps,
-    [data-vp-create-steps],
-    .vplib-create-step,
-    [data-vp-create-step] {
-      overflow: visible;
     }
 
     .vplib-create-step__panel,
@@ -2514,10 +2627,7 @@
       min-height: 0;
     }
 
-    .vplib-create-step__body {
-      overflow: visible;
-    }
-
+    .vplib-create-step__body,
     .vp-create-section--identity .vplib-create-step__body,
     .vp-create-section--taxonomy .vplib-create-step__body,
     .vp-create-section--object-variants .vplib-create-step__body {
@@ -2564,15 +2674,6 @@
     .vp-create-object-variants__top,
     [data-vp-object-variants-top="true"] {
       grid-template-columns: 1fr;
-    }
-
-    .vp-create-variable-table__head {
-      display: none;
-    }
-
-    .vp-create-variable-row {
-      grid-template-columns: 1fr;
-      align-items: stretch;
     }
 
     .vp-create-variant-table__head {
@@ -2641,6 +2742,8 @@
     }
 
     .vplib-create-step__header {
+      display: grid;
+      grid-template-columns: 1fr;
       padding: var(--vp-create-space-3);
     }
 
@@ -2664,10 +2767,6 @@
       display: grid;
       grid-template-columns: 1fr;
       gap: var(--vp-create-space-2);
-    }
-
-    .vplib-create-wizard-nav__status {
-      min-width: 0;
     }
 
     .vplib-create-wizard-nav__actions {
@@ -2706,6 +2805,10 @@
       justify-content: space-between;
     }
 
+    .vp-create-variables-upload {
+      grid-template-columns: 1fr;
+    }
+
     .vp-create-variant-drawer__header {
       display: grid;
       grid-template-columns: 1fr;
@@ -2734,7 +2837,8 @@
       display: none;
     }
 
-    .vp-create-variant-optional-fields__available-row {
+    .vp-create-variant-optional-fields__available-row,
+    .vp-create-variant-optional-fields__variable {
       grid-template-columns: 1fr;
     }
 
@@ -2787,11 +2891,6 @@
       padding-inline: 0.25rem;
     }
 
-    .vplib-create-step__header {
-      display: grid;
-      grid-template-columns: 1fr;
-    }
-
     .vp-create-field,
     label.vp-create-field {
       gap: 0.35rem;
@@ -2826,10 +2925,7 @@
       min-height: 2.85rem;
     }
 
-    .vplib-create-step__header {
-      padding: var(--vp-create-space-3);
-    }
-
+    .vplib-create-step__header,
     .vplib-create-step__body {
       padding: var(--vp-create-space-3);
     }
@@ -2840,9 +2936,8 @@
   }
 }
 
-
 /* -----------------------------------------------------------------------------
-   17. Iframe / Embedded Create Mode
+   19. Embedded Mode / Accessibility / Print / Utilities
 ----------------------------------------------------------------------------- */
 
 @layer vp-create-shell {
@@ -2864,11 +2959,6 @@
     padding: var(--vp-create-space-2);
   }
 }
-
-
-/* -----------------------------------------------------------------------------
-   18. Accessibility / Motion / Print
------------------------------------------------------------------------------ */
 
 @layer vp-create-base {
   @media (prefers-reduced-motion: reduce) {
@@ -2918,11 +3008,6 @@
   }
 }
 
-
-/* -----------------------------------------------------------------------------
-   19. Utilities
------------------------------------------------------------------------------ */
-
 @layer vp-create-utilities {
   .vp-create-sr-only,
   .sr-only,
@@ -2960,86 +3045,5 @@
   .vp-create-dev-outline {
     outline: 1px dashed var(--vp-create-danger);
     outline-offset: -1px;
-  }
-}
-/* static/css/vplib/create.css */
-
-/* -----------------------------------------------------------------------------
-   Scroll-Fix: aktive Step-Panels und Variant-Listen dürfen intern scrollen.
-   Ursache: Elterncontainer clippen mit overflow:hidden, bevor der eigentliche
-   Step-Body oder Table-Body eine belastbare Scrollhöhe bekommt.
------------------------------------------------------------------------------ */
-
-@layer vp-create-shell {
-  .vplib-create-app__main,
-  [data-vp-create-main],
-  .vplib-create-steps,
-  [data-vp-create-steps],
-  .vplib-create-step,
-  [data-vp-create-step] {
-    display: grid;
-    grid-template-rows: minmax(0, 1fr);
-    height: 100%;
-    min-height: 0;
-  }
-
-  .vplib-create-step__panel,
-  .vp-create-section,
-  [data-vp-create-section] {
-    min-height: 0;
-    height: 100%;
-  }
-
-  .vplib-create-step__body {
-    min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-  }
-
-  .vp-create-section--geometry .vplib-create-step__body,
-  .vp-create-section--technical .vplib-create-step__body {
-    overflow-y: auto !important;
-  }
-}
-
-@layer vp-create-variants {
-  .vp-create-object-variants__workspace,
-  [data-vp-object-variants-workspace-slot="true"],
-  .vp-create-variant-workspace__table-slot,
-  [data-vp-variant-table-slot="true"] {
-    display: grid;
-    grid-template-rows: minmax(0, 1fr);
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .vp-create-variant-table,
-  [data-vp-variant-table-root="true"] {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    min-height: 0;
-    height: 100%;
-    max-height: 100%;
-    overflow: hidden;
-  }
-
-  .vp-create-variant-table__body,
-  [data-vp-variant-table-body="true"] {
-    min-height: 0;
-    overflow-x: auto;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-  }
-
-  .vp-create-variant-drawer__sections,
-  [data-vp-variant-drawer-sections="true"],
-  .vp-create-variant-optional-fields__available-list,
-  .vp-create-variant-optional-fields__selected-rows {
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
   }
 }

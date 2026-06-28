@@ -1,0 +1,15 @@
+{# services/vectoplan-library/templates/vplib/create/variants/_variant_drawer.html #}
+{# -----------------------------------------------------------------------------
+  VECTOPLAN Library · VPLIB Create Wizard · Variant Drawer Compatibility Wrapper
+
+  Zweck:
+  - Kompatibilitätsdatei für ältere Includes auf `_variant_drawer.html`.
+  - Die eigentliche Drawer-/Editor-Struktur liegt in `_variant_drawer_shell.html`.
+  - Verhindert, dass direkte Legacy-Includes ins Leere laufen.
+  - Keine eigene DOM-Duplizierung.
+  - Keine API-Aufrufe.
+  - Keine Package-Erzeugung.
+  - Keine Backend-Dateioperationen.
+----------------------------------------------------------------------------- #}
+
+{% include "vplib/create/variants/_variant_drawer_shell.html" with context %}

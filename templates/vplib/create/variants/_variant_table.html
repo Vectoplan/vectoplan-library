@@ -5,75 +5,15 @@
   Zweck:
   - Reine Anzeige- und Kompatibilitätstabelle für definition-managed Varianten.
   - Rendert vorhandene Varianten aus Draft-/Initialdaten.
-  - Stellt stabile Hidden Fields für den bestehenden Create-/Backend-Vertrag bereit.
+  - Stellt Hidden Fields für den bestehenden Create-/Backend-Vertrag bereit.
   - Stellt stabile data-hooks für create_variant_table.js und create_variant_state.js bereit.
   - Bearbeitung erfolgt nicht direkt in der Tabelle, sondern über den Variant Drawer.
-  - Variant-ID wird angezeigt, aber nicht als normales Tabellenfeld editiert.
   - Default-Variante ist geschützt.
   - Keine fachlichen Variant-Felder hardcodieren.
   - Keine Profile-Resolution.
   - Keine Field-Rendering-Logik.
   - Keine Package-Erzeugung.
   - Keine API-Aufrufe im Template.
-
-  UI-Ziel:
-  - Kompakter Normalmodus.
-  - Keine große Card-Verschachtelung.
-  - Im Editor-Modus wird die Tabelle per CSS/State ausgeblendet.
-  - Hidden Legacy-Felder bleiben vollständig erhalten.
-  - State/JSON-Wahrheit bleibt langfristig definition_variants_json.
-
-  Stabiler Backend-/Payload-Vertrag pro Zeile:
-  - variants[i][is_default]
-  - variants[i][name]
-  - variants[i][slug]
-  - variants[i][kind]
-  - variants[i][description]
-  - variants[i][variant_profile_id]
-  - variants[i][definition_values_json]
-  - variants[i][definition_summary]
-  - variants[i][definition_managed]
-  - variants[i][additional_field_keys]
-
-  Stabile Hooks:
-  - data-vp-variant-table="true"
-  - data-vp-variant-table-root="true"
-  - data-vp-variant-row
-  - data-create-variant-row="true"
-  - data-vp-variant-row-hidden-fields
-  - data-vp-variant-row-display-name
-  - data-vp-variant-row-display-id
-  - data-vp-row-profile-pill
-  - data-vp-row-definition-summary
-  - data-vp-edit-definition-variant="true"
-  - data-vp-remove-definition-variant="true"
-  - data-vp-variant-row-template="true"
-
-  Events:
-  - dispatch:
-      vectoplan:create:variant-table-ready
-      vectoplan:create:variant-edit-requested
-      vectoplan:create:variant-remove-requested
-      vectoplan:create:variant-remove-blocked
-      vectoplan:create:variant-table-refreshed
-      vectoplan:create:variant-table-editor-mode-changed
-
-  - listen:
-      vectoplan:create:variant-state-changed
-      vectoplan:create:variant-state-synced
-      vectoplan:create:variant-added
-      vectoplan:create:variant-updated
-      vectoplan:create:variant-removed
-      vectoplan:create:variant-editor-opened
-      vectoplan:create:variant-editor-closed
-      vectoplan:create:variant-drawer-opened
-      vectoplan:create:variant-drawer-closed
-      vectoplan:create:variant-workspace-editor-state-changed
------------------------------------------------------------------------------ #}
-
-
-{# -----------------------------------------------------------------------------
-  1. Draft defensiv normalisieren
 ----------------------------------------------------------------------------- #}
 
 {% if _vp_variant_draft is defined and _vp_variant_draft is mapping %}
@@ -92,19 +32,14 @@
   {% set _table_draft = {} %}
 {% endif %}
 
-
-{# -----------------------------------------------------------------------------
-  2. Profilkontext defensiv lesen
------------------------------------------------------------------------------ #}
-
 {% if _vp_variant_family_profile_id is defined and _vp_variant_family_profile_id %}
   {% set _table_family_profile_id = _vp_variant_family_profile_id %}
 {% elif _selected_family_profile_id is defined and _selected_family_profile_id %}
   {% set _table_family_profile_id = _selected_family_profile_id %}
-{% elif _table_draft is mapping and 'family_profile_id' in _table_draft and _table_draft['family_profile_id'] %}
-  {% set _table_family_profile_id = _table_draft['family_profile_id'] %}
-{% elif _table_draft is mapping and 'family' in _table_draft and _table_draft['family'] is mapping and 'family_profile_id' in _table_draft['family'] and _table_draft['family']['family_profile_id'] %}
-  {% set _table_family_profile_id = _table_draft['family']['family_profile_id'] %}
+{% elif _table_draft is mapping and _table_draft.get('family_profile_id') %}
+  {% set _table_family_profile_id = _table_draft.get('family_profile_id') %}
+{% elif _table_draft is mapping and _table_draft.get('family') is mapping and _table_draft.get('family').get('family_profile_id') %}
+  {% set _table_family_profile_id = _table_draft.get('family').get('family_profile_id') %}
 {% else %}
   {% set _table_family_profile_id = '' %}
 {% endif %}
@@ -113,54 +48,37 @@
   {% set _table_variant_profile_id = _vp_variant_profile_id %}
 {% elif _selected_variant_profile_id is defined and _selected_variant_profile_id %}
   {% set _table_variant_profile_id = _selected_variant_profile_id %}
-{% elif _table_draft is mapping and 'variant_profile_id' in _table_draft and _table_draft['variant_profile_id'] %}
-  {% set _table_variant_profile_id = _table_draft['variant_profile_id'] %}
-{% elif _table_draft is mapping and 'family' in _table_draft and _table_draft['family'] is mapping and 'variant_profile_id' in _table_draft['family'] and _table_draft['family']['variant_profile_id'] %}
-  {% set _table_variant_profile_id = _table_draft['family']['variant_profile_id'] %}
+{% elif _table_draft is mapping and _table_draft.get('variant_profile_id') %}
+  {% set _table_variant_profile_id = _table_draft.get('variant_profile_id') %}
+{% elif _table_draft is mapping and _table_draft.get('family') is mapping and _table_draft.get('family').get('variant_profile_id') %}
+  {% set _table_variant_profile_id = _table_draft.get('family').get('variant_profile_id') %}
 {% else %}
   {% set _table_variant_profile_id = '' %}
 {% endif %}
 
-
-{# -----------------------------------------------------------------------------
-  3. Variantenliste defensiv lesen
------------------------------------------------------------------------------ #}
-
 {% if _vp_variant_draft_variants is defined and _vp_variant_draft_variants is iterable and _vp_variant_draft_variants is not string %}
   {% set _table_variants = _vp_variant_draft_variants %}
-{% elif _table_draft is mapping and 'variants' in _table_draft and _table_draft['variants'] is mapping %}
+{% elif _table_draft is mapping and _table_draft.get('variants') is mapping %}
   {% set _table_variants = [] %}
-{% elif _table_draft is mapping and 'variants' in _table_draft and _table_draft['variants'] is iterable and _table_draft['variants'] is not string %}
-  {% set _table_variants = _table_draft['variants'] %}
-{% elif _table_draft is mapping and 'family' in _table_draft and _table_draft['family'] is mapping and 'variants' in _table_draft['family'] and _table_draft['family']['variants'] is mapping %}
+{% elif _table_draft is mapping and _table_draft.get('variants') is iterable and _table_draft.get('variants') is not string %}
+  {% set _table_variants = _table_draft.get('variants') %}
+{% elif _table_draft is mapping and _table_draft.get('family') is mapping and _table_draft.get('family').get('variants') is mapping %}
   {% set _table_variants = [] %}
-{% elif _table_draft is mapping and 'family' in _table_draft and _table_draft['family'] is mapping and 'variants' in _table_draft['family'] and _table_draft['family']['variants'] is iterable and _table_draft['family']['variants'] is not string %}
-  {% set _table_variants = _table_draft['family']['variants'] %}
+{% elif _table_draft is mapping and _table_draft.get('family') is mapping and _table_draft.get('family').get('variants') is iterable and _table_draft.get('family').get('variants') is not string %}
+  {% set _table_variants = _table_draft.get('family').get('variants') %}
 {% else %}
   {% set _table_variants = [] %}
 {% endif %}
-
-
-{# -----------------------------------------------------------------------------
-  4. Default Variant ID defensiv lesen
------------------------------------------------------------------------------ #}
 
 {% if _vp_variant_default_variant_id is defined and _vp_variant_default_variant_id %}
   {% set _table_default_variant_id = _vp_variant_default_variant_id %}
-{% elif _table_draft is mapping and 'default_variant_id' in _table_draft and _table_draft['default_variant_id'] %}
-  {% set _table_default_variant_id = _table_draft['default_variant_id'] %}
-{% elif _table_draft is mapping and 'default_variant' in _table_draft and _table_draft['default_variant'] %}
-  {% set _table_default_variant_id = _table_draft['default_variant'] %}
-{% elif _table_draft is mapping and 'variants' in _table_draft and _table_draft['variants'] is mapping and 'default' in _table_draft['variants'] %}
-  {% set _table_default_variant_id = 'default' %}
+{% elif _table_draft is mapping and _table_draft.get('default_variant_id') %}
+  {% set _table_default_variant_id = _table_draft.get('default_variant_id') %}
+{% elif _table_draft is mapping and _table_draft.get('default_variant') %}
+  {% set _table_default_variant_id = _table_draft.get('default_variant') %}
 {% else %}
   {% set _table_default_variant_id = 'default' %}
 {% endif %}
-
-
-{# -----------------------------------------------------------------------------
-  5. Tabellen-ID
------------------------------------------------------------------------------ #}
 
 {% if vp_variant_table_id is defined and vp_variant_table_id %}
   {% set _vp_variant_table_id = vp_variant_table_id %}
@@ -178,14 +96,13 @@
   {% set _table_initial_count = 1 %}
 {% endif %}
 
-
 <div
   id="{{ _vp_variant_table_id }}"
-  class="vp-create-variant-table vp-create-variant-table--definitions vp-create-variant-table--readonly"
+  class="vp-create-variant-table vp-create-variant-table--definitions vp-create-variant-table--readonly is-variant-editor-closed"
   data-vp-variant-table="true"
   data-vp-variant-table-root="true"
   data-create-variant-table="true"
-  data-vp-variant-table-version="0.6.0"
+  data-vp-variant-table-version="0.7.0"
   data-vp-variant-table-readonly="true"
   data-vp-variant-editor-state="closed"
   data-vp-table-editor-mode="closed"
@@ -215,96 +132,122 @@
   >
     {% if _table_variants and (_table_variants | length > 0) %}
       {% for variant in _table_variants %}
-        {# ---------------------------------------------------------------------
-          5.1 Einzelne Variante defensiv normalisieren
-        --------------------------------------------------------------------- #}
-
         {% if variant is mapping %}
-          {% if 'variant_id' in variant and variant['variant_id'] %}
-            {% set _row_variant_id = variant['variant_id'] %}
-          {% elif 'slug' in variant and variant['slug'] %}
-            {% set _row_variant_id = variant['slug'] %}
-          {% elif 'id' in variant and variant['id'] %}
-            {% set _row_variant_id = variant['id'] %}
-          {% elif 'key' in variant and variant['key'] %}
-            {% set _row_variant_id = variant['key'] %}
+          {% if variant.get('variant_id') %}
+            {% set _row_variant_id = variant.get('variant_id') %}
+          {% elif variant.get('variantId') %}
+            {% set _row_variant_id = variant.get('variantId') %}
+          {% elif variant.get('slug') %}
+            {% set _row_variant_id = variant.get('slug') %}
+          {% elif variant.get('id') %}
+            {% set _row_variant_id = variant.get('id') %}
+          {% elif variant.get('key') %}
+            {% set _row_variant_id = variant.get('key') %}
           {% elif loop.index0 == 0 %}
             {% set _row_variant_id = 'default' %}
           {% else %}
             {% set _row_variant_id = 'variant_' ~ loop.index %}
           {% endif %}
 
-          {% if 'label' in variant and variant['label'] %}
-            {% set _row_variant_label = variant['label'] %}
-          {% elif 'name' in variant and variant['name'] %}
-            {% set _row_variant_label = variant['name'] %}
-          {% elif 'title' in variant and variant['title'] %}
-            {% set _row_variant_label = variant['title'] %}
-          {% elif 'value' in variant and variant['value'] %}
-            {% set _row_variant_label = variant['value'] %}
+          {% if variant.get('label') %}
+            {% set _row_variant_label = variant.get('label') %}
+          {% elif variant.get('name') %}
+            {% set _row_variant_label = variant.get('name') %}
+          {% elif variant.get('title') %}
+            {% set _row_variant_label = variant.get('title') %}
+          {% elif variant.get('value') %}
+            {% set _row_variant_label = variant.get('value') %}
           {% elif loop.index0 == 0 %}
             {% set _row_variant_label = 'Standard' %}
           {% else %}
             {% set _row_variant_label = 'Neue Variante' %}
           {% endif %}
 
-          {% if 'kind' in variant and variant['kind'] %}
-            {% set _row_variant_kind = variant['kind'] %}
-          {% elif 'variant_kind' in variant and variant['variant_kind'] %}
-            {% set _row_variant_kind = variant['variant_kind'] %}
-          {% elif 'type' in variant and variant['type'] %}
-            {% set _row_variant_kind = variant['type'] %}
+          {% if variant.get('kind') %}
+            {% set _row_variant_kind = variant.get('kind') %}
+          {% elif variant.get('variant_kind') %}
+            {% set _row_variant_kind = variant.get('variant_kind') %}
+          {% elif variant.get('variantKind') %}
+            {% set _row_variant_kind = variant.get('variantKind') %}
+          {% elif variant.get('type') %}
+            {% set _row_variant_kind = variant.get('type') %}
           {% elif loop.index0 == 0 %}
             {% set _row_variant_kind = 'standard' %}
           {% else %}
             {% set _row_variant_kind = 'profile' %}
           {% endif %}
 
-          {% if 'description' in variant and variant['description'] %}
-            {% set _row_variant_description = variant['description'] %}
-          {% elif 'usage' in variant and variant['usage'] %}
-            {% set _row_variant_description = variant['usage'] %}
-          {% elif 'note' in variant and variant['note'] %}
-            {% set _row_variant_description = variant['note'] %}
+          {% if variant.get('description') %}
+            {% set _row_variant_description = variant.get('description') %}
+          {% elif variant.get('usage') %}
+            {% set _row_variant_description = variant.get('usage') %}
+          {% elif variant.get('note') %}
+            {% set _row_variant_description = variant.get('note') %}
           {% else %}
             {% set _row_variant_description = '' %}
           {% endif %}
 
-          {% if 'variant_profile_id' in variant and variant['variant_profile_id'] %}
-            {% set _row_variant_profile_id = variant['variant_profile_id'] %}
-          {% elif 'profile_id' in variant and variant['profile_id'] %}
-            {% set _row_variant_profile_id = variant['profile_id'] %}
+          {% if variant.get('variant_profile_id') %}
+            {% set _row_variant_profile_id = variant.get('variant_profile_id') %}
+          {% elif variant.get('variantProfileId') %}
+            {% set _row_variant_profile_id = variant.get('variantProfileId') %}
+          {% elif variant.get('profile_id') %}
+            {% set _row_variant_profile_id = variant.get('profile_id') %}
+          {% elif variant.get('profileId') %}
+            {% set _row_variant_profile_id = variant.get('profileId') %}
           {% else %}
             {% set _row_variant_profile_id = _table_variant_profile_id %}
           {% endif %}
 
-          {% if 'definition_values_json' in variant and variant['definition_values_json'] %}
-            {% set _row_definition_values_json = variant['definition_values_json'] %}
-          {% elif 'values_json' in variant and variant['values_json'] %}
-            {% set _row_definition_values_json = variant['values_json'] %}
-          {% elif 'definition_values' in variant and variant['definition_values'] is mapping %}
-            {% set _row_definition_values_json = variant['definition_values'] | tojson %}
-          {% elif 'values' in variant and variant['values'] is mapping %}
-            {% set _row_definition_values_json = variant['values'] | tojson %}
+          {% if variant.get('family_profile_id') %}
+            {% set _row_family_profile_id = variant.get('family_profile_id') %}
+          {% elif variant.get('familyProfileId') %}
+            {% set _row_family_profile_id = variant.get('familyProfileId') %}
+          {% else %}
+            {% set _row_family_profile_id = _table_family_profile_id %}
+          {% endif %}
+
+          {% if variant.get('definition_values_json') %}
+            {% set _row_definition_values_json = variant.get('definition_values_json') %}
+          {% elif variant.get('definitionValuesJson') %}
+            {% set _row_definition_values_json = variant.get('definitionValuesJson') %}
+          {% elif variant.get('values_json') %}
+            {% set _row_definition_values_json = variant.get('values_json') %}
+          {% elif variant.get('valuesJson') %}
+            {% set _row_definition_values_json = variant.get('valuesJson') %}
+          {% elif variant.get('definition_values') is mapping %}
+            {% set _row_definition_values_json = variant.get('definition_values') | tojson %}
+          {% elif variant.get('definitionValues') is mapping %}
+            {% set _row_definition_values_json = variant.get('definitionValues') | tojson %}
+          {% elif variant.get('values') is mapping %}
+            {% set _row_definition_values_json = variant.get('values') | tojson %}
           {% else %}
             {% set _row_definition_values_json = '' %}
           {% endif %}
 
-          {% if 'definition_summary' in variant and variant['definition_summary'] %}
-            {% if variant['definition_summary'] is mapping %}
-              {% set _row_definition_summary_input = variant['definition_summary'] | tojson %}
+          {% if variant.get('definition_summary') %}
+            {% if variant.get('definition_summary') is mapping %}
+              {% set _row_definition_summary_input = variant.get('definition_summary') | tojson %}
               {% set _row_definition_summary_display = 'Kurzwerte vorhanden' %}
             {% else %}
-              {% set _row_definition_summary_input = variant['definition_summary'] %}
-              {% set _row_definition_summary_display = variant['definition_summary'] %}
+              {% set _row_definition_summary_input = variant.get('definition_summary') %}
+              {% set _row_definition_summary_display = variant.get('definition_summary') %}
             {% endif %}
-          {% elif 'summary' in variant and variant['summary'] %}
-            {% if variant['summary'] is mapping %}
-              {% set _row_definition_summary_input = variant['summary'] | tojson %}
+          {% elif variant.get('definitionSummary') %}
+            {% if variant.get('definitionSummary') is mapping %}
+              {% set _row_definition_summary_input = variant.get('definitionSummary') | tojson %}
               {% set _row_definition_summary_display = 'Kurzwerte vorhanden' %}
             {% else %}
-              {% set _row_definition_summary_input = variant['summary'] %}
-              {% set _row_definition_summary_display = variant['summary'] %}
+              {% set _row_definition_summary_input = variant.get('definitionSummary') %}
+              {% set _row_definition_summary_display = variant.get('definitionSummary') %}
+            {% endif %}
+          {% elif variant.get('summary') %}
+            {% if variant.get('summary') is mapping %}
+              {% set _row_definition_summary_input = variant.get('summary') | tojson %}
+              {% set _row_definition_summary_display = 'Kurzwerte vorhanden' %}
+            {% else %}
+              {% set _row_definition_summary_input = variant.get('summary') %}
+              {% set _row_definition_summary_display = variant.get('summary') %}
             {% endif %}
           {% elif _row_variant_description %}
             {% set _row_definition_summary_input = _row_variant_description %}
@@ -317,26 +260,32 @@
             {% set _row_definition_summary_display = 'Noch keine Kurzwerte' %}
           {% endif %}
 
-          {% if 'additional_field_keys' in variant and variant['additional_field_keys'] %}
-            {% if variant['additional_field_keys'] is iterable and variant['additional_field_keys'] is not string %}
-              {% set _row_additional_field_keys = variant['additional_field_keys'] | tojson %}
+          {% if variant.get('additional_field_keys') %}
+            {% if variant.get('additional_field_keys') is iterable and variant.get('additional_field_keys') is not string %}
+              {% set _row_additional_field_keys = variant.get('additional_field_keys') | tojson %}
             {% else %}
-              {% set _row_additional_field_keys = variant['additional_field_keys'] %}
+              {% set _row_additional_field_keys = variant.get('additional_field_keys') %}
             {% endif %}
-          {% elif 'additionalFieldKeys' in variant and variant['additionalFieldKeys'] %}
-            {% if variant['additionalFieldKeys'] is iterable and variant['additionalFieldKeys'] is not string %}
-              {% set _row_additional_field_keys = variant['additionalFieldKeys'] | tojson %}
+          {% elif variant.get('additionalFieldKeys') %}
+            {% if variant.get('additionalFieldKeys') is iterable and variant.get('additionalFieldKeys') is not string %}
+              {% set _row_additional_field_keys = variant.get('additionalFieldKeys') | tojson %}
             {% else %}
-              {% set _row_additional_field_keys = variant['additionalFieldKeys'] %}
+              {% set _row_additional_field_keys = variant.get('additionalFieldKeys') %}
+            {% endif %}
+          {% elif variant.get('additional_fields') %}
+            {% if variant.get('additional_fields') is iterable and variant.get('additional_fields') is not string %}
+              {% set _row_additional_field_keys = variant.get('additional_fields') | tojson %}
+            {% else %}
+              {% set _row_additional_field_keys = variant.get('additional_fields') %}
             {% endif %}
           {% else %}
             {% set _row_additional_field_keys = '' %}
           {% endif %}
 
           {% if 'definition_managed' in variant %}
-            {% set _row_definition_managed_raw = variant['definition_managed'] %}
+            {% set _row_definition_managed_raw = variant.get('definition_managed') %}
           {% elif 'definitionManaged' in variant %}
-            {% set _row_definition_managed_raw = variant['definitionManaged'] %}
+            {% set _row_definition_managed_raw = variant.get('definitionManaged') %}
           {% elif _row_variant_profile_id or _row_definition_values_json %}
             {% set _row_definition_managed_raw = true %}
           {% else %}
@@ -344,11 +293,11 @@
           {% endif %}
 
           {% if 'is_default' in variant %}
-            {% set _row_is_default_raw = variant['is_default'] %}
+            {% set _row_is_default_raw = variant.get('is_default') %}
           {% elif 'isDefault' in variant %}
-            {% set _row_is_default_raw = variant['isDefault'] %}
+            {% set _row_is_default_raw = variant.get('isDefault') %}
           {% elif 'default' in variant %}
-            {% set _row_is_default_raw = variant['default'] %}
+            {% set _row_is_default_raw = variant.get('default') %}
           {% else %}
             {% set _row_is_default_raw = _row_variant_id == _table_default_variant_id %}
           {% endif %}
@@ -363,6 +312,7 @@
             {% set _row_variant_kind = 'standard' %}
             {% set _row_variant_description = '' %}
             {% set _row_variant_profile_id = _table_variant_profile_id %}
+            {% set _row_family_profile_id = _table_family_profile_id %}
             {% set _row_definition_values_json = '' %}
             {% set _row_definition_summary_input = 'Standardvariante' %}
             {% set _row_definition_summary_display = 'Standardvariante' %}
@@ -379,6 +329,7 @@
             {% set _row_variant_kind = 'profile' %}
             {% set _row_variant_description = '' %}
             {% set _row_variant_profile_id = _table_variant_profile_id %}
+            {% set _row_family_profile_id = _table_family_profile_id %}
             {% set _row_definition_values_json = '' %}
             {% set _row_definition_summary_input = 'Noch keine Kurzwerte' %}
             {% set _row_definition_summary_display = 'Noch keine Kurzwerte' %}
@@ -413,6 +364,7 @@
           data-vp-definition-variant-id="{{ _row_variant_id }}"
           data-vp-variant-label="{{ _row_variant_label }}"
           data-vp-variant-kind="{{ _row_variant_kind }}"
+          data-vp-family-profile-id="{{ _row_family_profile_id }}"
           data-vp-variant-profile-id="{{ _row_variant_profile_id }}"
           data-vp-definition-variant-profile-id="{{ _row_variant_profile_id }}"
           data-vp-definition-managed="{% if _row_definition_managed %}true{% else %}false{% endif %}"
@@ -616,6 +568,13 @@
               value="{{ _row_additional_field_keys | string | e }}"
               data-vp-row-additional-field-keys
             />
+
+            <input
+              type="hidden"
+              name="variants[{{ loop.index0 }}][additional_field_keys_json]"
+              value="{{ _row_additional_field_keys | string | e }}"
+              data-vp-row-additional-field-keys-json
+            />
           </div>
         </div>
       {% endfor %}
@@ -631,6 +590,7 @@
         data-vp-definition-variant-id="default"
         data-vp-variant-label="Standard"
         data-vp-variant-kind="standard"
+        data-vp-family-profile-id="{{ _table_family_profile_id }}"
         data-vp-variant-profile-id="{{ _table_variant_profile_id }}"
         data-vp-definition-variant-profile-id="{{ _table_variant_profile_id }}"
         data-vp-definition-managed="false"
@@ -803,6 +763,13 @@
             value=""
             data-vp-row-additional-field-keys
           />
+
+          <input
+            type="hidden"
+            name="variants[0][additional_field_keys_json]"
+            value="[]"
+            data-vp-row-additional-field-keys-json
+          />
         </div>
       </div>
     {% endif %}
@@ -820,6 +787,7 @@
       data-vp-definition-variant-id="__variant_id__"
       data-vp-variant-label="__variant_label__"
       data-vp-variant-kind="profile"
+      data-vp-family-profile-id="__family_profile_id__"
       data-vp-variant-profile-id="__variant_profile_id__"
       data-vp-definition-variant-profile-id="__variant_profile_id__"
       data-vp-definition-managed="true"
@@ -1002,6 +970,13 @@
           value="__additional_field_keys__"
           data-vp-row-additional-field-keys
         />
+
+        <input
+          type="hidden"
+          name="variants[__index__][additional_field_keys_json]"
+          value="__additional_field_keys_json__"
+          data-vp-row-additional-field-keys-json
+        />
       </div>
     </div>
   </template>
@@ -1024,7 +999,7 @@
     var ROW_SELECTOR = "[data-vp-variant-row='true'], [data-create-variant-row='true']";
     var READY_ATTR = "data-vp-variant-table-ready";
     var COMPONENT_NAME = "VECTOPLAN Variant Table";
-    var COMPONENT_VERSION = "0.6.0";
+    var COMPONENT_VERSION = "0.7.0";
 
     function warn(message, error) {
       try {
@@ -1128,23 +1103,6 @@
       }
     }
 
-    function setFieldValue(row, selector, value) {
-      try {
-        var field = getField(row, selector);
-
-        if (!field) {
-          return false;
-        }
-
-        field.value = value === null || value === undefined ? "" : String(value);
-        field.setAttribute("data-vp-last-table-sync", String(Date.now()));
-
-        return true;
-      } catch (error) {
-        return false;
-      }
-    }
-
     function normalizeBoolean(value) {
       try {
         var text = String(value || "").trim().toLowerCase();
@@ -1186,6 +1144,8 @@
           name: getFieldValue(row, "[data-vp-variant-name]", label),
           kind: row.getAttribute("data-vp-variant-kind") || getFieldValue(row, "[data-vp-row-variant-kind]", "profile"),
           description: getFieldValue(row, "[data-vp-row-variant-description]", ""),
+          family_profile_id: row.getAttribute("data-vp-family-profile-id") || "",
+          familyProfileId: row.getAttribute("data-vp-family-profile-id") || "",
           variant_profile_id: row.getAttribute("data-vp-variant-profile-id") || getFieldValue(row, "[data-vp-row-variant-profile-id]", ""),
           variantProfileId: row.getAttribute("data-vp-variant-profile-id") || getFieldValue(row, "[data-vp-row-variant-profile-id]", ""),
           definition_values_json: getFieldValue(row, "[data-vp-row-definition-values-json]", ""),
@@ -1196,6 +1156,8 @@
           definitionManaged: normalizeBoolean(getFieldValue(row, "[data-vp-row-definition-managed]", "")),
           additional_field_keys: getFieldValue(row, "[data-vp-row-additional-field-keys]", ""),
           additionalFieldKeys: getFieldValue(row, "[data-vp-row-additional-field-keys]", ""),
+          additional_field_keys_json: getFieldValue(row, "[data-vp-row-additional-field-keys-json]", ""),
+          additionalFieldKeysJson: getFieldValue(row, "[data-vp-row-additional-field-keys-json]", ""),
           is_default: isDefault,
           isDefault: isDefault
         };
@@ -1238,7 +1200,7 @@
 
         workspace.setAttribute("data-vp-variant-count", String(count));
 
-        var countLabel = workspace.querySelector("[data-vp-variant-count-label='true']");
+        var countLabel = workspace.querySelector("[data-vp-variant-count-label='true'], [data-vp-variant-count-label]");
         if (countLabel) {
           countLabel.textContent = count === 1 ? "1 Variante" : String(count) + " Varianten";
         }
@@ -1302,7 +1264,8 @@
             open: state === "open",
             previousMode: previousState,
             previousState: previousState,
-            source: options && options.source ? options.source : "table"
+            source: options && options.source ? options.source : "table",
+            __vp_variant_table_template_event: true
           });
         }
 
@@ -1315,6 +1278,10 @@
 
     function requestEdit(table, row) {
       try {
+        if (table.getAttribute("data-vp-variant-table-controller-events-bound") === "true") {
+          return;
+        }
+
         var payload = getRowPayload(row);
 
         dispatch(table, "vectoplan:create:variant-edit-requested", payload, true);
@@ -1326,9 +1293,9 @@
 
         if (
           window.VectoplanCreateVariantDrawer &&
-          typeof window.VectoplanCreateVariantDrawer.editVariant === "function"
+          typeof window.VectoplanCreateVariantDrawer.open === "function"
         ) {
-          window.VectoplanCreateVariantDrawer.editVariant(payload);
+          window.VectoplanCreateVariantDrawer.open(payload);
           return;
         }
 
@@ -1355,6 +1322,10 @@
 
     function requestRemove(table, row) {
       try {
+        if (table.getAttribute("data-vp-variant-table-controller-events-bound") === "true") {
+          return;
+        }
+
         var payload = getRowPayload(row);
 
         if (payload.is_default || payload.variant_id === "default" || payload.variantId === "default") {
@@ -1365,6 +1336,16 @@
 
         dispatch(table, "vectoplan:create:variant-remove-requested", payload, true);
         dispatch(document, "vectoplan:create:variant-remove-requested", payload, true);
+
+        if (
+          window.VectoplanCreateVariantState &&
+          typeof window.VectoplanCreateVariantState.removeVariant === "function"
+        ) {
+          window.VectoplanCreateVariantState.removeVariant(payload.variant_id || payload.rowIndex, {
+            source: "template_table_remove",
+            emitNativeEvents: false
+          });
+        }
       } catch (error) {
         warn("Could not request variant remove.", error);
       }
@@ -1387,27 +1368,37 @@
         var raw = payload || {};
         var variantId = raw.variant_id || raw.variantId || raw.slug || raw.id || raw.key || "";
         var label = raw.label || raw.name || raw.title || variantId || "Neue Variante";
+        var familyProfileId = raw.family_profile_id || raw.familyProfileId || "";
         var profileId = raw.variant_profile_id || raw.variantProfileId || raw.profile_id || raw.profileId || "";
         var summary = raw.definition_summary || raw.definitionSummary || raw.summary || "Noch keine Kurzwerte";
+        var additional = raw.additional_field_keys_json || raw.additionalFieldKeysJson || raw.additional_field_keys || raw.additionalFieldKeys || "";
+
+        if (Array.isArray(additional)) {
+          additional = JSON.stringify(additional);
+        }
 
         return {
           index: raw.index !== undefined ? raw.index : "__index__",
           variant_id: variantId,
           variant_label: label,
+          family_profile_id: familyProfileId,
           variant_profile_id: profileId,
           definition_summary: summary,
-          definition_values_json: raw.definition_values_json || raw.definitionValuesJson || raw.values_json || "",
-          additional_field_keys: raw.additional_field_keys || raw.additionalFieldKeys || ""
+          definition_values_json: raw.definition_values_json || raw.definitionValuesJson || raw.values_json || raw.valuesJson || "",
+          additional_field_keys: additional,
+          additional_field_keys_json: additional
         };
       } catch (error) {
         return {
           index: "__index__",
           variant_id: "",
           variant_label: "Neue Variante",
+          family_profile_id: "",
           variant_profile_id: "",
           definition_summary: "Noch keine Kurzwerte",
           definition_values_json: "",
-          additional_field_keys: ""
+          additional_field_keys: "",
+          additional_field_keys_json: "[]"
         };
       }
     }
@@ -1427,10 +1418,12 @@
           .replace(/__index__/g, htmlEscape(index))
           .replace(/__variant_id__/g, htmlEscape(normalized.variant_id || "variant_" + String(index + 1)))
           .replace(/__variant_label__/g, htmlEscape(normalized.variant_label || "Neue Variante"))
+          .replace(/__family_profile_id__/g, htmlEscape(normalized.family_profile_id || ""))
           .replace(/__variant_profile_id__/g, htmlEscape(normalized.variant_profile_id || "auto"))
           .replace(/__definition_summary__/g, htmlEscape(normalized.definition_summary || "Noch keine Kurzwerte"))
           .replace(/__definition_values_json__/g, htmlEscape(normalized.definition_values_json || ""))
-          .replace(/__additional_field_keys__/g, htmlEscape(normalized.additional_field_keys || ""));
+          .replace(/__additional_field_keys__/g, htmlEscape(normalized.additional_field_keys || ""))
+          .replace(/__additional_field_keys_json__/g, htmlEscape(normalized.additional_field_keys_json || "[]"));
 
         var wrapper = document.createElement("div");
         wrapper.innerHTML = html.trim();
@@ -1490,7 +1483,7 @@
 
     function bindTableEvents(table) {
       try {
-        if (!table || table.getAttribute("data-vp-variant-table-events-bound") === "true") {
+        if (!table || table.getAttribute("data-vp-variant-table-template-events-bound") === "true") {
           return;
         }
 
@@ -1587,7 +1580,7 @@
           });
         });
 
-        table.setAttribute("data-vp-variant-table-events-bound", "true");
+        table.setAttribute("data-vp-variant-table-template-events-bound", "true");
       } catch (error) {
         warn("Could not bind table events.", error);
       }
@@ -1622,6 +1615,7 @@
           component: COMPONENT_NAME,
           version: COMPONENT_VERSION,
           __version: COMPONENT_VERSION,
+
           getTables: function () {
             try {
               return toArray(document.querySelectorAll(TABLE_SELECTOR));
@@ -1629,6 +1623,7 @@
               return [];
             }
           },
+
           getFirstTable: function () {
             try {
               return document.querySelector(TABLE_SELECTOR);
@@ -1636,12 +1631,19 @@
               return null;
             }
           },
+
           getRows: function (table) {
             return getRows(table || api.getFirstTable());
           },
+
           getRowPayload: function (row) {
             return getRowPayload(row);
           },
+
+          payloadFromRow: function (row) {
+            return getRowPayload(row);
+          },
+
           getPayloads: function (table) {
             try {
               return getRows(table || api.getFirstTable()).map(getRowPayload);
@@ -1649,14 +1651,25 @@
               return [];
             }
           },
+
           appendRow: function (payload, table) {
             return appendRow(table || api.getFirstTable(), payload || {});
           },
+
           setEditorMode: function (mode, table) {
             return setEditorMode(table || api.getFirstTable(), mode, {
               source: "public-api"
             });
           },
+
+          requestEdit: function (row, table) {
+            return requestEdit(table || api.getFirstTable(), row);
+          },
+
+          requestRemove: function (row, table) {
+            return requestRemove(table || api.getFirstTable(), row);
+          },
+
           refresh: function (table) {
             try {
               var node = table || api.getFirstTable();
@@ -1682,6 +1695,7 @@
               return false;
             }
           },
+
           getSnapshot: function (table) {
             try {
               var node = table || api.getFirstTable();

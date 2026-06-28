@@ -4,92 +4,10 @@
 
   Zweck:
   - Flache, editorartige Shell für definition-managed Varianten.
-  - Dient zum Erstellen und Bearbeiten einer Varianten-/Variablen-Ausprägung.
-  - Entfernt sichtbare Debug-/Meta-Bereiche:
-      - "Noch kein Profil geladen."
-      - "Profil: ..."
-      - "Objektart: ..."
-      - "Taxonomie: ..."
-      - "ID: ..."
-      - "Bereit / Variante bereit."
-  - Behält technische Hooks intern bei, damit bestehende JS-Module weiter
-    arbeiten können.
+  - Stellt nur DOM-Struktur, Hidden-State und stabile Runtime-Hooks bereit.
   - Rendert keine fachlich hart kodierten Variant-Felder.
-  - Stellt Slots für dynamisch gerenderte Backend-Definitionsfelder bereit.
-  - Stellt einen sichtbaren Bereich für zusätzliche Backend-Variablen bereit.
-  - Bereitet document_list-/Dokumentenfelder mit Upload-Template vor.
-  - Keine API-Aufrufe im Template.
-  - Keine Package-Erzeugung.
-  - Keine Three.js-Logik.
-  - Keine Backend-Dateioperation.
-
-  Verantwortung dieser Datei:
-  - Drawer-/Editor-DOM-Struktur.
-  - Stabile data-hooks.
-  - Hidden State für aktuellen Drawer-Kontext.
-  - Full-width Editor-Area.
-  - Kompakter Header.
-  - Gemeinsames Layout für Profilfelder und optionale Backend-Variablen.
-  - Immer vorhandener Footer mit:
-      Abbrechen | Prüfen | Speichern
-  - Templates für Section-, Field-, Optional-, Dokument-, Validation- und
-    Summary-Runtime.
-  - Defensiver JS-Fallback mit try/catch und DOM-Cache.
-
-  Nicht-Verantwortung:
-  - Variant Profile auflösen.
-  - Felder aus `variables.v1.json` rendern.
-  - Werte fachlich validieren.
-  - Summary fachlich berechnen.
-  - Varianten in Tabellenzeilen schreiben.
-  - `definition_variants_json` synchronisieren.
-  - Datei-Upload persistent speichern.
-
-  Wichtige Layout-Hooks:
-  - data-vp-variant-drawer-content-grid="true"
-  - data-vp-variant-drawer-profile-column="true"
-  - data-vp-variant-drawer-optional-column="true"
-
-  Stabile Runtime-Hooks:
-  - data-vp-variant-drawer="true"
-  - data-vp-variant-drawer-root="true"
-  - data-vp-variant-drawer-panel="true"
-  - data-vp-variant-drawer-form="true"
-  - data-vp-variant-drawer-section-nav="true"
-  - data-vp-variant-drawer-fields="true"
-  - data-vp-variant-drawer-sections="true"
-  - data-vp-variant-drawer-additional-fields="true"
-  - data-vp-variant-optional-fields-root="true"
-  - data-vp-variant-drawer-summary="true"
-  - data-vp-variant-drawer-validation="true"
-  - data-vp-variant-drawer-status="true"
-  - data-vp-variant-drawer-close="true"
-  - data-vp-variant-drawer-cancel="true"
-  - data-vp-variant-drawer-validate="true"
-  - data-vp-variant-drawer-apply="true"
-  - data-vp-variant-drawer-footer="true"
-
-  Runtime:
-  - create_variant_drawer.js steuert regulär Open/Close/Apply.
-  - create_variant_profiles.js resolved Profile.
-  - create_variant_field_renderer.js rendert Profilfelder.
-  - create_variant_optional_fields.js rendert optionale Backend-Variablen.
-  - create_variant_validation.js schreibt Fehler/Hinweise.
-  - create_variant_summary.js kann versteckte Summary-Hooks weiterverwenden.
-
-  Robustheit:
-  - Buttons dispatchen Requests auch dann, wenn die Primary Runtime geladen ist.
-  - Fallback-Aktionen greifen nur, wenn keine Primary Runtime verfügbar ist.
-  - Der Footer bleibt DOM-strukturell außerhalb der scrollenden Field-Area.
-  - Apply-Button ist fachlich eindeutig als "Speichern" benannt.
-  - Der Optional-Fields-Root bleibt im DOM vorhanden. Dadurch mountet
-    create_variant_optional_fields.js ihn nicht mehr automatisch unter die
-    Profilfelder.
------------------------------------------------------------------------------ #}
-
-
-{# -----------------------------------------------------------------------------
-  1. Workspace-/Drawer-Kontext defensiv normalisieren
+  - Führt keine API-Aufrufe, keine Package-Erzeugung und keine Dateioperationen aus.
+  - Primary Runtime: create_variant_drawer.js.
 ----------------------------------------------------------------------------- #}
 
 {% if _variant_workspace_id is defined and _variant_workspace_id %}
@@ -119,7 +37,7 @@
 {% endif %}
 
 {% set _drawer_definitions_available_text = _drawer_definitions_available_raw | string | lower %}
-{% if _drawer_definitions_available_raw is sameas true or _drawer_definitions_available_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy'] %}
+{% if _drawer_definitions_available_raw is sameas true or _drawer_definitions_available_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy', 'ready'] %}
   {% set _drawer_definitions_available = true %}
 {% else %}
   {% set _drawer_definitions_available = false %}
@@ -203,15 +121,14 @@
   {% set _drawer_initial_status = 'definitions_unavailable' %}
 {% endif %}
 
-
 <aside
   id="{{ _vp_variant_drawer_id }}"
-  class="vp-create-variant-drawer vp-create-variant-drawer--shell-clean"
+  class="vp-create-variant-drawer vp-create-variant-drawer--shell-clean is-variant-editor-closed"
   data-vp-variant-drawer="true"
   data-vp-variant-drawer-root="true"
   data-vp-variant-drawer-shell="clean"
   data-vp-variant-drawer-layout="embedded"
-  data-vp-variant-drawer-version="0.6.0"
+  data-vp-variant-drawer-version="0.7.0"
   data-vp-variant-drawer-state="closed"
   data-vp-variant-editor-state="closed"
   data-vp-variant-drawer-mode="create"
@@ -288,14 +205,15 @@
       <input
         type="hidden"
         name="variant_drawer_values_json"
-        value=""
+        value="{}"
         data-vp-variant-drawer-values-json-field="true"
+        data-vp-variant-drawer-values-json="true"
       />
 
       <input
         type="hidden"
         name="variant_drawer_original_values_json"
-        value=""
+        value="{}"
         data-vp-variant-drawer-original-values-json-field="true"
       />
 
@@ -305,6 +223,7 @@
         value="[]"
         data-vp-variant-drawer-additional-field-keys-json-field="true"
         data-vp-variant-drawer-additional-field-keys-json="true"
+        data-vp-variant-additional-field-keys-json="true"
       />
 
       <input
@@ -647,7 +566,7 @@
         class="vp-create-variant-drawer__footer vp-create-variant-drawer-footer vp-create-variant-drawer-footer--compact"
         data-vp-variant-drawer-footer="true"
         data-vp-variant-drawer-footer-root="true"
-        data-vp-variant-drawer-footer-version="0.6.0"
+        data-vp-variant-drawer-footer-version="0.7.0"
         data-vp-variant-drawer-footer-sticky="true"
         data-vp-workspace-id="{{ _drawer_workspace_id | string | e }}"
         data-vp-drawer-id="{{ _vp_variant_drawer_id | string | e }}"
@@ -839,6 +758,7 @@
           data-vp-upload-kind="variant_documents"
           data-vp-upload-purpose="variant_document_list"
           data-vp-upload-backend-enabled="false"
+          data-vp-upload-local-only="true"
           data-vp-upload-metadata-field="variant_document_uploads_json"
         >
           <div class="vp-create-upload__header" data-vp-upload-header>
@@ -872,6 +792,7 @@
               data-vp-field-key="__field_key__"
               data-vp-upload-kind="variant_documents"
               data-vp-upload-purpose="variant_document_list"
+              data-vp-upload-local-only="true"
             />
 
             <input
@@ -991,7 +912,7 @@
     var READY_ATTR = "data-vp-variant-drawer-shell-ready";
     var EVENTS_BOUND_ATTR = "data-vp-variant-drawer-shell-events-bound";
     var COMPONENT_NAME = "VECTOPLAN Variant Drawer Shell";
-    var COMPONENT_VERSION = "0.6.0";
+    var COMPONENT_VERSION = "0.7.0";
 
     function warn(message, error) {
       try {
@@ -1039,7 +960,7 @@
             typeof window.VectoplanCreateVariantDrawer.open === "function" ||
             typeof window.VectoplanCreateVariantDrawer.close === "function" ||
             typeof window.VectoplanCreateVariantDrawer.applyDrawer === "function" ||
-            typeof window.VectoplanCreateVariantDrawer.editVariant === "function"
+            typeof window.VectoplanCreateVariantDrawer.validateDrawer === "function"
           )
         );
       } catch (error) {
@@ -1062,6 +983,7 @@
         if (node) {
           node.value = value === null || value === undefined ? "" : String(value);
           node.setAttribute("data-vp-last-shell-sync", String(Date.now()));
+          node.setAttribute("data-vp-programmatic-event-source", COMPONENT_NAME);
         }
       } catch (error) {
         warn("Could not set value.", error);
@@ -1073,6 +995,14 @@
         return String(node.getAttribute(name) || "").toLowerCase() === "true";
       } catch (error) {
         return false;
+      }
+    }
+
+    function safeJsonStringify(value, fallback) {
+      try {
+        return JSON.stringify(value);
+      } catch (error) {
+        return fallback || "";
       }
     }
 
@@ -1236,16 +1166,24 @@
         var additionalKeysJson = source.additional_field_keys_json || source.additionalFieldKeysJson || "";
         var documentUploadsJson = source.document_uploads_json || source.documentUploadsJson || source.variant_document_uploads_json || "{}";
 
+        if (!valuesJson && source.definition_values && typeof source.definition_values === "object") {
+          valuesJson = safeJsonStringify(source.definition_values, "{}");
+        } else if (!valuesJson && source.definitionValues && typeof source.definitionValues === "object") {
+          valuesJson = safeJsonStringify(source.definitionValues, "{}");
+        } else if (!valuesJson && source.values && typeof source.values === "object") {
+          valuesJson = safeJsonStringify(source.values, "{}");
+        }
+
         if (Array.isArray(source.additional_field_keys)) {
-          additionalKeysJson = JSON.stringify(source.additional_field_keys);
+          additionalKeysJson = safeJsonStringify(source.additional_field_keys, "[]");
         } else if (Array.isArray(source.additionalFieldKeys)) {
-          additionalKeysJson = JSON.stringify(source.additionalFieldKeys);
+          additionalKeysJson = safeJsonStringify(source.additionalFieldKeys, "[]");
         }
 
         if (source.document_uploads && typeof source.document_uploads === "object") {
-          documentUploadsJson = JSON.stringify(source.document_uploads);
+          documentUploadsJson = safeJsonStringify(source.document_uploads, "{}");
         } else if (source.documentUploads && typeof source.documentUploads === "object") {
-          documentUploadsJson = JSON.stringify(source.documentUploads);
+          documentUploadsJson = safeJsonStringify(source.documentUploads, "{}");
         }
 
         if (rowIndex === undefined || rowIndex === null || rowIndex === "") {
@@ -1259,7 +1197,7 @@
           label: label,
           variantProfileId: profileId,
           familyProfileId: familyProfileId,
-          valuesJson: valuesJson,
+          valuesJson: valuesJson || "{}",
           additionalKeysJson: additionalKeysJson || "[]",
           documentUploadsJson: documentUploadsJson || "{}",
           raw: source
@@ -1273,7 +1211,7 @@
           label: "",
           variantProfileId: "",
           familyProfileId: "",
-          valuesJson: "",
+          valuesJson: "{}",
           additionalKeysJson: "[]",
           documentUploadsJson: "{}",
           raw: {}
@@ -1297,6 +1235,12 @@
         if (cache.optionalRoot) {
           cache.optionalRoot.setAttribute("data-vp-variant-optional-placement", "beside-profile-fields");
           cache.optionalRoot.setAttribute("data-vp-layout-managed-by", COMPONENT_NAME);
+          cache.optionalRoot.setAttribute("data-vp-variant-optional-fields-root", "true");
+          cache.optionalRoot.setAttribute("data-vp-variant-drawer-optional-fields", "true");
+        }
+
+        if (cache.optionalAvailableColumns) {
+          cache.optionalAvailableColumns.setAttribute("aria-hidden", "true");
         }
 
         if (cache.sections) {
@@ -1357,6 +1301,40 @@
       }
     }
 
+    function setStatus(cache, state, message) {
+      try {
+        var normalized = String(state || "idle").toLowerCase();
+        var text = message || "";
+
+        cache.root.setAttribute("data-vp-variant-drawer-status-state", normalized);
+
+        if (cache.status) {
+          cache.status.setAttribute("data-vp-variant-drawer-status-state", normalized);
+        }
+
+        if (cache.statusPill) {
+          cache.statusPill.className = "vp-create-variant-drawer__status-pill vp-create-variant-drawer__status-pill--" + normalized;
+          cache.statusPill.textContent = normalized === "busy"
+            ? "Lädt"
+            : normalized === "error"
+              ? "Fehler"
+              : normalized === "valid"
+                ? "Gültig"
+                : normalized === "warning"
+                  ? "Hinweis"
+                  : "Bereit";
+        }
+
+        if (cache.statusText && text) {
+          cache.statusText.textContent = text;
+        }
+
+        setFooterStatus(cache, normalized, text || "Bereit.");
+      } catch (error) {
+        warn("Could not set status.", error);
+      }
+    }
+
     function setFooterStatus(cache, state, text) {
       try {
         var normalized = String(state || "idle").toLowerCase();
@@ -1377,7 +1355,7 @@
       }
     }
 
-    function setBusy(cache, busy) {
+    function setBusy(cache, busy, message) {
       try {
         var isBusy = !!busy;
 
@@ -1402,6 +1380,10 @@
             /* no-op */
           }
         });
+
+        if (message) {
+          setFooterStatus(cache, isBusy ? "running" : "idle", message);
+        }
       } catch (error) {
         warn("Could not set busy state.", error);
       }
@@ -1443,8 +1425,8 @@
               li.className = "vp-create-variant-drawer__validation-item";
               li.setAttribute("data-vp-validation-item", "true");
 
-              if (item && item.field_key) {
-                li.setAttribute("data-vp-validation-field-key", String(item.field_key));
+              if (item && (item.field_key || item.fieldKey)) {
+                li.setAttribute("data-vp-validation-field-key", String(item.field_key || item.fieldKey));
               }
 
               var strong = document.createElement("strong");
@@ -1507,11 +1489,11 @@
         safeSetValue(cache.variantIdField, variantId);
         safeSetValue(cache.profileIdField, variantProfileId);
         safeSetValue(cache.familyProfileIdField, familyProfileId);
-        safeSetValue(cache.valuesJsonField, data.valuesJson);
-        safeSetValue(cache.originalValuesJsonField, data.valuesJson);
-        safeSetValue(cache.additionalKeysField, data.additionalKeysJson);
-        safeSetValue(cache.originalAdditionalKeysField, data.additionalKeysJson);
-        safeSetValue(cache.documentUploadsJsonField, data.documentUploadsJson);
+        safeSetValue(cache.valuesJsonField, data.valuesJson || "{}");
+        safeSetValue(cache.originalValuesJsonField, data.valuesJson || "{}");
+        safeSetValue(cache.additionalKeysField, data.additionalKeysJson || "[]");
+        safeSetValue(cache.originalAdditionalKeysField, data.additionalKeysJson || "[]");
+        safeSetValue(cache.documentUploadsJsonField, data.documentUploadsJson || "{}");
 
         if (cache.footer) {
           cache.footer.setAttribute("data-vp-profile-state", variantProfileId ? "resolved" : "pending");
@@ -1529,7 +1511,7 @@
         setValidation(cache, [], "idle");
         setDirty(cache, false);
         setBusy(cache, false);
-        setFooterStatus(cache, "idle", data.mode === "edit" ? "Variable zur Bearbeitung geladen." : "Neue Variable vorbereiten.");
+        setStatus(cache, "idle", data.mode === "edit" ? "Variable zur Bearbeitung geladen." : "Neue Variable vorbereiten.");
       } catch (error) {
         warn("Could not apply payload to drawer shell.", error);
       }
@@ -1559,6 +1541,8 @@
 
         root.setAttribute("data-vp-variant-drawer-state", normalized);
         root.setAttribute("data-vp-variant-editor-state", normalized);
+        root.classList.toggle("is-variant-editor-open", normalized === "open");
+        root.classList.toggle("is-variant-editor-closed", normalized !== "open");
 
         var workspace = root.closest("[data-vp-variant-workspace-root='true']") ||
           document.getElementById(root.getAttribute("data-vp-workspace-id") || "");
@@ -1882,6 +1866,27 @@
           });
         });
 
+        document.addEventListener("vectoplan:create:variant-validation-finished", function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+            var drawer = getFirstDrawer();
+
+            if (!drawer) {
+              return;
+            }
+
+            setValidation(
+              cacheDrawer(drawer),
+              []
+                .concat(detail.errors || [])
+                .concat(detail.warnings || []),
+              detail.ok ? "valid" : "invalid"
+            );
+          } catch (error) {
+            warn("Validation finished shell listener failed.", error);
+          }
+        });
+
         document.addEventListener("vectoplan:create:variant-fields-rendered", function () {
           try {
             toArray(document.querySelectorAll(DRAWER_SELECTOR)).forEach(function (root) {
@@ -1967,6 +1972,7 @@
           component: COMPONENT_NAME,
           version: COMPONENT_VERSION,
           __version: COMPONENT_VERSION,
+
           getDrawers: function () {
             try {
               return toArray(document.querySelectorAll(DRAWER_SELECTOR));
@@ -1974,37 +1980,53 @@
               return [];
             }
           },
+
           getFirstDrawer: getFirstDrawer,
+
           getContext: function (root) {
             return readContext(root || getFirstDrawer());
           },
+
           getCache: function (root) {
             return cacheDrawer(root || getFirstDrawer());
           },
+
           ensureLayout: function (root) {
             return ensureLayout(cacheDrawer(root || getFirstDrawer()));
           },
+
           open: function (payload, root) {
             openFallback(root || getFirstDrawer(), payload || {});
           },
+
           close: function (reason, root) {
             closeFallback(root || getFirstDrawer(), reason || "api");
           },
-          setBusy: function (busy, root) {
-            setBusy(cacheDrawer(root || getFirstDrawer()), busy);
+
+          setStatus: function (state, message, root) {
+            setStatus(cacheDrawer(root || getFirstDrawer()), state || "idle", message || "");
           },
+
+          setBusy: function (busy, message, root) {
+            setBusy(cacheDrawer(root || getFirstDrawer()), busy, message || "");
+          },
+
           setDirty: function (dirty, root) {
             setDirty(cacheDrawer(root || getFirstDrawer()), dirty);
           },
+
           setValidation: function (items, state, root) {
             setValidation(cacheDrawer(root || getFirstDrawer()), items || [], state || "");
           },
+
           setActionLabels: function (root) {
             setActionLabels(cacheDrawer(root || getFirstDrawer()));
           },
+
           applyPayload: function (payload, root) {
             applyPayloadToShell(cacheDrawer(root || getFirstDrawer()), payload || {});
           },
+
           getSnapshot: function (root) {
             try {
               var node = root || getFirstDrawer();

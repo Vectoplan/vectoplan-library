@@ -11,8 +11,8 @@ Diese Datei ist der HTTP-nahe Adapter zwischen:
       -> scanner / validation / read_models / taxonomy
 
 Diese Datei muss die Symbole exportieren, die `routes.library_routes.py`
-direkt importiert. Wenn eines davon fehlt, fällt `library_routes.py` in den
-Fallback "library route service is unavailable".
+direkt oder dynamisch verwendet. Wenn eines davon fehlt, fällt
+library_routes.py in den kontrollierten Fallback.
 
 Wichtige Grenzen:
 
@@ -22,43 +22,43 @@ Wichtige Grenzen:
 - keine UI-Logik
 - keine Scans beim Import
 - nur Request-Normalisierung, Service-Delegation und Response-Envelopes
+- GET /scan bleibt read-only
+- POST /sync liegt nicht hier, sondern in routes/library_routes.py über
+  CreativeLibraryService
 
-Version 0.2.0:
+Version 1.0.0:
 
 - Query-Parameter `domain/category/subcategory/object_kind/q` werden vollständig
   geparst und bis in Scan-/Block-Service weitergereicht.
-- Taxonomie-Flags werden vollständig geparst:
-    validate_taxonomy
-    require_taxonomy
-    use_taxonomy_labels
-    include_empty_taxonomy_nodes
-    include_inactive_taxonomy_nodes
-    include_taxonomy_payload
-    force_taxonomy_reload
-- Scan-, Blocks- und Tree-Routen bevorzugen die neue `library_scan_service`-
-  Pipeline, bleiben aber kompatibel mit `library_block_service`.
+- Taxonomie-Flags werden vollständig geparst.
+- Scan-, Blocks- und Tree-Routen bevorzugen `library_scan_service`.
 - Detail- und Variantenrouten bleiben über `library_block_service` angebunden.
 - Cache-Clear leert Scan-Cache und Taxonomie-nahe Read-Model-Caches, sofern
   verfügbar.
-- Health enthält Taxonomie- und Scan-Service-Subhealth.
+- Health enthält Taxonomie-, Scan-Service-, Block-Service- und Basis-Subhealth.
+- Import großer Services erfolgt lazy, nicht beim Modulimport.
 """
 
 from __future__ import annotations
 
+import importlib
+import inspect
 import os
 import traceback
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, Final
+from types import ModuleType
+from typing import Any, Callable, Final
 
 
 # ---------------------------------------------------------------------------
 # Constants required by routes.library_routes
 # ---------------------------------------------------------------------------
 
-LIBRARY_ROUTE_SERVICE_VERSION: Final[str] = "0.2.0"
+LIBRARY_ROUTE_SERVICE_VERSION: Final[str] = "1.0.0"
 LIBRARY_ROUTE_SERVICE_COMPONENT: Final[str] = "library-route-service"
 
 DEFAULT_LIBRARY_ROUTE_PREFIX: Final[str] = "/api/v1/vplib/library"
@@ -84,8 +84,10 @@ ROUTE_SERVICE_STATUS_VALUES: Final[tuple[str, ...]] = (
     "empty",
     "partial",
     "invalid",
+    "invalid_request",
     "conflict",
     "error",
+    "failed",
 )
 
 BOOLEAN_PARAM_NAMES: Final[tuple[str, ...]] = (
@@ -145,6 +147,36 @@ BOOLEAN_PARAM_NAMES: Final[tuple[str, ...]] = (
     "traceback",
     "refresh_settings",
     "refreshSettings",
+)
+
+INTEGER_PARAM_NAMES: Final[tuple[str, ...]] = (
+    "limit",
+    "offset",
+)
+
+FILTER_PARAM_NAMES: Final[tuple[str, ...]] = (
+    "domain",
+    "category",
+    "subcategory",
+    "sub_category",
+    "subCategory",
+    "object_kind",
+    "objectKind",
+    "kind",
+    "q",
+    "query",
+    "search",
+)
+
+SOURCE_ROOT_ENV_KEYS: Final[tuple[str, ...]] = (
+    "VECTOPLAN_LIBRARY_SOURCE_ROOT",
+    "VPLIB_CREATE_SOURCE_ROOT",
+    "LIBRARY_SOURCE_ROOT",
+)
+
+ROUTE_PREFIX_ENV_KEYS: Final[tuple[str, ...]] = (
+    "LIBRARY_ROUTE_PREFIX",
+    "VECTOPLAN_LIBRARY_ROUTE_PREFIX",
 )
 
 
@@ -242,7 +274,7 @@ def safe_str(value: Any, *, default: str = "") -> str:
         if isinstance(value, bytes):
             text = value.decode("utf-8", errors="replace").strip()
         else:
-            text = str(value).strip()
+            text = str(value).replace("\x00", "").strip()
 
         return text if text else default
 
@@ -412,10 +444,30 @@ def safe_mapping(value: Any) -> dict[str, Any]:
             return {}
 
         if isinstance(value, Mapping):
+            getlist = getattr(value, "getlist", None)
+            if callable(getlist):
+                result: dict[str, Any] = {}
+                try:
+                    keys = value.keys()
+                except Exception:
+                    keys = []
+                for key in keys:
+                    try:
+                        values = getlist(key)
+                    except Exception:
+                        values = []
+                    if len(values) == 1:
+                        result[str(key)] = values[0]
+                    elif len(values) > 1:
+                        result[str(key)] = list(values)
+                    else:
+                        result[str(key)] = value.get(key)
+                if result:
+                    return result
+
             return dict(value)
 
         to_dict = getattr(value, "to_dict", None)
-
         if callable(to_dict):
             try:
                 raw = to_dict(flat=False)
@@ -443,7 +495,7 @@ def safe_mapping(value: Any) -> dict[str, Any]:
 
 
 def normalize_param_mapping(value: Mapping[str, Any] | None) -> dict[str, Any]:
-    """Normalisiert bekannte Bool-Parameter, ohne Fachwerte zu verändern."""
+    """Normalisiert bekannte Bool-/Integer-Parameter, ohne Fachwerte zu verändern."""
     source = safe_mapping(value)
     result: dict[str, Any] = {}
 
@@ -454,6 +506,9 @@ def normalize_param_mapping(value: Mapping[str, Any] | None) -> dict[str, Any]:
 
         if key_text in BOOLEAN_PARAM_NAMES:
             result[key_text] = parse_bool(item, default=False)
+        elif key_text in INTEGER_PARAM_NAMES:
+            default = DEFAULT_LIMIT if key_text == "limit" else 0
+            result[key_text] = safe_int(item, default=default, minimum=0, maximum=MAX_LIMIT)
         else:
             result[key_text] = item
 
@@ -518,12 +573,15 @@ def parse_offset(value: Any, *, default: int = 0) -> int:
 def response_http_status(payload: Mapping[str, Any]) -> int:
     """Leitet den HTTP-Status aus einem Payload-Status ab."""
     try:
+        if bool(payload.get("ok", False)):
+            return DEFAULT_RESPONSE_HTTP_STATUS
+
         status = safe_str(payload.get("status"), default="ok").lower()
 
         if status == "not_found":
             return NOT_FOUND_HTTP_STATUS
 
-        if status == "bad_request":
+        if status in {"bad_request", "invalid", "invalid_request"}:
             return BAD_REQUEST_HTTP_STATUS
 
         if status == "conflict":
@@ -532,7 +590,7 @@ def response_http_status(payload: Mapping[str, Any]) -> int:
         if status == "unavailable":
             return UNAVAILABLE_HTTP_STATUS
 
-        if status in {"error", "unhealthy"}:
+        if status in {"error", "unhealthy", "failed"}:
             return ERROR_HTTP_STATUS
 
         return DEFAULT_RESPONSE_HTTP_STATUS
@@ -565,6 +623,7 @@ def make_response_envelope(
     data.setdefault("generated_at", utc_now_iso())
     data.setdefault("component", LIBRARY_ROUTE_SERVICE_COMPONENT)
     data.setdefault("route_service_version", LIBRARY_ROUTE_SERVICE_VERSION)
+    data.setdefault("backend", "legacy_file")
 
     if http_status is not None:
         data["_http_status"] = safe_int(http_status, default=ERROR_HTTP_STATUS, minimum=100, maximum=599)
@@ -585,6 +644,7 @@ def unavailable_response(message: str, exc: BaseException | None = None) -> dict
         "errors": [message],
         "error": exception_to_dict(exc),
         "generated_at": utc_now_iso(),
+        "backend": "legacy_file",
     }
 
 
@@ -622,21 +682,20 @@ def apply_list_pagination(payload: Mapping[str, Any], *, limit: int, offset: int
 
 def get_library_route_prefix_safe() -> str:
     """Liefert den API-Route-Prefix aus ENV oder Default."""
-    return (
-        safe_str(os.getenv("LIBRARY_ROUTE_PREFIX"), default="")
-        or safe_str(os.getenv("VECTOPLAN_LIBRARY_ROUTE_PREFIX"), default="")
-        or DEFAULT_LIBRARY_ROUTE_PREFIX
-    )
+    for env_key in ROUTE_PREFIX_ENV_KEYS:
+        value = safe_str(os.getenv(env_key), default="")
+        if value:
+            return value
+    return DEFAULT_LIBRARY_ROUTE_PREFIX
 
 
 def get_library_source_root_safe() -> str | None:
     """Liefert den Library-Source-Root aus ENV, falls gesetzt."""
-    return (
-        safe_str(os.getenv("VECTOPLAN_LIBRARY_SOURCE_ROOT"), default="")
-        or safe_str(os.getenv("VPLIB_CREATE_SOURCE_ROOT"), default="")
-        or safe_str(os.getenv("LIBRARY_SOURCE_ROOT"), default="")
-        or None
-    )
+    for env_key in SOURCE_ROOT_ENV_KEYS:
+        value = safe_str(os.getenv(env_key), default="")
+        if value:
+            return value
+    return None
 
 
 def get_library_route_plan(*, refresh: bool = False) -> dict[str, Any]:
@@ -646,19 +705,26 @@ def get_library_route_plan(*, refresh: bool = False) -> dict[str, Any]:
     return {
         "route_prefix": route_prefix,
         "health_route_path": "/health",
+        "routes_route_path": "/routes",
+        "selftest_route_path": "/selftest",
         "scan_route_path": "/scan",
+        "sync_route_path": "/sync",
         "blocks_route_path": "/blocks",
         "tree_route_path": "/tree",
         "cache_clear_route_path": "/cache/clear",
         "block_detail_route_template": "/blocks/<block_id>",
         "block_variants_route_template": "/blocks/<block_id>/variants",
+        "published_full_path": f"{route_prefix}/published",
+        "items_full_path": f"{route_prefix}/items",
         "health_full_path": f"{route_prefix}/health",
         "scan_full_path": f"{route_prefix}/scan",
+        "sync_full_path": f"{route_prefix}/sync",
         "blocks_full_path": f"{route_prefix}/blocks",
         "tree_full_path": f"{route_prefix}/tree",
         "cache_clear_full_path": f"{route_prefix}/cache/clear",
         "block_detail_full_path": f"{route_prefix}/blocks/<block_id>",
         "block_variants_full_path": f"{route_prefix}/blocks/<block_id>/variants",
+        "refresh_requested": bool(refresh),
     }
 
 
@@ -681,206 +747,109 @@ def get_library_settings_health(*, refresh: bool = False) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Optional backend imports
+# Lazy optional backend imports
 # ---------------------------------------------------------------------------
 
-_LIBRARY_IMPORT_ERROR: BaseException | None = None
-_DOMAIN_IMPORT_ERROR: BaseException | None = None
-_SCANNER_IMPORT_ERROR: BaseException | None = None
-_VALIDATION_IMPORT_ERROR: BaseException | None = None
-_READ_MODELS_IMPORT_ERROR: BaseException | None = None
-_SERVICES_IMPORT_ERROR: BaseException | None = None
-_BLOCK_SERVICE_IMPORT_ERROR: BaseException | None = None
-_SCAN_SERVICE_IMPORT_ERROR: BaseException | None = None
-_TAXONOMY_IMPORT_ERROR: BaseException | None = None
+@lru_cache(maxsize=1)
+def _load_optional_module(module_name: str) -> ModuleType:
+    return importlib.import_module(module_name)
 
-try:
-    from library import get_library_health
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _LIBRARY_IMPORT_ERROR = import_exc
 
-    def get_library_health(*args: Any, **kwargs: Any) -> dict[str, Any]:
+def _optional_module_status(module_name: str) -> dict[str, Any]:
+    try:
+        module = _load_optional_module(module_name)
+        return {
+            "ok": True,
+            "module": getattr(module, "__name__", module_name),
+        }
+    except Exception as exc:
         return {
             "ok": False,
-            "healthy": False,
-            "error": exception_to_dict(_LIBRARY_IMPORT_ERROR),
+            "error": exception_to_dict(exc),
         }
 
 
-try:
-    from library.domain import get_domain_health
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _DOMAIN_IMPORT_ERROR = import_exc
-
-    def get_domain_health(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {
-            "ok": False,
-            "healthy": False,
-            "error": exception_to_dict(_DOMAIN_IMPORT_ERROR),
-        }
+def _get_optional_attr(module_name: str, attr_name: str) -> Any:
+    module = _load_optional_module(module_name)
+    return getattr(module, attr_name)
 
 
-try:
-    from library.scanner import get_scanner_health
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _SCANNER_IMPORT_ERROR = import_exc
+def _try_get_optional_attr(module_names: Sequence[str], attr_name: str) -> tuple[Any | None, BaseException | None]:
+    last_exc: BaseException | None = None
 
-    def get_scanner_health(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {
-            "ok": False,
-            "healthy": False,
-            "error": exception_to_dict(_SCANNER_IMPORT_ERROR),
-        }
+    for module_name in module_names:
+        try:
+            module = _load_optional_module(module_name)
+            value = getattr(module, attr_name)
+            return value, None
+        except Exception as exc:
+            last_exc = exc
 
-
-try:
-    from library.validation import get_validation_health
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _VALIDATION_IMPORT_ERROR = import_exc
-
-    def get_validation_health(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {
-            "ok": False,
-            "healthy": False,
-            "error": exception_to_dict(_VALIDATION_IMPORT_ERROR),
-        }
+    return None, last_exc
 
 
-try:
-    from library.read_models import get_read_models_health
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _READ_MODELS_IMPORT_ERROR = import_exc
+LIBRARY_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library",
+    "src.library",
+    "vectoplan_library.library",
+    "vectoplan_library.src.library",
+)
 
-    def get_read_models_health(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {
-            "ok": False,
-            "healthy": False,
-            "error": exception_to_dict(_READ_MODELS_IMPORT_ERROR),
-        }
+DOMAIN_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.domain",
+    "src.library.domain",
+    "vectoplan_library.library.domain",
+    "vectoplan_library.src.library.domain",
+)
 
+SCANNER_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.scanner",
+    "src.library.scanner",
+    "vectoplan_library.library.scanner",
+    "vectoplan_library.src.library.scanner",
+)
 
-try:
-    from library.services import get_services_health
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _SERVICES_IMPORT_ERROR = import_exc
+VALIDATION_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.validation",
+    "src.library.validation",
+    "vectoplan_library.library.validation",
+    "vectoplan_library.src.library.validation",
+)
 
-    def get_services_health(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {
-            "ok": False,
-            "healthy": False,
-            "error": exception_to_dict(_SERVICES_IMPORT_ERROR),
-        }
+READ_MODELS_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.read_models",
+    "src.library.read_models",
+    "vectoplan_library.library.read_models",
+    "vectoplan_library.src.library.read_models",
+)
 
+SERVICES_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.services",
+    "src.library.services",
+    "vectoplan_library.library.services",
+    "vectoplan_library.src.library.services",
+)
 
-try:
-    from library.taxonomy import get_default_taxonomy_service
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _TAXONOMY_IMPORT_ERROR = import_exc
-    get_default_taxonomy_service = None  # type: ignore[assignment]
+TAXONOMY_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.taxonomy",
+    "src.library.taxonomy",
+    "vectoplan_library.library.taxonomy",
+    "vectoplan_library.src.library.taxonomy",
+)
 
+SCAN_SERVICE_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.services.library_scan_service",
+    "src.library.services.library_scan_service",
+    "vectoplan_library.library.services.library_scan_service",
+    "vectoplan_library.src.library.services.library_scan_service",
+)
 
-try:
-    from library.services.library_scan_service import (
-        LibraryScanServiceOptions,
-        clear_library_scan_cache,
-        get_library_blocks_response as get_scan_service_blocks_response,
-        get_library_scan_response as get_scan_service_scan_response,
-        get_library_scan_service_health,
-        get_library_tree_response as get_scan_service_tree_response,
-    )
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _SCAN_SERVICE_IMPORT_ERROR = import_exc
-    LibraryScanServiceOptions = Any  # type: ignore[assignment]
-
-    def clear_library_scan_cache() -> None:
-        return None
-
-    def get_library_scan_service_health(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {
-            "ok": False,
-            "healthy": False,
-            "component": "library-scan-service",
-            "status": "unavailable",
-            "error": exception_to_dict(_SCAN_SERVICE_IMPORT_ERROR),
-        }
-
-    def get_scan_service_scan_response(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return unavailable_response("library scan service is unavailable", _SCAN_SERVICE_IMPORT_ERROR)
-
-    def get_scan_service_blocks_response(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return unavailable_response("library scan service is unavailable", _SCAN_SERVICE_IMPORT_ERROR)
-
-    def get_scan_service_tree_response(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return unavailable_response("library scan service is unavailable", _SCAN_SERVICE_IMPORT_ERROR)
-
-
-try:
-    from library.services.library_block_service import (
-        LibraryBlockServiceOptions,
-        get_library_block_detail_response,
-        get_library_block_service_health,
-        get_library_block_variants_response,
-        get_library_tree_response_from_block_service,
-        list_library_blocks_response,
-        scan_library_for_blocks_response,
-    )
-except Exception as import_exc:  # pragma: no cover - defensive fallback
-    _BLOCK_SERVICE_IMPORT_ERROR = import_exc
-
-    @dataclass(frozen=True)
-    class LibraryBlockServiceOptions:  # type: ignore[no-redef]
-        use_cache: bool = False
-        force_refresh: bool = False
-        include_invalid: bool = False
-        include_raw_pipeline: bool = False
-        include_raw_documents: bool = True
-        include_profiles: bool = True
-        include_metadata: bool = True
-        strict_errors: bool = False
-        limit: int = DEFAULT_LIMIT
-        offset: int = 0
-
-        def __post_init__(self) -> None:
-            object.__setattr__(self, "use_cache", parse_bool(self.use_cache, default=False))
-            object.__setattr__(self, "force_refresh", parse_bool(self.force_refresh, default=False))
-            object.__setattr__(self, "include_invalid", parse_bool(self.include_invalid, default=False))
-            object.__setattr__(self, "include_raw_pipeline", parse_bool(self.include_raw_pipeline, default=False))
-            object.__setattr__(self, "include_raw_documents", parse_bool(self.include_raw_documents, default=True))
-            object.__setattr__(self, "include_profiles", parse_bool(self.include_profiles, default=True))
-            object.__setattr__(self, "include_metadata", parse_bool(self.include_metadata, default=True))
-            object.__setattr__(self, "strict_errors", parse_bool(self.strict_errors, default=False))
-            object.__setattr__(self, "limit", parse_limit(self.limit))
-            object.__setattr__(self, "offset", parse_offset(self.offset))
-
-            if self.force_refresh:
-                object.__setattr__(self, "use_cache", False)
-
-        def to_dict(self) -> dict[str, Any]:
-            return asdict(self)
-
-    def get_library_block_service_health() -> dict[str, Any]:
-        return {
-            "ok": False,
-            "healthy": False,
-            "component": "library-block-service",
-            "status": "unavailable",
-            "error": exception_to_dict(_BLOCK_SERVICE_IMPORT_ERROR),
-        }
-
-    def scan_library_for_blocks_response(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return unavailable_response("library block service is unavailable", _BLOCK_SERVICE_IMPORT_ERROR)
-
-    def list_library_blocks_response(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return unavailable_response("library block service is unavailable", _BLOCK_SERVICE_IMPORT_ERROR)
-
-    def get_library_block_detail_response(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return unavailable_response("library block service is unavailable", _BLOCK_SERVICE_IMPORT_ERROR)
-
-    def get_library_block_variants_response(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return unavailable_response("library block service is unavailable", _BLOCK_SERVICE_IMPORT_ERROR)
-
-    def get_library_tree_response_from_block_service(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return unavailable_response("library block service is unavailable", _BLOCK_SERVICE_IMPORT_ERROR)
+BLOCK_SERVICE_MODULE_NAMES: Final[tuple[str, ...]] = (
+    "library.services.library_block_service",
+    "src.library.services.library_block_service",
+    "vectoplan_library.library.services.library_block_service",
+    "vectoplan_library.src.library.services.library_block_service",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -921,7 +890,7 @@ class LibraryRouteRequestOptions:
     refresh_settings: bool = False
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "source_root", normalize_query_text(self.source_root))
+        object.__setattr__(self, "source_root", normalize_query_text(self.source_root) or get_library_source_root_safe())
         object.__setattr__(self, "force_refresh", parse_bool(self.force_refresh, default=False))
         object.__setattr__(self, "use_cache", parse_bool(self.use_cache, default=False))
 
@@ -983,13 +952,15 @@ class LibraryRouteRequestOptions:
         }
 
     def to_block_service_options(self) -> Any:
-        """
-        Baut Block-Service-Optionen.
+        """Baut Block-Service-Optionen."""
+        option_class, _error = _try_get_optional_attr(BLOCK_SERVICE_MODULE_NAMES, "LibraryBlockServiceOptions")
 
-        Neue Taxonomie-Felder werden zuerst versucht. Falls die aktuelle
-        Block-Service-Version sie noch nicht kennt, fällt der Code auf die alte
-        Signatur zurück.
-        """
+        if option_class is None:
+            return {
+                **self._base_service_kwargs(),
+                **self._taxonomy_service_kwargs(),
+            }
+
         attempts = (
             {
                 **self._base_service_kwargs(),
@@ -1001,14 +972,16 @@ class LibraryRouteRequestOptions:
 
         for kwargs in attempts:
             try:
-                return LibraryBlockServiceOptions(**kwargs)
+                return option_class(**kwargs)
             except Exception:
                 continue
 
-        return LibraryBlockServiceOptions()
+        return option_class()
 
     def to_scan_service_options(self) -> Any:
         """Baut Scan-Service-Optionen mit Taxonomie-Pipeline-Feldern."""
+        option_class, _error = _try_get_optional_attr(SCAN_SERVICE_MODULE_NAMES, "LibraryScanServiceOptions")
+
         attempts = (
             {
                 "include_invalid": self.include_invalid,
@@ -1043,11 +1016,12 @@ class LibraryRouteRequestOptions:
             {},
         )
 
-        for kwargs in attempts:
-            try:
-                return LibraryScanServiceOptions(**kwargs)
-            except Exception:
-                continue
+        if option_class is not None:
+            for kwargs in attempts:
+                try:
+                    return option_class(**kwargs)
+                except Exception:
+                    continue
 
         return {
             **self._base_service_kwargs(),
@@ -1225,7 +1199,11 @@ class LibraryRouteServiceResult:
         if status == "unknown":
             status = "error" if errors else ("ok" if self.ok else "error")
 
-        object.__setattr__(self, "ok", bool(self.ok and status not in {"error", "bad_request", "not_found", "invalid", "unavailable"}))
+        object.__setattr__(
+            self,
+            "ok",
+            bool(self.ok and status not in {"error", "bad_request", "not_found", "invalid", "invalid_request", "unavailable", "failed"}),
+        )
         object.__setattr__(self, "status", status)
         object.__setattr__(
             self,
@@ -1247,6 +1225,8 @@ class LibraryRouteServiceResult:
             "warnings": list(self.warnings),
             "errors": list(self.errors),
             "version": self.version,
+            "component": LIBRARY_ROUTE_SERVICE_COMPONENT,
+            "backend": "legacy_file",
         }
 
         result.update(json_safe(self.payload))
@@ -1322,158 +1302,180 @@ def _safe_payload(value: Any) -> dict[str, Any]:
     return {"value": json_safe(value)}
 
 
-def _call_scan_service_scan(options: LibraryRouteRequestOptions) -> dict[str, Any]:
+def _filter_supported_kwargs(func: Callable[..., Any], kwargs: Mapping[str, Any]) -> dict[str, Any]:
     try:
-        response = get_scan_service_scan_response(
-            source_root=options.source_root,
-            options=options.to_scan_service_options(),
-            force_refresh=options.force_refresh,
-        )
-        return _safe_payload(response)
+        signature = inspect.signature(func)
+    except Exception:
+        return dict(kwargs)
+
+    for parameter in signature.parameters.values():
+        if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+            return dict(kwargs)
+
+    supported = set(signature.parameters.keys())
+    return {key: value for key, value in kwargs.items() if key in supported}
+
+
+def _call_function_flexible(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    filtered_kwargs = _filter_supported_kwargs(func, kwargs)
+
+    try:
+        return func(*args, **filtered_kwargs)
     except TypeError:
-        try:
-            response = get_scan_service_scan_response(
-                source_root=options.source_root,
-                options=options.to_scan_service_options(),
-            )
-            return _safe_payload(response)
-        except Exception:
-            raise
+        if args:
+            try:
+                return func(*args)
+            except TypeError:
+                pass
+        if filtered_kwargs:
+            try:
+                return func(**filtered_kwargs)
+            except TypeError:
+                pass
+        return func()
+
+
+def _get_scan_service_attr(attr_name: str) -> tuple[Any | None, BaseException | None]:
+    return _try_get_optional_attr(SCAN_SERVICE_MODULE_NAMES, attr_name)
+
+
+def _get_block_service_attr(attr_name: str) -> tuple[Any | None, BaseException | None]:
+    return _try_get_optional_attr(BLOCK_SERVICE_MODULE_NAMES, attr_name)
+
+
+def _call_scan_service_scan(options: LibraryRouteRequestOptions) -> dict[str, Any]:
+    func, exc = _get_scan_service_attr("get_library_scan_response")
+    if not callable(func):
+        return unavailable_response("library scan service is unavailable", exc)
+
+    response = _call_function_flexible(
+        func,
+        source_root=options.source_root,
+        options=options.to_scan_service_options(),
+        force_refresh=options.force_refresh,
+    )
+    payload = _safe_payload(response)
+    payload.setdefault("service", "library_scan_service")
+    return payload
 
 
 def _call_scan_service_blocks(options: LibraryRouteRequestOptions) -> dict[str, Any]:
-    try:
-        response = get_scan_service_blocks_response(
-            source_root=options.source_root,
-            domain=options.domain,
-            category=options.category,
-            subcategory=options.subcategory,
-            object_kind=options.object_kind,
-            q=options.q,
-            options=options.to_scan_service_options(),
-            force_refresh=options.force_refresh,
-        )
-        return _safe_payload(response)
-    except TypeError:
-        try:
-            response = get_scan_service_blocks_response(
-                source_root=options.source_root,
-                options=options.to_scan_service_options(),
-                force_refresh=options.force_refresh,
-            )
-            payload = _safe_payload(response)
-            return apply_route_filters(payload, options=options)
-        except Exception:
-            raise
+    func, exc = _get_scan_service_attr("get_library_blocks_response")
+    if not callable(func):
+        return unavailable_response("library scan service is unavailable", exc)
+
+    response = _call_function_flexible(
+        func,
+        source_root=options.source_root,
+        domain=options.domain,
+        category=options.category,
+        subcategory=options.subcategory,
+        object_kind=options.object_kind,
+        q=options.q,
+        options=options.to_scan_service_options(),
+        force_refresh=options.force_refresh,
+    )
+    payload = _safe_payload(response)
+    payload.setdefault("service", "library_scan_service")
+    return payload
 
 
 def _call_scan_service_tree(options: LibraryRouteRequestOptions) -> dict[str, Any]:
-    try:
-        response = get_scan_service_tree_response(
-            source_root=options.source_root,
-            options=options.to_scan_service_options(),
-            force_refresh=options.force_refresh,
-        )
-        return _safe_payload(response)
-    except TypeError:
-        try:
-            response = get_scan_service_tree_response(
-                source_root=options.source_root,
-                options=options.to_scan_service_options(),
-            )
-            return _safe_payload(response)
-        except Exception:
-            raise
+    func, exc = _get_scan_service_attr("get_library_tree_response")
+    if not callable(func):
+        return unavailable_response("library scan service is unavailable", exc)
+
+    response = _call_function_flexible(
+        func,
+        source_root=options.source_root,
+        options=options.to_scan_service_options(),
+        force_refresh=options.force_refresh,
+    )
+    payload = _safe_payload(response)
+    payload.setdefault("service", "library_scan_service")
+    return payload
 
 
 def _call_block_service_scan(options: LibraryRouteRequestOptions) -> dict[str, Any]:
-    try:
-        response = scan_library_for_blocks_response(
-            source_root=options.source_root,
-            options=options.to_block_service_options(),
-        )
-        return _safe_payload(response)
-    except TypeError:
-        response = scan_library_for_blocks_response(options.to_block_service_options())
-        return _safe_payload(response)
+    func, exc = _get_block_service_attr("scan_library_for_blocks_response")
+    if not callable(func):
+        return unavailable_response("library block service is unavailable", exc)
+
+    response = _call_function_flexible(
+        func,
+        source_root=options.source_root,
+        options=options.to_block_service_options(),
+    )
+    payload = _safe_payload(response)
+    payload.setdefault("service", "library_block_service")
+    return payload
 
 
 def _call_block_service_blocks(options: LibraryRouteRequestOptions) -> dict[str, Any]:
-    try:
-        response = list_library_blocks_response(
-            source_root=options.source_root,
-            domain=options.domain,
-            category=options.category,
-            subcategory=options.subcategory,
-            object_kind=options.object_kind,
-            q=options.q,
-            options=options.to_block_service_options(),
-        )
-        return _safe_payload(response)
-    except TypeError:
-        try:
-            response = list_library_blocks_response(
-                source_root=options.source_root,
-                options=options.to_block_service_options(),
-            )
-            payload = _safe_payload(response)
-            return apply_route_filters(payload, options=options)
-        except TypeError:
-            response = list_library_blocks_response(options.to_block_service_options())
-            payload = _safe_payload(response)
-            return apply_route_filters(payload, options=options)
+    func, exc = _get_block_service_attr("list_library_blocks_response")
+    if not callable(func):
+        return unavailable_response("library block service is unavailable", exc)
+
+    response = _call_function_flexible(
+        func,
+        source_root=options.source_root,
+        domain=options.domain,
+        category=options.category,
+        subcategory=options.subcategory,
+        object_kind=options.object_kind,
+        q=options.q,
+        options=options.to_block_service_options(),
+    )
+    payload = _safe_payload(response)
+    payload.setdefault("service", "library_block_service")
+    return payload
 
 
 def _call_block_service_tree(options: LibraryRouteRequestOptions) -> dict[str, Any]:
-    try:
-        response = get_library_tree_response_from_block_service(
-            source_root=options.source_root,
-            options=options.to_block_service_options(),
-        )
-        return _safe_payload(response)
-    except TypeError:
-        response = get_library_tree_response_from_block_service(options.to_block_service_options())
-        return _safe_payload(response)
+    func, exc = _get_block_service_attr("get_library_tree_response_from_block_service")
+    if not callable(func):
+        return unavailable_response("library block service is unavailable", exc)
+
+    response = _call_function_flexible(
+        func,
+        source_root=options.source_root,
+        options=options.to_block_service_options(),
+    )
+    payload = _safe_payload(response)
+    payload.setdefault("service", "library_block_service")
+    return payload
 
 
 def _call_block_service_detail(block_id: str, options: LibraryRouteRequestOptions) -> dict[str, Any]:
-    try:
-        response = get_library_block_detail_response(
-            block_id,
-            source_root=options.source_root,
-            options=options.to_block_service_options(),
-        )
-        return _safe_payload(response)
-    except TypeError:
-        try:
-            response = get_library_block_detail_response(
-                block_id,
-                options=options.to_block_service_options(),
-            )
-            return _safe_payload(response)
-        except TypeError:
-            response = get_library_block_detail_response(block_id)
-            return _safe_payload(response)
+    func, exc = _get_block_service_attr("get_library_block_detail_response")
+    if not callable(func):
+        return unavailable_response("library block service is unavailable", exc)
+
+    response = _call_function_flexible(
+        func,
+        block_id,
+        source_root=options.source_root,
+        options=options.to_block_service_options(),
+    )
+    payload = _safe_payload(response)
+    payload.setdefault("service", "library_block_service")
+    return payload
 
 
 def _call_block_service_variants(block_id: str, options: LibraryRouteRequestOptions) -> dict[str, Any]:
-    try:
-        response = get_library_block_variants_response(
-            block_id,
-            source_root=options.source_root,
-            options=options.to_block_service_options(),
-        )
-        return _safe_payload(response)
-    except TypeError:
-        try:
-            response = get_library_block_variants_response(
-                block_id,
-                options=options.to_block_service_options(),
-            )
-            return _safe_payload(response)
-        except TypeError:
-            response = get_library_block_variants_response(block_id)
-            return _safe_payload(response)
+    func, exc = _get_block_service_attr("get_library_block_variants_response")
+    if not callable(func):
+        return unavailable_response("library block service is unavailable", exc)
+
+    response = _call_function_flexible(
+        func,
+        block_id,
+        source_root=options.source_root,
+        options=options.to_block_service_options(),
+    )
+    payload = _safe_payload(response)
+    payload.setdefault("service", "library_block_service")
+    return payload
 
 
 def item_matches_filter(item: Mapping[str, Any], *, options: LibraryRouteRequestOptions) -> bool:
@@ -1500,9 +1502,13 @@ def item_matches_filter(item: Mapping[str, Any], *, options: LibraryRouteRequest
         haystack = " ".join(
             [
                 safe_str(item.get("id"), default=""),
+                safe_str(item.get("block_id"), default=""),
+                safe_str(item.get("vplib_uid"), default=""),
                 safe_str(item.get("family_id"), default=""),
                 safe_str(item.get("package_id"), default=""),
                 safe_str(item.get("label"), default=""),
+                safe_str(item.get("name"), default=""),
+                safe_str(item.get("title"), default=""),
                 safe_str(item.get("description"), default=""),
                 domain,
                 category,
@@ -1517,16 +1523,51 @@ def item_matches_filter(item: Mapping[str, Any], *, options: LibraryRouteRequest
     return True
 
 
+def _extract_items_from_payload(payload: Mapping[str, Any]) -> list[Any] | None:
+    for key in ("items", "blocks", "objects", "families"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            return value
+
+    data = payload.get("data")
+    if isinstance(data, Mapping):
+        return _extract_items_from_payload(data)
+
+    payload_inner = payload.get("payload")
+    if isinstance(payload_inner, Mapping):
+        return _extract_items_from_payload(payload_inner)
+
+    return None
+
+
+def _set_items_in_payload(payload: dict[str, Any], items: list[Any]) -> dict[str, Any]:
+    if "items" in payload:
+        payload["items"] = items
+        return payload
+
+    if "blocks" in payload:
+        payload["blocks"] = items
+        return payload
+
+    payload["items"] = items
+    return payload
+
+
 def apply_route_filters(payload: Mapping[str, Any], *, options: LibraryRouteRequestOptions) -> dict[str, Any]:
     """Wendet Route-Filter lokal an, falls Backend-Service keine Filter kennt."""
     data = dict(payload)
-    items = data.get("items")
+    items = _extract_items_from_payload(data)
 
     if not isinstance(items, list):
         return data
 
     if not any((options.domain, options.category, options.subcategory, options.object_kind, options.q)):
-        return apply_list_pagination(data, limit=options.limit, offset=options.offset)
+        paged = apply_list_pagination({"items": items}, limit=options.limit, offset=options.offset)
+        _set_items_in_payload(data, paged["items"])
+        data["count"] = paged["count"]
+        data["total_count"] = paged["total_count"]
+        data["pagination"] = paged["pagination"]
+        return data
 
     filtered = [
         item
@@ -1534,7 +1575,7 @@ def apply_route_filters(payload: Mapping[str, Any], *, options: LibraryRouteRequ
         if isinstance(item, Mapping) and item_matches_filter(item, options=options)
     ]
 
-    data["items"] = filtered
+    data = _set_items_in_payload(data, filtered)
     data["count"] = len(filtered)
     data["filters"] = {
         "domain": options.domain,
@@ -1544,7 +1585,12 @@ def apply_route_filters(payload: Mapping[str, Any], *, options: LibraryRouteRequ
         "q": options.q,
     }
 
-    return apply_list_pagination(data, limit=options.limit, offset=options.offset)
+    paged = apply_list_pagination({"items": filtered}, limit=options.limit, offset=options.offset)
+    _set_items_in_payload(data, paged["items"])
+    data["count"] = paged["count"]
+    data["total_count"] = paged["total_count"]
+    data["pagination"] = paged["pagination"]
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -1554,42 +1600,34 @@ def apply_route_filters(payload: Mapping[str, Any], *, options: LibraryRouteRequ
 def get_import_status() -> dict[str, Any]:
     """Liefert Importstatus aller optionalen Backend-Module."""
     return {
-        "library": {
-            "ok": _LIBRARY_IMPORT_ERROR is None,
-            "error": exception_to_dict(_LIBRARY_IMPORT_ERROR),
-        },
-        "domain": {
-            "ok": _DOMAIN_IMPORT_ERROR is None,
-            "error": exception_to_dict(_DOMAIN_IMPORT_ERROR),
-        },
-        "scanner": {
-            "ok": _SCANNER_IMPORT_ERROR is None,
-            "error": exception_to_dict(_SCANNER_IMPORT_ERROR),
-        },
-        "validation": {
-            "ok": _VALIDATION_IMPORT_ERROR is None,
-            "error": exception_to_dict(_VALIDATION_IMPORT_ERROR),
-        },
-        "read_models": {
-            "ok": _READ_MODELS_IMPORT_ERROR is None,
-            "error": exception_to_dict(_READ_MODELS_IMPORT_ERROR),
-        },
-        "services": {
-            "ok": _SERVICES_IMPORT_ERROR is None,
-            "error": exception_to_dict(_SERVICES_IMPORT_ERROR),
-        },
-        "block_service": {
-            "ok": _BLOCK_SERVICE_IMPORT_ERROR is None,
-            "error": exception_to_dict(_BLOCK_SERVICE_IMPORT_ERROR),
-        },
-        "scan_service": {
-            "ok": _SCAN_SERVICE_IMPORT_ERROR is None,
-            "error": exception_to_dict(_SCAN_SERVICE_IMPORT_ERROR),
-        },
-        "taxonomy": {
-            "ok": _TAXONOMY_IMPORT_ERROR is None,
-            "error": exception_to_dict(_TAXONOMY_IMPORT_ERROR),
-        },
+        "library": _module_group_status(LIBRARY_MODULE_NAMES),
+        "domain": _module_group_status(DOMAIN_MODULE_NAMES),
+        "scanner": _module_group_status(SCANNER_MODULE_NAMES),
+        "validation": _module_group_status(VALIDATION_MODULE_NAMES),
+        "read_models": _module_group_status(READ_MODELS_MODULE_NAMES),
+        "services": _module_group_status(SERVICES_MODULE_NAMES),
+        "block_service": _module_group_status(BLOCK_SERVICE_MODULE_NAMES),
+        "scan_service": _module_group_status(SCAN_SERVICE_MODULE_NAMES),
+        "taxonomy": _module_group_status(TAXONOMY_MODULE_NAMES),
+    }
+
+
+def _module_group_status(module_names: Sequence[str]) -> dict[str, Any]:
+    errors: list[dict[str, Any] | None] = []
+
+    for module_name in module_names:
+        try:
+            module = _load_optional_module(module_name)
+            return {
+                "ok": True,
+                "module": getattr(module, "__name__", module_name),
+            }
+        except Exception as exc:
+            errors.append(exception_to_dict(exc))
+
+    return {
+        "ok": False,
+        "errors": errors,
     }
 
 
@@ -1617,22 +1655,21 @@ def _run_health_check(name: str, fn: Any, *, include_traceback: bool = False) ->
         }
 
 
+def get_taxonomy_service() -> Any:
+    factory, exc = _try_get_optional_attr(TAXONOMY_MODULE_NAMES, "get_default_taxonomy_service")
+    if not callable(factory):
+        raise RuntimeError(f"Taxonomie-Service ist nicht verfügbar: {exc}")
+    return factory()
+
+
 def get_taxonomy_health_payload(
     *,
     include_traceback: bool = False,
     force_reload: bool = False,
 ) -> dict[str, Any]:
     """Taxonomie-Health defensiv laden."""
-    if get_default_taxonomy_service is None:
-        return {
-            "ok": False,
-            "healthy": False,
-            "available": False,
-            "error": exception_to_dict(_TAXONOMY_IMPORT_ERROR, include_traceback=include_traceback),
-        }
-
     try:
-        service = get_default_taxonomy_service()  # type: ignore[misc]
+        service = get_taxonomy_service()
         return service.health(
             force_reload=force_reload,
             include_registry_state=False,
@@ -1641,8 +1678,30 @@ def get_taxonomy_health_payload(
         return {
             "ok": False,
             "healthy": False,
-            "available": True,
+            "available": False,
             "error": exception_to_dict(exc, include_traceback=include_traceback),
+        }
+
+
+def _optional_health(module_names: Sequence[str], function_name: str, *, include_traceback: bool = False, **kwargs: Any) -> dict[str, Any]:
+    func, exc = _try_get_optional_attr(module_names, function_name)
+    if not callable(func):
+        return {
+            "ok": False,
+            "healthy": False,
+            "status": "unavailable",
+            "error": exception_to_dict(exc, include_traceback=include_traceback),
+        }
+
+    try:
+        result = _call_function_flexible(func, **kwargs)
+        return _safe_payload(result)
+    except Exception as call_exc:
+        return {
+            "ok": False,
+            "healthy": False,
+            "status": "health_error",
+            "error": exception_to_dict(call_exc, include_traceback=include_traceback),
         }
 
 
@@ -1661,7 +1720,7 @@ def get_library_route_service_health(
 
     for name, status in imports.items():
         if not status.get("ok"):
-            if name in {"block_service", "services", "scan_service", "taxonomy"}:
+            if name in {"block_service", "scan_service", "taxonomy"}:
                 errors.append(f"{name} import failed")
             else:
                 warnings.append(f"{name} import failed; fallback may be active")
@@ -1670,15 +1729,15 @@ def get_library_route_service_health(
 
     if include_subhealth:
         checks = {
-            "library": lambda: get_library_health(strict=False, include_traceback=include_traceback),
+            "library": lambda: _optional_health(LIBRARY_MODULE_NAMES, "get_library_health", strict=False, include_traceback=include_traceback),
             "settings": lambda: get_library_settings_health(refresh=refresh_settings),
-            "domain": lambda: get_domain_health(include_traceback=include_traceback),
-            "scanner": lambda: get_scanner_health(include_traceback=include_traceback, include_subhealth=True),
-            "validation": lambda: get_validation_health(include_traceback=include_traceback, include_subhealth=True),
-            "read_models": lambda: get_read_models_health(include_traceback=include_traceback, include_subhealth=True),
-            "services": lambda: get_services_health(include_traceback=include_traceback, include_subhealth=True),
-            "block_service": get_library_block_service_health,
-            "scan_service": lambda: get_library_scan_service_health(refresh_settings=refresh_settings),
+            "domain": lambda: _optional_health(DOMAIN_MODULE_NAMES, "get_domain_health", include_traceback=include_traceback),
+            "scanner": lambda: _optional_health(SCANNER_MODULE_NAMES, "get_scanner_health", include_traceback=include_traceback, include_subhealth=True),
+            "validation": lambda: _optional_health(VALIDATION_MODULE_NAMES, "get_validation_health", include_traceback=include_traceback, include_subhealth=True),
+            "read_models": lambda: _optional_health(READ_MODELS_MODULE_NAMES, "get_read_models_health", include_traceback=include_traceback, include_subhealth=True),
+            "services": lambda: _optional_health(SERVICES_MODULE_NAMES, "get_services_health", include_traceback=include_traceback, include_subhealth=True),
+            "block_service": lambda: _optional_health(BLOCK_SERVICE_MODULE_NAMES, "get_library_block_service_health", include_traceback=include_traceback),
+            "scan_service": lambda: _optional_health(SCAN_SERVICE_MODULE_NAMES, "get_library_scan_service_health", refresh_settings=refresh_settings, include_traceback=include_traceback),
             "taxonomy": lambda: get_taxonomy_health_payload(
                 include_traceback=include_traceback,
                 force_reload=force_taxonomy_reload,
@@ -1689,7 +1748,7 @@ def get_library_route_service_health(
             health = _run_health_check(name, fn, include_traceback=include_traceback)
             subhealth[name] = health
 
-            if health.get("healthy") is False and name in {"services", "block_service", "scan_service", "taxonomy"}:
+            if health.get("healthy") is False and name in {"block_service", "scan_service", "taxonomy"}:
                 errors.append(f"{name} subhealth failed")
 
     try:
@@ -1745,6 +1804,7 @@ def get_library_route_service_health(
             "include_taxonomy_payload": True,
             "force_taxonomy_reload": True,
         },
+        "writes_database": False,
         "warnings": warnings,
         "errors": errors,
     }
@@ -1769,6 +1829,7 @@ def handle_library_health_request(
         )
 
         health["request"] = options.to_dict()
+        health["route"] = "health"
 
         return make_response_envelope(health)
 
@@ -1788,11 +1849,12 @@ def handle_library_scan_request(
 
         response = _call_scan_service_scan(options)
 
-        if response.get("status") == "unavailable" and _BLOCK_SERVICE_IMPORT_ERROR is None:
+        if response.get("status") == "unavailable":
             response = _call_block_service_scan(options)
 
         response.setdefault("route", "scan")
         response.setdefault("request", options.to_dict())
+        response.setdefault("writes_database", False)
 
         return make_response_envelope(response)
 
@@ -1812,13 +1874,14 @@ def handle_library_blocks_request(
 
         response = _call_scan_service_blocks(options)
 
-        if response.get("status") == "unavailable" and _BLOCK_SERVICE_IMPORT_ERROR is None:
+        if response.get("status") == "unavailable":
             response = _call_block_service_blocks(options)
 
         response = apply_route_filters(response, options=options)
         response.setdefault("route", "blocks")
         response.setdefault("request", options.to_dict())
         response.setdefault("filters", options.filter_kwargs())
+        response.setdefault("writes_database", False)
 
         return make_response_envelope(response)
 
@@ -1850,6 +1913,7 @@ def handle_library_block_detail_request(
         response.setdefault("route", "block_detail")
         response.setdefault("request", options.to_dict())
         response.setdefault("block_id", normalized_block_id)
+        response.setdefault("writes_database", False)
 
         return make_response_envelope(response)
 
@@ -1881,6 +1945,7 @@ def handle_library_block_variants_request(
         response.setdefault("route", "block_variants")
         response.setdefault("request", options.to_dict())
         response.setdefault("block_id", normalized_block_id)
+        response.setdefault("writes_database", False)
 
         return make_response_envelope(response)
 
@@ -1900,11 +1965,12 @@ def handle_library_tree_request(
 
         response = _call_scan_service_tree(options)
 
-        if response.get("status") == "unavailable" and _BLOCK_SERVICE_IMPORT_ERROR is None:
+        if response.get("status") == "unavailable":
             response = _call_block_service_tree(options)
 
         response.setdefault("route", "tree")
         response.setdefault("request", options.to_dict())
+        response.setdefault("writes_database", False)
 
         return make_response_envelope(response)
 
@@ -1925,29 +1991,34 @@ def handle_library_cache_clear_request(
         cleared: dict[str, Any] = {
             "scan_cache": False,
             "taxonomy_cache": False,
+            "lazy_import_caches": False,
         }
         warnings: list[str] = []
 
         try:
-            clear_library_scan_cache()
-            cleared["scan_cache"] = True
-            cleared["taxonomy_cache"] = True
+            func, exc = _get_scan_service_attr("clear_library_scan_cache")
+            if callable(func):
+                func()
+                cleared["scan_cache"] = True
+            elif exc is not None:
+                warnings.append(f"clear_library_scan_cache unavailable: {exc}")
         except Exception as exc:
             warnings.append(f"clear_library_scan_cache failed: {exc}")
 
-        taxonomy_service = None
-        if get_default_taxonomy_service is not None:
-            try:
-                taxonomy_service = get_default_taxonomy_service()  # type: ignore[misc]
-            except Exception as exc:
-                warnings.append(f"taxonomy service resolution failed: {exc}")
-
-        if taxonomy_service is not None:
-            try:
-                taxonomy_service.clear_cache()
+        try:
+            taxonomy_service = get_taxonomy_service()
+            clear_func = getattr(taxonomy_service, "clear_cache", None)
+            if callable(clear_func):
+                clear_func()
                 cleared["taxonomy_cache"] = True
-            except Exception as exc:
-                warnings.append(f"taxonomy cache clear failed: {exc}")
+        except Exception as exc:
+            warnings.append(f"taxonomy cache clear failed: {exc}")
+
+        try:
+            clear_library_route_service_caches()
+            cleared["lazy_import_caches"] = True
+        except Exception as exc:
+            warnings.append(f"route service lazy cache clear failed: {exc}")
 
         return make_response_envelope(
             {
@@ -1957,7 +2028,9 @@ def handle_library_cache_clear_request(
                 "cleared": cleared,
                 "warnings": warnings,
                 "request": options.to_dict(),
-            }
+                "writes_database": False,
+            },
+            http_status=200 if not warnings else 207,
         )
 
     except Exception as exc:
@@ -2023,6 +2096,22 @@ def get_tree_payload(
     return handle_library_tree_request(query_args=query_args, payload=payload)
 
 
+def clear_library_route_service_caches() -> dict[str, Any]:
+    """Leert lokale Lazy-Import-Caches dieses Route-Service."""
+    cleared: list[str] = []
+
+    try:
+        _load_optional_module.cache_clear()
+        cleared.append("_load_optional_module")
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "cleared": cleared,
+    }
+
+
 __all__: Final[tuple[str, ...]] = (
     "LIBRARY_ROUTE_SERVICE_VERSION",
     "LIBRARY_ROUTE_SERVICE_COMPONENT",
@@ -2065,6 +2154,7 @@ __all__: Final[tuple[str, ...]] = (
     "parse_library_route_request_options",
     "apply_route_filters",
     "get_import_status",
+    "get_taxonomy_service",
     "get_taxonomy_health_payload",
     "get_library_route_service_health",
     "handle_library_health_request",
@@ -2080,4 +2170,5 @@ __all__: Final[tuple[str, ...]] = (
     "get_block_detail_payload",
     "get_block_variants_payload",
     "get_tree_payload",
+    "clear_library_route_service_caches",
 )
