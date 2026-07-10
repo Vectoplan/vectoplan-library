@@ -1,0 +1,53 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "e09e793c-047a-4d00-abe4-09c38b282b37",
+  "package_id": "vplib.vp.hochbau.waende.aussenwaende.test1",
+  "family_id": "vp.hochbau.waende.aussenwaende.test1",
+  "family_slug": "test1",
+  "family_name": "test1",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "waende",
+  "subcategory": "aussenwaende",
+  "classification": {
+    "domain": "hochbau",
+    "category": "waende",
+    "subcategory": "aussenwaende",
+    "classification_path": "hochbau/waende/aussenwaende",
+    "labels": {
+      "domain": "Hochbau",
+      "category": "Wände",
+      "subcategory": "Außenwände"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "hochbau/waende/aussenwaende",
+  "source_path": "hochbau/waende/aussenwaende/test1",
+  "default_variant_id": "additionalfieldkeys",
+  "variant_count": 21,
+  "documents_required": false,
+  "external_assets_required": false,
+  "created_at": "2026-07-10T19:40:55Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.5.0",
+    "mode": "simple_create",
+    "starter_contract": true
+  }
+}

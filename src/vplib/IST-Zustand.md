@@ -1,31 +1,51 @@
 # IST-Zustand `services/vectoplan-library/src/vplib`
 
-Stand: nach Analyse aller gelieferten Dateien  
-Scope: ausschließlich `services/vectoplan-library/src/vplib`  
-Zweck: technische Bestandsaufnahme, Architekturkarte und Arbeitsgrundlage, damit Entwickler nicht jede einzelne Datei erneut öffnen müssen.
+Stand: 2026-07-10, nach Abschluss der aktuellen CreateRequest-, CreationPlanner- und PackageContext-Härtung  
+Scope: ausschließlich `services/vectoplan-library/src/vplib`; externe Route-, Library-, Scanner- und DB-Sync-Komponenten werden nur an ihren Schnittstellen beschrieben  
+Zweck: vollständige technische Bestandsaufnahme, Architekturkarte, Statusmatrix, Integrationsvertrag und Arbeitsgrundlage, damit Entwickler den aktuellen Kernzustand verstehen können, ohne jede Datei erneut vollständig öffnen zu müssen.
+
+Dokumentationsprinzipien:
+
+```text
+- Bestehende Themenblöcke bleiben erhalten.
+- Tatsächlich verifizierte Änderungen werden ausdrücklich als verifiziert markiert.
+- Noch nicht erneut gehärtete Dateien werden nicht als fertig dargestellt.
+- Externe Save-/Scan-/DB-Sync-Schichten werden klar vom src/vplib-Kern abgegrenzt.
+- Kanonische Identitäten, Profile, Source-Pfade und Statusübergänge werden konsistent dokumentiert.
+```
 
 ---
 
 ## 1. Kurzfazit
 
-`src/vplib` ist der interne Kern der VECTOPLAN-Library-Package-Engine. Der Code ist als eigenständiges Python-Package aufgebaut und bildet den kompletten Lebenszyklus eines modularen VPLIB-Packages ab:
+`src/vplib` ist der interne, deklarative Package-Kern der VECTOPLAN Library. Das Package normalisiert Create-Eingaben, bindet technische Identität und Profile, erzeugt sichere Laufzeitkontexte und Pläne, baut Dokument-Bundles, validiert deren Struktur und kann Packages beziehungsweise `.vplib`-Archive schreiben oder vorbereitete Sources einlesen.
+
+Der aktuelle Kernfluss lautet:
 
 ```text
-Raw Input / Dict
+Raw Input / verschachtelter Engine-Request / flacher /create-Payload
   ↓
-CreateRequest
+CreateRequest v2
+  - stabile vplib_uid
+  - kanonische Family-/Package-Identität
+  - explizite family_profile_id / variant_profile_id
+  - normalisierte Klassifikation, Geometrie, Varianten und Optionen
   ↓
-PackageContext
+PackageContext v1 / Component 2.0.0
+  - sichere absolute Roots
+  - vierteiliger Source-Pfad
+  - unveränderliche Identität und Profile
+  - Status, Correlation-ID und Fingerprints
   ↓
 ObjectKindProfile
   ↓
 ModulePlan / VariantSet / AssetPlan / PathPlan
   ↓
-CreationPlan / PackagePlan
+CreationPlan v2 / PackagePlan
   ↓
 DocumentBundle
   ↓
-Validators
+Schema-, Semantik-, Asset- und Package-Validierung
   ↓
 Creators
   ↓
@@ -33,24 +53,110 @@ Directory Package / .vplib Archive
   ↓
 Sources Scanner / Loader
   ↓
-später: DB-Sync / Publication
+außerhalb src/vplib:
+Source Save → Library Scan → PostgreSQL Sync → Published Reads
 ```
 
 Die zentrale Architekturregel lautet:
 
 ```text
-models/*      modelliert strukturierte Daten.
+models/*      modelliert und normalisiert strukturierte Daten.
 domain/*      definiert kanonische Vokabulare und Regeln.
 profiles/*    definiert object_kind-spezifische Package-Profile.
-planning/*    erzeugt Pläne.
-defaults/*    erzeugt JSON-Dokumentpayloads.
-validators/*  prüft Pläne, Bundles und Dokumente.
+planning/*    erzeugt Pläne ohne Schreibzugriff.
+defaults/*    erzeugt JSON-Dokumentpayloads ohne Schreibzugriff.
+validators/*  prüft Pläne, Bundles und Dokumente ohne Schreibzugriff.
 creators/*    schreibt Dateien und Archive.
 sources/*     scannt und lädt vorbereitete Packages.
-vplib_id_service.py erzeugt und validiert die technische Package-ID.
+vplib_id_service.py erzeugt, normalisiert und validiert die technische Package-ID.
 ```
 
 Wichtig: Die meisten Schichten schreiben bewusst **nicht** ins Dateisystem. Tatsächliches Schreiben findet im Kern nur in `creators/*` und beim Laden vorbereiteter Source-Packages über `sources/source_loader.py` statt.
+
+### 1.1 Aktuell verifizierter Härtungsstand
+
+In der laufenden Überarbeitung wurden diese Dateien vollständig neu gehärtet und gegen die gemeinsame Pipeline getestet:
+
+```text
+models/create_request.py
+planning/creation_planner.py
+models/package_context.py
+```
+
+Diese drei Dateien bilden jetzt einen konsistenten Vertrag für:
+
+```text
+vplib_uid
+object_kind
+family_profile_id
+variant_profile_id
+family_id
+package_id
+classification_path
+source_path
+package_dir
+archive_path
+request_fingerprint
+context_fingerprint
+plan_fingerprint
+```
+
+Noch **nicht** im gleichen Härtungsdurchlauf vollständig überarbeitet:
+
+```text
+models/module_plan.py
+models/package_plan.py
+creators/*
+validators/*
+defaults/*
+sources/*
+```
+
+Diese Dateien bleiben funktionale Bestandteile des bestehenden Kerns, gelten aber bis zur erneuten Einzeldatei-Prüfung nicht automatisch als auf denselben neuen Identitäts- und Profilvertrag gehärtet.
+
+### 1.2 Starter-Vertrag
+
+Der aktuell verbindlich getestete Minimalstarter ist:
+
+```text
+object_kind:        cell_block
+family_profile_id:  simple_cell_block
+variant_profile_id: simple_cell_block.v1
+grid:               1 x 1 x 1
+```
+
+Kanonische Identität und Source-Lage:
+
+```text
+family_id:
+  vp.<domain>.<category>.<subcategory>.<family_slug>
+
+package_id:
+  vplib.<family_id>
+
+source_path:
+  <domain>/<category>/<subcategory>/<family_slug>
+```
+
+### 1.3 Abgrenzung zu Save und PostgreSQL
+
+`src/vplib` erzeugt, plant, validiert, schreibt oder scannt Packages. Die produktive Veröffentlichung in PostgreSQL liegt außerhalb dieses Scopes.
+
+Der derzeitige Systemfluss ist:
+
+```text
+src/vplib erzeugt gültiges Package
+  ↓
+externer Create-Service schreibt nach src/library/source
+  ↓
+externer Library-Scan liest Package
+  ↓
+externer DB-Sync veröffentlicht nach PostgreSQL
+  ↓
+Published Library API liest aus PostgreSQL
+```
+
+Ein erfolgreicher Source-Save bedeutet daher nicht automatisch, dass das Item bereits im Published DB State sichtbar ist. Die geplante automatische Save-und-Sync-Orchestrierung ist noch nicht Bestandteil dieses `src/vplib`-Kerns.
 
 ---
 
@@ -62,7 +168,7 @@ Wichtig: Die meisten Schichten schreiben bewusst **nicht** ins Dateisystem. Tats
 
 ```text
 Directory Package:
-src/library_catalog/hochbau/waende/ziegelwand/
+src/library/source/hochbau/waende/aussenwaende/ziegelwand/
 
 Archive Package:
 ziegelwand.vplib
@@ -124,7 +230,7 @@ Diese Werte dürfen fachlich migrieren. `vplib_uid` darf das nicht.
 
 ## 3. Harte Architektur-Invarianten
 
-Diese Regeln ziehen sich durch fast alle Dateien:
+Diese Regeln sind verbindlich und ziehen sich durch den gesamten Kern:
 
 ```text
 1. VPLIB-Packages enthalten keine frei ausführbare Logik.
@@ -136,14 +242,87 @@ Diese Regeln ziehen sich durch fast alle Dateien:
 7. creators/* schreibt Dateien und Archive.
 8. sources/source_scanner.py scannt, schreibt aber nichts.
 9. sources/source_loader.py lädt gescannte Packages in einen Library-Katalog und schreibt dabei.
-10. vplib_uid entsteht im Manifest-/Bundle-/Create-Flow.
+10. Eine fehlende vplib_uid wird nur im Create-/Manifest-/Bundle-Vertrag erzeugt.
 11. Scanner, Loader, Validatoren und Datenbank erzeugen keine neue vplib_uid.
-12. Fehlende oder ungültige vplib_uid blockiert Validierung.
-13. Der Grid-Footprint bleibt die Platzierungswahrheit.
-14. Sichtbare Geometrie, GLB, Bounds und Physical-Daten dürfen den Grid-Footprint nicht widersprüchlich überschreiten.
-15. Varianten dürfen keine Family-/Package-Identität überschreiben.
-16. Manufacturer-Overlays dürfen nur freigegebene Felder überschreiben.
-17. Adaptive Systeme sind deklarativ und require dynamic/*.json.
+12. Fehlende oder ungültige vplib_uid blockiert Validierung oder Synchronisation.
+13. vplib_uid bleibt über Request, Context, Plan, Dokumente, Archiv und DB-Sync unverändert.
+14. family_profile_id und variant_profile_id bleiben explizit und widerspruchsfrei erhalten.
+15. cell_block verwendet im aktuellen Startervertrag simple_cell_block / simple_cell_block.v1.
+16. Ein cell_block belegt im Startervertrag exakt 1 x 1 x 1 Rasterzellen.
+17. Der Grid-Footprint bleibt die Platzierungswahrheit.
+18. Sichtbare Geometrie, GLB-Bounds und Physical-Daten dürfen den Grid-Footprint nicht widersprüchlich überschreiten.
+19. Varianten dürfen keine Family-, Package-, Profil- oder Klassifikationsidentität überschreiben.
+20. Manufacturer-Overlays dürfen nur freigegebene Felder überschreiben.
+21. Adaptive Systeme sind deklarativ und benötigen dynamic/*.json.
+22. Source-Pfade sind kanonisch vierteilig: domain/category/subcategory/family_slug.
+23. family_id ist kanonisch vp.domain.category.subcategory.family_slug.
+24. package_id ist kanonisch vplib.<family_id>.
+25. Package- und Archivpfade dürfen ihre konfigurierten Roots nicht verlassen.
+26. Absolute Pfade, Parent-Traversal und Root-Escape sind in package-relativen Pfaden verboten.
+27. Archivziele müssen unter archive_root liegen und auf .vplib enden.
+28. Context- und Plan-Status bewegen sich standardmäßig nur vorwärts.
+29. archived und failed sind terminale Context-Zustände.
+30. Metadaten dürfen geschützte Identitäts-, Profil-, Pfad- und Fingerprint-Felder nicht fälschen.
+31. Serialisierte Metadaten müssen JSON-kompatibel, größenbegrenzt und tiefenbegrenzt bleiben.
+32. Normalisierung darf keine Verzeichnisse anlegen und keine Dateien schreiben.
+33. Ein erfolgreicher Source-Save ist nicht gleichbedeutend mit erfolgreicher DB-Publikation.
+34. Published Reads dürfen nur nach erfolgreichem externem DB-Sync als vollständig gelten.
+```
+
+### 3.1 Geschützte Identitätsfelder
+
+Im gehärteten `PackageContext` können Metadaten insbesondere diese Felder nicht überschreiben:
+
+```text
+schema_version
+component
+component_version
+vplib_uid
+family_profile_id
+variant_profile_id
+object_kind
+family_id
+package_id
+family_slug
+classification_path
+source_path
+package_relative_dir
+package_dir
+archive_path
+request_fingerprint
+context_fingerprint
+correlation_id
+```
+
+### 3.2 Pfad-Invariante
+
+Der kanonische Package-Pfad lautet:
+
+```text
+<source_root>/<domain>/<category>/<subcategory>/<family_slug>/
+```
+
+Beispiel:
+
+```text
+/opt/vectoplan/services/vectoplan-library/src/library/source/
+  hochbau/
+    waende/
+      aussenwaende/
+        einfache_zelle/
+```
+
+### 3.3 Identitäts-Invariante
+
+Für dasselbe Package müssen diese Werte in allen Schichten übereinstimmen:
+
+```text
+CreateRequest.vplib_uid
+PackageContext.vplib_uid
+CreationPlan.vplib_uid
+vplib.manifest.json.vplib_uid
+Scanner Candidate vplib_uid
+DB Item vplib_uid
 ```
 
 ---
@@ -1139,6 +1318,12 @@ Die Model-Schicht enthält strukturierte, normalisierende Datenmodelle. Sie schr
 
 Kanonischer Eingang für den Create-Flow.
 
+Aktuelles Schema:
+
+```text
+vplib.create_request.v2
+```
+
 Zentrale Klasse:
 
 ```text
@@ -1165,16 +1350,226 @@ ManufacturerRequest
 CreateOptions
 ```
 
-Enthält Validierungen für:
+#### Root-Vertrag
+
+`CreateRequest` trägt jetzt explizit:
+
+```text
+identity
+classification
+object_kind
+vplib_uid
+family_profile_id
+variant_profile_id
+grid
+variants
+visual
+placement
+assets
+physical
+material
+calculation
+dynamic
+manufacturer
+options
+```
+
+Die technische `vplib_uid` wird beim Aufbau erzeugt, wenn weder ein gültiger verschachtelter Request noch der flache `/create`-Payload eine ID liefert. Eine vorhandene ID wird normalisiert und darf anschließend nicht still wechseln.
+
+#### Unterstützte Eingangsformen
+
+`create_request_from_mapping(...)` unterstützt zwei Verträge:
+
+```text
+1. verschachtelter Engine-Vertrag
+   identity: {...}
+   classification: {...}
+   profiles: {...}
+   grid: {...}
+   variants: {...}
+   ...
+
+2. flacher /create-Vertrag
+   family_name
+   domain
+   category
+   subcategory
+   object_kind
+   family_profile_id
+   variant_profile_id
+   geometry_width / height / depth / unit
+   editor_cells_x / y / z
+   definition_variants_json
+   default_variant_id
+   material_class
+   variables_json
+   assets_json
+   ...
+```
+
+Die Erkennung ist deterministisch: Nur wenn `identity` und `classification` echte Mappings sind, wird der verschachtelte Engine-Vertrag verwendet; sonst greift der flache Adapter.
+
+#### Flacher `/create`-Adapter
+
+Der Adapter normalisiert unter anderem:
+
+```text
+family_name / familyName / name / label / title
+family_slug / familySlug / slug
+domain / domain_id / domainId / reiter
+category / category_id / categoryId / kategorie
+subcategory / subcategory_id / subcategoryId / unterkategorie
+object_kind / objectKind / object_class
+family_profile_id / familyProfileId
+variant_profile_id / variantProfileId
+geometry_width / geometryWidth / width
+geometry_height / geometryHeight / height
+geometry_depth / geometryDepth / depth
+geometry_unit / geometryUnit / unit
+editor_cells_x / editorCellsX
+editor_cells_y / editorCellsY
+editor_cells_z / editorCellsZ
+definition_variants_json / definitionVariantsJson
+variables_json / variablesJson
+assets_json / assetsJson
+```
+
+JSON-Strings für Varianten, Variablen, Assets, Identity, Classification und Profile werden best-effort dekodiert.
+
+#### Kanonische Identität
+
+Wenn keine expliziten IDs geliefert werden:
+
+```text
+family_id = vp.<domain>.<category>.<subcategory>.<family_slug>
+package_id = vplib.<family_id>
+```
+
+Beispiel:
+
+```text
+family_id:
+  vp.hochbau.waende.aussenwaende.einfache_zelle
+
+package_id:
+  vplib.vp.hochbau.waende.aussenwaende.einfache_zelle
+```
+
+#### Profilbindung
+
+Für den Starter werden fehlende Profil-IDs deterministisch ergänzt:
+
+```text
+object_kind:        cell_block
+family_profile_id:  simple_cell_block
+variant_profile_id: simple_cell_block.v1
+```
+
+Die Profil-IDs werden sowohl am Request als auch in jeder Variant-Zeile gebunden. Abweichende Starterprofile werden abgelehnt.
+
+#### Geometrie und Grid
+
+Unterstützte Geometrieeinheiten:
+
+```text
+m
+cm
+mm
+```
+
+Breite, Höhe und Tiefe werden intern auf Meter normalisiert. Der `cell_size_m` wird aus expliziter Angabe oder aus Dimensionen und Rasterzellen abgeleitet.
+
+Für den Minimalstarter gilt:
+
+```text
+cell_block → immer 1 x 1 x 1
+```
+
+Zusätzlich werden deklarierte Modell-Bounds gegen den belegten Grid-Footprint geprüft.
+
+#### Varianten
+
+Wenn keine Variant-Zeilen geliefert werden, wird ein Default-Eintrag aufgebaut:
+
+```text
+variant_id: default
+label: Default
+overrides: {}
+family_profile_id: simple_cell_block
+variant_profile_id: simple_cell_block.v1
+```
+
+Mehrere Varianten schalten den Modus auf `multiple`; eine Variante verwendet `single`.
+
+#### Weitere Validierungen
 
 ```text
 family_id / package_id / slug
 classification
+taxonomy path
 object_kind
 grid footprint
-visual bounds gegen Footprint
+visual bounds gegen footprint
 placement_mode gegen object_kind
+profile binding
+variant profile binding
 adaptive_system braucht dynamic context_rules oder generator metadata
+JSON-sichere Mapping- und Listenwerte
+```
+
+#### Serialisierung
+
+`to_dict()` liefert unter anderem:
+
+```text
+schema_version
+vplib_uid
+identity
+classification
+object_kind
+family_profile_id
+variant_profile_id
+profiles
+grid
+variants
+visual
+placement
+assets
+physical
+material
+calculation
+dynamic
+manufacturer
+options
+```
+
+#### Robustheit
+
+```text
+frozen dataclasses mit slots
+Enum-Parser mit Alias-Unterstützung
+import-sichere Domain-Adapter
+begrenzte String-/Identifier-Normalisierung
+keine Dateisystemschreiboperation
+lru_cache für Parser
+clear_create_request_caches()
+```
+
+#### Verifizierter Stand
+
+Geprüft wurden insbesondere:
+
+```text
+verschachtelter Engine-Request
+flacher /create-Starter-Payload
+stabile vplib_uid
+Starter-Profilbindung
+Geometrieeinheiten m/cm/mm
+Default-Variant-Aufbau
+kanonische family_id / package_id
+1x1x1-Zwang für cell_block
+JSON-Serialisierung
+Planner-Integration
 ```
 
 ### `asset_reference.py`
@@ -1275,7 +1670,15 @@ required/optional/generated files kommen aus package_paths
 
 ### `package_context.py`
 
-Immutable Laufzeitkontext für die Package-Erstellung.
+Immutable Laufzeitkontext für Planung, Erstellung, Validierung und Archivierung.
+
+Aktueller Vertrag:
+
+```text
+Schema:    vplib.package_context.v1
+Component: vplib-package-context
+Version:   2.0.0
+```
 
 Zentrale Klassen:
 
@@ -1284,11 +1687,141 @@ PackageContext
 PackageRootPaths
 PackageIdentityContext
 PackageClassificationContext
+PackageProfileContext
 PackageLocationContext
 PackageExecutionContext
 ```
 
-Der Context enthält:
+Enums:
+
+```text
+PackageWriteMode
+PackageContextStatus
+```
+
+#### Root-Pfade
+
+`PackageRootPaths` hält ausschließlich absolute, normalisierte `Path`-Objekte:
+
+```text
+service_root
+library_catalog_root
+source_root
+generated_root
+archive_root
+```
+
+Die Klasse erzeugt keine Ordner. Sie prüft Root-Konsistenz und bietet containment checks für Source- und Archivpfade.
+
+#### Identität
+
+`PackageIdentityContext` enthält:
+
+```text
+vplib_uid
+package_id
+family_id
+family_slug
+family_name
+version
+```
+
+`vplib_uid` ist jetzt ein erstklassiger Context-Bestandteil. Request und Identity dürfen keine unterschiedlichen Werte tragen.
+
+Kanonische Identität:
+
+```text
+family_id = vp.<domain>.<category>.<subcategory>.<family_slug>
+package_id = vplib.<family_id>
+```
+
+Nichtkanonische Werte werden abgelehnt, statt still korrigiert zu werden.
+
+#### Klassifikation
+
+`PackageClassificationContext` enthält:
+
+```text
+domain
+category
+subcategory
+classification_path
+source_parts = domain/category/subcategory
+```
+
+`classification_path` muss exakt zu den drei Segmenten passen.
+
+#### Profile
+
+`PackageProfileContext` enthält explizit:
+
+```text
+object_kind
+family_profile_id
+variant_profile_id
+profile_key
+```
+
+Starterregel:
+
+```text
+cell_block
+  → family_profile_id  = simple_cell_block
+  → variant_profile_id = simple_cell_block.v1
+```
+
+#### Location
+
+`PackageLocationContext` hält:
+
+```text
+package_relative_dir
+source_path
+package_dir
+archive_path
+archive_filename
+```
+
+Der kanonische relative Source-Pfad ist vierteilig:
+
+```text
+<domain>/<category>/<subcategory>/<family_slug>
+```
+
+Beispiel:
+
+```text
+hochbau/waende/aussenwaende/einfache_zelle
+```
+
+`package_dir` muss unter `source_root` liegen. `archive_path` muss unter `archive_root` liegen und auf `.vplib` enden.
+
+#### Execution
+
+`PackageExecutionContext` enthält:
+
+```text
+write_mode
+strict
+validate_after_create
+create_archive
+include_docs
+include_tests
+is_dry_run
+may_overwrite
+```
+
+Write Modes:
+
+```text
+create_only
+overwrite
+dry_run
+```
+
+#### Context-Felder
+
+`PackageContext` enthält:
 
 ```text
 request
@@ -1298,25 +1831,148 @@ classification
 location
 execution
 object_kind
+profiles
 status
 correlation_id
-timestamps
+created_at
+updated_at
 metadata
 ```
 
-Zielordner:
+Öffentliche Eigenschaften:
 
 ```text
-source_root/<domain>/<category>/<family_slug>/
+vplib_uid
+family_profile_id
+variant_profile_id
+profile_key
+package_dir
+package_relative_dir
+source_path
+source_parts
+archive_path
+is_dry_run
+may_overwrite
+request_fingerprint
+context_fingerprint
 ```
 
-Beispiel:
+`source_parts` enthält exakt:
 
 ```text
-source/hochbau/waende/ziegelwand/
+domain
+category
+subcategory
+family_slug
 ```
 
-Subcategory bleibt in Klassifikationsdokumenten, nicht zwingend im Ordnerpfad.
+#### Statusmodell
+
+Zustände:
+
+```text
+created
+normalized
+planned
+writing
+written
+validating
+validated
+archived
+failed
+```
+
+Statusübergänge sind standardmäßig monoton vorwärtsgerichtet. `archived` und `failed` sind terminal. Ein identischer Status darf wieder gesetzt werden. Ein erzwungener Übergang ist nur über den expliziten `force`-Pfad möglich.
+
+#### Immutable Updates
+
+```text
+with_status(...)
+with_metadata(...)
+with_execution(...)
+with_archive_path(...)
+```
+
+Jede Methode liefert eine neue normalisierte Instanz.
+
+#### Correlation-ID
+
+Wenn keine explizite Correlation-ID geliefert wird, wird eine stabile UUID5-basierte ID aus `vplib_uid` erzeugt. Damit bleibt die Diagnose-ID für denselben Request deterministisch.
+
+#### Metadaten
+
+Metadaten werden:
+
+```text
+JSON-sicher normalisiert
+tiefenbegrenzt
+item-begrenzt
+string-begrenzt
+gegen geschützte Schlüssel abgesichert
+```
+
+Geschützte Identitäts-, Profil-, Pfad- und Fingerprint-Felder können nicht über `with_metadata()` gefälscht werden.
+
+#### Fingerprints
+
+Der Context erzeugt:
+
+```text
+request_fingerprint
+context_fingerprint
+```
+
+Beide basieren auf stabil sortierter JSON-Repräsentation und SHA-256.
+
+#### Serialisierung und Roundtrip
+
+```text
+to_dict()
+to_summary_dict()
+context_from_dict(...)
+```
+
+Der Roundtrip bewahrt Identität, Profile, Klassifikation, Pfade, Execution, Status und Fingerprints.
+
+#### Import-Sicherheit
+
+Die Datei kann Domain-Adapter für Klassifikation, Object-Kinds und Package-Pfade verwenden, besitzt aber defensive Fallbacks. Ein optional fehlender Import darf die Grundnormalisierung nicht zerstören.
+
+#### Health und Cache
+
+```text
+get_package_context_health()
+health
+get_health
+clear_package_context_caches()
+```
+
+#### Rückwärtskompatibilität
+
+Die alte positionale Konstruktorreihenfolge von `PackageContext` bleibt erhalten. Neue Profilbindung wurde als optionales Feld ergänzt, ohne bestehende Aufrufer unnötig zu brechen.
+
+#### Verifizierter Stand
+
+Geprüft wurden:
+
+```text
+py_compile und AST-Parse
+flacher Starter-Request
+strukturierter Nicht-Starter-Request
+vier-teiliger Source-Pfad
+stabile UID und Profil-IDs
+kanonische Identitätsablehnung
+geschützte Metadaten
+Root- und Traversal-Schutz
+Archiv-Suffix und Archiv-Root
+Archive-Toggle über Execution
+alte positionale Konstruktorreihenfolge
+Serialisierungs-Roundtrip
+monotone Statusübergänge
+terminale Status
+Cache-Health und Cache-Clear
+Integration mit creation_planner.py
+```
 
 ### `package_plan.py`
 
@@ -1548,24 +2204,38 @@ Enthält Health-, Ready- und Cache-Funktionen.
 
 ### `creation_planner.py`
 
-High-Level-Orchestrator.
+High-Level-Orchestrator für die seiteneffektfreie VPLIB-Planung.
 
-Pipeline:
+Aktuelles Schema:
 
 ```text
-raw request / dict
+vplib.creation_planner.v2
+```
+
+Zentrale Klassen:
+
+```text
+CreationPlan
+CreationPlanStatus
+CreationPlannerError
+```
+
+#### Pipeline
+
+```text
+raw request / dict / CreateRequest
   ↓
-CreateRequest
+normalize_create_request(...)
   ↓
 PackageContext
   ↓
-ObjectKindProfile
+resolve_profile_for_request(...)
   ↓
-ModulePlan
+build_module_plan_for_request(...)
   ↓
-PackagePlan
+build_package_plan_for_request(...)
   ↓
-CreationPlan
+CreationPlan.normalized()
 ```
 
 Hauptfunktion:
@@ -1574,7 +2244,11 @@ Hauptfunktion:
 plan_vplib_creation(...)
 ```
 
-`CreationPlan` enthält:
+Die Funktion schreibt keine Dateien und legt keine Verzeichnisse an.
+
+#### CreationPlan
+
+Der immutable Plan enthält:
 
 ```text
 request
@@ -1584,10 +2258,169 @@ module_plan
 package_plan
 validation_result
 status
+schema_version
 metadata
 ```
 
-Wichtig: `creation_planner.py` enthält einfache Asset-Copy-Planung für explizite Request-Assets mit `target_path`. Die umfassendere Asset-Planung liegt in `asset_planner.py`.
+Öffentliche Eigenschaften:
+
+```text
+vplib_uid
+package_id
+family_id
+object_kind
+family_profile_id
+variant_profile_id
+profile_key
+package_dir
+active_module_names
+required_files
+is_valid
+```
+
+Immutable Updates:
+
+```text
+with_status(...)
+with_validation_result(...)
+with_metadata(...)
+```
+
+#### Statuswerte
+
+```text
+created
+normalized
+profile_resolved
+modules_planned
+package_planned
+validated
+failed
+```
+
+Der Standardstatus nach vollständiger Planung ist `package_planned`.
+
+#### Identitäts- und Profilkonsistenz
+
+Der Planner prüft nach jeder Normalisierung erneut:
+
+```text
+Request.vplib_uid == Context.vplib_uid
+Request.object_kind == Context.object_kind
+Request.family_profile_id == Context.family_profile_id
+Request.variant_profile_id == Context.variant_profile_id
+Profile passt zu object_kind und Profil-IDs
+ModulePlan passt zu object_kind und Profilvertrag
+PackagePlan passt zu Context, Package-Dir und Identität
+```
+
+Damit können nachgelagerte Adapter nicht unbemerkt eine andere UID oder ein anderes Profil einführen.
+
+#### ModulePlan-Aufbau
+
+Der Planner unterstützt unterschiedliche vorhandene APIs defensiv:
+
+```text
+profile.to_module_plan_entries()
+module planner functions
+ModulePlan constructors
+from_dict-/normalized-Adapter
+```
+
+Einträge werden deterministisch zusammengeführt. Doppelte Modulnamen werden nicht blind dupliziert; Required-/Active-Zustände und Dateilisten werden fachlich vereinigt.
+
+#### PackagePlan-Aufbau
+
+Der Planner unterstützt ebenfalls mehrere kompatible PackagePlan-APIs. Er normalisiert Context, ModulePlan, Pfade, Archive-Optionen und Metadaten und prüft anschließend die gemeinsame Identität.
+
+#### Asset-Copy-Planung
+
+`creation_planner.py` enthält weiterhin eine defensive, einfache Asset-Copy-Planung für explizite Request-Assets mit Zielpfad. Die reichere fachliche Planung liegt weiterhin in `asset_planner.py`.
+
+Grenzen:
+
+```text
+MAX_ASSET_COPY_COUNT = 500
+Metadaten-Tiefe = 32
+```
+
+#### Pfadsicherheit
+
+Der Planner prüft:
+
+```text
+package-relative POSIX-Pfade
+kein Parent-Traversal
+keine absoluten relativen Ziele
+keine doppelten geplanten Pfade
+Package-Pfade bleiben unter package_dir
+Archive-Pfade werden separat behandelt
+```
+
+#### Fingerprints und Metadaten
+
+Plan-Metadaten enthalten unter anderem:
+
+```text
+vplib_uid
+family_profile_id
+variant_profile_id
+object_kind
+request_fingerprint
+plan_fingerprint
+planned_by
+planner_schema_version
+write_mode
+```
+
+`to_summary_dict()` liefert eine kompakte, nicht redundant verschachtelte Übersicht über Identität, aktive Module, Dateizahlen, Asset-Copies, Archivpfad und Fingerprints.
+
+#### Deserialisierung
+
+```text
+creation_plan_from_mapping(...)
+normalize_create_request(...)
+normalize_package_context(...)
+normalize_profile(...)
+normalize_module_plan(...)
+normalize_package_plan(...)
+normalize_validation_result(...)
+```
+
+#### Import- und API-Kompatibilität
+
+Der Planner arbeitet mit lazy `lru_cache`-Imports und flexiblen Funktionsaufrufen. Unterstützte Funktionen werden anhand ihrer tatsächlich akzeptierten Keyword-Argumente aufgerufen. Dadurch bleibt er mit älteren und neueren Modul-/PackagePlan-APIs kompatibel.
+
+#### Health und Cache
+
+```text
+clear_creation_planner_caches()
+```
+
+Die Cache-Diagnose umfasst CreateRequest-, PackageContext-, ModulePlan-, PackagePlan-, Validation-, Asset- und Profilmodule.
+
+#### Verifizierter Stand
+
+Geprüft wurden:
+
+```text
+vollständige Starterplanung
+CreateRequest-Integration
+PackageContext-Integration
+UID-Extraktion
+Profil-Extraktion
+Context-gegen-Request-Validierung
+Profil-gegen-Request-Validierung
+ModulePlan-gegen-Request-Validierung
+PackagePlan-gegen-Request-Validierung
+sichere relative Pfade
+stabile Fingerprints
+Serialisierung und Summary
+```
+
+#### Aktuelle Grenze
+
+`creation_planner.py` ist auf den neuen Vertrag gehärtet. `module_plan.py` und `package_plan.py` wurden im aktuellen Durchlauf noch nicht vollständig neu aufgebaut. Der Planner enthält deshalb bewusst flexible Adapter und zusätzliche Nachprüfungen.
 
 ### `module_planner.py`
 
@@ -2485,41 +3318,54 @@ Er übernimmt sie aus SourcePackageCandidate / Manifest / DocumentBundle.
 
 ## 16. End-to-End: Create-Flow
 
-Ein typischer Create-Flow sieht so aus:
+Der aktuelle Kernfluss innerhalb von `src/vplib` sieht so aus:
 
 ```text
-1. Raw Input / Dict
+1. Raw Input / verschachtelter Engine-Request / flacher /create-Payload
    ↓
-2. create_request_from_mapping(...)
+2. normalize_create_request_mapping(...)
    ↓
-3. CreateRequest.normalized()
+3. create_request_from_mapping(...)
    ↓
-4. create_package_context(...)
+4. CreateRequest.normalized()
+   - vplib_uid festlegen oder bewahren
+   - family_id / package_id kanonisieren
+   - Profile binden
+   - Klassifikation und Geometrie normalisieren
    ↓
-5. resolve_profile(object_kind)
+5. create_package_context(...)
+   - absolute Roots normalisieren
+   - Source-Pfad domain/category/subcategory/family_slug bauen
+   - Identität und Profile gegen Request prüfen
+   - Correlation-ID und Fingerprints erzeugen
    ↓
-6. build_module_plan(...) oder plan_modules_for_request(...)
+6. resolve_profile_for_request(...)
    ↓
-7. plan_variants_for_request(...)
+7. build_module_plan_for_request(...)
    ↓
-8. plan_assets_for_request(...)
+8. build_package_plan_for_request(...)
    ↓
-9. build_package_plan(...)
+9. CreationPlan.normalized()
+   - UID, Objektart, Profile und Pfade schichtübergreifend prüfen
    ↓
-10. plan_vplib_creation(...)
+10. optional plan_variants_for_request(...)
    ↓
-11. build_document_bundle_from_creation_plan(...)
+11. optional plan_assets_for_request(...)
    ↓
-12. validate_package_document_bundle(...)
+12. optional path_planner(...)
    ↓
-13. create_vplib_from_plan(...) / create_vplib_package_from_bundle(...)
+13. build_document_bundle_from_creation_plan(...)
    ↓
-14. optional create_vplib_archive_from_package(...)
+14. validate_package_document_bundle(...)
    ↓
-15. PackageCreationResult / PackageResult
+15. create_vplib_from_plan(...) / create_vplib_package_from_bundle(...)
+   ↓
+16. optional create_vplib_archive_from_package(...)
+   ↓
+17. PackageCreationResult / PackageResult
 ```
 
-In Code-Nähe:
+Code-nahe Einstiegspunkte:
 
 ```python
 request = create_request_from_mapping(payload)
@@ -2527,6 +3373,8 @@ request = create_request_from_mapping(payload)
 plan = plan_vplib_creation(
     request=request,
     service_root=service_root,
+    source_root=source_root,
+    archive_root=archive_root,
 )
 
 bundle = build_document_bundle_from_creation_plan(plan)
@@ -2539,7 +3387,48 @@ validation = validate_vplib_document_bundle(
 result = create_vplib_from_plan(plan)
 ```
 
-Die genaue öffentliche API kann je nach Route über `vplib.__init__.py` oder Subpackages genutzt werden.
+### 16.1 Aktueller Route-Adapter außerhalb des Scopes
+
+Der produktive `/create`-Flow verwendet außerhalb von `src/vplib` zusätzliche Adapter:
+
+```text
+Frontend Payload
+  ↓
+library_create_variant_payload_service
+  ↓
+library_create_route_service
+  ↓
+library_create_service / src/vplib planning and models
+```
+
+Der Route-Adapter muss den neuen Kernvertrag vollständig weiterreichen:
+
+```text
+vplib_uid
+family_profile_id
+variant_profile_id
+object_kind
+classification
+source_path
+```
+
+### 16.2 Save und Publication
+
+Nach der Package-Erzeugung folgt außerhalb von `src/vplib`:
+
+```text
+Create Save
+  ↓
+Directory Package nach src/library/source
+  ↓
+Library Scan
+  ↓
+DB Sync
+  ↓
+Published Item
+```
+
+Diese Schritte sind aktuell nicht automatisch als eine einzige Transaktion verbunden. Der `src/vplib`-Kern liefert Identität, Pfade, Dokumente und Validierung; die Publish-Orchestrierung liegt außerhalb.
 
 ---
 
@@ -2631,14 +3520,51 @@ validate_package_creation_plan(...)
 
 ### Erzeugung
 
+Der aktuelle Primärpfad ist:
+
 ```text
-CreateRequest / Context / CreationPlan
+Raw Create Payload
   ↓
-manifest_defaults.py / document_bundle.py
+create_request_from_mapping(...)
   ↓
-ensure_mapping_vplib_uid(...)
+CreateRequest.vplib_uid
+  - vorhandene gültige ID normalisieren und bewahren
+  - bei fehlender ID UUID erzeugen
   ↓
-vplib.manifest.json enthält vplib_uid
+PackageContext.identity.vplib_uid
+  ↓
+CreationPlan.vplib_uid
+  ↓
+DocumentBundle / vplib.manifest.json
+```
+
+Manifest- und Bundle-Defaults bleiben zusätzliche Sicherungen, dürfen eine bereits gebundene gültige UID aber nicht ändern.
+
+### Profil-ID-Fluss
+
+```text
+Raw Payload
+  ↓
+CreateRequest.family_profile_id
+CreateRequest.variant_profile_id
+  ↓
+PackageProfileContext
+  ↓
+ObjectKindProfile / profile_key
+  ↓
+ModulePlan
+  ↓
+CreationPlan
+  ↓
+Manifest-/Modules-/Variant-Dokumente
+```
+
+Für den Starter:
+
+```text
+cell_block
+simple_cell_block
+simple_cell_block.v1
 ```
 
 ### Validierung
@@ -2652,6 +3578,8 @@ vplib_id_service.normalize_vplib_uid(...)
   ↓
 gültig oder blockierender Fehler
 ```
+
+Zusätzlich prüfen PackageContext und CreationPlanner die UID bereits vor dem Dokument-Build schichtübergreifend.
 
 ### Source-Scan
 
@@ -2672,19 +3600,31 @@ source_loader.py
   ↓
 übernimmt vplib_uid
   ↓
-spiegelt sie in Target, ItemResult, Metadata, WriteResult, ArchiveResult
+spiegelt sie in Target, ItemResult, Metadata, WriteResult und ArchiveResult
 ```
 
-### DB-Sync später
+### Externer DB-Sync
 
 ```text
 validiertes Package
   ↓
-Scanner / Loader / DB Sync
+Library Scanner / DB Sync Service
   ↓
 DB übernimmt vplib_uid
   ↓
 DB erzeugt sie nicht
+```
+
+### Identitätsvergleich
+
+Folgende Werte sind nicht austauschbar:
+
+```text
+vplib_uid     technische unveränderliche Identität
+family_id     kanonische fachliche Family-ID
+package_id    kanonische Package-ID
+family_slug   Pfad-/Darstellungssegment
+label/name    veränderliche Anzeigeinformation
 ```
 
 ---
@@ -3210,26 +4150,54 @@ profiles/<object_kind>_profile.py
 
 ### DB-Sync
 
-Außerhalb dieses Dokuments, aber relevant:
+Außerhalb dieses Dokuments, aber für den Gesamtfluss relevant:
 
 ```text
-validiertes Package
+validiertes Directory Package
   ↓
-source_scanner.py
+Library Scan Service
   ↓
-ScanResult
+ScanResult / Candidate
   ↓
-DB Sync Service
+Library DB Sync Service
   ↓
-PostgreSQL
+PostgreSQL Published State
 ```
 
 Die DB sollte verwenden:
 
 ```text
-vplib_uid als stabile Business-/Technical-ID
-revision_hash für Änderungen
-package_id/family_id als semantische Felder
+vplib_uid als stabile technische Identität
+revision_hash für Inhaltsänderungen
+package_id/family_id als semantische IDs
+source_path als kanonischen Herkunftspfad
+family_profile_id / variant_profile_id für reproduzierbare Profilbindung
+```
+
+Der DB-Sync darf keine fehlende `vplib_uid` erzeugen oder reparieren.
+
+### Save-vs.-Sync-Grenze
+
+Aktueller externer Zustand:
+
+```text
+POST /api/v1/vplib/create/save
+  → schreibt Directory Package nach src/library/source
+
+POST /api/v1/vplib/library/sync
+  → scannt Source und schreibt Published State nach PostgreSQL
+```
+
+Ein Source-Save allein füllt `GET /api/v1/vplib/library/items` nicht. Die automatische Save-und-Sync-Orchestrierung ist geplant, aber noch nicht umgesetzt.
+
+Für `src/vplib` bedeutet das:
+
+```text
+- Package muss vollständig und atomar lesbar sein.
+- Manifest muss vplib_uid enthalten.
+- Source-Pfad muss kanonisch sein.
+- Scanner muss dasselbe Package ohne Reparatur lesen können.
+- Revision-Fingerprint muss reproduzierbar sein.
 ```
 
 ### Creative Library API
@@ -3243,35 +4211,95 @@ validators
 document bundle
 package metadata
 vplib_uid
+family_id
+package_id
+profile bindings
+classification
+source path
 ```
+
+### Create-Frontend
+
+Das Frontend arbeitet außerhalb dieses Scopes mit:
+
+```text
+create_variant_profiles.js
+create_payload.js
+create_actions.js
+create_core.js
+```
+
+Der Kernvertrag erwartet, dass Frontend und Route-Adapter keine Objektwerte als URL verwenden und dass Profile nicht aus uneindeutigen Definitionseinträgen abgeleitet werden.
 
 ---
 
 ## 31. Risiken / offene Architekturpunkte
 
-Diese Punkte sind im IST-Zustand sichtbar und sollten bei Weiterentwicklung beachtet werden:
+Diese Punkte sind im aktuellen Stand sichtbar und müssen bei der Weiterentwicklung bewusst behandelt werden:
 
 ```text
-1. creation_planner.py nutzt aktuell nur einfache Asset-Copy-Planung.
+1. module_plan.py wurde noch nicht im aktuellen Härtungsdurchlauf vollständig neu aufgebaut.
+   Der CreationPlanner kompensiert dies mit flexiblen Adaptern und zusätzlicher Validierung.
+
+2. package_plan.py wurde noch nicht auf denselben neuen UID-/Profil-/Pfadvertrag gehärtet.
+   Die nächste Planungsstufe muss package_dir, source_path, profile IDs und vplib_uid
+   deterministisch und ohne redundante Payloads bewahren.
+
+3. creation_planner.py nutzt weiterhin nur eine einfache Asset-Copy-Planung.
    asset_planner.py ist reicher und sollte perspektivisch stärker integriert werden.
 
-2. PathPlanningResult und PackagePlan überschneiden sich.
-   Das ist funktional okay, sollte aber bewusst bleiben.
+4. PathPlanningResult und PackagePlan überschneiden sich.
+   Das ist funktional vertretbar, muss aber als bewusste Doppelung dokumentiert bleiben.
 
-3. Validatoren prüfen deklarierte Metadaten, nicht echte GLB-Geometrie.
-   Für echte Geometrieprüfung braucht es später einen separaten Asset-/Model-Analyzer.
+5. Validatoren prüfen deklarierte Metadaten, nicht echte GLB-Geometrie.
+   Für echte Geometrieprüfung wird später ein separater Asset-/Model-Analyzer benötigt.
 
-4. PackageContext trägt die vplib_uid nicht als primäres Pflichtfeld.
-   Die technische ID liegt primär im Manifest/DocumentBundle und kann über Metadata/Plan verglichen werden.
+6. SourceScanner repariert fehlende IDs nicht.
+   Das ist korrekt. Backfill oder Migration benötigt eigene, explizite Reparaturtools.
 
-5. SourceScanner repariert fehlende IDs nicht.
-   Das ist korrekt, bedeutet aber: Backfill/Migration braucht eigene Reparaturlogik vor dem Scan oder gezielte Tools.
+7. Manufacturer-Overlay ist vorbereitet, aber noch kein vollständiger Product-Overlay-Service.
 
-6. Manufacturer-Overlay ist vorbereitet, aber noch kein vollständiger Product-Overlay-Service.
+8. Dynamic ist deklarativ modelliert, aber echte adaptive Runtime-Auflösung liegt außerhalb
+   dieses Package-Kerns.
 
-7. Dynamic ist deklarativ modelliert, aber echte adaptive Runtime-Auflösung liegt außerhalb dieses Package-Kerns.
+9. Validation kann streng sein. Neue Dokumente müssen gleichzeitig in PackagePaths,
+   Defaults, Schema- und Semantic-Validatoren sowie Profilen ergänzt werden.
 
-8. Validation kann streng sein; beim Einführen neuer Dokumente müssen Schema- und Semantic-Validatoren synchron gepflegt werden.
+10. Der externe Source-Save und der PostgreSQL-Sync sind derzeit getrennt.
+    Ein erfolgreich gespeichertes Package ist nicht automatisch published.
+
+11. Die geplante automatische Save-und-Sync-Orchestrierung benötigt eine gezielte
+    Single-Package-Scan- und Single-Candidate-Sync-Strecke. Ein Vollscan bei jedem Save
+    wäre zu langsam und könnte andere Packages beeinflussen.
+
+12. Mehrere Gunicorn-Worker können parallele Saves derselben vplib_uid auslösen.
+    Der externe Persistenzfluss benötigt pro UID einen Transaktions-/Advisory-Lock.
+
+13. Context und Planner sind auf Profile-IDs gehärtet, nachgelagerte Defaults,
+    ModulePlan und PackagePlan müssen diesen Vertrag noch vollständig übernehmen.
+
+14. Die aktuelle PackageContext-Schema-ID bleibt v1, obwohl die Component-Version 2.0.0 ist.
+    Das ist absichtlich rückwärtskompatibel, muss aber bei einer späteren Schemaänderung
+    explizit migriert werden.
+
+15. Große verschachtelte API-Payloads können Antwortgrößen stark erhöhen.
+    Summary- und Detailantworten sollten klar getrennt werden.
+
+16. Health-Antworten außerhalb des Kerns sind derzeit teilweise sehr groß.
+    Der Kern sollte deshalb kompakte Health-/Summary-Formen bevorzugen.
+```
+
+### 31.1 Priorität der offenen Kernarbeit
+
+```text
+P0  module_plan.py
+P0  package_plan.py
+P1  defaults/document_bundle.py gegen neuen Context-/Planvertrag prüfen
+P1  validators/package_validator.py gegen Profile und vierteiligen Source-Pfad prüfen
+P1  creators/package_creator.py für atomare Package-Erstellung prüfen
+P2  source_scanner.py für neuen Manifest-/Profilvertrag prüfen
+P2  source_loader.py für unveränderte UID-/Pfadweitergabe prüfen
+P2  asset_planner.py stärker in creation_planner.py integrieren
 ```
 
 ---
@@ -3379,6 +4407,256 @@ result = validate_vplib_documents(
 
 ---
 
-## 34. Zusammenfassung in einem Satz
+## 34. Aktuelle Statusmatrix pro Teilbereich
 
-`src/vplib` ist eine modular aufgebaute, deklarative Package-Engine für VECTOPLAN-Library-Objekte: Sie normalisiert Requests, löst objektartabhängige Profile auf, plant Module/Varianten/Assets/Pfade, erzeugt JSON-Dokumente, validiert technische und fachliche Konsistenz inklusive stabiler `vplib_uid`, schreibt Packages/Archive über Creator und kann vorbereitete Source-Packages scannen und in einen Library-Katalog laden.
+| Bereich | Aktueller Stand | Verifiziert | Nächste Kernaufgabe |
+|---|---|---:|---|
+| `vplib_id_service.py` | technische UID-Fassade vorhanden | teilweise aus vorherigem Stand | gegen neuen CreateRequest-/Context-Vertrag erneut vollständig testen |
+| `models/create_request.py` | vollständig gehärtet, Schema v2 | ja | nachgelagerte Consumer angleichen |
+| `models/package_context.py` | vollständig gehärtet, Component 2.0.0 | ja | PackagePlan/Creator auf neuen Vertrag angleichen |
+| `planning/creation_planner.py` | vollständig gehärtet, Schema v2 | ja | Detailplaner stärker integrieren |
+| `models/module_plan.py` | funktional vorhanden | noch nicht im neuen Durchlauf | vollständige Überarbeitung |
+| `models/package_plan.py` | funktional vorhanden | noch nicht im neuen Durchlauf | UID/Profile/Pfade/Deduplizierung härten |
+| `profiles/*` | bestehende Object-Kind-Profile | strukturell dokumentiert | Startervertrag und Resolver-End-to-End erneut testen |
+| `defaults/*` | vollständige Dokumentgeneratoren | vorheriger Stand | neue Profile-/UID-Metadaten prüfen |
+| `validators/*` | Schema/Semantik/Assets/Package | vorheriger Stand | neuen vierteiligen Source-Pfad und Profile prüfen |
+| `creators/*` | Package-/Archivschreiben | vorheriger Stand | atomare Directory-Erstellung und neue Context-Status prüfen |
+| `sources/*` | Scan und Load | vorheriger Stand | Profile, UID und Revision-Fingerprint prüfen |
+| externer Save | Source-Package wird geschrieben | ja, Route getestet | automatischen gezielten Sync anbinden |
+| externer DB-Sync | manuelle POST-Route vorhanden | Route vorhanden, E2E weiter prüfen | Save automatisch mit Single-Package-Sync verbinden |
+| Published Read | DB-basierte Items-Route vorhanden | leer vor Sync korrekt | Read-after-write-Verifikation automatisieren |
+
+---
+
+## 35. Verifizierte Tests der aktuellen Kernhärtung
+
+### 35.1 `create_request.py`
+
+```text
+- Python-Compile
+- AST-Parse
+- flacher /create-Payload
+- verschachtelter Engine-Payload
+- UID-Erzeugung und UID-Erhalt
+- Starter-Profilauflösung
+- Variantenprofil-Bindung je Variant
+- Geometriekonvertierung m/cm/mm
+- cell_block 1x1x1
+- Bounds gegen Grid
+- kanonische IDs
+- JSON-Ausgabe
+```
+
+### 35.2 `package_context.py`
+
+```text
+- Python-Compile
+- AST-Parse
+- exakte Dateipfad-Kopfzeile
+- flacher Starter-Request
+- strukturierter Nicht-Starter-Request
+- vierteiliger Source-Pfad
+- stabile UID und Profile
+- kanonische Identitätsablehnung
+- protected metadata
+- Root Traversal und Root Escape
+- Archiv-Toggle, Archiv-Suffix und Archiv-Root
+- alte positionale Konstruktorreihenfolge
+- Serialisierungs-Roundtrip
+- monotone und terminale Statusübergänge
+- Health und Cache-Clear
+```
+
+### 35.3 `creation_planner.py`
+
+```text
+- Request-Normalisierung
+- Context-Aufbau
+- Profile-Auflösung
+- ModulePlan-Adapter
+- PackagePlan-Adapter
+- Context-gegen-Request-Validierung
+- UID-Extraktion
+- Profil-Extraktion
+- sichere relative Pfade
+- Duplicate-Path-Abwehr
+- Fingerprint-Stabilität
+- Summary-Serialisierung
+- Integration mit gehärtetem PackageContext
+```
+
+### 35.4 Nicht als abgeschlossen zu interpretieren
+
+Die genannten Tests beweisen den Vertrag der drei gehärteten Dateien. Sie ersetzen nicht die vollständigen Tests von:
+
+```text
+ModulePlan
+PackagePlan
+DocumentBundle
+Defaults
+Validators
+Creators
+Source Scanner
+Source Loader
+externer Save/Sync/Published Flow
+```
+
+---
+
+## 36. Rückwärtskompatibilität und Migrationsregeln
+
+### 36.1 Beibehaltene Verträge
+
+```text
+PackageContext-Schema bleibt vplib.package_context.v1.
+PackageContext alte positionale Argumentreihenfolge bleibt nutzbar.
+Bestehende snake_case-Felder bleiben kanonisch.
+CreateRequest akzeptiert alte camelCase- und flache UI-Aliase.
+CreationPlanner akzeptiert mehrere ältere Modul-/PackagePlan-APIs.
+```
+
+### 36.2 Neue verbindliche Felder
+
+```text
+vplib_uid
+family_profile_id
+variant_profile_id
+subcategory im Source-Pfad
+request_fingerprint
+context_fingerprint
+plan_fingerprint
+```
+
+### 36.3 Nicht mehr zulässige Annahmen
+
+```text
+- Source-Pfad ohne Subcategory.
+- cell_block mit beliebigem Variant-Profil.
+- PackageContext ohne eindeutige UID.
+- Metadaten dürfen Identity/Pfade überschreiben.
+- Objekt-Mapping darf still zu einer URL werden.
+- Nichtkanonische family_id/package_id wird automatisch akzeptiert.
+- Archivpfad darf außerhalb archive_root liegen.
+```
+
+### 36.4 Migration bestehender Packages
+
+Bestehende Packages mit dreiteiligem Source-Pfad oder fehlenden Profil-IDs benötigen eine explizite Migration. Scanner und Validatoren sollen diese Daten nicht still reparieren.
+
+Empfohlener Migrationsablauf:
+
+```text
+1. Package lesen.
+2. vplib_uid validieren oder über explizites Migrationstool ergänzen.
+3. domain/category/subcategory/family_slug bestimmen.
+4. family_id und package_id kanonisch ableiten.
+5. family_profile_id und variant_profile_id setzen.
+6. Manifest, Modules und Variant-Dokumente aktualisieren.
+7. Package neu validieren.
+8. Source-Pfad atomar verschieben.
+9. externen DB-Sync ausführen.
+```
+
+---
+
+## 37. Diagnostik- und Health-Verträge
+
+### CreateRequest
+
+```text
+clear_create_request_caches()
+```
+
+### PackageContext
+
+```text
+get_package_context_health()
+health
+get_health
+clear_package_context_caches()
+```
+
+### CreationPlanner
+
+```text
+clear_creation_planner_caches()
+```
+
+### Subpackage-Fassaden
+
+```text
+get_vplib_health()
+get_domain_health()
+get_profiles_health()
+get_planning_health()
+get_defaults_health()
+get_validators_health()
+get_creators_health()
+get_sources_health()
+```
+
+Health- und Diagnoseantworten sollten kompakt bleiben und keine vollständigen Definitions- oder Dokumentpayloads duplizieren.
+
+---
+
+## 38. Empfohlene weitere Überarbeitungsreihenfolge innerhalb `src/vplib`
+
+```text
+1. models/module_plan.py
+2. models/package_plan.py
+3. defaults/document_bundle.py
+4. defaults/manifest_defaults.py
+5. defaults/module_defaults.py
+6. validators/package_validator.py
+7. validators/semantic_validator.py
+8. creators/package_creator.py
+9. creators/file_writer.py
+10. creators/archive_creator.py
+11. sources/source_scanner.py
+12. sources/source_loader.py
+13. vplib/__init__.py als abschließende Fassade
+```
+
+Begründung:
+
+```text
+- ModulePlan und PackagePlan sind die direkten noch ungehärteten Verträge des Planners.
+- DocumentBundle und Manifest müssen die neue Identität unverändert serialisieren.
+- Validatoren müssen den finalen Dokumentvertrag prüfen.
+- Creator dürfen erst danach auf den endgültigen Planvertrag angepasst werden.
+- Scanner/Loader werden zuletzt an das tatsächlich erzeugte Package angepasst.
+- Die Top-Level-Fassade wird abschließend bereinigt, damit nur stabile APIs exportiert werden.
+```
+
+---
+
+## 39. Abnahmekriterien für den vollständigen `src/vplib`-Kern
+
+Der Kern ist vollständig konsistent, wenn mindestens folgende End-to-End-Kriterien erfüllt sind:
+
+```text
+1. Flacher /create-Payload wird zu CreateRequest v2.
+2. vplib_uid bleibt in allen Schichten identisch.
+3. cell_block nutzt simple_cell_block / simple_cell_block.v1.
+4. Source-Pfad enthält domain/category/subcategory/family_slug.
+5. family_id und package_id sind kanonisch.
+6. ModulePlan enthält deterministische aktive Module und Dateilisten.
+7. PackagePlan enthält keine doppelten oder unsicheren Pfade.
+8. DocumentBundle enthält Manifest, Modules, Family, Variant und Editor-Dokumente.
+9. Validatoren akzeptieren den gültigen Minimalstarter.
+10. Creator schreibt atomar ein vollständiges Directory Package.
+11. Archive Creator erzeugt ein gültiges .vplib ZIP.
+12. SourceScanner liest dasselbe Package ohne Reparatur.
+13. SourceLoader bewahrt UID, Profile, Pfade und Dokumente.
+14. Zweiter identischer Durchlauf ist idempotent.
+15. Geänderter Inhalt erzeugt einen reproduzierbar anderen Fingerprint.
+16. Kein Teilschritt erzeugt eine zweite oder abweichende vplib_uid.
+17. Keine Schicht außerhalb der Creator schreibt unbeabsichtigt Dateien.
+18. Externer DB-Sync kann das Package ohne Sonderadapter veröffentlichen.
+```
+
+---
+
+## 40. Zusammenfassung in einem Satz
+
+`src/vplib` ist eine modular aufgebaute, deklarative und zunehmend strikt identitätsgebundene Package-Engine für VECTOPLAN-Library-Objekte: Sie normalisiert verschachtelte und flache Create-Payloads zu `CreateRequest v2`, bewahrt `vplib_uid` und explizite Profilbindungen, erzeugt einen sicheren vierteiligen `PackageContext`, plant Module, Varianten, Assets und Pfade über `CreationPlan v2`, baut und validiert Dokumente, schreibt Packages und Archive ausschließlich über Creator und kann vorbereitete Source-Packages scannen und laden; die automatische Veröffentlichung in PostgreSQL bleibt eine externe, noch getrennte Save-/Sync-Orchestrierung.

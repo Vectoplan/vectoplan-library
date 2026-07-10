@@ -35,8 +35,10 @@ Technische Namen, JSON-Keys und Variablen bleiben Englisch.
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import json
+import math
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -50,7 +52,7 @@ from typing import Any, Final, Iterable, Mapping, MutableMapping, Sequence
 # Constants
 # ---------------------------------------------------------------------------
 
-CREATE_VARIANT_PAYLOAD_SERVICE_SCHEMA_VERSION: Final[str] = "library.create_variant_payload.v2"
+CREATE_VARIANT_PAYLOAD_SERVICE_SCHEMA_VERSION: Final[str] = "library.create_variant_payload.v3"
 CREATE_VARIANT_PAYLOAD_SERVICE_COMPONENT: Final[str] = "library-create-variant-payload-service"
 
 VPLIB_UID_FIELD: Final[str] = "vplib_uid"
@@ -58,7 +60,91 @@ VPLIB_UID_FIELD: Final[str] = "vplib_uid"
 NORMALIZATION_REPORT_FIELD: Final[str] = "_vplib_create_normalization"
 
 DEFAULT_VARIANT_ID: Final[str] = "default"
-DEFAULT_VARIANT_LABEL: Final[str] = "Default"
+DEFAULT_VARIANT_LABEL: Final[str] = "Standard"
+
+
+STARTER_OBJECT_KIND: Final[str] = "cell_block"
+STARTER_FAMILY_PROFILE_ID: Final[str] = "simple_cell_block"
+STARTER_VARIANT_PROFILE_ID: Final[str] = "simple_cell_block.v1"
+STARTER_FAMILY_NAME: Final[str] = "Simple Cell Block"
+STARTER_PRIMITIVE_SHAPE: Final[str] = "block"
+
+STARTER_TAXONOMY: Final[Mapping[str, str]] = {
+    "domain": "hochbau",
+    "category": "bloecke",
+    "subcategory": "basis",
+}
+
+STARTER_DIMENSIONS_MM: Final[Mapping[str, int]] = {
+    "dimensions.width_mm": 1000,
+    "dimensions.height_mm": 1000,
+    "dimensions.depth_mm": 1000,
+}
+
+STARTER_REQUIRED_VALUE_KEYS: Final[tuple[str, ...]] = (
+    "variant.variant_id",
+    "variant.label",
+    "dimensions.width_mm",
+    "dimensions.height_mm",
+    "dimensions.depth_mm",
+)
+
+STARTER_FAMILY_PROFILE_ALIASES: Final[frozenset[str]] = frozenset(
+    {
+        "",
+        "simple_cell_block",
+        "simple_cellblock",
+        "cell_block",
+        "cellblock",
+        "starter_cell_block",
+    }
+)
+
+STARTER_VARIANT_PROFILE_ALIASES: Final[frozenset[str]] = frozenset(
+    {
+        "",
+        "simple_cell_block.v1",
+        "simple_cell_block_v1",
+        "simple_cell_block",
+        "simple_block",
+        "basic_block",
+        "basisblock",
+        "basic_stone_block",
+        "starter_cell_block",
+    }
+)
+
+SUPPORTED_GEOMETRY_UNITS: Final[frozenset[str]] = frozenset({"m", "cm", "mm"})
+
+UPLOAD_CONTRACT_FIELDS: Final[tuple[tuple[str, str, str], ...]] = (
+    ("geometry_model", "geometry_model_uploads", "geometryModelUploads"),
+    (
+        "technical_documents",
+        "technical_document_uploads",
+        "technicalDocumentUploads",
+    ),
+    (
+        "variant_documents",
+        "variant_document_uploads",
+        "variantDocumentUploads",
+    ),
+)
+
+PAYLOAD_FINGERPRINT_IGNORED_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        VPLIB_UID_FIELD,
+        "vplibUid",
+        "vplib_uid_v1",
+        NORMALIZATION_REPORT_FIELD,
+        "_create_payload_fingerprint",
+        "_create_payload_schema_version",
+        "_create_payload_component",
+        "workflow_action",
+        "client_action",
+        "clientAction",
+        "action",
+    }
+)
 
 SAFE_VARIANT_ID_RE: Final[re.Pattern[str]] = re.compile(
     r"^[a-z0-9][a-z0-9._-]*[a-z0-9]$|^[a-z0-9]$"
@@ -265,6 +351,14 @@ JSON_KEY_ALIASES: Final[Mapping[str, str]] = {
     "geometryJson": "geometry",
     "metadata_json": "metadata",
     "metadataJson": "metadata",
+    "geometry_model_uploads_json": "geometry_model_uploads",
+    "geometryModelUploadsJson": "geometry_model_uploads",
+    "technical_document_uploads_json": "technical_document_uploads",
+    "technicalDocumentUploadsJson": "technical_document_uploads",
+    "variant_document_uploads_json": "variant_document_uploads",
+    "variantDocumentUploadsJson": "variant_document_uploads",
+    "uploads_json": "uploads",
+    "uploadsJson": "uploads",
     "draft_json": "__merge__",
     "draftJson": "__merge__",
 }
@@ -372,19 +466,35 @@ class NormalizedVariant:
     def to_dict(self) -> dict[str, Any]:
         normalized = self.normalized()
 
+        definition_values = dict(normalized.definition_values)
+        definition_values_json = compact_json(definition_values)
+        additional_field_keys = list(normalized.additional_field_keys)
+
         return {
             "variant_id": normalized.variant_id,
+            "variantId": normalized.variant_id,
             "variant_key": normalized.variant_id,
+            "variantKey": normalized.variant_id,
             "label": normalized.label,
+            "name": normalized.label,
             "description": normalized.description,
             "is_default": normalized.is_default,
+            "isDefault": normalized.is_default,
             "family_profile_id": normalized.family_profile_id,
+            "familyProfileId": normalized.family_profile_id,
             "variant_profile_id": normalized.variant_profile_id,
-            "definition_values": dict(normalized.definition_values),
-            "additional_field_keys": list(normalized.additional_field_keys),
+            "variantProfileId": normalized.variant_profile_id,
+            "definition_values": definition_values,
+            "definitionValues": definition_values,
+            "definition_values_json": definition_values_json,
+            "definitionValuesJson": definition_values_json,
+            "additional_field_keys": additional_field_keys,
+            "additionalFieldKeys": additional_field_keys,
             "metadata": dict(normalized.metadata),
             "source_index": normalized.source_index,
+            "sourceIndex": normalized.source_index,
             "sort_order": normalized.sort_order,
+            "sortOrder": normalized.sort_order,
             "active": normalized.active,
             "visible": normalized.visible,
         }
@@ -631,11 +741,22 @@ def normalize_create_variant_payload_result(
     overwrite_invalid_uid: bool = False,
     strict: bool = True,
 ) -> CreateVariantPayloadNormalizationResult:
-    """Normalisiert einen `/create`-Payload und gibt einen strukturierten Report zurück."""
+    """
+    Normalize a ``/create`` payload and return a structured report.
+
+    The function materializes the starter contract before variants are
+    normalized. This guarantees that validation, package planning and download
+    receive the same canonical object kind, profile IDs, dimensions, uploads and
+    default variant.
+    """
     messages: list[PayloadNormalizationMessage] = []
 
     try:
         normalized_payload = normalize_payload_mapping(payload)
+        normalized_payload = materialize_starter_payload(
+            normalized_payload,
+            messages=messages,
+        )
 
         try:
             uid = ensure_create_payload_vplib_uid(
@@ -646,6 +767,7 @@ def normalize_create_variant_payload_result(
             )
             if uid:
                 normalized_payload[VPLIB_UID_FIELD] = uid
+                normalized_payload["vplibUid"] = uid
         except Exception as exc:
             messages.append(
                 normalization_message(
@@ -660,15 +782,43 @@ def normalize_create_variant_payload_result(
 
         taxonomy_payload = normalize_taxonomy_payload(normalized_payload)
         normalized_payload.update(taxonomy_payload)
+        normalized_payload["taxonomy_path"] = normalize_taxonomy_path(
+            first_present_value(
+                normalized_payload,
+                ("taxonomy_path", "taxonomyPath"),
+            )
+            or "/".join(
+                str(normalized_payload.get(key) or "")
+                for key in ("domain", "category", "subcategory")
+            )
+        )
+        normalized_payload["taxonomyPath"] = normalized_payload["taxonomy_path"]
 
         common_definition_values = normalize_definition_values(
             first_present_value(normalized_payload, DEFINITION_VALUES_KEYS)
         )
+        common_definition_values = materialize_starter_definition_values(
+            normalized_payload,
+            common_definition_values,
+        )
+
         additional_field_keys = normalize_additional_field_keys(
             first_present_value(normalized_payload, ADDITIONAL_FIELD_KEYS_KEYS)
         )
-        family_profile_id = clean_optional_string(first_present_value(normalized_payload, FAMILY_PROFILE_ID_KEYS))
-        variant_profile_id = clean_optional_string(first_present_value(normalized_payload, VARIANT_PROFILE_ID_KEYS))
+        family_profile_id = canonicalize_family_profile_id(
+            first_present_value(normalized_payload, FAMILY_PROFILE_ID_KEYS)
+        )
+        variant_profile_id = canonicalize_variant_profile_id(
+            first_present_value(normalized_payload, VARIANT_PROFILE_ID_KEYS)
+        )
+
+        if family_profile_id:
+            normalized_payload["family_profile_id"] = family_profile_id
+            normalized_payload["familyProfileId"] = family_profile_id
+
+        if variant_profile_id:
+            normalized_payload["variant_profile_id"] = variant_profile_id
+            normalized_payload["variantProfileId"] = variant_profile_id
 
         raw_variants = first_present_value(normalized_payload, DEFINITION_VARIANTS_KEYS)
         variants = normalize_definition_variants_json(
@@ -680,41 +830,117 @@ def normalize_create_variant_payload_result(
         )
 
         default_variant_id = resolve_default_variant_id(
-            explicit_default_variant_id=first_present_value(normalized_payload, DEFAULT_VARIANT_ID_KEYS),
+            explicit_default_variant_id=first_present_value(
+                normalized_payload,
+                DEFAULT_VARIANT_ID_KEYS,
+            ),
             variants=variants,
         )
+        variants = mark_default_variant(
+            variants,
+            default_variant_id=default_variant_id,
+        )
 
-        variants = mark_default_variant(variants, default_variant_id=default_variant_id)
+        variant_payloads = materialize_variant_payloads(
+            variants,
+            normalized_payload,
+        )
+        default_variant_id = resolve_default_variant_id_from_payloads(
+            variant_payloads,
+            explicit_default_variant_id=default_variant_id,
+        )
+        variant_payloads = enforce_single_default_variant_payload(
+            variant_payloads,
+            default_variant_id=default_variant_id,
+        )
 
-        normalized_documents = normalize_documents_payload(first_present_value(normalized_payload, DOCUMENTS_KEYS))
-        normalized_assets = normalize_assets_payload(first_present_value(normalized_payload, ASSETS_KEYS))
-        normalized_variables = normalize_variables_payload(first_present_value(normalized_payload, VARIABLES_KEYS))
+        normalized_documents = normalize_documents_payload(
+            first_present_value(normalized_payload, DOCUMENTS_KEYS)
+        )
+        normalized_assets = normalize_assets_payload(
+            first_present_value(normalized_payload, ASSETS_KEYS)
+        )
+        normalized_variables = normalize_variables_payload(
+            first_present_value(normalized_payload, VARIABLES_KEYS)
+        )
 
         normalized_payload["definition_values"] = common_definition_values
+        normalized_payload["definitionValues"] = common_definition_values
+        normalized_payload["definition_values_json"] = compact_json(
+            common_definition_values
+        )
+        normalized_payload["definitionValuesJson"] = normalized_payload[
+            "definition_values_json"
+        ]
         normalized_payload["additional_field_keys"] = list(additional_field_keys)
-        normalized_payload["definition_variants_json"] = [variant.to_dict() for variant in variants]
-        normalized_payload["variants"] = [variant.to_dict() for variant in variants]
+        normalized_payload["additionalFieldKeys"] = list(additional_field_keys)
+
+        normalized_payload["definition_variants"] = variant_payloads
+        normalized_payload["definitionVariants"] = variant_payloads
+        normalized_payload["variants"] = variant_payloads
+        normalized_payload["definition_variants_json"] = compact_json(
+            variant_payloads
+        )
+        normalized_payload["definitionVariantsJson"] = normalized_payload[
+            "definition_variants_json"
+        ]
         normalized_payload["default_variant_id"] = default_variant_id
+        normalized_payload["defaultVariantId"] = default_variant_id
 
-        if normalized_documents:
-            normalized_payload["documents"] = [document.to_dict() for document in normalized_documents]
+        normalized_payload["documents"] = [
+            document.to_dict() for document in normalized_documents
+        ]
+        normalized_payload["assets"] = [
+            asset.to_dict() for asset in normalized_assets
+        ]
+        normalized_payload["variables"] = normalized_variables
 
-        if normalized_assets:
-            normalized_payload["assets"] = [asset.to_dict() for asset in normalized_assets]
+        normalized_payload = normalize_upload_contracts(normalized_payload)
 
-        if normalized_variables:
-            normalized_payload["variables"] = normalized_variables
+        normalized_payload["variant_count"] = len(variant_payloads)
+        normalized_payload["variantCount"] = len(variant_payloads)
+        normalized_payload["has_variants"] = bool(variant_payloads)
+        normalized_payload["hasVariants"] = bool(variant_payloads)
+        normalized_payload[
+            "_create_payload_schema_version"
+        ] = CREATE_VARIANT_PAYLOAD_SERVICE_SCHEMA_VERSION
+        normalized_payload[
+            "_create_payload_component"
+        ] = CREATE_VARIANT_PAYLOAD_SERVICE_COMPONENT
+        normalized_payload["_create_payload_fingerprint"] = compute_payload_fingerprint(
+            normalized_payload
+        )
 
-        if family_profile_id:
-            normalized_payload["family_profile_id"] = family_profile_id
+        validation = validate_create_variant_payload(normalized_payload)
+        for issue in validation["errors"]:
+            messages.append(
+                normalization_message(
+                    level="error",
+                    code=str(issue.get("code") or "CREATE_PAYLOAD_INVALID"),
+                    message=str(issue.get("message") or "Create payload is invalid."),
+                    field_path=clean_optional_string(issue.get("field")),
+                    details=normalize_json_mapping(
+                        issue.get("details")
+                        if isinstance(issue.get("details"), Mapping)
+                        else {}
+                    ),
+                )
+            )
 
-        if variant_profile_id:
-            normalized_payload["variant_profile_id"] = variant_profile_id
-
-        normalized_payload["variant_count"] = len(variants)
-        normalized_payload["has_variants"] = bool(variants)
-        normalized_payload["_create_payload_schema_version"] = CREATE_VARIANT_PAYLOAD_SERVICE_SCHEMA_VERSION
-        normalized_payload["_create_payload_component"] = CREATE_VARIANT_PAYLOAD_SERVICE_COMPONENT
+        for issue in validation["warnings"]:
+            messages.append(
+                normalization_message(
+                    level="warning",
+                    code=str(issue.get("code") or "CREATE_PAYLOAD_WARNING"),
+                    message=str(issue.get("message") or "Create payload warning."),
+                    field_path=clean_optional_string(issue.get("field")),
+                    details=normalize_json_mapping(
+                        issue.get("details")
+                        if isinstance(issue.get("details"), Mapping)
+                        else {}
+                    ),
+                )
+            )
 
         messages.append(
             normalization_message(
@@ -723,20 +949,38 @@ def normalize_create_variant_payload_result(
                 message="Create variant payload normalized.",
                 details={
                     "vplib_uid": normalized_payload.get(VPLIB_UID_FIELD),
-                    "variant_count": len(variants),
+                    "variant_count": len(variant_payloads),
                     "default_variant_id": default_variant_id,
+                    "family_profile_id": family_profile_id,
+                    "variant_profile_id": variant_profile_id,
+                    "object_kind": normalized_payload.get("object_kind"),
+                    "starter_contract": normalized_payload.get(
+                        "_starter_contract",
+                        {},
+                    ),
                     "additional_field_key_count": len(additional_field_keys),
                     "document_count": len(normalized_documents),
                     "asset_count": len(normalized_assets),
                     "variable_count": len(normalized_variables),
+                    "payload_fingerprint": normalized_payload.get(
+                        "_create_payload_fingerprint"
+                    ),
                 },
             )
         )
 
-        return CreateVariantPayloadNormalizationResult(
+        result = CreateVariantPayloadNormalizationResult(
             payload=normalized_payload,
             messages=tuple(messages),
         ).normalized()
+
+        if strict and not result.ok:
+            raise CreateVariantPayloadError(
+                "; ".join(message.message for message in result.errors)
+                or "Create variant payload normalization failed."
+            )
+
+        return result
 
     except Exception as exc:
         if not messages:
@@ -750,7 +994,11 @@ def normalize_create_variant_payload_result(
 
         if strict:
             raise CreateVariantPayloadError(
-                "; ".join(message.message for message in messages if message.level == "error")
+                "; ".join(
+                    message.message
+                    for message in messages
+                    if message.level == "error"
+                )
                 or str(exc)
             ) from exc
 
@@ -767,6 +1015,968 @@ def normalize_create_variant_payload_result(
             payload=fallback_payload,
             messages=tuple(messages),
         ).normalized()
+
+
+# ---------------------------------------------------------------------------
+# Starter contract / payload validation
+# ---------------------------------------------------------------------------
+
+
+def canonicalize_family_profile_id(value: Any) -> str | None:
+    """Return the canonical starter family profile ID for known aliases."""
+    cleaned = clean_optional_string(value)
+    if not cleaned:
+        return None
+
+    normalized = normalize_profile_identifier(cleaned)
+    if normalized in STARTER_FAMILY_PROFILE_ALIASES:
+        return STARTER_FAMILY_PROFILE_ID
+    return cleaned
+
+
+def canonicalize_variant_profile_id(value: Any) -> str | None:
+    """Return the canonical starter variant profile ID for known aliases."""
+    cleaned = clean_optional_string(value)
+    if not cleaned:
+        return None
+
+    normalized = normalize_profile_identifier(cleaned)
+    if normalized in STARTER_VARIANT_PROFILE_ALIASES:
+        return STARTER_VARIANT_PROFILE_ID
+    return cleaned
+
+
+def normalize_profile_identifier(value: Any) -> str:
+    """Normalize a profile ID without removing its version separator."""
+    cleaned = str(value or "").replace("\x00", "").strip().lower()
+    cleaned = cleaned.replace("-", "_").replace(" ", "")
+    cleaned = re.sub(r"[^a-z0-9._]+", "_", cleaned)
+    cleaned = re.sub(r"_+", "_", cleaned)
+    return cleaned.strip("_")
+
+
+def is_starter_payload(payload: Mapping[str, Any]) -> bool:
+    """Return whether the payload belongs to the minimal starter contract."""
+    object_kind = normalize_slug_token(
+        first_present_value(payload, OBJECT_KIND_KEYS) or STARTER_OBJECT_KIND
+    )
+    family_profile_id = canonicalize_family_profile_id(
+        first_present_value(payload, FAMILY_PROFILE_ID_KEYS)
+    )
+    variant_profile_id = canonicalize_variant_profile_id(
+        first_present_value(payload, VARIANT_PROFILE_ID_KEYS)
+    )
+
+    return (
+        object_kind == STARTER_OBJECT_KIND
+        and family_profile_id in {None, STARTER_FAMILY_PROFILE_ID}
+        and variant_profile_id in {None, STARTER_VARIANT_PROFILE_ID}
+    )
+
+
+def materialize_starter_payload(
+    payload: Mapping[str, Any],
+    *,
+    messages: list[PayloadNormalizationMessage] | None = None,
+) -> dict[str, Any]:
+    """
+    Materialize canonical values for the first downloadable ``cell_block``.
+
+    Existing valid values are preserved where possible. Profile aliases are
+    canonicalized and optional upload/document requirements remain optional.
+    """
+    data = normalize_json_mapping(payload)
+    object_kind = normalize_slug_token(
+        first_present_value(data, OBJECT_KIND_KEYS) or STARTER_OBJECT_KIND
+    )
+    family_profile_id = canonicalize_family_profile_id(
+        first_present_value(data, FAMILY_PROFILE_ID_KEYS)
+    )
+    variant_profile_id = canonicalize_variant_profile_id(
+        first_present_value(data, VARIANT_PROFILE_ID_KEYS)
+    )
+
+    starter_requested = (
+        object_kind == STARTER_OBJECT_KIND
+        and family_profile_id in {None, STARTER_FAMILY_PROFILE_ID}
+        and variant_profile_id in {None, STARTER_VARIANT_PROFILE_ID}
+    )
+
+    data["object_kind"] = object_kind
+    data["objectKind"] = object_kind
+
+    if family_profile_id:
+        data["family_profile_id"] = family_profile_id
+        data["familyProfileId"] = family_profile_id
+
+    if variant_profile_id:
+        data["variant_profile_id"] = variant_profile_id
+        data["variantProfileId"] = variant_profile_id
+
+    if not starter_requested:
+        return data
+
+    data["object_kind"] = STARTER_OBJECT_KIND
+    data["objectKind"] = STARTER_OBJECT_KIND
+    data["family_profile_id"] = STARTER_FAMILY_PROFILE_ID
+    data["familyProfileId"] = STARTER_FAMILY_PROFILE_ID
+    data["variant_profile_id"] = STARTER_VARIANT_PROFILE_ID
+    data["variantProfileId"] = STARTER_VARIANT_PROFILE_ID
+
+    family_name = clean_optional_string(
+        first_present_value(
+            data,
+            ("family_name", "familyName", "name", "title"),
+        )
+    ) or STARTER_FAMILY_NAME
+    data["family_name"] = family_name
+    data["familyName"] = family_name
+
+    family_description = clean_optional_string(
+        first_present_value(
+            data,
+            ("family_description", "familyDescription", "description"),
+        )
+    )
+    if family_description:
+        data["family_description"] = family_description
+        data["familyDescription"] = family_description
+
+    for key, default_value in STARTER_TAXONOMY.items():
+        data[key] = normalize_slug_token(data.get(key) or default_value)
+
+    data["taxonomy_path"] = normalize_taxonomy_path(
+        first_present_value(data, ("taxonomy_path", "taxonomyPath"))
+        or "/".join(data[key] for key in ("domain", "category", "subcategory"))
+    )
+    data["taxonomyPath"] = data["taxonomy_path"]
+
+    primitive_shape = normalize_slug_token(
+        first_present_value(
+            data,
+            ("primitive_shape", "primitiveShape"),
+        )
+        or STARTER_PRIMITIVE_SHAPE
+    )
+    data["primitive_shape"] = primitive_shape or STARTER_PRIMITIVE_SHAPE
+    data["primitiveShape"] = data["primitive_shape"]
+
+    geometry_unit = normalize_geometry_unit(
+        first_present_value(data, UNIT_KEYS) or "m"
+    )
+    dimensions_mm = normalize_dimensions_mm(
+        data,
+        default_dimensions=STARTER_DIMENSIONS_MM,
+        geometry_unit=geometry_unit,
+    )
+    data["geometry_unit"] = geometry_unit
+    data["geometryUnit"] = geometry_unit
+
+    dimensions = normalize_json_mapping(
+        data.get("dimensions")
+        if isinstance(data.get("dimensions"), Mapping)
+        else {}
+    )
+    for axis in ("width", "height", "depth"):
+        mm_value = dimensions_mm[f"dimensions.{axis}_mm"]
+        dimensions[f"{axis}_mm"] = mm_value
+        data[f"{axis}_mm"] = mm_value
+        data[f"dimensions_{axis}_mm"] = mm_value
+
+        geometry_value = dimension_mm_to_geometry_value(
+            mm_value,
+            geometry_unit,
+        )
+        snake_key = f"geometry_{axis}"
+        camel_key = f"geometry{axis.title()}"
+        formatted = format_decimal(geometry_value)
+        data[snake_key] = formatted
+        data[camel_key] = formatted
+
+    data["dimensions"] = dimensions
+
+    editor_block = normalize_json_mapping(
+        data.get("editor_block")
+        if isinstance(data.get("editor_block"), Mapping)
+        else {}
+    )
+    cells = normalize_json_mapping(
+        editor_block.get("cells")
+        if isinstance(editor_block.get("cells"), Mapping)
+        else {}
+    )
+
+    for axis in ("x", "y", "z"):
+        snake_key = f"editor_cells_{axis}"
+        camel_key = f"editorCells{axis.upper()}"
+        value = normalize_positive_int(
+            first_present_value(data, (snake_key, camel_key))
+            or cells.get(axis)
+            or 1,
+            default=1,
+        )
+        data[snake_key] = str(value)
+        data[camel_key] = str(value)
+        cells[axis] = value
+
+    editor_block["cells"] = cells
+    data["editor_block"] = editor_block
+    data["editorBlock"] = editor_block
+
+    data.setdefault("documents", [])
+    data.setdefault("assets", [])
+    data.setdefault("variables", [])
+    data["documents_required"] = False
+    data["documentsRequired"] = False
+    data["requires_documents"] = False
+    data["requiresDocuments"] = False
+    data["requires_external_assets"] = False
+    data["requiresExternalAssets"] = False
+    data["manufacturer_mode"] = (
+        clean_optional_string(data.get("manufacturer_mode")) or "optional"
+    )
+    data["manufacturerMode"] = data["manufacturer_mode"]
+
+    data = normalize_upload_contracts(data)
+
+    data["_starter_contract"] = {
+        "requested": True,
+        "ready": True,
+        "object_kind": STARTER_OBJECT_KIND,
+        "family_profile_id": STARTER_FAMILY_PROFILE_ID,
+        "variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+        "default_variant_id": DEFAULT_VARIANT_ID,
+        "dimensions_mm": {
+            axis: dimensions_mm[f"dimensions.{axis}_mm"]
+            for axis in ("width", "height", "depth")
+        },
+        "documents_required": False,
+        "external_assets_required": False,
+        "manufacturer_data_required": False,
+    }
+
+    if messages is not None:
+        messages.append(
+            normalization_message(
+                level="info",
+                code="CREATE_STARTER_CONTRACT_MATERIALIZED",
+                message="Canonical simple cell block starter contract materialized.",
+                details=data["_starter_contract"],
+            )
+        )
+
+    return data
+
+
+def materialize_starter_definition_values(
+    payload: Mapping[str, Any],
+    values: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Merge canonical starter defaults into top-level definition values."""
+    result = normalize_json_mapping(values)
+    if not is_starter_payload(payload):
+        return result
+
+    dimensions_mm = normalize_dimensions_mm(
+        payload,
+        default_dimensions=STARTER_DIMENSIONS_MM,
+        geometry_unit=normalize_geometry_unit(
+            first_present_value(payload, UNIT_KEYS) or "m"
+        ),
+    )
+    result["variant.variant_id"] = (
+        clean_optional_string(result.get("variant.variant_id"))
+        or DEFAULT_VARIANT_ID
+    )
+    result["variant.label"] = (
+        clean_optional_string(result.get("variant.label"))
+        or DEFAULT_VARIANT_LABEL
+    )
+    result.setdefault(
+        "variant.description",
+        "Standardvariante für einen einfachen Rasterblock.",
+    )
+
+    for key, value in dimensions_mm.items():
+        result[key] = value
+
+    result.setdefault("material.type", "generic")
+    result.setdefault("material.subtype", "generic_block")
+    result.setdefault("material.color_hint", "#9CA3AF")
+    return result
+
+
+def materialize_variant_payloads(
+    variants: Iterable[NormalizedVariant],
+    payload: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Convert normalized variants into the canonical route-service shape."""
+    starter = is_starter_payload(payload)
+    family_profile_id = canonicalize_family_profile_id(
+        first_present_value(payload, FAMILY_PROFILE_ID_KEYS)
+    )
+    variant_profile_id = canonicalize_variant_profile_id(
+        first_present_value(payload, VARIANT_PROFILE_ID_KEYS)
+    )
+    object_kind = normalize_slug_token(
+        first_present_value(payload, OBJECT_KIND_KEYS) or STARTER_OBJECT_KIND
+    )
+    dimensions_mm = normalize_dimensions_mm(
+        payload,
+        default_dimensions=STARTER_DIMENSIONS_MM if starter else {},
+        geometry_unit=normalize_geometry_unit(
+            first_present_value(payload, UNIT_KEYS) or "m"
+        ),
+    )
+
+    result: list[dict[str, Any]] = []
+    for index, variant in enumerate(variants or ()):
+        item = variant.to_dict()
+        variant_id = normalize_variant_id_or_fallback(
+            item.get("variant_id"),
+            fallback=DEFAULT_VARIANT_ID if index == 0 else f"variant_{index + 1}",
+            index=index,
+            used_ids={
+                str(existing.get("variant_id"))
+                for existing in result
+                if existing.get("variant_id")
+            },
+        )
+        label = clean_optional_string(item.get("label")) or (
+            DEFAULT_VARIANT_LABEL
+            if variant_id == DEFAULT_VARIANT_ID
+            else label_from_variant_id(variant_id)
+        )
+
+        definition_values = normalize_definition_values(
+            item.get("definition_values")
+        )
+        definition_values["variant.variant_id"] = variant_id
+        definition_values["variant.label"] = label
+        if starter:
+            for key, value in dimensions_mm.items():
+                definition_values.setdefault(key, value)
+
+        additional_keys = list(
+            normalize_additional_field_keys(
+                item.get("additional_field_keys")
+            )
+        )
+
+        item.update(
+            {
+                "variant_id": variant_id,
+                "variantId": variant_id,
+                "variant_key": variant_id,
+                "variantKey": variant_id,
+                "label": label,
+                "name": label,
+                "family_profile_id": family_profile_id,
+                "familyProfileId": family_profile_id,
+                "variant_profile_id": variant_profile_id,
+                "variantProfileId": variant_profile_id,
+                "object_kind": object_kind,
+                "objectKind": object_kind,
+                "definition_values": definition_values,
+                "definitionValues": definition_values,
+                "definition_values_json": compact_json(definition_values),
+                "definitionValuesJson": compact_json(definition_values),
+                "additional_field_keys": additional_keys,
+                "additionalFieldKeys": additional_keys,
+            }
+        )
+        result.append(item)
+
+    if not result:
+        definition_values = materialize_starter_definition_values(payload, {})
+        result = [
+            {
+                "variant_id": DEFAULT_VARIANT_ID,
+                "variantId": DEFAULT_VARIANT_ID,
+                "variant_key": DEFAULT_VARIANT_ID,
+                "variantKey": DEFAULT_VARIANT_ID,
+                "label": DEFAULT_VARIANT_LABEL,
+                "name": DEFAULT_VARIANT_LABEL,
+                "description": "",
+                "is_default": True,
+                "isDefault": True,
+                "family_profile_id": family_profile_id,
+                "familyProfileId": family_profile_id,
+                "variant_profile_id": variant_profile_id,
+                "variantProfileId": variant_profile_id,
+                "object_kind": object_kind,
+                "objectKind": object_kind,
+                "definition_values": definition_values,
+                "definitionValues": definition_values,
+                "definition_values_json": compact_json(definition_values),
+                "definitionValuesJson": compact_json(definition_values),
+                "additional_field_keys": [],
+                "additionalFieldKeys": [],
+                "source": (
+                    "library_create_variant_payload_service.starter_default"
+                ),
+            }
+        ]
+
+    return result
+
+
+def resolve_default_variant_id_from_payloads(
+    variants: Sequence[Mapping[str, Any]],
+    *,
+    explicit_default_variant_id: Any = None,
+) -> str:
+    """Resolve a valid default ID from canonical variant mappings."""
+    explicit = clean_optional_string(explicit_default_variant_id)
+    if explicit:
+        try:
+            explicit = normalize_variant_id(
+                explicit,
+                field_name="default_variant_id",
+            )
+        except Exception:
+            explicit = None
+
+    available_ids = [
+        clean_optional_string(item.get("variant_id"))
+        for item in variants
+        if isinstance(item, Mapping)
+    ]
+    available_ids = [item for item in available_ids if item]
+
+    if explicit and explicit in available_ids:
+        return explicit
+
+    for item in variants:
+        if not isinstance(item, Mapping):
+            continue
+        if parse_bool(
+            item.get("is_default", item.get("isDefault")),
+            default=False,
+        ):
+            candidate = clean_optional_string(item.get("variant_id"))
+            if candidate:
+                return candidate
+
+    return available_ids[0] if available_ids else DEFAULT_VARIANT_ID
+
+
+def enforce_single_default_variant_payload(
+    variants: Sequence[Mapping[str, Any]],
+    *,
+    default_variant_id: str,
+) -> list[dict[str, Any]]:
+    """Return variant mappings with exactly one selected default."""
+    normalized_default = normalize_variant_id(
+        default_variant_id,
+        field_name="default_variant_id",
+    )
+    result: list[dict[str, Any]] = []
+
+    for raw_item in variants:
+        item = normalize_json_mapping(raw_item)
+        variant_id = normalize_variant_id(
+            item.get("variant_id"),
+            field_name="variant_id",
+        )
+        is_default = variant_id == normalized_default
+        item["is_default"] = is_default
+        item["isDefault"] = is_default
+        result.append(item)
+
+    return result
+
+
+def normalize_upload_contracts(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize all upload blocks and keep starter uploads optional."""
+    data = normalize_json_mapping(payload)
+    by_kind: dict[str, Any] = {}
+
+    existing_uploads = data.get("uploads")
+    if isinstance(existing_uploads, Mapping):
+        by_kind.update(normalize_json_mapping(existing_uploads))
+
+    for kind, snake_key, camel_key in UPLOAD_CONTRACT_FIELDS:
+        candidate = first_present_value(
+            data,
+            (
+                snake_key,
+                camel_key,
+                f"{snake_key}_json",
+                f"{camel_key}Json",
+            ),
+        )
+        contract = normalize_upload_contract(candidate, kind=kind)
+        data[snake_key] = contract
+        data[camel_key] = contract
+        data[f"{snake_key}_json"] = compact_json(contract)
+        data[f"{camel_key}Json"] = data[f"{snake_key}_json"]
+        by_kind[kind] = contract
+
+    data["uploads"] = by_kind
+    data["uploadsByKind"] = by_kind
+    data["uploads_json"] = compact_json(by_kind)
+    data["uploadsJson"] = data["uploads_json"]
+
+    file_count = sum(
+        normalize_non_negative_int(
+            contract.get("count"),
+            "upload_count",
+        )
+        for contract in by_kind.values()
+        if isinstance(contract, Mapping)
+    )
+    error_count = sum(
+        len(contract.get("errors") or [])
+        for contract in by_kind.values()
+        if isinstance(contract, Mapping)
+    )
+    summary = {
+        "fileCount": file_count,
+        "file_count": file_count,
+        "errorCount": error_count,
+        "error_count": error_count,
+        "ok": error_count == 0,
+        "kinds": sorted(by_kind.keys()),
+    }
+    data["uploads_summary"] = summary
+    data["uploadsSummary"] = summary
+    return data
+
+
+def normalize_upload_contract(value: Any, *, kind: str) -> dict[str, Any]:
+    """Normalize one upload metadata block without requiring file bytes."""
+    parsed = parse_json_like(value, default={})
+    source = normalize_json_mapping(parsed) if isinstance(parsed, Mapping) else {}
+    files = source.get("files")
+    errors = source.get("errors")
+
+    if not isinstance(files, list):
+        files = []
+    if not isinstance(errors, list):
+        errors = []
+
+    normalized_files = [
+        normalize_json_mapping(item)
+        if isinstance(item, Mapping)
+        else {"name": clean_optional_string(item) or ""}
+        for item in files
+    ]
+    contract = {
+        "version": (
+            clean_optional_string(source.get("version"))
+            or CREATE_VARIANT_PAYLOAD_SERVICE_SCHEMA_VERSION
+        ),
+        "kind": normalize_slug_token(source.get("kind") or kind),
+        "purpose": normalize_slug_token(
+            source.get("purpose") or upload_purpose_for_kind(kind)
+        ),
+        "required": parse_bool(source.get("required"), default=False),
+        "minimum_count": normalize_non_negative_int(
+            source.get("minimum_count", source.get("minimumCount", 0)),
+            "minimum_count",
+        ),
+        "count": len(normalized_files),
+        "valid_count": sum(
+            1 for item in normalized_files if item.get("valid", True) is not False
+        ),
+        "invalid_count": sum(
+            1 for item in normalized_files if item.get("valid", True) is False
+        ),
+        "files": normalized_files,
+        "errors": [normalize_json_value(item) for item in errors],
+        "ok": len(errors) == 0,
+        "backend_enabled": parse_bool(
+            source.get("backend_enabled", source.get("backendEnabled")),
+            default=True,
+        ),
+        "local_only": parse_bool(
+            source.get("local_only", source.get("localOnly")),
+            default=bool(normalized_files),
+        ),
+        "source": (
+            clean_optional_string(source.get("source"))
+            or "library_create_variant_payload_service"
+        ),
+    }
+    contract["minimumCount"] = contract["minimum_count"]
+    contract["validCount"] = contract["valid_count"]
+    contract["invalidCount"] = contract["invalid_count"]
+    contract["backendEnabled"] = contract["backend_enabled"]
+    contract["localOnly"] = contract["local_only"]
+    return contract
+
+
+def empty_upload_contract(kind: str) -> dict[str, Any]:
+    """Return a canonical optional empty upload contract."""
+    return normalize_upload_contract({}, kind=kind)
+
+
+def upload_purpose_for_kind(kind: str) -> str:
+    mapping = {
+        "geometry_model": "geometry_model",
+        "technical_documents": "manufacturer_documents",
+        "variant_documents": "variant_document_list",
+    }
+    return mapping.get(kind, kind or "upload")
+
+
+def normalize_dimensions_mm(
+    payload: Mapping[str, Any],
+    *,
+    default_dimensions: Mapping[str, Any] | None = None,
+    geometry_unit: str = "m",
+) -> dict[str, int]:
+    """Resolve width, height and depth into positive millimetre integers."""
+    defaults = dict(default_dimensions or {})
+    definition_values = normalize_definition_values(
+        first_present_value(payload, DEFINITION_VALUES_KEYS)
+    )
+    dimensions = (
+        normalize_json_mapping(payload.get("dimensions"))
+        if isinstance(payload.get("dimensions"), Mapping)
+        else {}
+    )
+    result: dict[str, int] = {}
+
+    for axis in ("width", "height", "depth"):
+        key = f"dimensions.{axis}_mm"
+        direct_candidates = (
+            definition_values.get(key),
+            payload.get(key),
+            dimensions.get(f"{axis}_mm"),
+            payload.get(f"{axis}_mm"),
+            payload.get(f"dimensions_{axis}_mm"),
+        )
+
+        resolved: int | None = None
+        for candidate in direct_candidates:
+            numeric = positive_float(candidate)
+            if numeric is not None:
+                resolved = max(1, int(round(numeric)))
+                break
+
+        if resolved is None:
+            geometry_candidate = first_present_value(
+                payload,
+                (
+                    f"geometry_{axis}",
+                    f"geometry{axis.title()}",
+                    axis,
+                ),
+            )
+            numeric = positive_float(geometry_candidate)
+            if numeric is not None:
+                resolved = geometry_value_to_mm(numeric, geometry_unit)
+
+        if resolved is None:
+            fallback = positive_float(defaults.get(key))
+            resolved = max(1, int(round(fallback or 1000.0)))
+
+        result[key] = resolved
+
+    return result
+
+
+def normalize_geometry_unit(value: Any) -> str:
+    unit = str(value or "m").replace("\x00", "").strip().lower()
+    return unit if unit in SUPPORTED_GEOMETRY_UNITS else "m"
+
+
+def geometry_value_to_mm(value: float, unit: str) -> int:
+    factor = {"m": 1000.0, "cm": 10.0, "mm": 1.0}.get(
+        normalize_geometry_unit(unit),
+        1000.0,
+    )
+    return max(1, int(round(value * factor)))
+
+
+def dimension_mm_to_geometry_value(value_mm: int, unit: str) -> float:
+    divisor = {"m": 1000.0, "cm": 10.0, "mm": 1.0}.get(
+        normalize_geometry_unit(unit),
+        1000.0,
+    )
+    return float(value_mm) / divisor
+
+
+def positive_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+
+    try:
+        number = float(str(value).replace(",", ".").strip())
+    except Exception:
+        return None
+
+    if not math.isfinite(number) or number <= 0:
+        return None
+    return number
+
+
+def normalize_positive_int(value: Any, *, default: int = 1) -> int:
+    try:
+        number = int(float(str(value).replace(",", ".").strip()))
+    except Exception:
+        number = default
+    return max(1, number)
+
+
+def format_decimal(value: float) -> str:
+    text = f"{float(value):.6f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def normalize_taxonomy_path(value: Any) -> str:
+    parts = [
+        normalize_slug_token(part)
+        for part in str(value or "").replace("\\", "/").split("/")
+    ]
+    return "/".join(part for part in parts if part)
+
+
+def validate_create_variant_payload(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate the normalized payload contract without calling VPLIB services."""
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    data = normalize_json_mapping(payload)
+
+    for field_name in ("family_name", "domain", "category", "subcategory"):
+        if not clean_optional_string(data.get(field_name)):
+            errors.append(
+                {
+                    "code": "CREATE_PAYLOAD_REQUIRED_FIELD_MISSING",
+                    "field": field_name,
+                    "message": f"Required create payload field is missing: {field_name}",
+                }
+            )
+
+    object_kind = normalize_slug_token(
+        first_present_value(data, OBJECT_KIND_KEYS) or ""
+    )
+    if not object_kind:
+        errors.append(
+            {
+                "code": "CREATE_PAYLOAD_OBJECT_KIND_MISSING",
+                "field": "object_kind",
+                "message": "object_kind is required.",
+            }
+        )
+
+    family_profile_id = canonicalize_family_profile_id(
+        first_present_value(data, FAMILY_PROFILE_ID_KEYS)
+    )
+    variant_profile_id = canonicalize_variant_profile_id(
+        first_present_value(data, VARIANT_PROFILE_ID_KEYS)
+    )
+    if not family_profile_id:
+        errors.append(
+            {
+                "code": "CREATE_PAYLOAD_FAMILY_PROFILE_MISSING",
+                "field": "family_profile_id",
+                "message": "family_profile_id is required.",
+            }
+        )
+    if not variant_profile_id:
+        errors.append(
+            {
+                "code": "CREATE_PAYLOAD_VARIANT_PROFILE_MISSING",
+                "field": "variant_profile_id",
+                "message": "variant_profile_id is required.",
+            }
+        )
+
+    variants = data.get("definition_variants")
+    if not isinstance(variants, list):
+        variants = coerce_variants_to_list(
+            parse_json_like(data.get("definition_variants_json"), default=[])
+        )
+
+    if not variants:
+        errors.append(
+            {
+                "code": "CREATE_PAYLOAD_VARIANTS_MISSING",
+                "field": "definition_variants",
+                "message": "At least one definition variant is required.",
+            }
+        )
+
+    default_ids = [
+        clean_optional_string(item.get("variant_id"))
+        for item in variants
+        if isinstance(item, Mapping)
+        and parse_bool(
+            item.get("is_default", item.get("isDefault")),
+            default=False,
+        )
+    ]
+    if len(default_ids) != 1:
+        errors.append(
+            {
+                "code": "CREATE_PAYLOAD_DEFAULT_VARIANT_INVALID",
+                "field": "default_variant_id",
+                "message": "Exactly one default variant is required.",
+                "details": {"default_variant_ids": default_ids},
+            }
+        )
+
+    explicit_default = clean_optional_string(
+        first_present_value(data, DEFAULT_VARIANT_ID_KEYS)
+    )
+    if explicit_default and default_ids and explicit_default != default_ids[0]:
+        errors.append(
+            {
+                "code": "CREATE_PAYLOAD_DEFAULT_VARIANT_MISMATCH",
+                "field": "default_variant_id",
+                "message": "default_variant_id does not match the selected default variant.",
+                "details": {
+                    "explicit": explicit_default,
+                    "selected": default_ids[0],
+                },
+            }
+        )
+
+    if is_starter_payload(data):
+        if family_profile_id != STARTER_FAMILY_PROFILE_ID:
+            errors.append(
+                {
+                    "code": "CREATE_STARTER_FAMILY_PROFILE_INVALID",
+                    "field": "family_profile_id",
+                    "message": "Starter family profile must be simple_cell_block.",
+                }
+            )
+        if variant_profile_id != STARTER_VARIANT_PROFILE_ID:
+            errors.append(
+                {
+                    "code": "CREATE_STARTER_VARIANT_PROFILE_INVALID",
+                    "field": "variant_profile_id",
+                    "message": "Starter variant profile must be simple_cell_block.v1.",
+                }
+            )
+
+        default_variant = next(
+            (
+                item
+                for item in variants
+                if isinstance(item, Mapping)
+                and parse_bool(
+                    item.get("is_default", item.get("isDefault")),
+                    default=False,
+                )
+            ),
+            {},
+        )
+        definition_values = normalize_definition_values(
+            default_variant.get("definition_values")
+            if isinstance(default_variant, Mapping)
+            else {}
+        )
+
+        for key in STARTER_REQUIRED_VALUE_KEYS:
+            if key not in definition_values:
+                errors.append(
+                    {
+                        "code": "CREATE_STARTER_VALUE_MISSING",
+                        "field": key,
+                        "message": f"Starter definition value is missing: {key}",
+                    }
+                )
+
+        for key in (
+            "dimensions.width_mm",
+            "dimensions.height_mm",
+            "dimensions.depth_mm",
+        ):
+            if positive_float(definition_values.get(key)) is None:
+                errors.append(
+                    {
+                        "code": "CREATE_STARTER_DIMENSION_INVALID",
+                        "field": key,
+                        "message": f"Starter dimension must be greater than zero: {key}",
+                    }
+                )
+
+        for _, snake_key, _ in UPLOAD_CONTRACT_FIELDS:
+            contract = data.get(snake_key)
+            if isinstance(contract, Mapping) and parse_bool(
+                contract.get("required"),
+                default=False,
+            ):
+                errors.append(
+                    {
+                        "code": "CREATE_STARTER_UPLOAD_MUST_BE_OPTIONAL",
+                        "field": snake_key,
+                        "message": "Starter uploads must remain optional.",
+                    }
+                )
+
+    uid = data.get(VPLIB_UID_FIELD)
+    if uid and not normalize_vplib_uid_safe(uid):
+        errors.append(
+            {
+                "code": "CREATE_PAYLOAD_INVALID_VPLIB_UID",
+                "field": VPLIB_UID_FIELD,
+                "message": "vplib_uid is invalid.",
+            }
+        )
+
+    if not data.get("documents"):
+        warnings.append(
+            {
+                "code": "CREATE_PAYLOAD_NO_DOCUMENTS",
+                "field": "documents",
+                "message": "No documents are attached; this is allowed for the starter profile.",
+            }
+        )
+
+    return {
+        "ok": not errors,
+        "ready": not errors,
+        "status": "ready" if not errors else "invalid",
+        "errors": errors,
+        "warnings": warnings,
+        "starter": is_starter_payload(data),
+        "variant_count": len(variants),
+        "default_variant_id": explicit_default or (
+            default_ids[0] if default_ids else None
+        ),
+    }
+
+
+def compute_payload_fingerprint(payload: Mapping[str, Any]) -> str:
+    """Return a stable SHA-256 fingerprint without volatile request metadata."""
+    canonical = _fingerprint_value(payload)
+    encoded = compact_json(canonical).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _fingerprint_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        result: dict[str, Any] = {}
+        for key in sorted(str(item) for item in value.keys()):
+            if key in PAYLOAD_FINGERPRINT_IGNORED_KEYS:
+                continue
+            if key.startswith("_"):
+                continue
+            result[key] = _fingerprint_value(value.get(key))
+        return result
+
+    if isinstance(value, (list, tuple)):
+        return [_fingerprint_value(item) for item in value]
+
+    return normalize_json_value(value)
+
+
+def compact_json(value: Any) -> str:
+    """Serialize a JSON-compatible value deterministically."""
+    return json.dumps(
+        normalize_json_value(value),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
 
 
 def ensure_create_payload_vplib_uid(
@@ -836,6 +2046,12 @@ def get_service_health() -> dict[str, Any]:
             "variables": True,
             "form_bracket_notation": True,
             "json_string_fields": True,
+            "starter_cell_block_contract": True,
+            "canonical_profile_aliases": True,
+            "millimetre_dimensions": True,
+            "optional_upload_contracts": True,
+            "payload_fingerprint": True,
+            "contract_validation": True,
         },
     }
 
@@ -2130,6 +3346,14 @@ __all__ = [
     "CREATE_VARIANT_PAYLOAD_SERVICE_SCHEMA_VERSION",
     "DEFAULT_VARIANT_ID",
     "DEFAULT_VARIANT_LABEL",
+    "STARTER_OBJECT_KIND",
+    "STARTER_FAMILY_PROFILE_ID",
+    "STARTER_VARIANT_PROFILE_ID",
+    "STARTER_FAMILY_NAME",
+    "STARTER_PRIMITIVE_SHAPE",
+    "STARTER_TAXONOMY",
+    "STARTER_DIMENSIONS_MM",
+    "STARTER_REQUIRED_VALUE_KEYS",
     "DEFINITION_VALUES_KEYS",
     "DEFINITION_VARIANTS_KEYS",
     "DOCUMENTS_KEYS",
@@ -2171,6 +3395,20 @@ __all__ = [
     "normalize_create_payload",
     "normalize_create_variant_payload",
     "normalize_create_variant_payload_result",
+    "canonicalize_family_profile_id",
+    "canonicalize_variant_profile_id",
+    "compute_payload_fingerprint",
+    "empty_upload_contract",
+    "is_starter_payload",
+    "materialize_starter_definition_values",
+    "materialize_starter_payload",
+    "materialize_variant_payloads",
+    "normalize_dimensions_mm",
+    "normalize_profile_identifier",
+    "normalize_taxonomy_path",
+    "normalize_upload_contract",
+    "normalize_upload_contracts",
+    "validate_create_variant_payload",
 
     # Variant helpers
     "coerce_variants_to_list",

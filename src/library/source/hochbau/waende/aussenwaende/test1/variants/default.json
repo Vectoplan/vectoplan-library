@@ -1,0 +1,55 @@
+{
+  "schema_version": "0.1.0",
+  "variant_id": "additionalfieldkeys",
+  "variant_key": "additionalfieldkeys",
+  "label": "Additionalfieldkeys",
+  "description": "",
+  "kind": "standard",
+  "is_default": true,
+  "active": true,
+  "visible": true,
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "definition_values": {
+    "dimensions.depth_mm": 1000,
+    "dimensions.height_mm": 1000,
+    "dimensions.width_mm": 1000,
+    "material.color_hint": "#9CA3AF",
+    "material.subtype": "generic_block",
+    "material.type": "generic",
+    "value": [
+      "dimensions.width_mm",
+      "dimensions.height_mm",
+      "dimensions.depth_mm",
+      "material.type",
+      "material.subtype",
+      "material.color_hint",
+      "variant.label"
+    ],
+    "variant.description": "Standardvariante für einen einfachen Rasterblock.",
+    "variant.label": "Additionalfieldkeys",
+    "variant.variant_id": "additionalfieldkeys"
+  },
+  "additional_field_keys": [],
+  "overrides": {
+    "dimensions.depth_mm": 1000,
+    "dimensions.height_mm": 1000,
+    "dimensions.width_mm": 1000,
+    "material.color_hint": "#9CA3AF",
+    "material.subtype": "generic_block",
+    "material.type": "generic",
+    "value": [
+      "dimensions.width_mm",
+      "dimensions.height_mm",
+      "dimensions.depth_mm",
+      "material.type",
+      "material.subtype",
+      "material.color_hint",
+      "variant.label"
+    ],
+    "variant.description": "Standardvariante für einen einfachen Rasterblock.",
+    "variant.label": "Additionalfieldkeys",
+    "variant.variant_id": "additionalfieldkeys"
+  }
+}

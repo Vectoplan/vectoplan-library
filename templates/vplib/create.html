@@ -1,4 +1,6 @@
 {# services/vectoplan-library/templates/vplib/create.html #}
+{% set _create_template_version = '1.0.0' %}
+{% set _create_asset_version = '20260710.3' %}
 <!doctype html>
 <html
   lang="de"
@@ -11,7 +13,7 @@
   data-vp-create-color-scheme="dark"
   data-vp-create-style="black"
   data-vp-create-template-root="vplib"
-  data-vp-create-template-version="0.7.0"
+  data-vp-create-template-version="{{ _create_template_version }}"
   data-vp-create-css-mode="single-file"
   data-vp-create-variant-runtime="definition-managed"
 >
@@ -39,10 +41,10 @@
         root.setAttribute("data-vp-create-color-scheme", "dark");
         root.setAttribute("data-vp-create-style", "black");
         root.setAttribute("data-vp-create-template-root", "vplib");
-        root.setAttribute("data-vp-create-template-version", "0.7.0");
+        root.setAttribute("data-vp-create-template-version", {{ _create_template_version | tojson }});
         root.setAttribute("data-vp-create-css-mode", "single-file");
         root.setAttribute("data-vp-create-variant-runtime", "definition-managed");
-        root.setAttribute("data-vp-create-variant-runtime-version", "0.7.0");
+        root.setAttribute("data-vp-create-variant-runtime-version", {{ _create_template_version | tojson }});
 
         try {
           var isEmbedded = false;
@@ -98,6 +100,500 @@
     data-vp-create-stylesheet="vplib/create.css"
     data-vp-create-css-mode="single-file"
   />
+
+  <script data-vp-create-shell-action-bridge="true">
+    (function () {
+      "use strict";
+
+      var GLOBAL_NAME = "VectoplanCreateShellActionBridge";
+      var BRIDGE_VERSION = "1.0.0";
+      var EVENT_HANDLED_KEY = "__vpCreateActionsHandled";
+      var CAPTURE_HANDLER_KEY = "__vpCreateShellActionCaptureHandler";
+      var BUTTON_SELECTOR = "[data-create-action][data-vp-action-button], [data-create-action].vp-create-action-button";
+      var FORM_SELECTOR = "[data-vp-create-form], [data-create-form='true'], #vp-create-form, form[data-create-form]";
+      var ROOT_SELECTOR = "[data-vp-actions-root='true'], [data-create-actions-card='true'], [data-vp-create-section='actions']";
+      var STATUS_SELECTOR = "[data-vp-action-status], [data-create-action-status='true']";
+      var RUNTIME_POLL_MS = 40;
+      var RUNTIME_WAIT_MS = 12000;
+      var MAX_ERROR_HISTORY = 16;
+
+      var token = [
+        GLOBAL_NAME,
+        BRIDGE_VERSION,
+        Date.now(),
+        Math.random().toString(36).slice(2)
+      ].join(":");
+
+      var runtimeWaitPromise = null;
+      var state = {
+        version: BRIDGE_VERSION,
+        initialized: false,
+        bound: false,
+        ready: false,
+        pending: false,
+        clickCount: 0,
+        handledCount: 0,
+        duplicateCount: 0,
+        blockedCount: 0,
+        runtimeWaitCount: 0,
+        runtimeResolveCount: 0,
+        actionStartCount: 0,
+        actionCompleteCount: 0,
+        actionErrorCount: 0,
+        currentAction: "",
+        lastAction: "",
+        lastClickAt: "",
+        lastResult: null,
+        lastError: null,
+        errors: []
+      };
+
+      function nowIso() {
+        try {
+          return new Date().toISOString();
+        } catch (error) {
+          return "";
+        }
+      }
+
+      function clone(value) {
+        try {
+          return JSON.parse(JSON.stringify(value));
+        } catch (error) {
+          return value;
+        }
+      }
+
+      function rememberError(stage, error) {
+        try {
+          var normalized = {
+            stage: String(stage || "shell_action_bridge"),
+            name: error && error.name ? String(error.name) : "Error",
+            message: error && error.message ? String(error.message) : String(error || "Unknown error"),
+            timestamp: nowIso()
+          };
+
+          state.lastError = normalized;
+          state.errors.push(normalized);
+
+          if (state.errors.length > MAX_ERROR_HISTORY) {
+            state.errors.splice(0, state.errors.length - MAX_ERROR_HISTORY);
+          }
+
+          return normalized;
+        } catch (normalizationError) {
+          return {
+            stage: String(stage || "shell_action_bridge"),
+            name: "Error",
+            message: "Unknown error",
+            timestamp: nowIso()
+          };
+        }
+      }
+
+      function safeSetAttribute(node, name, value) {
+        try {
+          if (!node || !name) {
+            return false;
+          }
+          node.setAttribute(name, String(value));
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function updateRootState(status) {
+        try {
+          var documentRoot = document.documentElement;
+          safeSetAttribute(documentRoot, "data-vp-create-shell-action-bridge", state.bound ? "true" : "false");
+          safeSetAttribute(documentRoot, "data-vp-create-shell-action-bridge-ready", state.ready ? "true" : "false");
+          safeSetAttribute(documentRoot, "data-vp-create-shell-action-bridge-version", BRIDGE_VERSION);
+          safeSetAttribute(documentRoot, "data-vp-create-shell-action-bridge-status", status || (state.ready ? "ready" : "initializing"));
+          safeSetAttribute(documentRoot, "data-vp-create-shell-action-bridge-click-count", state.clickCount);
+          safeSetAttribute(documentRoot, "data-vp-create-shell-action-bridge-handled-count", state.handledCount);
+          safeSetAttribute(documentRoot, "data-vp-create-shell-action-bridge-pending", state.pending ? "true" : "false");
+        } catch (error) {
+          /* no-op */
+        }
+      }
+
+      function setStatus(button, message, status) {
+        try {
+          var root = button && typeof button.closest === "function"
+            ? button.closest(ROOT_SELECTOR)
+            : document.querySelector(ROOT_SELECTOR);
+          var node = root && typeof root.querySelector === "function"
+            ? root.querySelector(STATUS_SELECTOR)
+            : document.querySelector(STATUS_SELECTOR);
+
+          if (node) {
+            node.textContent = String(message || "Bereit.");
+            safeSetAttribute(node, "data-vp-actions-status", status || "idle");
+          }
+
+          if (root) {
+            safeSetAttribute(root, "data-vp-actions-state", status || "idle");
+          }
+        } catch (error) {
+          rememberError("set_status", error);
+        }
+      }
+
+      function normalizeAction(value) {
+        try {
+          var action = String(value || "").trim().toLowerCase().replace(/_/g, "-");
+          var aliases = {
+            "package-plan": "package-plan",
+            "persist-draft": "persist-draft",
+            "persistent-draft": "persist-draft",
+            "publish-prepare": "publish-prepare",
+            "publish-bundle": "publish-prepare"
+          };
+          var known = {
+            draft: true,
+            validate: true,
+            "package-plan": true,
+            download: true,
+            save: true,
+            "persist-draft": true,
+            "publish-prepare": true
+          };
+
+          action = aliases[action] || action;
+          return known[action] ? action : "";
+        } catch (error) {
+          return "";
+        }
+      }
+
+      function resolveButton(event, explicitButton) {
+        try {
+          if (explicitButton && explicitButton.nodeType === 1 && explicitButton.matches(BUTTON_SELECTOR)) {
+            return explicitButton;
+          }
+
+          var target = event && event.target ? event.target : null;
+          if (target && typeof target.closest === "function") {
+            return target.closest(BUTTON_SELECTOR);
+          }
+
+          return null;
+        } catch (error) {
+          rememberError("resolve_button", error);
+          return null;
+        }
+      }
+
+      function resolveForm(button) {
+        try {
+          if (button && button.form) {
+            return button.form;
+          }
+
+          if (button && typeof button.closest === "function") {
+            var closestForm = button.closest("form");
+            if (closestForm) {
+              return closestForm;
+            }
+          }
+
+          return document.querySelector(FORM_SELECTOR);
+        } catch (error) {
+          rememberError("resolve_form", error);
+          return null;
+        }
+      }
+
+      function isButtonBlocked(button) {
+        try {
+          return !button ||
+            button.disabled === true ||
+            button.getAttribute("aria-disabled") === "true" ||
+            button.getAttribute("data-create-static-disabled") === "true";
+        } catch (error) {
+          return true;
+        }
+      }
+
+      function resolveRuntime() {
+        try {
+          var actionsRuntime = window.VectoplanCreateActions;
+          if (actionsRuntime && typeof actionsRuntime.runAction === "function") {
+            return {
+              name: "VectoplanCreateActions",
+              runAction: function (action, form, button) {
+                return actionsRuntime.runAction(action, form, button);
+              }
+            };
+          }
+
+          var orchestrator = window.VectoplanCreate;
+          if (orchestrator && typeof orchestrator.runAction === "function") {
+            return {
+              name: "VectoplanCreate",
+              runAction: function (action) {
+                return orchestrator.runAction(action);
+              }
+            };
+          }
+
+          return null;
+        } catch (error) {
+          rememberError("resolve_runtime", error);
+          return null;
+        }
+      }
+
+      function waitForRuntime() {
+        try {
+          var immediate = resolveRuntime();
+          if (immediate) {
+            state.runtimeResolveCount += 1;
+            return Promise.resolve(immediate);
+          }
+
+          if (runtimeWaitPromise) {
+            return runtimeWaitPromise;
+          }
+
+          state.runtimeWaitCount += 1;
+          var startedAt = Date.now();
+
+          runtimeWaitPromise = new Promise(function (resolve, reject) {
+            function check() {
+              try {
+                var runtime = resolveRuntime();
+                if (runtime) {
+                  state.runtimeResolveCount += 1;
+                  runtimeWaitPromise = null;
+                  resolve(runtime);
+                  return;
+                }
+
+                if (Date.now() - startedAt >= RUNTIME_WAIT_MS) {
+                  runtimeWaitPromise = null;
+                  reject(new Error("Create-Actions-Runtime wurde nicht geladen."));
+                  return;
+                }
+
+                window.setTimeout(check, RUNTIME_POLL_MS);
+              } catch (error) {
+                runtimeWaitPromise = null;
+                reject(error);
+              }
+            }
+
+            check();
+          });
+
+          return runtimeWaitPromise;
+        } catch (error) {
+          return Promise.reject(error);
+        }
+      }
+
+      function markEventHandled(event) {
+        try {
+          if (!event) {
+            return true;
+          }
+
+          if (event[EVENT_HANDLED_KEY]) {
+            state.duplicateCount += 1;
+            return false;
+          }
+
+          event[EVENT_HANDLED_KEY] = token;
+          return true;
+        } catch (error) {
+          return true;
+        }
+      }
+
+      function executeAction(event, explicitButton) {
+        var button = resolveButton(event, explicitButton);
+        var action = normalizeAction(button && button.getAttribute("data-create-action"));
+        var form = resolveForm(button);
+
+        try {
+          state.clickCount += 1;
+          state.lastClickAt = nowIso();
+          updateRootState("click_received");
+
+          if (!button || !action) {
+            state.blockedCount += 1;
+            return false;
+          }
+
+          if (event && typeof event.preventDefault === "function") {
+            event.preventDefault();
+          }
+
+          if (!markEventHandled(event)) {
+            updateRootState("duplicate_ignored");
+            return false;
+          }
+
+          if (isButtonBlocked(button)) {
+            state.blockedCount += 1;
+            setStatus(button, "Aktion ist derzeit deaktiviert.", "blocked");
+            updateRootState("button_blocked");
+            return false;
+          }
+
+          if (state.pending) {
+            state.blockedCount += 1;
+            setStatus(button, "Es läuft bereits eine Aktion.", "blocked");
+            updateRootState("action_pending");
+            return false;
+          }
+
+          state.pending = true;
+          state.handledCount += 1;
+          state.actionStartCount += 1;
+          state.currentAction = action;
+          state.lastAction = action;
+          safeSetAttribute(button, "data-vp-shell-action-pending", "true");
+          safeSetAttribute(button, "aria-busy", "true");
+          setStatus(button, "Aktion wird gestartet: " + action, "loading");
+          updateRootState("runtime_wait");
+
+          Promise.resolve(waitForRuntime())
+            .then(function (runtime) {
+              updateRootState("runtime_ready");
+              return runtime.runAction(action, form, button);
+            })
+            .then(function (result) {
+              state.lastResult = clone(result);
+              state.actionCompleteCount += 1;
+              setStatus(
+                button,
+                result && result.ok === false
+                  ? "Aktion nicht erfolgreich: " + action
+                  : "Aktion abgeschlossen: " + action,
+                result && result.ok === false ? "warning" : "ok"
+              );
+              updateRootState(result && result.ok === false ? "completed_with_error" : "completed");
+            })
+            .catch(function (error) {
+              state.actionErrorCount += 1;
+              rememberError("execute_action", error);
+              setStatus(button, "Aktion fehlgeschlagen: " + String(error && error.message ? error.message : error), "error");
+              updateRootState("failed");
+            })
+            .finally(function () {
+              state.pending = false;
+              state.currentAction = "";
+              safeSetAttribute(button, "data-vp-shell-action-pending", "false");
+              safeSetAttribute(button, "aria-busy", "false");
+              updateRootState("ready");
+            });
+
+          return false;
+        } catch (error) {
+          state.pending = false;
+          state.currentAction = "";
+          state.actionErrorCount += 1;
+          rememberError("execute_action_sync", error);
+          setStatus(button, "Aktion konnte nicht gestartet werden.", "error");
+          updateRootState("failed");
+          return false;
+        }
+      }
+
+      function captureHandler(event) {
+        try {
+          var button = resolveButton(event, null);
+          if (!button) {
+            return;
+          }
+
+          var root = typeof button.closest === "function" ? button.closest(ROOT_SELECTOR) : null;
+          if (!root) {
+            return;
+          }
+
+          executeAction(event, button);
+        } catch (error) {
+          rememberError("capture_handler", error);
+          updateRootState("capture_failed");
+        }
+      }
+
+      function bind() {
+        try {
+          var previous = window[CAPTURE_HANDLER_KEY];
+          if (previous && typeof previous === "function") {
+            try {
+              document.removeEventListener("click", previous, true);
+            } catch (removeError) {
+              rememberError("remove_previous_handler", removeError);
+            }
+          }
+
+          document.addEventListener("click", captureHandler, true);
+          window[CAPTURE_HANDLER_KEY] = captureHandler;
+          state.bound = true;
+          state.ready = true;
+          state.initialized = true;
+          updateRootState("ready");
+          return true;
+        } catch (error) {
+          state.bound = false;
+          state.ready = false;
+          state.initialized = false;
+          rememberError("bind", error);
+          updateRootState("bind_failed");
+          return false;
+        }
+      }
+
+      function getState() {
+        try {
+          return clone(state);
+        } catch (error) {
+          return {
+            version: BRIDGE_VERSION,
+            initialized: state.initialized,
+            ready: state.ready,
+            error: rememberError("get_state", error)
+          };
+        }
+      }
+
+      function notifyRuntimeAvailable() {
+        try {
+          runtimeWaitPromise = null;
+          updateRootState(resolveRuntime() ? "runtime_available" : "runtime_pending");
+          return !!resolveRuntime();
+        } catch (error) {
+          rememberError("notify_runtime", error);
+          return false;
+        }
+      }
+
+      var api = {
+        version: BRIDGE_VERSION,
+        bind: bind,
+        runAction: executeAction,
+        handleClick: executeAction,
+        resolveRuntime: resolveRuntime,
+        waitForRuntime: waitForRuntime,
+        notifyRuntimeAvailable: notifyRuntimeAvailable,
+        getState: getState
+      };
+
+      window[GLOBAL_NAME] = api;
+
+      if (typeof window.vpRunCreateAction !== "function") {
+        window.vpRunCreateAction = executeAction;
+      }
+
+      bind();
+    })();
+  </script>
+
 </head>
 
 {% import "vplib/create/_macros.html" as create_ui %}
@@ -481,7 +977,7 @@
   data-vp-create-mode="wizard"
   data-vp-create-style="black"
   data-vp-create-template-root="vplib"
-  data-vp-create-template-version="0.7.0"
+  data-vp-create-template-version="{{ _create_template_version }}"
   data-vp-create-css-mode="single-file"
   data-create-api-prefix="{{ _api_prefix }}"
   data-vp-create-api-prefix="{{ _api_prefix }}"
@@ -494,7 +990,7 @@
   data-vp-create-generator-context-ready="{% if _generator_context_ready %}true{% else %}false{% endif %}"
   data-vp-create-payload-contract-ready="{% if _payload_contract_ready %}true{% else %}false{% endif %}"
   data-vp-create-variant-runtime="definition-managed"
-  data-vp-create-variant-runtime-version="0.7.0"
+  data-vp-create-variant-runtime-version="{{ _create_template_version }}"
   data-create-default-theme="{{ _create_default_theme }}"
   data-vp-create-default-theme="{{ _create_default_theme }}"
   data-create-theme-storage-key="{{ _create_theme_storage_key }}"
@@ -506,7 +1002,7 @@
     data-vp-create-shell="wizard"
     data-vp-create-style="black"
     data-vp-create-template-root="vplib"
-    data-vp-create-template-version="0.7.0"
+    data-vp-create-template-version="{{ _create_template_version }}"
     data-vp-create-css-mode="single-file"
     data-create-api-prefix="{{ _api_prefix }}"
     data-vp-create-api-prefix="{{ _api_prefix }}"
@@ -519,7 +1015,7 @@
     data-vp-create-generator-context-ready="{% if _generator_context_ready %}true{% else %}false{% endif %}"
     data-vp-create-payload-contract-ready="{% if _payload_contract_ready %}true{% else %}false{% endif %}"
     data-vp-create-variant-runtime="definition-managed"
-    data-vp-create-variant-runtime-version="0.7.0"
+    data-vp-create-variant-runtime-version="{{ _create_template_version }}"
     data-create-source-root="{{ _source_root }}"
     data-create-blueprint-version="{{ _blueprint_version }}"
     data-create-service-version="{{ _create_service_version }}"
@@ -536,6 +1032,8 @@
         id="vp-create-form"
         data-create-form="true"
         data-vp-create-form
+        data-vp-create-action-bridge="shell+template+runtime"
+        data-vp-create-action-bridge-version="1.0.0"
         data-create-form-state="idle"
         data-create-api-prefix="{{ _api_prefix }}"
         data-vp-create-api-prefix="{{ _api_prefix }}"
@@ -558,7 +1056,7 @@
         data-vp-route-save="{{ _routes.get('save', _api_prefix ~ '/save') }}"
         data-vp-route-cache-clear="{{ _routes.get('cache_clear', _api_prefix ~ '/cache/clear') }}"
         data-vp-create-variant-runtime="definition-managed"
-        data-vp-create-variant-runtime-version="0.7.0"
+        data-vp-create-variant-runtime-version="{{ _create_template_version }}"
         data-create-write-enabled="{% if _write_enabled %}true{% else %}false{% endif %}"
         data-create-health-ok="{% if _health_ok %}true{% else %}false{% endif %}"
         data-create-default-theme="{{ _create_default_theme }}"
@@ -672,7 +1170,7 @@
                 aria-label="Schritt 6: Prüfen und erzeugen"
                 {% if create_initial_step != 6 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
               >
-                {% include "vplib/create/sections/_actions.html" %}
+                {% include "vplib/create/sections/_actions.html" with context %}
               </section>
             </div>
           </div>
@@ -715,7 +1213,7 @@
         root.setAttribute("data-vp-create-shell-ready", "true");
         root.setAttribute("data-vp-create-style", "black");
         root.setAttribute("data-vp-create-template-root", "vplib");
-        root.setAttribute("data-vp-create-template-version", "0.7.0");
+        root.setAttribute("data-vp-create-template-version", {{ _create_template_version | tojson }});
         root.setAttribute("data-vp-create-css-mode", "single-file");
         root.style.colorScheme = "dark";
       } catch (error) {
@@ -752,6 +1250,18 @@
 
             root.setAttribute("data-vp-create-script-loaded-" + safeKey, "true");
             root.setAttribute("data-vp-create-script-loaded-count", String(loaded.length));
+
+            if (key === "create_actions" || safeKey === "create_actions") {
+              root.setAttribute("data-vp-create-actions-asset-loaded", "true");
+
+              try {
+                if (window.VectoplanCreateShellActionBridge && typeof window.VectoplanCreateShellActionBridge.notifyRuntimeAvailable === "function") {
+                  window.VectoplanCreateShellActionBridge.notifyRuntimeAvailable();
+                }
+              } catch (bridgeError) {
+                root.setAttribute("data-vp-create-shell-action-bridge-notify-error", "true");
+              }
+            }
 
             if (failed.length > 0) {
               root.setAttribute("data-vp-create-script-error-count", String(failed.length));
@@ -818,10 +1328,13 @@
 
   {% macro vp_create_script(filename, key) -%}
     <script
-      src="{{ url_for('static', filename='js/vplib/create/' ~ filename) }}"
+      src="{{ url_for('static', filename='js/vplib/create/' ~ filename, v=_create_asset_version) }}"
       defer
       data-vp-create-script="{{ key }}"
+      data-vp-create-script-file="{{ filename }}"
       data-vp-create-script-base="js/vplib/create"
+      data-vp-create-script-version="{{ _create_asset_version }}"
+      data-vp-create-template-version="{{ _create_template_version }}"
       onload="window.vpCreateAssetLoaded && window.vpCreateAssetLoaded(this)"
       onerror="window.vpCreateAssetLoadError && window.vpCreateAssetLoadError(this)"
     ></script>

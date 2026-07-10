@@ -1,74 +1,38 @@
 {# services/vectoplan-library/templates/vplib/create/_context_json.html #}
+{% set _context_template_version = '1.0.0' %}
+{% set _context_schema_version = 'create_context_template.v1' %}
 {% set null = none %}
 {% set undefined = none %}
-{# Render-Safety: JSON-like null is mapped to Jinja none so |tojson never receives Undefined from local defaults. #}
 
 {# -----------------------------------------------------------------------------
-  VECTOPLAN Library · VPLIB Create Wizard · Context JSON Partial
+  VECTOPLAN Library · VPLIB Create Wizard · Context JSON
 
-  Aufgabe:
-  - Übergibt den generator-backed Create-Kontext an die Create-/Variant-Runtime.
-  - Stellt stabile JSON-Script-Blöcke bereit.
-  - Stellt robuste Window-Globals bereit:
-      - window.VectoplanCreateContext
-      - window.VectoplanGeneratorContext
-      - window.VectoplanCreateDefinitions
-      - window.VectoplanCreateDefinitionCatalogs
-      - window.VectoplanCreateDefinitionMaps
-      - window.VectoplanCreateDefinitionsOptions
-      - window.VectoplanCreateUploadConfig
-      - window.VectoplanCreateRoutes
-      - window.VectoplanCreatePayloadContract
-  - Unterstützt alte und neue Backend-Response-Formen.
-  - Bleibt reines Template:
-      - keine Backend-Dateioperation
-      - keine API-Aufrufe im Template
-      - keine Package-Erzeugung
-      - keine DB-Operation
-  - Liefert snake_case und camelCase für JS-Kompatibilität.
+  Responsibilities:
+  - Emits compact, JSON-safe bootstrap documents.
+  - Normalizes route descriptors to real URL strings in the browser.
+  - Exposes stable compatibility globals for all Create runtimes.
+  - Builds dataset-specific definition maps without foreign-key collisions.
+  - Keeps the starter contract for cell_block / simple_cell_block.v1 available.
+  - Performs no API calls, file writes, package generation or database work.
 ----------------------------------------------------------------------------- #}
-
 
 {# -----------------------------------------------------------------------------
-  1. API Prefixes
+  1. Pre-sanitized root inputs
 ----------------------------------------------------------------------------- #}
 
-{% if _api_prefix is defined and _api_prefix %}
-  {% set _context_api_prefix = _api_prefix %}
-{% elif create_api_prefix is defined and create_api_prefix %}
-  {% set _context_api_prefix = create_api_prefix %}
+{% if _context is defined and _context is mapping %}
+  {% set _context_root_raw = _context %}
+{% elif create_context is defined and create_context is mapping %}
+  {% set _context_root_raw = create_context %}
 {% else %}
-  {% set _context_api_prefix = '/api/v1/vplib/create' %}
+  {% set _context_root_raw = {} %}
 {% endif %}
 
-{% if _definitions_api_prefix is defined and _definitions_api_prefix %}
-  {% set _context_definitions_api_prefix = _definitions_api_prefix %}
-{% elif definitions_api_prefix is defined and definitions_api_prefix %}
-  {% set _context_definitions_api_prefix = definitions_api_prefix %}
+{% if _context_root_raw is mapping and 'data' in _context_root_raw and _context_root_raw['data'] is mapping %}
+  {% set _context_root = _context_root_raw['data'] %}
 {% else %}
-  {% set _context_definitions_api_prefix = '/api/v1/vplib/definitions' %}
+  {% set _context_root = _context_root_raw %}
 {% endif %}
-
-{% if _taxonomy_api_prefix is defined and _taxonomy_api_prefix %}
-  {% set _context_taxonomy_api_prefix = _taxonomy_api_prefix %}
-{% elif taxonomy_api_prefix is defined and taxonomy_api_prefix %}
-  {% set _context_taxonomy_api_prefix = taxonomy_api_prefix %}
-{% else %}
-  {% set _context_taxonomy_api_prefix = '/api/v1/vplib/taxonomy' %}
-{% endif %}
-
-{% if _files_api_prefix is defined and _files_api_prefix %}
-  {% set _context_files_api_prefix = _files_api_prefix %}
-{% elif files_api_prefix is defined and files_api_prefix %}
-  {% set _context_files_api_prefix = files_api_prefix %}
-{% else %}
-  {% set _context_files_api_prefix = '/api/v1/vplib/files' %}
-{% endif %}
-
-
-{# -----------------------------------------------------------------------------
-  2. Raw Context / Options / Health normalisieren
------------------------------------------------------------------------------ #}
 
 {% if _options is defined and _options is mapping %}
   {% set _context_options_raw = _options %}
@@ -84,7 +48,6 @@
   {% set _context_options = _context_options_raw %}
 {% endif %}
 
-
 {% if _health is defined and _health is mapping %}
   {% set _context_health_raw = _health %}
 {% elif create_health is defined and create_health is mapping %}
@@ -99,602 +62,435 @@
   {% set _context_health = _context_health_raw %}
 {% endif %}
 
+{# -----------------------------------------------------------------------------
+  2. API prefixes and route overrides
+----------------------------------------------------------------------------- #}
 
-{% if generator_context is defined and generator_context is mapping %}
-  {% set _context_generator_raw = generator_context %}
-{% elif create_context is defined and create_context is mapping and 'generator_context' in create_context and create_context['generator_context'] is mapping %}
-  {% set _context_generator_raw = create_context['generator_context'] %}
-{% elif create_context is defined and create_context is mapping and 'data' in create_context and create_context['data'] is mapping and 'generator_context' in create_context['data'] and create_context['data']['generator_context'] is mapping %}
-  {% set _context_generator_raw = create_context['data']['generator_context'] %}
-{% elif _context_options is mapping and 'generator_context' in _context_options and _context_options['generator_context'] is mapping %}
-  {% set _context_generator_raw = _context_options['generator_context'] %}
+{% if _api_prefix is defined and _api_prefix %}
+  {% set _context_api_prefix = _api_prefix %}
+{% elif create_api_prefix is defined and create_api_prefix %}
+  {% set _context_api_prefix = create_api_prefix %}
+{% elif _context_root is mapping and _context_root.get('api_prefix') %}
+  {% set _context_api_prefix = _context_root.get('api_prefix') %}
+{% elif _context_root is mapping and _context_root.get('apiPrefix') %}
+  {% set _context_api_prefix = _context_root.get('apiPrefix') %}
 {% else %}
-  {% set _context_generator_raw = {} %}
+  {% set _context_api_prefix = '/api/v1/vplib/create' %}
 {% endif %}
 
-{% if _context_generator_raw is mapping and 'data' in _context_generator_raw and _context_generator_raw['data'] is mapping %}
-  {% set _context_generator_data = _context_generator_raw['data'] %}
+{% if _definitions_api_prefix is defined and _definitions_api_prefix %}
+  {% set _context_definitions_api_prefix = _definitions_api_prefix %}
+{% elif definitions_api_prefix is defined and definitions_api_prefix %}
+  {% set _context_definitions_api_prefix = definitions_api_prefix %}
+{% elif create_definitions_api_prefix is defined and create_definitions_api_prefix %}
+  {% set _context_definitions_api_prefix = create_definitions_api_prefix %}
 {% else %}
-  {% set _context_generator_data = _context_generator_raw %}
+  {% set _context_definitions_api_prefix = '/api/v1/vplib/definitions' %}
 {% endif %}
 
+{% if _taxonomy_api_prefix is defined and _taxonomy_api_prefix %}
+  {% set _context_taxonomy_api_prefix = _taxonomy_api_prefix %}
+{% elif taxonomy_api_prefix is defined and taxonomy_api_prefix %}
+  {% set _context_taxonomy_api_prefix = taxonomy_api_prefix %}
+{% elif create_taxonomy_api_prefix is defined and create_taxonomy_api_prefix %}
+  {% set _context_taxonomy_api_prefix = create_taxonomy_api_prefix %}
+{% else %}
+  {% set _context_taxonomy_api_prefix = '/api/v1/vplib/taxonomy' %}
+{% endif %}
+
+{% if _files_api_prefix is defined and _files_api_prefix %}
+  {% set _context_files_api_prefix = _files_api_prefix %}
+{% elif files_api_prefix is defined and files_api_prefix %}
+  {% set _context_files_api_prefix = files_api_prefix %}
+{% elif create_files_api_prefix is defined and create_files_api_prefix %}
+  {% set _context_files_api_prefix = create_files_api_prefix %}
+{% else %}
+  {% set _context_files_api_prefix = '/api/v1/vplib/files' %}
+{% endif %}
+
+{% if _routes is defined and _routes is mapping %}
+  {% set _context_route_overrides = _routes %}
+{% elif create_routes is defined and create_routes is mapping %}
+  {% set _context_route_overrides = create_routes %}
+{% elif _context_root is mapping and _context_root.get('routes') is mapping %}
+  {% set _context_route_overrides = _context_root.get('routes') %}
+{% else %}
+  {% set _context_route_overrides = {} %}
+{% endif %}
 
 {# -----------------------------------------------------------------------------
-  3. Status / Versionen / Health Flags
+  3. Generator, definitions, taxonomy, uploads and payload contract
+----------------------------------------------------------------------------- #}
+
+{% if _context_generator_raw is defined and _context_generator_raw is mapping %}
+  {% set _context_generator = _context_generator_raw %}
+{% elif _generator_context is defined and _generator_context is mapping %}
+  {% set _context_generator = _generator_context %}
+{% elif generator_context is defined and generator_context is mapping %}
+  {% set _context_generator = generator_context %}
+{% elif _context_root is mapping and _context_root.get('generator_context') is mapping %}
+  {% set _context_generator = _context_root.get('generator_context') %}
+{% elif _context_root is mapping and _context_root.get('generatorContext') is mapping %}
+  {% set _context_generator = _context_root.get('generatorContext') %}
+{% else %}
+  {% set _context_generator = {} %}
+{% endif %}
+
+{% if _context_generator_data is defined and _context_generator_data is mapping %}
+  {% set _context_generator_payload = _context_generator_data %}
+{% elif _context_generator is mapping and _context_generator.get('data') is mapping %}
+  {% set _context_generator_payload = _context_generator.get('data') %}
+{% elif _context_generator is mapping and _context_generator.get('payload') is mapping %}
+  {% set _context_generator_payload = _context_generator.get('payload') %}
+{% elif _context_generator is mapping and _context_generator.get('generator_data') is mapping %}
+  {% set _context_generator_payload = _context_generator.get('generator_data') %}
+{% elif _context_generator is mapping and _context_generator.get('generatorData') is mapping %}
+  {% set _context_generator_payload = _context_generator.get('generatorData') %}
+{% else %}
+  {% set _context_generator_payload = _context_generator %}
+{% endif %}
+
+{% if _context_definition_block is defined and _context_definition_block is mapping %}
+  {% set _context_definition_source = _context_definition_block %}
+{% elif _definitions_data is defined and _definitions_data is mapping %}
+  {% set _context_definition_source = _definitions_data %}
+{% elif definitions is defined and definitions is mapping %}
+  {% set _context_definition_source = definitions %}
+{% elif _context_generator_payload is mapping and _context_generator_payload.get('definition_context') is mapping %}
+  {% set _context_definition_source = _context_generator_payload.get('definition_context') %}
+{% elif _context_generator_payload is mapping and _context_generator_payload.get('definitions') is mapping %}
+  {% set _context_definition_source = _context_generator_payload.get('definitions') %}
+{% elif _context_options is mapping and _context_options.get('definitions') is mapping %}
+  {% set _context_definition_source = _context_options.get('definitions') %}
+{% else %}
+  {% set _context_definition_source = {} %}
+{% endif %}
+
+{% if _context_definition_records is defined and _context_definition_records is mapping %}
+  {% set _context_definition_records_value = _context_definition_records %}
+{% elif _definition_catalogs is defined and _definition_catalogs is mapping and _definition_catalogs.get('records') is mapping %}
+  {% set _context_definition_records_value = _definition_catalogs.get('records') %}
+{% elif _definition_catalogs is defined and _definition_catalogs is mapping and _definition_catalogs.get('catalogs') is mapping %}
+  {% set _context_definition_records_value = _definition_catalogs.get('catalogs') %}
+{% elif _definition_catalogs is defined and _definition_catalogs is mapping and _definition_catalogs.get('definition_catalogs') is mapping %}
+  {% set _context_definition_records_value = _definition_catalogs.get('definition_catalogs') %}
+{% elif _definition_catalogs is defined and _definition_catalogs is mapping and _definition_catalogs.get('definitions') is mapping %}
+  {% set _context_definition_records_value = _definition_catalogs.get('definitions') %}
+{% elif _definition_catalogs is defined and _definition_catalogs is mapping %}
+  {% set _context_definition_records_value = _definition_catalogs %}
+{% elif definition_catalogs is defined and definition_catalogs is mapping and definition_catalogs.get('records') is mapping %}
+  {% set _context_definition_records_value = definition_catalogs.get('records') %}
+{% elif definition_catalogs is defined and definition_catalogs is mapping and definition_catalogs.get('catalogs') is mapping %}
+  {% set _context_definition_records_value = definition_catalogs.get('catalogs') %}
+{% elif definition_catalogs is defined and definition_catalogs is mapping and definition_catalogs.get('definitions') is mapping %}
+  {% set _context_definition_records_value = definition_catalogs.get('definitions') %}
+{% elif definition_catalogs is defined and definition_catalogs is mapping %}
+  {% set _context_definition_records_value = definition_catalogs %}
+{% elif _context_definition_source is mapping and _context_definition_source.get('records') is mapping %}
+  {% set _context_definition_records_value = _context_definition_source.get('records') %}
+{% elif _context_definition_source is mapping and _context_definition_source.get('catalogs') is mapping %}
+  {% set _context_definition_records_value = _context_definition_source.get('catalogs') %}
+{% elif _context_definition_source is mapping and _context_definition_source.get('definition_catalogs') is mapping %}
+  {% set _context_definition_records_value = _context_definition_source.get('definition_catalogs') %}
+{% elif _context_definition_source is mapping and _context_definition_source.get('definitions') is mapping %}
+  {% set _context_definition_records_value = _context_definition_source.get('definitions') %}
+{% else %}
+  {% set _context_definition_records_value = _context_definition_source %}
+{% endif %}
+
+{% if _context_definitions_options is defined and _context_definitions_options is mapping %}
+  {% set _context_definition_options_value = _context_definitions_options %}
+{% elif _definitions_options is defined and _definitions_options is mapping %}
+  {% set _context_definition_options_value = _definitions_options %}
+{% elif definitions_options is defined and definitions_options is mapping %}
+  {% set _context_definition_options_value = definitions_options %}
+{% elif _context_definition_source is mapping and _context_definition_source.get('options') is mapping %}
+  {% set _context_definition_options_value = _context_definition_source.get('options') %}
+{% elif _context_options is mapping and _context_options.get('definitions_options') is mapping %}
+  {% set _context_definition_options_value = _context_options.get('definitions_options') %}
+{% else %}
+  {% set _context_definition_options_value = {} %}
+{% endif %}
+
+{% if _context_taxonomy is defined and _context_taxonomy is mapping %}
+  {% set _context_taxonomy_value = _context_taxonomy %}
+{% elif _context_root is mapping and _context_root.get('taxonomy_context') is mapping %}
+  {% set _context_taxonomy_value = _context_root.get('taxonomy_context') %}
+{% elif _context_root is mapping and _context_root.get('taxonomy') is mapping %}
+  {% set _context_taxonomy_value = _context_root.get('taxonomy') %}
+{% elif _context_generator_payload is mapping and _context_generator_payload.get('taxonomy_context') is mapping %}
+  {% set _context_taxonomy_value = _context_generator_payload.get('taxonomy_context') %}
+{% elif _context_options is mapping and _context_options.get('taxonomy') is mapping %}
+  {% set _context_taxonomy_value = _context_options.get('taxonomy') %}
+{% else %}
+  {% set _context_taxonomy_value = {} %}
+{% endif %}
+
+{% if _context_upload_config_raw is defined and _context_upload_config_raw is mapping %}
+  {% set _context_upload_value = _context_upload_config_raw %}
+{% elif _upload_config is defined and _upload_config is mapping %}
+  {% set _context_upload_value = _upload_config %}
+{% elif create_upload_config is defined and create_upload_config is mapping %}
+  {% set _context_upload_value = create_upload_config %}
+{% elif _context_root is mapping and _context_root.get('upload_config') is mapping %}
+  {% set _context_upload_value = _context_root.get('upload_config') %}
+{% elif _context_root is mapping and _context_root.get('uploadConfig') is mapping %}
+  {% set _context_upload_value = _context_root.get('uploadConfig') %}
+{% elif _context_generator_payload is mapping and _context_generator_payload.get('upload_config') is mapping %}
+  {% set _context_upload_value = _context_generator_payload.get('upload_config') %}
+{% else %}
+  {% set _context_upload_value = {} %}
+{% endif %}
+
+{% if _context_payload_contract is defined and _context_payload_contract is mapping %}
+  {% set _context_payload_contract_value = _context_payload_contract %}
+{% elif _payload_contract is defined and _payload_contract is mapping %}
+  {% set _context_payload_contract_value = _payload_contract %}
+{% elif create_payload_contract is defined and create_payload_contract is mapping %}
+  {% set _context_payload_contract_value = create_payload_contract %}
+{% elif _context_root is mapping and _context_root.get('payload_contract') is mapping %}
+  {% set _context_payload_contract_value = _context_root.get('payload_contract') %}
+{% elif _context_root is mapping and _context_root.get('payloadContract') is mapping %}
+  {% set _context_payload_contract_value = _context_root.get('payloadContract') %}
+{% elif _context_generator_payload is mapping and _context_generator_payload.get('payload_contract') is mapping %}
+  {% set _context_payload_contract_value = _context_generator_payload.get('payload_contract') %}
+{% elif _context_options is mapping and _context_options.get('payload_contract') is mapping %}
+  {% set _context_payload_contract_value = _context_options.get('payload_contract') %}
+{% else %}
+  {% set _context_payload_contract_value = {} %}
+{% endif %}
+
+{# -----------------------------------------------------------------------------
+  4. Canonical datasets: each dataset is emitted once
+----------------------------------------------------------------------------- #}
+
+{% if _object_kinds is defined and _object_kinds %}
+  {% set _context_object_kinds = _object_kinds %}
+{% elif _context_definition_records_value is mapping and _context_definition_records_value.get('object_kinds') %}
+  {% set _context_object_kinds = _context_definition_records_value.get('object_kinds') %}
+{% elif _context_definition_options_value is mapping and _context_definition_options_value.get('object_kinds') %}
+  {% set _context_object_kinds = _context_definition_options_value.get('object_kinds') %}
+{% else %}
+  {% set _context_object_kinds = [] %}
+{% endif %}
+
+{% if _context_definition_records_value is mapping and _context_definition_records_value.get('family_profiles') %}
+  {% set _context_family_profiles = _context_definition_records_value.get('family_profiles') %}
+{% elif _context_definition_options_value is mapping and _context_definition_options_value.get('family_profiles') %}
+  {% set _context_family_profiles = _context_definition_options_value.get('family_profiles') %}
+{% else %}
+  {% set _context_family_profiles = [] %}
+{% endif %}
+
+{% if _context_definition_records_value is mapping and _context_definition_records_value.get('variant_profiles') %}
+  {% set _context_variant_profiles = _context_definition_records_value.get('variant_profiles') %}
+{% elif _context_definition_options_value is mapping and _context_definition_options_value.get('variant_profiles') %}
+  {% set _context_variant_profiles = _context_definition_options_value.get('variant_profiles') %}
+{% else %}
+  {% set _context_variant_profiles = [] %}
+{% endif %}
+
+{% if _context_definition_records_value is mapping and _context_definition_records_value.get('variables') %}
+  {% set _context_variables = _context_definition_records_value.get('variables') %}
+{% elif _context_definition_options_value is mapping and _context_definition_options_value.get('variables') %}
+  {% set _context_variables = _context_definition_options_value.get('variables') %}
+{% else %}
+  {% set _context_variables = [] %}
+{% endif %}
+
+{% if _units is defined and _units %}
+  {% set _context_units = _units %}
+{% elif _context_definition_records_value is mapping and _context_definition_records_value.get('units') %}
+  {% set _context_units = _context_definition_records_value.get('units') %}
+{% elif _context_definition_options_value is mapping and _context_definition_options_value.get('units') %}
+  {% set _context_units = _context_definition_options_value.get('units') %}
+{% else %}
+  {% set _context_units = [] %}
+{% endif %}
+
+{% if _material_classes is defined and _material_classes %}
+  {% set _context_materials = _material_classes %}
+{% elif _context_definition_records_value is mapping and _context_definition_records_value.get('materials') %}
+  {% set _context_materials = _context_definition_records_value.get('materials') %}
+{% elif _context_definition_options_value is mapping and _context_definition_options_value.get('materials') %}
+  {% set _context_materials = _context_definition_options_value.get('materials') %}
+{% else %}
+  {% set _context_materials = [] %}
+{% endif %}
+
+{% if _context_definition_records_value is mapping and _context_definition_records_value.get('document_types') %}
+  {% set _context_document_types = _context_definition_records_value.get('document_types') %}
+{% elif _context_definition_options_value is mapping and _context_definition_options_value.get('document_types') %}
+  {% set _context_document_types = _context_definition_options_value.get('document_types') %}
+{% else %}
+  {% set _context_document_types = [] %}
+{% endif %}
+
+{% if _context_definition_records_value is mapping and _context_definition_records_value.get('profile_bindings') %}
+  {% set _context_profile_bindings = _context_definition_records_value.get('profile_bindings') %}
+{% elif _context_definition_options_value is mapping and _context_definition_options_value.get('profile_bindings') %}
+  {% set _context_profile_bindings = _context_definition_options_value.get('profile_bindings') %}
+{% else %}
+  {% set _context_profile_bindings = [] %}
+{% endif %}
+
+{% if _domains is defined and _domains %}
+  {% set _context_domains = _domains %}
+{% elif _context_options is mapping and _context_options.get('domains') %}
+  {% set _context_domains = _context_options.get('domains') %}
+{% elif _context_taxonomy_value is mapping and _context_taxonomy_value.get('domains') %}
+  {% set _context_domains = _context_taxonomy_value.get('domains') %}
+{% else %}
+  {% set _context_domains = [] %}
+{% endif %}
+
+{% if _categories is defined and _categories %}
+  {% set _context_categories = _categories %}
+{% elif _context_options is mapping and _context_options.get('categories') %}
+  {% set _context_categories = _context_options.get('categories') %}
+{% elif _context_taxonomy_value is mapping and _context_taxonomy_value.get('categories') %}
+  {% set _context_categories = _context_taxonomy_value.get('categories') %}
+{% else %}
+  {% set _context_categories = [] %}
+{% endif %}
+
+{% if _subcategories is defined and _subcategories %}
+  {% set _context_subcategories = _subcategories %}
+{% elif _context_options is mapping and _context_options.get('subcategories') %}
+  {% set _context_subcategories = _context_options.get('subcategories') %}
+{% elif _context_taxonomy_value is mapping and _context_taxonomy_value.get('subcategories') %}
+  {% set _context_subcategories = _context_taxonomy_value.get('subcategories') %}
+{% else %}
+  {% set _context_subcategories = [] %}
+{% endif %}
+
+{% if _primitive_shapes is defined and _primitive_shapes %}
+  {% set _context_primitive_shapes = _primitive_shapes %}
+{% elif _context_options is mapping and _context_options.get('primitive_shapes') %}
+  {% set _context_primitive_shapes = _context_options.get('primitive_shapes') %}
+{% else %}
+  {% set _context_primitive_shapes = [] %}
+{% endif %}
+
+{# -----------------------------------------------------------------------------
+  5. Flags, versions and wizard
 ----------------------------------------------------------------------------- #}
 
 {% if _write_enabled is defined %}
   {% set _context_write_enabled_raw = _write_enabled %}
 {% elif _context_options is mapping and 'write_enabled' in _context_options %}
-  {% set _context_write_enabled_raw = _context_options['write_enabled'] %}
-{% elif _context_generator_data is mapping and 'write_enabled' in _context_generator_data %}
-  {% set _context_write_enabled_raw = _context_generator_data['write_enabled'] %}
+  {% set _context_write_enabled_raw = _context_options.get('write_enabled') %}
+{% elif _context_generator_payload is mapping and 'write_enabled' in _context_generator_payload %}
+  {% set _context_write_enabled_raw = _context_generator_payload.get('write_enabled') %}
 {% else %}
   {% set _context_write_enabled_raw = false %}
 {% endif %}
-
 {% set _context_write_enabled_text = _context_write_enabled_raw | string | lower %}
-{% if _context_write_enabled_raw is sameas true or _context_write_enabled_text in ['true', '1', 'yes', 'ja', 'enabled', 'active', 'on'] %}
-  {% set _context_write_enabled = true %}
-{% else %}
-  {% set _context_write_enabled = false %}
-{% endif %}
-
+{% set _context_write_enabled = _context_write_enabled_raw is sameas true or _context_write_enabled_text in ['true', '1', 'yes', 'ja', 'enabled', 'active', 'on'] %}
 
 {% if _health_ok is defined %}
   {% set _context_health_ok_raw = _health_ok %}
 {% elif _context_health is mapping and 'ok' in _context_health %}
-  {% set _context_health_ok_raw = _context_health['ok'] %}
-{% elif _context_generator_raw is mapping and 'ok' in _context_generator_raw %}
-  {% set _context_health_ok_raw = _context_generator_raw['ok'] %}
+  {% set _context_health_ok_raw = _context_health.get('ok') %}
+{% elif _context_health is mapping and 'healthy' in _context_health %}
+  {% set _context_health_ok_raw = _context_health.get('healthy') %}
 {% else %}
   {% set _context_health_ok_raw = false %}
 {% endif %}
-
 {% set _context_health_ok_text = _context_health_ok_raw | string | lower %}
-{% if _context_health_ok_raw is sameas true or _context_health_ok_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy', 'ready', 'partial'] %}
-  {% set _context_health_ok = true %}
-{% else %}
-  {% set _context_health_ok = false %}
-{% endif %}
+{% set _context_health_ok = _context_health_ok_raw is sameas true or _context_health_ok_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy', 'ready', 'partial'] %}
 
+{% if _create_definitions_available is defined %}
+  {% set _context_definitions_ok_raw = _create_definitions_available %}
+{% elif _context_definition_source is mapping and 'ok' in _context_definition_source %}
+  {% set _context_definitions_ok_raw = _context_definition_source.get('ok') %}
+{% elif _context_definition_source is mapping and 'healthy' in _context_definition_source %}
+  {% set _context_definitions_ok_raw = _context_definition_source.get('healthy') %}
+{% else %}
+  {% set _context_definitions_ok_raw = false %}
+{% endif %}
+{% set _context_definitions_ok_text = _context_definitions_ok_raw | string | lower %}
+{% set _context_definitions_ok = _context_definitions_ok_raw is sameas true or _context_definitions_ok_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy', 'ready', 'partial'] %}
 
 {% if _source_root is defined and _source_root %}
   {% set _context_source_root = _source_root %}
-{% elif _context_options is mapping and 'source_root' in _context_options and _context_options['source_root'] %}
-  {% set _context_source_root = _context_options['source_root'] %}
-{% elif _context_generator_data is mapping and 'source_root' in _context_generator_data and _context_generator_data['source_root'] %}
-  {% set _context_source_root = _context_generator_data['source_root'] %}
+{% elif _context_options is mapping and _context_options.get('source_root') %}
+  {% set _context_source_root = _context_options.get('source_root') %}
+{% elif _context_generator_payload is mapping and _context_generator_payload.get('source_root') %}
+  {% set _context_source_root = _context_generator_payload.get('source_root') %}
 {% else %}
   {% set _context_source_root = '' %}
 {% endif %}
 
-
 {% if _blueprint_version is defined and _blueprint_version %}
   {% set _context_blueprint_version = _blueprint_version %}
-{% elif create_blueprint is defined and create_blueprint is mapping and 'version' in create_blueprint and create_blueprint['version'] %}
-  {% set _context_blueprint_version = create_blueprint['version'] %}
+{% elif create_blueprint is defined and create_blueprint is mapping and create_blueprint.get('version') %}
+  {% set _context_blueprint_version = create_blueprint.get('version') %}
 {% else %}
   {% set _context_blueprint_version = 'unknown' %}
 {% endif %}
 
 {% if _create_service_version is defined and _create_service_version %}
   {% set _context_create_service_version = _create_service_version %}
-{% elif _context_options is mapping and 'version' in _context_options and _context_options['version'] %}
-  {% set _context_create_service_version = _context_options['version'] %}
-{% elif _context_health is mapping and 'version' in _context_health and _context_health['version'] %}
-  {% set _context_create_service_version = _context_health['version'] %}
+{% elif _context_options is mapping and _context_options.get('version') %}
+  {% set _context_create_service_version = _context_options.get('version') %}
 {% else %}
   {% set _context_create_service_version = 'unknown' %}
 {% endif %}
 
-{% if _context_generator_raw is mapping and 'schema_version' in _context_generator_raw and _context_generator_raw['schema_version'] %}
-  {% set _context_generator_schema_version = _context_generator_raw['schema_version'] %}
-{% elif _context_generator_data is mapping and 'schema_version' in _context_generator_data and _context_generator_data['schema_version'] %}
-  {% set _context_generator_schema_version = _context_generator_data['schema_version'] %}
-{% else %}
-  {% set _context_generator_schema_version = 'generator_context.v1' %}
-{% endif %}
-
-{% if _context_generator_raw is mapping and 'context_uid' in _context_generator_raw %}
-  {% set _context_uid = _context_generator_raw['context_uid'] %}
-{% elif _context_generator_data is mapping and 'context_uid' in _context_generator_data %}
-  {% set _context_uid = _context_generator_data['context_uid'] %}
-{% else %}
-  {% set _context_uid = '' %}
-{% endif %}
-
-
-{# -----------------------------------------------------------------------------
-  4. Definitions normalisieren
------------------------------------------------------------------------------ #}
-
-{% if _context_generator_data is mapping and 'definition_context' in _context_generator_data and _context_generator_data['definition_context'] is mapping %}
-  {% set _context_definition_block = _context_generator_data['definition_context'] %}
-{% elif _context_generator_data is mapping and 'definitions' in _context_generator_data and _context_generator_data['definitions'] is mapping %}
-  {% set _context_definition_block = _context_generator_data['definitions'] %}
-{% elif create_context is defined and create_context is mapping and 'definition_context' in create_context and create_context['definition_context'] is mapping %}
-  {% set _context_definition_block = create_context['definition_context'] %}
-{% elif _context_options is mapping and 'definition_context' in _context_options and _context_options['definition_context'] is mapping %}
-  {% set _context_definition_block = _context_options['definition_context'] %}
-{% elif _context_options is mapping and 'definitions' in _context_options and _context_options['definitions'] is mapping %}
-  {% set _context_definition_block = _context_options['definitions'] %}
-{% elif definitions is defined and definitions is mapping %}
-  {% set _context_definition_block = definitions %}
-{% else %}
-  {% set _context_definition_block = {} %}
-{% endif %}
-
-
-{% if _context_definition_block is mapping and 'records' in _context_definition_block and _context_definition_block['records'] is mapping %}
-  {% set _context_definition_records = _context_definition_block['records'] %}
-{% elif _context_definition_block is mapping and 'definitions' in _context_definition_block and _context_definition_block['definitions'] is mapping %}
-  {% set _context_definition_records = _context_definition_block['definitions'] %}
-{% elif _context_definition_block is mapping and 'catalogs' in _context_definition_block and _context_definition_block['catalogs'] is mapping %}
-  {% set _context_definition_records = _context_definition_block['catalogs'] %}
-{% elif _context_definition_block is mapping and 'definition_catalogs' in _context_definition_block and _context_definition_block['definition_catalogs'] is mapping %}
-  {% set _context_definition_records = _context_definition_block['definition_catalogs'] %}
-{% elif definition_catalogs is defined and definition_catalogs is mapping %}
-  {% set _context_definition_records = definition_catalogs %}
-{% else %}
-  {% set _context_definition_records = _context_definition_block %}
-{% endif %}
-
-
-{% if _context_options is mapping and 'definitions_options' in _context_options and _context_options['definitions_options'] is mapping and _context_options['definitions_options'] %}
-  {% set _context_definitions_options = _context_options['definitions_options'] %}
-{% elif _context_definition_block is mapping and 'options' in _context_definition_block and _context_definition_block['options'] is mapping and _context_definition_block['options'] %}
-  {% set _context_definitions_options = _context_definition_block['options'] %}
-{% elif definitions_options is defined and definitions_options is mapping %}
-  {% set _context_definitions_options = definitions_options %}
-{% else %}
-  {% set _context_definitions_options = {} %}
-{% endif %}
-
-
-{% if _context_definition_block is mapping %}
-  {% set _context_definitions_ok_raw = _context_definition_block.get("ok", _context_definition_block.get("healthy", false)) %}
-{% else %}
-  {% set _context_definitions_ok_raw = false %}
-{% endif %}
-
-{% set _context_definitions_ok_text = _context_definitions_ok_raw | string | lower %}
-{% if _context_definitions_ok_raw is sameas true or _context_definitions_ok_text in ['true', '1', 'yes', 'ja', 'ok', 'healthy', 'ready', 'partial'] %}
-  {% set _context_definitions_ok = true %}
-{% else %}
-  {% set _context_definitions_ok = false %}
-{% endif %}
-
-{% if _context_definition_block is mapping and _context_definition_block.get("definitions_version") %}
-  {% set _context_definitions_version = _context_definition_block.get("definitions_version") %}
-{% elif _context_definition_block is mapping and _context_definition_block.get("definitionsVersion") %}
-  {% set _context_definitions_version = _context_definition_block.get("definitionsVersion") %}
-{% else %}
-  {% set _context_definitions_version = "" %}
-{% endif %}
-
-{% if _context_definition_block is mapping and _context_definition_block.get("schema_version") %}
-  {% set _context_definitions_schema_version = _context_definition_block.get("schema_version") %}
-{% elif _context_definition_block is mapping and _context_definition_block.get("schemaVersion") %}
-  {% set _context_definitions_schema_version = _context_definition_block.get("schemaVersion") %}
-{% else %}
-  {% set _context_definitions_schema_version = "" %}
-{% endif %}
-
-
-{# -----------------------------------------------------------------------------
-  5. Taxonomy / Upload / Payload Contract normalisieren
------------------------------------------------------------------------------ #}
-
-{% if _context_generator_data is mapping and 'taxonomy_context' in _context_generator_data and _context_generator_data['taxonomy_context'] is mapping %}
-  {% set _context_taxonomy = _context_generator_data['taxonomy_context'] %}
-{% elif _context_generator_data is mapping and 'taxonomy' in _context_generator_data and _context_generator_data['taxonomy'] is mapping %}
-  {% set _context_taxonomy = _context_generator_data['taxonomy'] %}
-{% elif create_context is defined and create_context is mapping and 'taxonomy_context' in create_context and create_context['taxonomy_context'] is mapping %}
-  {% set _context_taxonomy = create_context['taxonomy_context'] %}
-{% elif _context_options is mapping and 'taxonomy' in _context_options and _context_options['taxonomy'] is mapping %}
-  {% set _context_taxonomy = _context_options['taxonomy'] %}
-{% else %}
-  {% set _context_taxonomy = {} %}
-{% endif %}
-
-{% if _context_generator_data is mapping and 'upload_config' in _context_generator_data and _context_generator_data['upload_config'] is mapping %}
-  {% set _context_upload_config_raw = _context_generator_data['upload_config'] %}
-{% elif _context_generator_data is mapping and 'uploads' in _context_generator_data and _context_generator_data['uploads'] is mapping %}
-  {% set _context_upload_config_raw = _context_generator_data['uploads'] %}
-{% elif create_context is defined and create_context is mapping and 'upload_config' in create_context and create_context['upload_config'] is mapping %}
-  {% set _context_upload_config_raw = create_context['upload_config'] %}
-{% elif _context_options is mapping and 'uploads' in _context_options and _context_options['uploads'] is mapping %}
-  {% set _context_upload_config_raw = _context_options['uploads'] %}
-{% else %}
-  {% set _context_upload_config_raw = {} %}
-{% endif %}
-
-{% if _context_generator_data is mapping and 'payload_contract' in _context_generator_data and _context_generator_data['payload_contract'] is mapping %}
-  {% set _context_payload_contract = _context_generator_data['payload_contract'] %}
-{% elif _context_options is mapping and 'payload_contract' in _context_options and _context_options['payload_contract'] is mapping %}
-  {% set _context_payload_contract = _context_options['payload_contract'] %}
-{% else %}
-  {% set _context_payload_contract = {} %}
-{% endif %}
-
-
-{# -----------------------------------------------------------------------------
-  6. Kataloge als Arrays normalisieren
------------------------------------------------------------------------------ #}
-
-{% if _domains is defined and _domains is iterable and _domains is not string %}
-  {% set _context_domains = _domains %}
-{% elif _context_options is mapping and 'domains' in _context_options and _context_options['domains'] is iterable and _context_options['domains'] is not string %}
-  {% set _context_domains = _context_options['domains'] %}
-{% elif _context_taxonomy is mapping and 'domains' in _context_taxonomy and _context_taxonomy['domains'] is iterable and _context_taxonomy['domains'] is not string %}
-  {% set _context_domains = _context_taxonomy['domains'] %}
-{% else %}
-  {% set _context_domains = [] %}
-{% endif %}
-
-{% if _categories is defined and _categories is iterable and _categories is not string %}
-  {% set _context_categories = _categories %}
-{% elif _context_options is mapping and 'categories' in _context_options and _context_options['categories'] is iterable and _context_options['categories'] is not string %}
-  {% set _context_categories = _context_options['categories'] %}
-{% elif _context_taxonomy is mapping and 'categories' in _context_taxonomy and _context_taxonomy['categories'] is iterable and _context_taxonomy['categories'] is not string %}
-  {% set _context_categories = _context_taxonomy['categories'] %}
-{% else %}
-  {% set _context_categories = [] %}
-{% endif %}
-
-{% if _subcategories is defined and _subcategories is iterable and _subcategories is not string %}
-  {% set _context_subcategories = _subcategories %}
-{% elif _context_options is mapping and 'subcategories' in _context_options and _context_options['subcategories'] is iterable and _context_options['subcategories'] is not string %}
-  {% set _context_subcategories = _context_options['subcategories'] %}
-{% elif _context_taxonomy is mapping and 'subcategories' in _context_taxonomy and _context_taxonomy['subcategories'] is iterable and _context_taxonomy['subcategories'] is not string %}
-  {% set _context_subcategories = _context_taxonomy['subcategories'] %}
-{% else %}
-  {% set _context_subcategories = [] %}
-{% endif %}
-
-{% if _object_kinds is defined and _object_kinds is iterable and _object_kinds is not string %}
-  {% set _context_object_kinds = _object_kinds %}
-{% elif _context_options is mapping and 'object_kinds' in _context_options and _context_options['object_kinds'] is iterable and _context_options['object_kinds'] is not string %}
-  {% set _context_object_kinds = _context_options['object_kinds'] %}
-{% elif _context_definitions_options is mapping and 'object_kinds' in _context_definitions_options and _context_definitions_options['object_kinds'] is iterable and _context_definitions_options['object_kinds'] is not string %}
-  {% set _context_object_kinds = _context_definitions_options['object_kinds'] %}
-{% elif _context_definition_records is mapping and 'object_kinds' in _context_definition_records and _context_definition_records['object_kinds'] is iterable and _context_definition_records['object_kinds'] is not string %}
-  {% set _context_object_kinds = _context_definition_records['object_kinds'] %}
-{% else %}
-  {% set _context_object_kinds = [] %}
-{% endif %}
-
-{% if _primitive_shapes is defined and _primitive_shapes is iterable and _primitive_shapes is not string %}
-  {% set _context_primitive_shapes = _primitive_shapes %}
-{% elif _context_options is mapping and 'primitive_shapes' in _context_options and _context_options['primitive_shapes'] is iterable and _context_options['primitive_shapes'] is not string %}
-  {% set _context_primitive_shapes = _context_options['primitive_shapes'] %}
-{% else %}
-  {% set _context_primitive_shapes = [] %}
-{% endif %}
-
-{% if _units is defined and _units is iterable and _units is not string %}
-  {% set _context_units = _units %}
-{% elif _context_options is mapping and 'units' in _context_options and _context_options['units'] is iterable and _context_options['units'] is not string %}
-  {% set _context_units = _context_options['units'] %}
-{% elif _context_definitions_options is mapping and 'units' in _context_definitions_options and _context_definitions_options['units'] is iterable and _context_definitions_options['units'] is not string %}
-  {% set _context_units = _context_definitions_options['units'] %}
-{% elif _context_definition_records is mapping and 'units' in _context_definition_records and _context_definition_records['units'] is iterable and _context_definition_records['units'] is not string %}
-  {% set _context_units = _context_definition_records['units'] %}
-{% else %}
-  {% set _context_units = [] %}
-{% endif %}
-
-{% if _material_classes is defined and _material_classes is iterable and _material_classes is not string %}
-  {% set _context_materials = _material_classes %}
-{% elif _context_options is mapping and 'material_classes' in _context_options and _context_options['material_classes'] is iterable and _context_options['material_classes'] is not string %}
-  {% set _context_materials = _context_options['material_classes'] %}
-{% elif _context_options is mapping and 'materials' in _context_options and _context_options['materials'] is iterable and _context_options['materials'] is not string %}
-  {% set _context_materials = _context_options['materials'] %}
-{% elif _context_definitions_options is mapping and 'materials' in _context_definitions_options and _context_definitions_options['materials'] is iterable and _context_definitions_options['materials'] is not string %}
-  {% set _context_materials = _context_definitions_options['materials'] %}
-{% elif _context_definition_records is mapping and 'materials' in _context_definition_records and _context_definition_records['materials'] is iterable and _context_definition_records['materials'] is not string %}
-  {% set _context_materials = _context_definition_records['materials'] %}
-{% else %}
-  {% set _context_materials = [] %}
-{% endif %}
-
-{% if _context_definitions_options is mapping and 'family_profiles' in _context_definitions_options and _context_definitions_options['family_profiles'] is iterable and _context_definitions_options['family_profiles'] is not string %}
-  {% set _context_family_profiles = _context_definitions_options['family_profiles'] %}
-{% elif _context_options is mapping and 'family_profiles' in _context_options and _context_options['family_profiles'] is iterable and _context_options['family_profiles'] is not string %}
-  {% set _context_family_profiles = _context_options['family_profiles'] %}
-{% elif _context_definition_records is mapping and 'family_profiles' in _context_definition_records and _context_definition_records['family_profiles'] is iterable and _context_definition_records['family_profiles'] is not string %}
-  {% set _context_family_profiles = _context_definition_records['family_profiles'] %}
-{% else %}
-  {% set _context_family_profiles = [] %}
-{% endif %}
-
-{% if _context_definitions_options is mapping and 'variant_profiles' in _context_definitions_options and _context_definitions_options['variant_profiles'] is iterable and _context_definitions_options['variant_profiles'] is not string %}
-  {% set _context_variant_profiles = _context_definitions_options['variant_profiles'] %}
-{% elif _context_options is mapping and 'variant_profiles' in _context_options and _context_options['variant_profiles'] is iterable and _context_options['variant_profiles'] is not string %}
-  {% set _context_variant_profiles = _context_options['variant_profiles'] %}
-{% elif _context_definition_records is mapping and 'variant_profiles' in _context_definition_records and _context_definition_records['variant_profiles'] is iterable and _context_definition_records['variant_profiles'] is not string %}
-  {% set _context_variant_profiles = _context_definition_records['variant_profiles'] %}
-{% else %}
-  {% set _context_variant_profiles = [] %}
-{% endif %}
-
-{% if _context_definition_records is mapping and 'variables' in _context_definition_records and _context_definition_records['variables'] is iterable and _context_definition_records['variables'] is not string %}
-  {% set _context_variables = _context_definition_records['variables'] %}
-{% elif _context_options is mapping and 'variables' in _context_options and _context_options['variables'] is iterable and _context_options['variables'] is not string %}
-  {% set _context_variables = _context_options['variables'] %}
-{% elif _context_definitions_options is mapping and 'variables' in _context_definitions_options and _context_definitions_options['variables'] is iterable and _context_definitions_options['variables'] is not string %}
-  {% set _context_variables = _context_definitions_options['variables'] %}
-{% else %}
-  {% set _context_variables = [] %}
-{% endif %}
-
-{% if _context_definitions_options is mapping and 'document_types' in _context_definitions_options and _context_definitions_options['document_types'] is iterable and _context_definitions_options['document_types'] is not string %}
-  {% set _context_document_types = _context_definitions_options['document_types'] %}
-{% elif _context_options is mapping and 'document_types' in _context_options and _context_options['document_types'] is iterable and _context_options['document_types'] is not string %}
-  {% set _context_document_types = _context_options['document_types'] %}
-{% elif _context_definition_records is mapping and 'document_types' in _context_definition_records and _context_definition_records['document_types'] is iterable and _context_definition_records['document_types'] is not string %}
-  {% set _context_document_types = _context_definition_records['document_types'] %}
-{% else %}
-  {% set _context_document_types = [] %}
-{% endif %}
-
-{% if _context_definition_records is mapping and 'profile_bindings' in _context_definition_records and _context_definition_records['profile_bindings'] is iterable and _context_definition_records['profile_bindings'] is not string %}
-  {% set _context_profile_bindings = _context_definition_records['profile_bindings'] %}
-{% elif _context_options is mapping and 'profile_bindings' in _context_options and _context_options['profile_bindings'] is iterable and _context_options['profile_bindings'] is not string %}
-  {% set _context_profile_bindings = _context_options['profile_bindings'] %}
-{% else %}
-  {% set _context_profile_bindings = [] %}
-{% endif %}
-
-
-{# -----------------------------------------------------------------------------
-  7. Counts / Ready States
------------------------------------------------------------------------------ #}
-
-{% set _context_domain_count = _context_domains | length %}
-{% set _context_category_count = _context_categories | length %}
-{% set _context_subcategory_count = _context_subcategories | length %}
-{% set _context_object_kind_count = _context_object_kinds | length %}
-{% set _context_shape_count = _context_primitive_shapes | length %}
-{% set _context_unit_count = _context_units | length %}
-{% set _context_material_count = _context_materials | length %}
-{% set _context_family_profile_count = _context_family_profiles | length %}
-{% set _context_variant_profile_count = _context_variant_profiles | length %}
-{% set _context_variable_count = _context_variables | length %}
-{% set _context_document_type_count = _context_document_types | length %}
-{% set _context_profile_binding_count = _context_profile_bindings | length %}
-
-{% if (_context_definitions_ok or _context_variable_count > 0) and _context_object_kind_count > 0 and _context_family_profile_count > 0 and _context_variant_profile_count > 0 %}
-  {% set _context_definitions_ready = true %}
-{% else %}
-  {% set _context_definitions_ready = false %}
-{% endif %}
-
-{% if _context_domain_count > 0 and _context_category_count > 0 and _context_object_kind_count > 0 %}
-  {% set _context_options_ready = true %}
-{% else %}
-  {% set _context_options_ready = false %}
-{% endif %}
-
-
-{# -----------------------------------------------------------------------------
-  8. Wizard / Theme
------------------------------------------------------------------------------ #}
-
-{% if create_steps is defined and create_steps and create_steps is iterable and create_steps is not string %}
+{% if create_steps is defined and create_steps %}
   {% set _context_steps = create_steps %}
-{% elif _context_generator_data is mapping and 'steps' in _context_generator_data and _context_generator_data['steps'] is iterable and _context_generator_data['steps'] is not string %}
-  {% set _context_steps = _context_generator_data['steps'] %}
 {% else %}
   {% set _context_steps = [
-    {"index": 1, "key": "identity", "label": "Grunddaten", "short_label": "Daten", "description": "Name und Beschreibung", "hint": "Name und Beschreibung des neuen Library-Bausteins festlegen.", "target": "identity", "required": true},
-    {"index": 2, "key": "taxonomy", "label": "Taxonomie", "short_label": "Taxonomie", "description": "Domain, Kategorie und Subkategorie", "hint": "Fachliche Einordnung für Library, Scanner und spätere Navigation auswählen.", "target": "taxonomy", "required": true},
-    {"index": 3, "key": "variables", "label": "Variablen", "short_label": "Variablen", "description": "Variablen und Unterlagen", "hint": "Technische Variablen, Variantenwerte und optionale Herstellerunterlagen definieren.", "target": "object-variants", "alias": "object", "aliases": ["object", "object-variants", "variables"], "required": true},
-    {"index": 4, "key": "geometry", "label": "Geometrie", "short_label": "Geometrie", "description": "Form, Maße, Raster und 3D-Upload", "hint": "Primitive Form, reale Maße, Editor-Raster und optionalen 3D-Modellupload vorbereiten.", "target": "geometry", "required": true},
-    {"index": 5, "key": "technical", "label": "Technik", "short_label": "Technik", "description": "Material und Kennwerte", "hint": "Materialklasse und optionale technische Kennwerte ergänzen.", "target": "technical", "required": false},
-    {"index": 6, "key": "actions", "label": "Erzeugen", "short_label": "Erzeugen", "description": "Prüfen und ausgeben", "hint": "Draft, Validierung, Package-Plan, Download oder Speichern ausführen.", "target": "actions", "required": true}
+    {'index': 1, 'key': 'identity', 'label': 'Grunddaten', 'target': 'identity', 'required': true},
+    {'index': 2, 'key': 'taxonomy', 'label': 'Taxonomie', 'target': 'taxonomy', 'required': true},
+    {'index': 3, 'key': 'variables', 'alias': 'object', 'label': 'Variablen', 'target': 'object-variants', 'required': true},
+    {'index': 4, 'key': 'geometry', 'label': 'Geometrie', 'target': 'geometry', 'required': true},
+    {'index': 5, 'key': 'technical', 'label': 'Technik', 'target': 'technical', 'required': false},
+    {'index': 6, 'key': 'actions', 'alias': 'create', 'label': 'Erzeugen', 'target': 'actions', 'required': true}
   ] %}
 {% endif %}
 
 {% set _context_step_count = _context_steps | length %}
-
 {% if create_initial_step is defined and create_initial_step %}
-  {% set _context_initial_step_raw = create_initial_step %}
+  {% set _context_initial_step = create_initial_step | int %}
 {% else %}
-  {% set _context_initial_step_raw = 1 %}
-{% endif %}
-
-{% set _context_initial_step = _context_initial_step_raw | int %}
-{% if _context_initial_step < 1 %}
   {% set _context_initial_step = 1 %}
 {% endif %}
-{% if _context_initial_step > _context_step_count %}
-  {% set _context_initial_step = _context_step_count %}
-{% endif %}
-
+{% if _context_initial_step < 1 %}{% set _context_initial_step = 1 %}{% endif %}
+{% if _context_initial_step > _context_step_count %}{% set _context_initial_step = _context_step_count %}{% endif %}
 
 {% if _create_default_theme is defined and _create_default_theme %}
-  {% set _context_default_theme_raw = _create_default_theme %}
+  {% set _context_default_theme = _create_default_theme | string | lower %}
 {% elif create_default_theme is defined and create_default_theme %}
-  {% set _context_default_theme_raw = create_default_theme %}
+  {% set _context_default_theme = create_default_theme | string | lower %}
 {% else %}
-  {% set _context_default_theme_raw = 'dark' %}
-{% endif %}
-
-{% set _context_default_theme = _context_default_theme_raw | string | lower %}
-{% if _context_default_theme not in ['light', 'dark', 'system'] %}
   {% set _context_default_theme = 'dark' %}
 {% endif %}
-
-{% if _context_default_theme == 'system' %}
-  {% set _context_default_theme = 'dark' %}
-{% endif %}
+{% if _context_default_theme not in ['dark', 'light', 'system'] %}{% set _context_default_theme = 'dark' %}{% endif %}
 
 {% if _create_theme_storage_key is defined and _create_theme_storage_key %}
   {% set _context_theme_storage_key = _create_theme_storage_key %}
-{% elif create_theme_storage_key is defined and create_theme_storage_key %}
-  {% set _context_theme_storage_key = create_theme_storage_key %}
 {% else %}
   {% set _context_theme_storage_key = 'vectoplan.create.wizard.theme' %}
 {% endif %}
 
 {% if _create_legacy_theme_storage_key is defined and _create_legacy_theme_storage_key %}
   {% set _context_legacy_theme_storage_key = _create_legacy_theme_storage_key %}
-{% elif create_legacy_theme_storage_key is defined and create_legacy_theme_storage_key %}
-  {% set _context_legacy_theme_storage_key = create_legacy_theme_storage_key %}
 {% else %}
   {% set _context_legacy_theme_storage_key = 'vectoplan.create.theme' %}
 {% endif %}
 
-
 {# -----------------------------------------------------------------------------
-  9. Routen
------------------------------------------------------------------------------ #}
-
-{% set _context_create_routes = {
-  "index": _context_api_prefix ~ "/",
-  "health": _context_api_prefix ~ "/health",
-  "routes": _context_api_prefix ~ "/routes",
-  "selftest": _context_api_prefix ~ "/selftest",
-  "options": _context_api_prefix ~ "/options",
-  "context": _context_api_prefix ~ "/context",
-  "create_context": _context_api_prefix ~ "/create-context",
-  "definitions_current": _context_api_prefix ~ "/definitions/current",
-  "draft": _context_api_prefix ~ "/draft",
-  "persistent_draft": _context_api_prefix ~ "/drafts",
-  "drafts": _context_api_prefix ~ "/drafts",
-  "validate": _context_api_prefix ~ "/validate",
-  "package_plan": _context_api_prefix ~ "/package-plan",
-  "publish_bundle": _context_api_prefix ~ "/publish-bundle",
-  "publish_prepare": _context_api_prefix ~ "/publish-bundle",
-  "download": _context_api_prefix ~ "/download",
-  "save": _context_api_prefix ~ "/save",
-  "cache_clear": _context_api_prefix ~ "/cache/clear"
-} %}
-
-{% set _context_definition_routes = {
-  "index": _context_definitions_api_prefix ~ "/",
-  "health": _context_definitions_api_prefix ~ "/health",
-  "summary": _context_definitions_api_prefix ~ "/summary",
-  "options": _context_definitions_api_prefix ~ "/options",
-  "payload": _context_definitions_api_prefix ~ "/payload",
-  "variant_profiles": _context_definitions_api_prefix ~ "/variant-profiles",
-  "variant_profile_base": _context_definitions_api_prefix ~ "/variant-profiles/",
-  "resolve_family_profile": _context_definitions_api_prefix ~ "/resolve-family-profile",
-  "resolve_variant_profile": _context_definitions_api_prefix ~ "/resolve-variant-profile",
-  "empty_variant_values": _context_definitions_api_prefix ~ "/empty-variant-values",
-  "empty_variant_values_base": _context_definitions_api_prefix ~ "/empty-variant-values/",
-  "validate_variant": _context_definitions_api_prefix ~ "/validate-variant",
-  "cache_clear": _context_definitions_api_prefix ~ "/cache/clear",
-  "selftest": _context_definitions_api_prefix ~ "/selftest"
-} %}
-
-{% set _context_taxonomy_routes = {
-  "index": _context_taxonomy_api_prefix ~ "/",
-  "health": _context_taxonomy_api_prefix ~ "/health",
-  "options": _context_taxonomy_api_prefix ~ "/options",
-  "tree": _context_taxonomy_api_prefix ~ "/tree",
-  "nodes": _context_taxonomy_api_prefix ~ "/nodes",
-  "resolve": _context_taxonomy_api_prefix ~ "/resolve"
-} %}
-
-{% set _context_file_routes = {
-  "index": _context_files_api_prefix ~ "/",
-  "health": _context_files_api_prefix ~ "/health",
-  "upload": _context_files_api_prefix ~ "/upload",
-  "context": _context_files_api_prefix ~ "/context",
-  "links": _context_files_api_prefix ~ "/links"
-} %}
-
-
-{# -----------------------------------------------------------------------------
-  10. Upload-Kontext
------------------------------------------------------------------------------ #}
-
-{% set _context_uploads = {
-  "component": "create.uploads",
-  "version": "0.7.0",
-  "enabled": true,
-  "frontend_only": false,
-  "frontendOnly": false,
-  "backend_enabled": true,
-  "backendEnabled": true,
-  "status": _context_upload_config_raw.get("status", "partial") if _context_upload_config_raw is mapping else "partial",
-  "constraints": _context_upload_config_raw.get("constraints", {}) if _context_upload_config_raw is mapping else {},
-  "allowed_extensions": _context_upload_config_raw.get("allowed_extensions", []) if _context_upload_config_raw is mapping else [],
-  "allowedExtensions": _context_upload_config_raw.get("allowed_extensions", []) if _context_upload_config_raw is mapping else [],
-  "blocked_extensions": _context_upload_config_raw.get("blocked_extensions", []) if _context_upload_config_raw is mapping else [],
-  "blockedExtensions": _context_upload_config_raw.get("blocked_extensions", []) if _context_upload_config_raw is mapping else [],
-  "allowed_mime_types": _context_upload_config_raw.get("allowed_mime_types", []) if _context_upload_config_raw is mapping else [],
-  "allowedMimeTypes": _context_upload_config_raw.get("allowed_mime_types", []) if _context_upload_config_raw is mapping else [],
-  "blocked_mime_types": _context_upload_config_raw.get("blocked_mime_types", []) if _context_upload_config_raw is mapping else [],
-  "blockedMimeTypes": _context_upload_config_raw.get("blocked_mime_types", []) if _context_upload_config_raw is mapping else [],
-  "max_file_size_mb": _context_upload_config_raw.get("max_size_mb", _context_upload_config_raw.get("max_file_size_mb", 250)) if _context_upload_config_raw is mapping else 250,
-  "maxFileSizeMb": _context_upload_config_raw.get("max_size_mb", _context_upload_config_raw.get("max_file_size_mb", 250)) if _context_upload_config_raw is mapping else 250,
-  "max_size_mb": _context_upload_config_raw.get("max_size_mb", _context_upload_config_raw.get("max_file_size_mb", 250)) if _context_upload_config_raw is mapping else 250,
-  "maxSizeMb": _context_upload_config_raw.get("max_size_mb", _context_upload_config_raw.get("max_file_size_mb", 250)) if _context_upload_config_raw is mapping else 250,
-  "max_size_bytes": _context_upload_config_raw.get("max_size_bytes", none) if _context_upload_config_raw is mapping else none,
-  "maxSizeBytes": _context_upload_config_raw.get("max_size_bytes", none) if _context_upload_config_raw is mapping else none,
-  "document_types": _context_document_types,
-  "documentTypes": _context_document_types,
-  "routes": _context_file_routes,
-  "geometry_model": {
-    "enabled": true,
-    "field": "geometry_model_files",
-    "metadata_field": "geometry_model_uploads_json",
-    "metadataField": "geometry_model_uploads_json",
-    "accept": ".glb,.gltf,.obj,.fbx,.stl,.zip",
-    "multiple": true,
-    "purpose": "geometry_model"
-  },
-  "documents": {
-    "enabled": true,
-    "field": "technical_document_files",
-    "metadata_field": "technical_document_uploads_json",
-    "metadataField": "technical_document_uploads_json",
-    "accept": ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp,.zip",
-    "multiple": true,
-    "purpose": "technical_documents"
-  },
-  "variant_documents": {
-    "enabled": true,
-    "field": "variant_document_files",
-    "metadata_field": "variant_document_uploads_json",
-    "metadataField": "variant_document_uploads_json",
-    "accept": ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp,.zip",
-    "multiple": true,
-    "purpose": "variant_documents",
-    "value_types": ["document", "document_list", "documents"],
-    "valueTypes": ["document", "document_list", "documents"]
-  },
-  "metadata_fields": [
-    "geometry_model_uploads_json",
-    "technical_document_uploads_json",
-    "variant_document_uploads_json"
-  ],
-  "metadataFields": [
-    "geometry_model_uploads_json",
-    "technical_document_uploads_json",
-    "variant_document_uploads_json"
-  ]
-} %}
-
-
-{# -----------------------------------------------------------------------------
-  11. JSON Script Blocks
+  6. Compact JSON documents
 ----------------------------------------------------------------------------- #}
 
 <script type="application/json" id="vp-create-context-json" data-create-context-json="true" data-vp-create-context-json="context">
 {
-  "schema_version": "create_context_template.v0.7",
-  "schemaVersion": "create_context_template.v0.7",
+  "schema_version": {{ _context_schema_version | tojson }},
+  "schemaVersion": {{ _context_schema_version | tojson }},
   "component": "create.context",
-  "context_uid": {{ _context_uid | tojson }},
-  "contextUid": {{ _context_uid | tojson }},
-  "generator_schema_version": {{ _context_generator_schema_version | tojson }},
-  "generatorSchemaVersion": {{ _context_generator_schema_version | tojson }},
-
+  "version": {{ _context_template_version | tojson }},
   "api_prefix": {{ _context_api_prefix | tojson }},
   "apiPrefix": {{ _context_api_prefix | tojson }},
   "definitions_api_prefix": {{ _context_definitions_api_prefix | tojson }},
@@ -703,7 +499,6 @@
   "taxonomyApiPrefix": {{ _context_taxonomy_api_prefix | tojson }},
   "files_api_prefix": {{ _context_files_api_prefix | tojson }},
   "filesApiPrefix": {{ _context_files_api_prefix | tojson }},
-
   "write_enabled": {{ _context_write_enabled | tojson }},
   "writeEnabled": {{ _context_write_enabled | tojson }},
   "health_ok": {{ _context_health_ok | tojson }},
@@ -714,125 +509,28 @@
   "blueprintVersion": {{ _context_blueprint_version | tojson }},
   "create_service_version": {{ _context_create_service_version | tojson }},
   "createServiceVersion": {{ _context_create_service_version | tojson }},
-
-  "generator": {{ _context_generator_raw | tojson }},
-  "generator_data": {{ _context_generator_data | tojson }},
-  "generatorData": {{ _context_generator_data | tojson }},
-  "payload_contract": {{ _context_payload_contract | tojson }},
-  "payloadContract": {{ _context_payload_contract | tojson }},
-
+  "route_overrides": {{ _context_route_overrides | tojson }},
+  "routeOverrides": {{ _context_route_overrides | tojson }},
+  "taxonomy": {{ _context_taxonomy_value | tojson }},
   "template": {
     "root": "vplib",
     "path": "templates/vplib/create",
-    "version": "0.7.0",
+    "version": {{ _context_template_version | tojson }},
     "css_mode": "single-file",
     "cssMode": "single-file",
-    "css_path": "static/css/vplib/create.css",
-    "cssPath": "static/css/vplib/create.css",
     "theme": "black"
   },
-
   "variant_runtime": {
     "enabled": true,
     "mode": "definition-managed",
-    "version": "0.2.0",
+    "version": "1.0.0",
     "state_owner": "VectoplanCreateVariantState",
     "stateOwner": "VectoplanCreateVariantState",
     "payload_field": "definition_variants_json",
     "payloadField": "definition_variants_json",
     "default_variant_field": "default_variant_id",
-    "defaultVariantField": "default_variant_id",
-    "system_managed_fields": ["variant.variant_id"],
-    "systemManagedFields": ["variant.variant_id"]
+    "defaultVariantField": "default_variant_id"
   },
-  "variantRuntime": {
-    "enabled": true,
-    "mode": "definition-managed",
-    "version": "0.2.0",
-    "stateOwner": "VectoplanCreateVariantState",
-    "payloadField": "definition_variants_json",
-    "defaultVariantField": "default_variant_id",
-    "systemManagedFields": ["variant.variant_id"]
-  },
-
-  "uploads": {{ _context_uploads | tojson }},
-  "taxonomy": {{ _context_taxonomy | tojson }},
-
-  "definitions": {
-    "enabled": true,
-    "ok": {{ _context_definitions_ok | tojson }},
-    "ready": {{ _context_definitions_ready | tojson }},
-    "source": "generator_context_or_backend_definitions_service",
-    "definitions_version": {{ _context_definitions_version | tojson }},
-    "definitionsVersion": {{ _context_definitions_version | tojson }},
-    "schema_version": {{ _context_definitions_schema_version | tojson }},
-    "schemaVersion": {{ _context_definitions_schema_version | tojson }},
-    "routes": {{ _context_definition_routes | tojson }},
-    "endpoints": {
-      "options": {{ _context_definition_routes['options'] | tojson }},
-      "payload": {{ _context_definition_routes['payload'] | tojson }},
-      "resolveFamilyProfile": {{ _context_definition_routes['resolve_family_profile'] | tojson }},
-      "resolve_family_profile": {{ _context_definition_routes['resolve_family_profile'] | tojson }},
-      "resolveVariantProfile": {{ _context_definition_routes['resolve_variant_profile'] | tojson }},
-      "resolve_variant_profile": {{ _context_definition_routes['resolve_variant_profile'] | tojson }},
-      "variantProfileBase": {{ _context_definition_routes['variant_profile_base'] | tojson }},
-      "variant_profile_base": {{ _context_definition_routes['variant_profile_base'] | tojson }},
-      "emptyValuesBase": {{ _context_definition_routes['empty_variant_values_base'] | tojson }},
-      "empty_values_base": {{ _context_definition_routes['empty_variant_values_base'] | tojson }},
-      "validateVariant": {{ _context_definition_routes['validate_variant'] | tojson }},
-      "validate_variant": {{ _context_definition_routes['validate_variant'] | tojson }}
-    },
-    "counts": {
-      "object_kinds": {{ _context_object_kind_count | tojson }},
-      "objectKinds": {{ _context_object_kind_count | tojson }},
-      "family_profiles": {{ _context_family_profile_count | tojson }},
-      "familyProfiles": {{ _context_family_profile_count | tojson }},
-      "variant_profiles": {{ _context_variant_profile_count | tojson }},
-      "variantProfiles": {{ _context_variant_profile_count | tojson }},
-      "variables": {{ _context_variable_count | tojson }},
-      "units": {{ _context_unit_count | tojson }},
-      "materials": {{ _context_material_count | tojson }},
-      "document_types": {{ _context_document_type_count | tojson }},
-      "documentTypes": {{ _context_document_type_count | tojson }},
-      "profile_bindings": {{ _context_profile_binding_count | tojson }},
-      "profileBindings": {{ _context_profile_binding_count | tojson }}
-    }
-  },
-
-  "frontend": {
-    "version": "0.7.0",
-    "template_mode": "vplib_wizard_partials",
-    "templateMode": "vplib_wizard_partials",
-    "template_root": "vplib",
-    "templateRoot": "vplib",
-    "layout_mode": "fullscreen_wizard",
-    "layoutMode": "fullscreen_wizard",
-    "viewer_mode": "dev_placeholder",
-    "viewerMode": "dev_placeholder",
-    "theme_default": {{ _context_default_theme | tojson }},
-    "themeDefault": {{ _context_default_theme | tojson }},
-    "black_default": true,
-    "blackDefault": true,
-    "light_default": false,
-    "lightDefault": false,
-    "threejs_enabled": false,
-    "threejsEnabled": false,
-    "model_upload_enabled": true,
-    "modelUploadEnabled": true,
-    "document_upload_enabled": true,
-    "documentUploadEnabled": true,
-    "client_writes_files": false,
-    "clientWritesFiles": false,
-    "automatic_publish": false,
-    "automaticPublish": false,
-    "backend_definitions_enabled": true,
-    "backendDefinitionsEnabled": true,
-    "variant_runtime_enabled": true,
-    "variantRuntimeEnabled": true,
-    "variant_drawer_enabled": {{ _context_definitions_ready | tojson }},
-    "variantDrawerEnabled": {{ _context_definitions_ready | tojson }}
-  },
-
   "wizard": {
     "enabled": true,
     "mode": "stepper",
@@ -844,76 +542,20 @@
     "stepCount": {{ _context_step_count | tojson }},
     "steps": {{ _context_steps | tojson }}
   },
-
   "theme": {
-    "storage_key": {{ _context_theme_storage_key | tojson }},
-    "storageKey": {{ _context_theme_storage_key | tojson }},
-    "legacy_storage_key": {{ _context_legacy_theme_storage_key | tojson }},
-    "legacyStorageKey": {{ _context_legacy_theme_storage_key | tojson }},
     "default": {{ _context_default_theme | tojson }},
     "fallback": "dark",
     "initial": {{ _context_default_theme | tojson }},
-    "forced": "dark",
-    "allowed": ["dark"]
+    "storage_key": {{ _context_theme_storage_key | tojson }},
+    "storageKey": {{ _context_theme_storage_key | tojson }},
+    "legacy_storage_key": {{ _context_legacy_theme_storage_key | tojson }},
+    "legacyStorageKey": {{ _context_legacy_theme_storage_key | tojson }}
   },
-
-  "routes": {
-    "index": {{ _context_create_routes['index'] | tojson }},
-    "health": {{ _context_create_routes['health'] | tojson }},
-    "routes": {{ _context_create_routes['routes'] | tojson }},
-    "selftest": {{ _context_create_routes['selftest'] | tojson }},
-    "options": {{ _context_create_routes['options'] | tojson }},
-    "context": {{ _context_create_routes['context'] | tojson }},
-    "create_context": {{ _context_create_routes['create_context'] | tojson }},
-    "createContext": {{ _context_create_routes['create_context'] | tojson }},
-    "definitions_current": {{ _context_create_routes['definitions_current'] | tojson }},
-    "definitionsCurrent": {{ _context_create_routes['definitions_current'] | tojson }},
-    "draft": {{ _context_create_routes['draft'] | tojson }},
-    "persistent_draft": {{ _context_create_routes['persistent_draft'] | tojson }},
-    "persistentDraft": {{ _context_create_routes['persistent_draft'] | tojson }},
-    "drafts": {{ _context_create_routes['drafts'] | tojson }},
-    "validate": {{ _context_create_routes['validate'] | tojson }},
-    "package_plan": {{ _context_create_routes['package_plan'] | tojson }},
-    "packagePlan": {{ _context_create_routes['package_plan'] | tojson }},
-    "publish_bundle": {{ _context_create_routes['publish_bundle'] | tojson }},
-    "publishBundle": {{ _context_create_routes['publish_bundle'] | tojson }},
-    "publish_prepare": {{ _context_create_routes['publish_prepare'] | tojson }},
-    "publishPrepare": {{ _context_create_routes['publish_prepare'] | tojson }},
-    "download": {{ _context_create_routes['download'] | tojson }},
-    "save": {{ _context_create_routes['save'] | tojson }},
-    "cache_clear": {{ _context_create_routes['cache_clear'] | tojson }},
-    "cacheClear": {{ _context_create_routes['cache_clear'] | tojson }},
-    "definitions": {{ _context_definitions_api_prefix | tojson }},
-    "definitions_health": {{ _context_definition_routes['health'] | tojson }},
-    "definitionsHealth": {{ _context_definition_routes['health'] | tojson }},
-    "definitions_options": {{ _context_definition_routes['options'] | tojson }},
-    "definitionsOptions": {{ _context_definition_routes['options'] | tojson }},
-    "definitions_payload": {{ _context_definition_routes['payload'] | tojson }},
-    "definitionsPayload": {{ _context_definition_routes['payload'] | tojson }},
-    "definitions_resolve_family_profile": {{ _context_definition_routes['resolve_family_profile'] | tojson }},
-    "definitionsResolveFamilyProfile": {{ _context_definition_routes['resolve_family_profile'] | tojson }},
-    "definitions_resolve_variant_profile": {{ _context_definition_routes['resolve_variant_profile'] | tojson }},
-    "definitionsResolveVariantProfile": {{ _context_definition_routes['resolve_variant_profile'] | tojson }},
-    "definitions_variant_profile_base": {{ _context_definition_routes['variant_profile_base'] | tojson }},
-    "definitionsVariantProfileBase": {{ _context_definition_routes['variant_profile_base'] | tojson }},
-    "definitions_empty_variant_values": {{ _context_definition_routes['empty_variant_values'] | tojson }},
-    "definitionsEmptyVariantValues": {{ _context_definition_routes['empty_variant_values'] | tojson }},
-    "definitions_empty_variant_values_base": {{ _context_definition_routes['empty_variant_values_base'] | tojson }},
-    "definitionsEmptyVariantValuesBase": {{ _context_definition_routes['empty_variant_values_base'] | tojson }},
-    "definitions_validate_variant": {{ _context_definition_routes['validate_variant'] | tojson }},
-    "definitionsValidateVariant": {{ _context_definition_routes['validate_variant'] | tojson }},
-    "taxonomy": {{ _context_taxonomy_routes | tojson }},
-    "files": {{ _context_file_routes | tojson }}
-  },
-
   "preview": {
     "enabled": true,
     "mode": "dev_placeholder",
-    "background": "red",
-    "minimal": true,
     "fields": {
       "object_kind": "object_kind",
-      "objectKind": "object_kind",
       "shape": "primitive_shape",
       "width": "geometry_width",
       "height": "geometry_height",
@@ -921,83 +563,52 @@
       "unit": "geometry_unit"
     }
   },
-
   "actions": {
-    "available": ["draft", "validate", "package-plan", "download", "save", "persist-draft", "publish-prepare"],
-    "requires_write": ["save", "persist-draft"],
-    "requiresWrite": ["save", "persist-draft"],
+    "available": ["draft", "validate", "package-plan", "download", "persist-draft", "publish-prepare", "save"],
+    "requires_write": ["save"],
+    "requiresWrite": ["save"],
     "recommended_order": ["draft", "validate", "package-plan", "download"],
-    "recommendedOrder": ["draft", "validate", "package-plan", "download"],
-    "layout": "vertical"
+    "recommendedOrder": ["draft", "validate", "package-plan", "download"]
   }
 }
 </script>
 
 <script type="application/json" id="vp-generator-context-json" data-generator-context-json="true" data-vp-create-context-json="generator-context">
-{{ _context_generator_raw | tojson }}
+{{ _context_generator | tojson }}
 </script>
 
 <script type="application/json" id="vp-create-options-json" data-create-options-json="true" data-vp-create-context-json="options">
-{{ _context_options | tojson }}
+{
+  "version": {{ _context_create_service_version | tojson }},
+  "write_enabled": {{ _context_write_enabled | tojson }},
+  "writeEnabled": {{ _context_write_enabled | tojson }},
+  "source_root": {{ _context_source_root | tojson }},
+  "sourceRoot": {{ _context_source_root | tojson }},
+  "domains": {{ _context_domains | tojson }},
+  "categories": {{ _context_categories | tojson }},
+  "subcategories": {{ _context_subcategories | tojson }},
+  "primitive_shapes": {{ _context_primitive_shapes | tojson }},
+  "primitiveShapes": {{ _context_primitive_shapes | tojson }}
+}
 </script>
 
 <script type="application/json" id="vp-create-definitions-json" data-create-definitions-json="true" data-vp-create-context-json="definitions">
 {
+  "component": "create.definitions.bootstrap",
+  "version": {{ _context_template_version | tojson }},
   "ok": {{ _context_definitions_ok | tojson }},
-  "ready": {{ _context_definitions_ready | tojson }},
-  "health": {{ _context_definition_block | tojson }},
-  "definitions_version": {{ _context_definitions_version | tojson }},
-  "definitionsVersion": {{ _context_definitions_version | tojson }},
-  "schema_version": {{ _context_definitions_schema_version | tojson }},
-  "schemaVersion": {{ _context_definitions_schema_version | tojson }},
-  "definitions": {{ _context_definition_block | tojson }},
-  "options": {{ _context_definitions_options | tojson }},
-  "catalogs": {{ _context_definition_records | tojson }},
-  "definition_catalogs": {{ _context_definition_records | tojson }},
-  "definitionCatalogs": {{ _context_definition_records | tojson }},
+  "definitions_version": {{ (_context_definition_source.get('definitions_version', _context_definition_source.get('definitionsVersion', '')) if _context_definition_source is mapping else '') | tojson }},
+  "definitionsVersion": {{ (_context_definition_source.get('definitions_version', _context_definition_source.get('definitionsVersion', '')) if _context_definition_source is mapping else '') | tojson }},
+  "schema_version": {{ (_context_definition_source.get('schema_version', _context_definition_source.get('schemaVersion', '')) if _context_definition_source is mapping else '') | tojson }},
+  "schemaVersion": {{ (_context_definition_source.get('schema_version', _context_definition_source.get('schemaVersion', '')) if _context_definition_source is mapping else '') | tojson }},
   "object_kinds": {{ _context_object_kinds | tojson }},
-  "objectKinds": {{ _context_object_kinds | tojson }},
   "family_profiles": {{ _context_family_profiles | tojson }},
-  "familyProfiles": {{ _context_family_profiles | tojson }},
   "variant_profiles": {{ _context_variant_profiles | tojson }},
-  "variantProfiles": {{ _context_variant_profiles | tojson }},
   "variables": {{ _context_variables | tojson }},
   "units": {{ _context_units | tojson }},
   "materials": {{ _context_materials | tojson }},
   "document_types": {{ _context_document_types | tojson }},
-  "documentTypes": {{ _context_document_types | tojson }},
-  "profile_bindings": {{ _context_profile_bindings | tojson }},
-  "profileBindings": {{ _context_profile_bindings | tojson }},
-  "routes": {{ _context_definition_routes | tojson }},
-  "endpoints": {
-    "options": {{ _context_definition_routes['options'] | tojson }},
-    "payload": {{ _context_definition_routes['payload'] | tojson }},
-    "resolveFamilyProfile": {{ _context_definition_routes['resolve_family_profile'] | tojson }},
-    "resolve_family_profile": {{ _context_definition_routes['resolve_family_profile'] | tojson }},
-    "resolveVariantProfile": {{ _context_definition_routes['resolve_variant_profile'] | tojson }},
-    "resolve_variant_profile": {{ _context_definition_routes['resolve_variant_profile'] | tojson }},
-    "variantProfileBase": {{ _context_definition_routes['variant_profile_base'] | tojson }},
-    "variant_profile_base": {{ _context_definition_routes['variant_profile_base'] | tojson }},
-    "emptyValuesBase": {{ _context_definition_routes['empty_variant_values_base'] | tojson }},
-    "empty_values_base": {{ _context_definition_routes['empty_variant_values_base'] | tojson }},
-    "validateVariant": {{ _context_definition_routes['validate_variant'] | tojson }},
-    "validate_variant": {{ _context_definition_routes['validate_variant'] | tojson }}
-  },
-  "counts": {
-    "object_kinds": {{ _context_object_kind_count | tojson }},
-    "objectKinds": {{ _context_object_kind_count | tojson }},
-    "family_profiles": {{ _context_family_profile_count | tojson }},
-    "familyProfiles": {{ _context_family_profile_count | tojson }},
-    "variant_profiles": {{ _context_variant_profile_count | tojson }},
-    "variantProfiles": {{ _context_variant_profile_count | tojson }},
-    "variables": {{ _context_variable_count | tojson }},
-    "units": {{ _context_unit_count | tojson }},
-    "materials": {{ _context_material_count | tojson }},
-    "document_types": {{ _context_document_type_count | tojson }},
-    "documentTypes": {{ _context_document_type_count | tojson }},
-    "profile_bindings": {{ _context_profile_binding_count | tojson }},
-    "profileBindings": {{ _context_profile_binding_count | tojson }}
-  }
+  "profile_bindings": {{ _context_profile_bindings | tojson }}
 }
 </script>
 
@@ -1006,11 +617,11 @@
 </script>
 
 <script type="application/json" id="vp-create-upload-json" data-create-upload-json="true" data-vp-create-context-json="uploads">
-{{ _context_uploads | tojson }}
+{{ _context_upload_value | tojson }}
 </script>
 
 <script type="application/json" id="vp-create-payload-contract-json" data-create-payload-contract-json="true" data-vp-create-context-json="payload-contract">
-{{ _context_payload_contract | tojson }}
+{{ _context_payload_contract_value | tojson }}
 </script>
 
 <script type="application/json" id="vp-create-ui-state-json" data-create-ui-state-json="true" data-vp-create-context-json="ui-state">
@@ -1019,64 +630,12 @@
   "healthOk": {{ _context_health_ok | tojson }},
   "write_enabled": {{ _context_write_enabled | tojson }},
   "writeEnabled": {{ _context_write_enabled | tojson }},
-  "options_ready": {{ _context_options_ready | tojson }},
-  "optionsReady": {{ _context_options_ready | tojson }},
-  "definitions_ok": {{ _context_definitions_ok | tojson }},
-  "definitionsOk": {{ _context_definitions_ok | tojson }},
-  "definitions_ready": {{ _context_definitions_ready | tojson }},
-  "definitionsReady": {{ _context_definitions_ready | tojson }},
-  "wizard_enabled": true,
-  "wizardEnabled": true,
-  "variant_runtime_enabled": true,
-  "variantRuntimeEnabled": true,
-  "variant_drawer_enabled": {{ _context_definitions_ready | tojson }},
-  "variantDrawerEnabled": {{ _context_definitions_ready | tojson }},
-  "upload_enabled": true,
-  "uploadEnabled": true,
-  "upload_backend_enabled": true,
-  "uploadBackendEnabled": true,
   "current_step": {{ _context_initial_step | tojson }},
   "currentStep": {{ _context_initial_step | tojson }},
   "step_count": {{ _context_step_count | tojson }},
   "stepCount": {{ _context_step_count | tojson }},
   "theme": {{ _context_default_theme | tojson }},
-  "default_theme": {{ _context_default_theme | tojson }},
-  "defaultTheme": {{ _context_default_theme | tojson }},
-  "theme_storage_key": {{ _context_theme_storage_key | tojson }},
-  "themeStorageKey": {{ _context_theme_storage_key | tojson }},
-  "legacy_theme_storage_key": {{ _context_legacy_theme_storage_key | tojson }},
-  "legacyThemeStorageKey": {{ _context_legacy_theme_storage_key | tojson }},
-  "template": {
-    "root": "vplib",
-    "path": "templates/vplib/create",
-    "version": "0.7.0",
-    "css_mode": "single-file",
-    "cssMode": "single-file"
-  },
-  "counts": {
-    "domains": {{ _context_domain_count | tojson }},
-    "categories": {{ _context_category_count | tojson }},
-    "subcategories": {{ _context_subcategory_count | tojson }},
-    "object_kinds": {{ _context_object_kind_count | tojson }},
-    "objectKinds": {{ _context_object_kind_count | tojson }},
-    "family_profiles": {{ _context_family_profile_count | tojson }},
-    "familyProfiles": {{ _context_family_profile_count | tojson }},
-    "variant_profiles": {{ _context_variant_profile_count | tojson }},
-    "variantProfiles": {{ _context_variant_profile_count | tojson }},
-    "variables": {{ _context_variable_count | tojson }},
-    "primitive_shapes": {{ _context_shape_count | tojson }},
-    "primitiveShapes": {{ _context_shape_count | tojson }},
-    "units": {{ _context_unit_count | tojson }},
-    "materials": {{ _context_material_count | tojson }},
-    "material_classes": {{ _context_material_count | tojson }},
-    "materialClasses": {{ _context_material_count | tojson }},
-    "document_types": {{ _context_document_type_count | tojson }},
-    "documentTypes": {{ _context_document_type_count | tojson }},
-    "profile_bindings": {{ _context_profile_binding_count | tojson }},
-    "profileBindings": {{ _context_profile_binding_count | tojson }}
-  },
   "defaults": {
-    "theme": {{ _context_default_theme | tojson }},
     "domain": "hochbau",
     "category": "bloecke",
     "subcategory": "basis",
@@ -1084,10 +643,10 @@
     "taxonomyPath": "hochbau/bloecke/basis",
     "object_kind": "cell_block",
     "objectKind": "cell_block",
-    "family_profile_id": "",
-    "familyProfileId": "",
-    "variant_profile_id": "",
-    "variantProfileId": "",
+    "family_profile_id": "simple_cell_block",
+    "familyProfileId": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1",
+    "variantProfileId": "simple_cell_block.v1",
     "default_variant_id": "default",
     "defaultVariantId": "default",
     "primitive_shape": "block",
@@ -1105,993 +664,896 @@
 <script type="application/json" id="vp-create-wizard-json" data-create-wizard-json="true" data-vp-create-context-json="wizard">
 {
   "enabled": true,
+  "mode": "stepper",
   "initial_step": {{ _context_initial_step | tojson }},
   "initialStep": {{ _context_initial_step | tojson }},
   "current_step": {{ _context_initial_step | tojson }},
   "currentStep": {{ _context_initial_step | tojson }},
   "step_count": {{ _context_step_count | tojson }},
   "stepCount": {{ _context_step_count | tojson }},
-  "steps": {{ _context_steps | tojson }},
-  "theme": {
-    "default": {{ _context_default_theme | tojson }},
-    "storage_key": {{ _context_theme_storage_key | tojson }},
-    "storageKey": {{ _context_theme_storage_key | tojson }},
-    "forced": "dark"
-  },
-  "definitions": {
-    "ok": {{ _context_definitions_ok | tojson }},
-    "ready": {{ _context_definitions_ready | tojson }},
-    "variant_runtime_enabled": true,
-    "variantRuntimeEnabled": true,
-    "variant_drawer_enabled": {{ _context_definitions_ready | tojson }},
-    "variantDrawerEnabled": {{ _context_definitions_ready | tojson }}
-  },
-  "uploads": {{ _context_uploads | tojson }},
-  "events": {
-    "context_ready": "vectoplan:create:context-ready",
-    "contextReady": "vectoplan:create:context-ready",
-    "definitions_ready": "vectoplan:create:definitions-ready",
-    "definitionsReady": "vectoplan:create:definitions-ready",
-    "definitions_unavailable": "vectoplan:create:definitions-unavailable",
-    "definitionsUnavailable": "vectoplan:create:definitions-unavailable",
-    "variant_profile_resolved": "vectoplan:create:variant-profile-resolved",
-    "variantProfileResolved": "vectoplan:create:variant-profile-resolved",
-    "variant_state_ready": "vectoplan:create:variant-state-ready",
-    "variantStateReady": "vectoplan:create:variant-state-ready",
-    "theme_ready": "vectoplan:create:theme-ready",
-    "themeReady": "vectoplan:create:theme-ready",
-    "uploads_ready": "vectoplan:create:uploads-ready",
-    "uploadsReady": "vectoplan:create:uploads-ready",
-    "upload_changed": "vectoplan:create:upload-changed",
-    "uploadChanged": "vectoplan:create:upload-changed"
-  }
+  "steps": {{ _context_steps | tojson }}
 }
 </script>
 
-
 {# -----------------------------------------------------------------------------
-  12. Defensive Browser Bootstrap
+  7. Defensive browser bootstrap
 ----------------------------------------------------------------------------- #}
 
-<script>
-  (function () {
-    "use strict";
+<script data-vp-create-context-bootstrap="true">
+(function () {
+  "use strict";
 
+  var COMPONENT_NAME = "VECTOPLAN Create Context";
+  var COMPONENT_VERSION = "1.0.0";
+  var STARTER_OBJECT_KIND = "cell_block";
+  var STARTER_FAMILY_PROFILE_ID = "simple_cell_block";
+  var STARTER_VARIANT_PROFILE_ID = "simple_cell_block.v1";
+  var warned = Object.create(null);
+
+  var DATASET_ALIASES = {
+    object_kinds: ["object_kinds", "objectKinds"],
+    family_profiles: ["family_profiles", "familyProfiles"],
+    variant_profiles: ["variant_profiles", "variantProfiles"],
+    variables: ["variables"],
+    units: ["units"],
+    materials: ["materials", "material_classes", "materialClasses"],
+    document_types: ["document_types", "documentTypes"],
+    profile_bindings: ["profile_bindings", "profileBindings"]
+  };
+
+  var DATASET_KEY_FIELDS = {
+    object_kinds: ["object_kind_id", "objectKindId", "id", "key", "value"],
+    family_profiles: ["family_profile_id", "familyProfileId", "id", "key"],
+    variant_profiles: ["variant_profile_id", "variantProfileId", "id", "key"],
+    variables: ["variable_key", "variableKey", "key", "id"],
+    units: ["unit_id", "unitId", "id", "key", "value"],
+    materials: ["material_id", "materialId", "id", "key", "value"],
+    document_types: ["document_type_id", "documentTypeId", "id", "key"],
+    profile_bindings: ["binding_id", "bindingId", "id", "key"]
+  };
+
+  var CREATE_ROUTE_DEFAULTS = {
+    index: {{ (_context_api_prefix ~ "/") | tojson }},
+    health: {{ (_context_api_prefix ~ "/health") | tojson }},
+    routes: {{ (_context_api_prefix ~ "/routes") | tojson }},
+    selftest: {{ (_context_api_prefix ~ "/selftest") | tojson }},
+    options: {{ (_context_api_prefix ~ "/options") | tojson }},
+    context: {{ (_context_api_prefix ~ "/context") | tojson }},
+    create_context: {{ (_context_api_prefix ~ "/create-context") | tojson }},
+    definitions_current: {{ (_context_api_prefix ~ "/definitions/current") | tojson }},
+    draft: {{ (_context_api_prefix ~ "/draft") | tojson }},
+    persistent_draft: {{ (_context_api_prefix ~ "/drafts") | tojson }},
+    validate: {{ (_context_api_prefix ~ "/validate") | tojson }},
+    package_plan: {{ (_context_api_prefix ~ "/package-plan") | tojson }},
+    publish_bundle: {{ (_context_api_prefix ~ "/publish-bundle") | tojson }},
+    download: {{ (_context_api_prefix ~ "/download") | tojson }},
+    save: {{ (_context_api_prefix ~ "/save") | tojson }},
+    cache_clear: {{ (_context_api_prefix ~ "/cache/clear") | tojson }}
+  };
+
+  var DEFINITION_ROUTE_DEFAULTS = {
+    index: {{ (_context_definitions_api_prefix ~ "/") | tojson }},
+    health: {{ (_context_definitions_api_prefix ~ "/health") | tojson }},
+    summary: {{ (_context_definitions_api_prefix ~ "/summary") | tojson }},
+    options: {{ (_context_definitions_api_prefix ~ "/options") | tojson }},
+    payload: {{ (_context_definitions_api_prefix ~ "/payload") | tojson }},
+    variant_profiles: {{ (_context_definitions_api_prefix ~ "/variant-profiles") | tojson }},
+    variant_profile_base: {{ (_context_definitions_api_prefix ~ "/variant-profiles/") | tojson }},
+    resolve_family_profile: {{ (_context_definitions_api_prefix ~ "/resolve-family-profile") | tojson }},
+    resolve_variant_profile: {{ (_context_definitions_api_prefix ~ "/resolve-variant-profile") | tojson }},
+    empty_variant_values: {{ (_context_definitions_api_prefix ~ "/empty-variant-values") | tojson }},
+    empty_variant_values_base: {{ (_context_definitions_api_prefix ~ "/empty-variant-values/") | tojson }},
+    validate_variant: {{ (_context_definitions_api_prefix ~ "/validate-variant") | tojson }},
+    cache_clear: {{ (_context_definitions_api_prefix ~ "/cache/clear") | tojson }},
+    selftest: {{ (_context_definitions_api_prefix ~ "/selftest") | tojson }}
+  };
+
+  function warnOnce(code, message, error) {
     try {
-      var COMPONENT_NAME = "VECTOPLAN Create Context";
-      var COMPONENT_VERSION = "0.7.0";
-
-      function warn(message, error) {
-        try {
-          if (window.console && typeof window.console.warn === "function") {
-            window.console.warn("[" + COMPONENT_NAME + "] " + message, error || "");
-          }
-        } catch (consoleError) {
-          /* no-op */
-        }
+      var key = String(code || message || "context-warning");
+      if (warned[key]) {
+        return;
       }
+      warned[key] = true;
+      if (window.console && typeof window.console.warn === "function") {
+        window.console.warn("[" + COMPONENT_NAME + "] " + String(message || code || "Warning"), error || "");
+      }
+    } catch (warningError) {
+      /* no-op */
+    }
+  }
 
-      function readJsonScript(id, fallbackValue) {
-        try {
-          var node = document.getElementById(id);
+  function isObject(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+  }
 
-          if (!node || !node.textContent) {
-            return fallbackValue;
-          }
+  function cleanString(value, fallbackValue) {
+    try {
+      if (value === null || value === undefined) {
+        return fallbackValue || "";
+      }
+      var text = String(value).replace(/\u0000/g, "").trim();
+      return text || fallbackValue || "";
+    } catch (error) {
+      return fallbackValue || "";
+    }
+  }
 
-          var parsed = JSON.parse(node.textContent);
+  function toBoolean(value, fallbackValue) {
+    try {
+      if (value === true || value === false) {
+        return value;
+      }
+      var text = cleanString(value).toLowerCase();
+      if (["true", "1", "yes", "ja", "on", "enabled", "active", "ready", "healthy", "ok"].indexOf(text) !== -1) {
+        return true;
+      }
+      if (["false", "0", "no", "nein", "off", "disabled", "inactive", "blocked"].indexOf(text) !== -1) {
+        return false;
+      }
+      return !!fallbackValue;
+    } catch (error) {
+      return !!fallbackValue;
+    }
+  }
 
-          if (parsed === null || parsed === undefined) {
-            return fallbackValue;
-          }
+  function readJsonScript(id, fallbackValue) {
+    try {
+      var node = document.getElementById(id);
+      if (!node || !cleanString(node.textContent)) {
+        return fallbackValue;
+      }
+      var parsed = JSON.parse(node.textContent);
+      return parsed === null || parsed === undefined ? fallbackValue : parsed;
+    } catch (error) {
+      warnOnce("json:" + id, "JSON bootstrap could not parse " + id + ".", error);
+      return fallbackValue;
+    }
+  }
 
-          return parsed;
-        } catch (error) {
-          warn("Could not parse " + id + ".", error);
+  function readPath(source, path, fallbackValue) {
+    try {
+      var cursor = source;
+      var parts = Array.isArray(path) ? path : String(path || "").split(".");
+      for (var index = 0; index < parts.length; index += 1) {
+        if (!isObject(cursor) || !Object.prototype.hasOwnProperty.call(cursor, parts[index])) {
           return fallbackValue;
         }
+        cursor = cursor[parts[index]];
       }
-
-      function toArray(value) {
-        try {
-          if (!value) {
-            return [];
-          }
-
-          if (Array.isArray(value)) {
-            return value.slice();
-          }
-
-          if (typeof value === "object" && typeof value.length === "number" && typeof value !== "string") {
-            return Array.prototype.slice.call(value);
-          }
-
-          if (typeof value === "object") {
-            return Object.keys(value).map(function (key) {
-              var item = value[key];
-
-              if (item && typeof item === "object" && !item.id && !item.key) {
-                item.id = key;
-              }
-
-              return item;
-            });
-          }
-
-          return [];
-        } catch (error) {
-          return [];
-        }
-      }
-
-      function firstArray() {
-        try {
-          for (var index = 0; index < arguments.length; index += 1) {
-            var value = arguments[index];
-            var array = toArray(value);
-
-            if (array.length) {
-              return array;
-            }
-          }
-
-          return [];
-        } catch (error) {
-          return [];
-        }
-      }
-
-      function indexBy(items, keyName) {
-        try {
-          var output = {};
-          var key = keyName || "id";
-
-          toArray(items).forEach(function (item) {
-            try {
-              if (!item || typeof item !== "object") {
-                return;
-              }
-
-              var id = item[key] ||
-                item.id ||
-                item.key ||
-                item.value ||
-                item.name ||
-                item.variable_key ||
-                item.variableKey ||
-                item.definition_key ||
-                item.definitionKey ||
-                item.profile_id ||
-                item.profileId ||
-                item.document_type_id ||
-                item.documentTypeId;
-
-              if (!id) {
-                return;
-              }
-
-              output[String(id)] = item;
-            } catch (itemError) {
-              warn("Could not index definition item.", itemError);
-            }
-          });
-
-          return output;
-        } catch (error) {
-          return {};
-        }
-      }
-
-      function normalizeTheme(value, fallbackValue) {
-        try {
-          var text = String(value || "").trim().toLowerCase();
-
-          if (text === "light" || text === "dark" || text === "system") {
-            return text;
-          }
-
-          return fallbackValue || "dark";
-        } catch (error) {
-          return fallbackValue || "dark";
-        }
-      }
-
-      function safeLocalStorageSet(key, value) {
-        try {
-          if (!key || !window.localStorage) {
-            return;
-          }
-
-          window.localStorage.setItem(key, value);
-        } catch (error) {
-          /* no-op */
-        }
-      }
-
-      function dispatch(eventName, detail) {
-        try {
-          document.dispatchEvent(new CustomEvent(eventName, {
-            bubbles: false,
-            cancelable: false,
-            detail: detail || {}
-          }));
-        } catch (error) {
-          warn("Could not dispatch " + eventName + ".", error);
-        }
-      }
-
-      function resolveTheme(context, uiState) {
-        try {
-          var themeConfig = context.theme || {};
-          var defaultTheme = normalizeTheme(
-            themeConfig.default ||
-            uiState.default_theme ||
-            uiState.defaultTheme ||
-            "dark",
-            "dark"
-          );
-
-          if (defaultTheme === "system") {
-            defaultTheme = "dark";
-          }
-
-          var storageKey = themeConfig.storage_key ||
-            themeConfig.storageKey ||
-            uiState.theme_storage_key ||
-            uiState.themeStorageKey ||
-            "vectoplan.create.wizard.theme";
-
-          var legacyStorageKey = themeConfig.legacy_storage_key ||
-            themeConfig.legacyStorageKey ||
-            uiState.legacy_theme_storage_key ||
-            uiState.legacyThemeStorageKey ||
-            "vectoplan.create.theme";
-
-          var resolvedTheme = "dark";
-
-          safeLocalStorageSet(storageKey, resolvedTheme);
-          safeLocalStorageSet(legacyStorageKey, resolvedTheme);
-
-          return {
-            theme: resolvedTheme,
-            defaultTheme: defaultTheme,
-            storageKey: storageKey,
-            legacyStorageKey: legacyStorageKey,
-            forced: "dark"
-          };
-        } catch (error) {
-          warn("Theme resolution failed.", error);
-
-          return {
-            theme: "dark",
-            defaultTheme: "dark",
-            storageKey: "vectoplan.create.wizard.theme",
-            legacyStorageKey: "vectoplan.create.theme",
-            forced: "dark"
-          };
-        }
-      }
-
-      function applyTheme(themeState) {
-        try {
-          var root = document.documentElement;
-          var theme = "dark";
-
-          root.setAttribute("data-theme", theme);
-          root.setAttribute("data-vp-create-theme", theme);
-          root.setAttribute("data-vp-create-default-theme", themeState.defaultTheme || "dark");
-          root.setAttribute("data-vp-create-theme-storage-key", themeState.storageKey || "vectoplan.create.wizard.theme");
-          root.setAttribute("data-vp-create-color-scheme", "dark");
-          root.setAttribute("data-vp-create-light-default", "false");
-          root.setAttribute("data-vp-create-black-default", "true");
-          root.setAttribute("data-vp-create-style", "black");
-          root.setAttribute("data-vp-create-template-root", "vplib");
-          root.setAttribute("data-vp-create-template-version", COMPONENT_VERSION);
-          root.setAttribute("data-vp-create-css-mode", "single-file");
-          root.style.colorScheme = "dark";
-
-          dispatch("vectoplan:create:theme-ready", themeState);
-        } catch (error) {
-          warn("Theme application failed.", error);
-        }
-      }
-
-      function normalizeDefinitions(rawDefinitions, generatorContext) {
-        try {
-          var raw = rawDefinitions || {};
-          var generator = generatorContext || {};
-          var generatorData = generator.data || generator.generator_data || generator.generatorData || generator;
-
-          var generatorDefinitions = generatorData.definition_context ||
-            generatorData.definitions ||
-            {};
-
-          var definitions = raw.definitions || generatorDefinitions || {};
-          var options = raw.options || definitions.options || {};
-          var catalogs = raw.catalogs ||
-            raw.definition_catalogs ||
-            raw.definitionCatalogs ||
-            definitions.records ||
-            definitions.catalogs ||
-            definitions.definitions ||
-            {};
-
-          var health = raw.health || definitions.health || definitions.diagnostics || {};
-          var routes = raw.routes || {};
-          var endpoints = raw.endpoints || {};
-
-          var objectKinds = firstArray(
-            raw.object_kinds,
-            raw.objectKinds,
-            options.object_kinds,
-            options.objectKinds,
-            catalogs.object_kinds,
-            catalogs.objectKinds,
-            definitions.object_kinds,
-            definitions.objectKinds
-          );
-
-          var familyProfiles = firstArray(
-            raw.family_profiles,
-            raw.familyProfiles,
-            options.family_profiles,
-            options.familyProfiles,
-            catalogs.family_profiles,
-            catalogs.familyProfiles,
-            definitions.family_profiles,
-            definitions.familyProfiles
-          );
-
-          var variantProfiles = firstArray(
-            raw.variant_profiles,
-            raw.variantProfiles,
-            options.variant_profiles,
-            options.variantProfiles,
-            catalogs.variant_profiles,
-            catalogs.variantProfiles,
-            definitions.variant_profiles,
-            definitions.variantProfiles
-          );
-
-          var variables = firstArray(
-            raw.variables,
-            options.variables,
-            catalogs.variables,
-            definitions.variables
-          );
-
-          var units = firstArray(
-            raw.units,
-            options.units,
-            catalogs.units,
-            definitions.units
-          );
-
-          var materials = firstArray(
-            raw.materials,
-            raw.material_classes,
-            raw.materialClasses,
-            options.materials,
-            options.material_classes,
-            options.materialClasses,
-            catalogs.materials,
-            catalogs.material_classes,
-            catalogs.materialClasses,
-            definitions.materials,
-            definitions.material_classes,
-            definitions.materialClasses
-          );
-
-          var documentTypes = firstArray(
-            raw.document_types,
-            raw.documentTypes,
-            options.document_types,
-            options.documentTypes,
-            catalogs.document_types,
-            catalogs.documentTypes,
-            definitions.document_types,
-            definitions.documentTypes
-          );
-
-          var profileBindings = firstArray(
-            raw.profile_bindings,
-            raw.profileBindings,
-            options.profile_bindings,
-            options.profileBindings,
-            catalogs.profile_bindings,
-            catalogs.profileBindings,
-            definitions.profile_bindings,
-            definitions.profileBindings
-          );
-
-          return {
-            raw: raw,
-            health: health,
-            definitions: definitions,
-            options: options,
-            catalogs: catalogs,
-            definition_catalogs: catalogs,
-            definitionCatalogs: catalogs,
-            routes: routes,
-            endpoints: endpoints,
-            object_kinds: objectKinds,
-            objectKinds: objectKinds,
-            family_profiles: familyProfiles,
-            familyProfiles: familyProfiles,
-            variant_profiles: variantProfiles,
-            variantProfiles: variantProfiles,
-            variables: variables,
-            units: units,
-            materials: materials,
-            document_types: documentTypes,
-            documentTypes: documentTypes,
-            profile_bindings: profileBindings,
-            profileBindings: profileBindings
-          };
-        } catch (error) {
-          warn("Definitions normalization failed.", error);
-
-          return {
-            raw: rawDefinitions || {},
-            health: {},
-            definitions: {},
-            options: {},
-            catalogs: {},
-            definition_catalogs: {},
-            definitionCatalogs: {},
-            routes: {},
-            endpoints: {},
-            object_kinds: [],
-            objectKinds: [],
-            family_profiles: [],
-            familyProfiles: [],
-            variant_profiles: [],
-            variantProfiles: [],
-            variables: [],
-            units: [],
-            materials: [],
-            document_types: [],
-            documentTypes: [],
-            profile_bindings: [],
-            profileBindings: []
-          };
-        }
-      }
-
-      function buildDefinitionMaps(normalized) {
-        try {
-          var defs = normalized || normalizeDefinitions({});
-
-          return {
-            objectKindsById: indexBy(defs.object_kinds, "id"),
-            familyProfilesById: indexBy(defs.family_profiles, "id"),
-            variantProfilesById: indexBy(defs.variant_profiles, "id"),
-            variablesByKey: indexBy(defs.variables, "key"),
-            unitsById: indexBy(defs.units, "id"),
-            materialsById: indexBy(defs.materials, "id"),
-            documentTypesById: indexBy(defs.document_types, "id"),
-            profileBindingsById: indexBy(defs.profile_bindings, "id")
-          };
-        } catch (error) {
-          warn("Definition map build failed.", error);
-
-          return {
-            objectKindsById: {},
-            familyProfilesById: {},
-            variantProfilesById: {},
-            variablesByKey: {},
-            unitsById: {},
-            materialsById: {},
-            documentTypesById: {},
-            profileBindingsById: {}
-          };
-        }
-      }
-
-      function routeValue(routes, endpoints, names, fallbackValue) {
-        try {
-          var keys = toArray(names);
-
-          for (var index = 0; index < keys.length; index += 1) {
-            var key = keys[index];
-
-            if (endpoints && endpoints[key]) {
-              return endpoints[key];
-            }
-
-            if (routes && routes[key]) {
-              return routes[key];
-            }
-          }
-
-          return fallbackValue || "";
-        } catch (error) {
-          return fallbackValue || "";
-        }
-      }
-
-      function buildDefinitionsApi(definitionsJson, contextJson, generatorContext) {
-        try {
-          var normalized = normalizeDefinitions(definitionsJson || {}, generatorContext || {});
-          var maps = buildDefinitionMaps(normalized);
-          var routes = normalized.routes || {};
-          var endpointsRaw = normalized.endpoints || {};
-
-          var contextRoutes = contextJson && contextJson.definitions && contextJson.definitions.routes
-            ? contextJson.definitions.routes
-            : {};
-
-          var contextEndpoints = contextJson && contextJson.definitions && contextJson.definitions.endpoints
-            ? contextJson.definitions.endpoints
-            : {};
-
-          routes = Object.assign({}, contextRoutes, routes);
-          endpointsRaw = Object.assign({}, contextEndpoints, endpointsRaw);
-
-          var endpoints = {
-            options: routeValue(routes, endpointsRaw, ["options"], "{{ _context_definition_routes['options'] }}"),
-            payload: routeValue(routes, endpointsRaw, ["payload"], "{{ _context_definition_routes['payload'] }}"),
-            resolveFamilyProfile: routeValue(routes, endpointsRaw, ["resolveFamilyProfile", "resolve_family_profile"], "{{ _context_definition_routes['resolve_family_profile'] }}"),
-            resolve_family_profile: routeValue(routes, endpointsRaw, ["resolve_family_profile", "resolveFamilyProfile"], "{{ _context_definition_routes['resolve_family_profile'] }}"),
-            resolveVariantProfile: routeValue(routes, endpointsRaw, ["resolveVariantProfile", "resolve_variant_profile"], "{{ _context_definition_routes['resolve_variant_profile'] }}"),
-            resolve_variant_profile: routeValue(routes, endpointsRaw, ["resolve_variant_profile", "resolveVariantProfile"], "{{ _context_definition_routes['resolve_variant_profile'] }}"),
-            variantProfileBase: routeValue(routes, endpointsRaw, ["variantProfileBase", "variant_profile_base"], "{{ _context_definition_routes['variant_profile_base'] }}"),
-            variant_profile_base: routeValue(routes, endpointsRaw, ["variant_profile_base", "variantProfileBase"], "{{ _context_definition_routes['variant_profile_base'] }}"),
-            emptyValuesBase: routeValue(routes, endpointsRaw, ["emptyValuesBase", "empty_values_base"], "{{ _context_definition_routes['empty_variant_values_base'] }}"),
-            empty_values_base: routeValue(routes, endpointsRaw, ["empty_values_base", "emptyValuesBase"], "{{ _context_definition_routes['empty_variant_values_base'] }}"),
-            validateVariant: routeValue(routes, endpointsRaw, ["validateVariant", "validate_variant"], "{{ _context_definition_routes['validate_variant'] }}"),
-            validate_variant: routeValue(routes, endpointsRaw, ["validate_variant", "validateVariant"], "{{ _context_definition_routes['validate_variant'] }}")
-          };
-
-          var ok = Boolean(
-            definitionsJson.ok ||
-            definitionsJson.ready ||
-            normalized.definitions.ok ||
-            normalized.health.ok ||
-            normalized.health.healthy
-          );
-
-          var ready = Boolean(
-            definitionsJson.ready ||
-            (
-              (ok || normalized.variables.length > 0) &&
-              normalized.object_kinds.length > 0 &&
-              normalized.family_profiles.length > 0 &&
-              normalized.variant_profiles.length > 0
-            )
-          );
-
-          return {
-            component: "create.definitionsApi",
-            version: COMPONENT_VERSION,
-            raw: normalized.raw,
-            health: normalized.health,
-            definitions: normalized.definitions,
-            options: normalized.options,
-            catalogs: normalized.catalogs,
-            definition_catalogs: normalized.catalogs,
-            definitionCatalogs: normalized.catalogs,
-            routes: routes,
-            endpoints: endpoints,
-            ok: ok,
-            ready: ready,
-            definitions_version: definitionsJson.definitions_version || definitionsJson.definitionsVersion || "",
-            definitionsVersion: definitionsJson.definitions_version || definitionsJson.definitionsVersion || "",
-            schema_version: definitionsJson.schema_version || definitionsJson.schemaVersion || "",
-            schemaVersion: definitionsJson.schema_version || definitionsJson.schemaVersion || "",
-            object_kinds: normalized.object_kinds,
-            objectKinds: normalized.object_kinds,
-            family_profiles: normalized.family_profiles,
-            familyProfiles: normalized.family_profiles,
-            variant_profiles: normalized.variant_profiles,
-            variantProfiles: normalized.variant_profiles,
-            variables: normalized.variables,
-            units: normalized.units,
-            materials: normalized.materials,
-            document_types: normalized.document_types,
-            documentTypes: normalized.document_types,
-            profile_bindings: normalized.profile_bindings,
-            profileBindings: normalized.profile_bindings,
-            maps: maps,
-            counts: {
-              object_kinds: normalized.object_kinds.length,
-              objectKinds: normalized.object_kinds.length,
-              family_profiles: normalized.family_profiles.length,
-              familyProfiles: normalized.family_profiles.length,
-              variant_profiles: normalized.variant_profiles.length,
-              variantProfiles: normalized.variant_profiles.length,
-              variables: normalized.variables.length,
-              units: normalized.units.length,
-              materials: normalized.materials.length,
-              document_types: normalized.document_types.length,
-              documentTypes: normalized.document_types.length,
-              profile_bindings: normalized.profile_bindings.length,
-              profileBindings: normalized.profile_bindings.length
-            },
-            getRoute: function (name, fallbackValue) {
-              return routeValue(this.routes, this.endpoints, [name], fallbackValue || "");
-            },
-            findOption: function (collectionName, id) {
-              try {
-                var collection = this[collectionName];
-
-                if (!Array.isArray(collection)) {
-                  return null;
-                }
-
-                for (var index = 0; index < collection.length; index += 1) {
-                  if (String(collection[index].id || collection[index].key || collection[index].value || "") === String(id || "")) {
-                    return collection[index];
-                  }
-                }
-
-                return null;
-              } catch (error) {
-                return null;
-              }
-            },
-            findVariable: function (key) {
-              try {
-                return this.maps.variablesByKey[String(key || "")] || null;
-              } catch (error) {
-                return null;
-              }
-            },
-            findVariantProfile: function (id) {
-              try {
-                return this.maps.variantProfilesById[String(id || "")] || null;
-              } catch (error) {
-                return null;
-              }
-            },
-            findFamilyProfile: function (id) {
-              try {
-                return this.maps.familyProfilesById[String(id || "")] || null;
-              } catch (error) {
-                return null;
-              }
-            },
-            findUnit: function (id) {
-              try {
-                return this.maps.unitsById[String(id || "")] || null;
-              } catch (error) {
-                return null;
-              }
-            },
-            findMaterial: function (id) {
-              try {
-                return this.maps.materialsById[String(id || "")] || null;
-              } catch (error) {
-                return null;
-              }
-            },
-            findDocumentType: function (id) {
-              try {
-                return this.maps.documentTypesById[String(id || "")] || null;
-              } catch (error) {
-                return null;
-              }
-            }
-          };
-        } catch (error) {
-          warn("Definitions API build failed.", error);
-
-          return {
-            component: "create.definitionsApi",
-            version: COMPONENT_VERSION,
-            raw: {},
-            health: {},
-            definitions: {},
-            options: {},
-            catalogs: {},
-            definition_catalogs: {},
-            definitionCatalogs: {},
-            routes: {},
-            endpoints: {},
-            ok: false,
-            ready: false,
-            object_kinds: [],
-            objectKinds: [],
-            family_profiles: [],
-            familyProfiles: [],
-            variant_profiles: [],
-            variantProfiles: [],
-            variables: [],
-            units: [],
-            materials: [],
-            document_types: [],
-            documentTypes: [],
-            profile_bindings: [],
-            profileBindings: [],
-            maps: buildDefinitionMaps({}),
-            counts: {}
-          };
-        }
-      }
-
-      function normalizeUploadConfig(uploadJson, contextJson, generatorContext) {
-        try {
-          var raw = uploadJson || {};
-          var fromContext = contextJson && contextJson.uploads ? contextJson.uploads : {};
-          var generatorData = generatorContext && (generatorContext.data || generatorContext.generator_data || generatorContext.generatorData || generatorContext) || {};
-          var fromGenerator = generatorData.upload_config || generatorData.uploads || {};
-          var config = Object.assign({}, fromGenerator, fromContext, raw);
-
-          if (!config.geometry_model) {
-            config.geometry_model = {};
-          }
-
-          if (!config.documents) {
-            config.documents = {};
-          }
-
-          if (!config.variant_documents) {
-            config.variant_documents = {};
-          }
-
-          if (!config.routes && contextJson && contextJson.routes && contextJson.routes.files) {
-            config.routes = contextJson.routes.files;
-          }
-
-          return Object.assign({
-            component: "create.uploads",
-            version: COMPONENT_VERSION,
-            enabled: true,
-            frontend_only: false,
-            frontendOnly: false,
-            backend_enabled: true,
-            backendEnabled: true,
-            max_files_per_field: 12,
-            maxFilesPerField: 12,
-            max_file_size_mb: 250,
-            maxFileSizeMb: 250
-          }, config);
-        } catch (error) {
-          warn("Upload config normalization failed.", error);
-
-          return {
-            component: "create.uploads",
-            version: COMPONENT_VERSION,
-            enabled: true,
-            frontend_only: false,
-            frontendOnly: false,
-            backend_enabled: true,
-            backendEnabled: true,
-            max_files_per_field: 12,
-            maxFilesPerField: 12,
-            max_file_size_mb: 250,
-            maxFileSizeMb: 250
-          };
-        }
-      }
-
-      function normalizePayloadContract(payloadContract, contextJson, generatorContext) {
-        try {
-          var generatorData = generatorContext && (generatorContext.data || generatorContext.generator_data || generatorContext.generatorData || generatorContext) || {};
-          var raw = payloadContract ||
-            contextJson.payload_contract ||
-            contextJson.payloadContract ||
-            generatorData.payload_contract ||
-            generatorData.payloadContract ||
-            {};
-
-          return Object.assign({
-            schema_version: "create_payload.v1",
-            schemaVersion: "create_payload.v1",
-            required_fields: ["family_name", "domain", "category", "subcategory", "object_kind"],
-            requiredFields: ["family_name", "domain", "category", "subcategory", "object_kind"],
-            duplicate_formdata_guards: [
-              "object_kind",
-              "family_profile_id",
-              "variant_profile_id",
-              "definition_variants_json",
-              "default_variant_id"
-            ],
-            duplicateFormdataGuards: [
-              "object_kind",
-              "family_profile_id",
-              "variant_profile_id",
-              "definition_variants_json",
-              "default_variant_id"
-            ]
-          }, raw);
-        } catch (error) {
-          return {};
-        }
-      }
-
-      var context = readJsonScript("vp-create-context-json", {});
-      var generatorContext = readJsonScript("vp-generator-context-json", {});
-      var options = readJsonScript("vp-create-options-json", {});
-      var definitions = readJsonScript("vp-create-definitions-json", {});
-      var health = readJsonScript("vp-create-health-json", {});
-      var uploads = readJsonScript("vp-create-upload-json", {});
-      var payloadContract = readJsonScript("vp-create-payload-contract-json", {});
-      var uiState = readJsonScript("vp-create-ui-state-json", {});
-      var wizard = readJsonScript("vp-create-wizard-json", {});
-      var themeState = resolveTheme(context, uiState);
-      var definitionsApi = buildDefinitionsApi(definitions, context, generatorContext);
-      var uploadConfig = normalizeUploadConfig(uploads, context, generatorContext);
-      var normalizedPayloadContract = normalizePayloadContract(payloadContract, context, generatorContext);
-
-      applyTheme(themeState);
-
-      var bundle = {
-        component: "create.context",
-        version: COMPONENT_VERSION,
-        context: context,
-        generatorContext: generatorContext,
-        generator_context: generatorContext,
-        options: options,
-        definitions: definitions,
-        definitionsApi: definitionsApi,
-        health: health,
-        uploads: uploadConfig,
-        uploadConfig: uploadConfig,
-        payloadContract: normalizedPayloadContract,
-        payload_contract: normalizedPayloadContract,
-        uiState: uiState,
-        wizard: wizard,
-        routes: context.routes || {},
-        preview: context.preview || {},
-        theme: Object.assign({}, context.theme || {}, themeState),
-        actions: context.actions || {},
-        template: context.template || {
-          root: "vplib",
-          path: "templates/vplib/create",
-          version: COMPONENT_VERSION,
-          cssMode: "single-file",
-          theme: "black"
-        },
-        variantRuntime: context.variantRuntime || context.variant_runtime || {
-          enabled: true,
-          mode: "definition-managed",
-          version: "0.2.0",
-          stateOwner: "VectoplanCreateVariantState",
-          payloadField: "definition_variants_json",
-          defaultVariantField: "default_variant_id",
-          systemManagedFields: ["variant.variant_id"]
-        },
-        loadedAt: new Date().toISOString(),
-        getRoute: function (name, fallbackValue) {
-          try {
-            if (context.routes && context.routes[name]) {
-              return context.routes[name];
-            }
-
-            return fallbackValue || "";
-          } catch (error) {
-            return fallbackValue || "";
-          }
-        },
-        getDefault: function (name, fallbackValue) {
-          try {
-            if (uiState.defaults && uiState.defaults[name] !== undefined) {
-              return uiState.defaults[name];
-            }
-
-            return fallbackValue;
-          } catch (error) {
-            return fallbackValue;
-          }
-        },
-        getStep: function (stepIndex) {
-          try {
-            var steps = wizard.steps || (context.wizard && context.wizard.steps) || [];
-            var parsedIndex = parseInt(stepIndex, 10);
-
-            if (!Array.isArray(steps)) {
-              return null;
-            }
-
-            for (var index = 0; index < steps.length; index += 1) {
-              if (parseInt(steps[index].index, 10) === parsedIndex) {
-                return steps[index];
-              }
-            }
-
-            return null;
-          } catch (error) {
-            return null;
-          }
-        },
-        getTheme: function () {
-          return Object.assign({}, themeState);
-        },
-        getDefinitions: function () {
-          return definitionsApi;
-        },
-        getDefinitionMaps: function () {
-          return definitionsApi.maps || {};
-        },
-        getDefinitionCatalogs: function () {
-          return {
-            object_kinds: definitionsApi.object_kinds || [],
-            family_profiles: definitionsApi.family_profiles || [],
-            variant_profiles: definitionsApi.variant_profiles || [],
-            variables: definitionsApi.variables || [],
-            units: definitionsApi.units || [],
-            materials: definitionsApi.materials || [],
-            document_types: definitionsApi.document_types || [],
-            profile_bindings: definitionsApi.profile_bindings || []
-          };
-        },
-        getUploads: function () {
-          return Object.assign({}, uploadConfig);
-        },
-        getPayloadContract: function () {
-          return Object.assign({}, normalizedPayloadContract);
-        }
-      };
-
-      window.VectoplanCreateContext = bundle;
-      window.VectoplanGeneratorContext = generatorContext;
-      window.VectoplanCreateDefinitions = definitionsApi;
-      window.VectoplanCreateDefinitionCatalogs = bundle.getDefinitionCatalogs();
-      window.VectoplanCreateDefinitionMaps = definitionsApi.maps || {};
-      window.VectoplanCreateDefinitionsOptions = definitionsApi.options || {};
-      window.VectoplanCreateUploadConfig = uploadConfig;
-      window.VectoplanCreateRoutes = context.routes || {};
-      window.VectoplanCreatePayloadContract = normalizedPayloadContract;
-
-      try {
-        document.documentElement.setAttribute("data-vp-create-context-json-ready", "true");
-        document.documentElement.setAttribute("data-vp-create-context-version", COMPONENT_VERSION);
-        document.documentElement.setAttribute("data-vp-create-wizard-enabled", "true");
-        document.documentElement.setAttribute("data-vp-create-current-step", String(uiState.current_step || uiState.currentStep || 1));
-        document.documentElement.setAttribute("data-vp-create-definitions-ready", definitionsApi.ready ? "true" : "false");
-        document.documentElement.setAttribute("data-vp-create-definitions-ok", definitionsApi.ok ? "true" : "false");
-        document.documentElement.setAttribute("data-vp-create-variant-runtime", "definition-managed");
-        document.documentElement.setAttribute("data-vp-create-variant-runtime-ready", "true");
-        document.documentElement.setAttribute("data-vp-create-upload-ready", uploadConfig.enabled ? "true" : "false");
-        document.documentElement.setAttribute("data-vp-create-upload-backend-enabled", uploadConfig.backendEnabled || uploadConfig.backend_enabled ? "true" : "false");
-        document.documentElement.setAttribute("data-vp-create-template-root", "vplib");
-        document.documentElement.setAttribute("data-vp-create-template-version", COMPONENT_VERSION);
-        document.documentElement.setAttribute("data-vp-create-style", "black");
-        document.documentElement.setAttribute("data-vp-create-css-mode", "single-file");
-      } catch (attributeError) {
-        /* no-op */
-      }
-
-      dispatch("vectoplan:create:context-ready", bundle);
-      dispatch("vectoplan:create:uploads-ready", uploadConfig);
-
-      if (definitionsApi.ready) {
-        dispatch("vectoplan:create:definitions-ready", definitionsApi);
-      } else {
-        dispatch("vectoplan:create:definitions-unavailable", {
-          component: COMPONENT_NAME,
-          version: COMPONENT_VERSION,
-          ok: definitionsApi.ok,
-          ready: definitionsApi.ready,
-          counts: definitionsApi.counts || {},
-          error: {
-            code: "definitions_not_ready",
-            message: "Definitionsdaten sind nicht vollständig verfügbar."
-          },
-          definitionsApi: definitionsApi
-        });
-      }
+      return cursor === undefined || cursor === null ? fallbackValue : cursor;
     } catch (error) {
-      try {
-        document.documentElement.setAttribute("data-theme", "dark");
-        document.documentElement.setAttribute("data-vp-create-theme", "dark");
-        document.documentElement.setAttribute("data-vp-create-context-json-ready", "false");
-        document.documentElement.setAttribute("data-vp-create-context-error", String(error && error.message ? error.message : error));
-        document.documentElement.setAttribute("data-vp-create-style", "black");
-        document.documentElement.setAttribute("data-vp-create-template-root", "vplib");
-        document.documentElement.style.colorScheme = "dark";
-      } catch (fallbackError) {
-        /* no-op */
-      }
+      return fallbackValue;
+    }
+  }
 
-      try {
-        if (window.console && typeof window.console.warn === "function") {
-          window.console.warn("[VECTOPLAN Create Context] Defensive bootstrap failed.", error);
-        }
-      } catch (consoleError) {
-        /* no-op */
+  function firstString() {
+    for (var index = 0; index < arguments.length; index += 1) {
+      var value = cleanString(arguments[index]);
+      if (value) {
+        return value;
       }
     }
-  })();
+    return "";
+  }
+
+  function cloneShallow(value) {
+    try {
+      return isObject(value) ? Object.assign({}, value) : value;
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function normalizeRouteCandidate(value, fallbackValue, depth) {
+    try {
+      var recursionDepth = Number.isFinite(depth) ? depth : 0;
+      if (recursionDepth > 4 || value === null || value === undefined || value === false) {
+        return cleanString(fallbackValue);
+      }
+
+      if (typeof URL !== "undefined" && value instanceof URL) {
+        value = value.href;
+      }
+
+      if (typeof value === "string") {
+        var raw = cleanString(value);
+        var lowered = raw.toLowerCase();
+        if (!raw || raw === "[object Object]" || lowered.indexOf("javascript:") === 0 || lowered.indexOf("data:") === 0 || lowered.indexOf("vbscript:") === 0) {
+          return cleanString(fallbackValue);
+        }
+        if (raw.indexOf("//") === 0) {
+          return cleanString(fallbackValue);
+        }
+
+        try {
+          var resolved = new URL(raw, window.location.href);
+          if (resolved.origin !== window.location.origin) {
+            return cleanString(fallbackValue);
+          }
+          if (/^https?:/i.test(raw)) {
+            return resolved.href;
+          }
+          return resolved.pathname + resolved.search + resolved.hash;
+        } catch (urlError) {
+          if (raw.charAt(0) === "/" || raw.indexOf("./") === 0 || raw.indexOf("../") === 0) {
+            return raw;
+          }
+          return cleanString(fallbackValue);
+        }
+      }
+
+      if (isObject(value)) {
+        var fields = ["url", "href", "path", "route", "endpoint", "value"];
+        for (var index = 0; index < fields.length; index += 1) {
+          if (Object.prototype.hasOwnProperty.call(value, fields[index])) {
+            var nested = normalizeRouteCandidate(value[fields[index]], "", recursionDepth + 1);
+            if (nested) {
+              return nested;
+            }
+          }
+        }
+      }
+
+      return cleanString(fallbackValue);
+    } catch (error) {
+      return cleanString(fallbackValue);
+    }
+  }
+
+  function routeAliases(key) {
+    var aliases = {
+      create_context: ["create_context", "createContext"],
+      definitions_current: ["definitions_current", "definitionsCurrent"],
+      persistent_draft: ["persistent_draft", "persistentDraft", "drafts"],
+      package_plan: ["package_plan", "packagePlan", "package-plan"],
+      publish_bundle: ["publish_bundle", "publishBundle", "publish_prepare", "publishPrepare", "publish-prepare"],
+      cache_clear: ["cache_clear", "cacheClear"]
+    };
+    return aliases[key] || [key];
+  }
+
+  function buildRouteMap(defaults, sources) {
+    var output = {};
+    var routeSources = Array.isArray(sources) ? sources : [];
+
+    Object.keys(defaults || {}).forEach(function (key) {
+      var fallbackValue = defaults[key];
+      var aliases = routeAliases(key);
+      var resolved = "";
+
+      for (var sourceIndex = 0; sourceIndex < routeSources.length && !resolved; sourceIndex += 1) {
+        var source = routeSources[sourceIndex];
+        if (!isObject(source)) {
+          continue;
+        }
+        for (var aliasIndex = 0; aliasIndex < aliases.length; aliasIndex += 1) {
+          if (Object.prototype.hasOwnProperty.call(source, aliases[aliasIndex])) {
+            resolved = normalizeRouteCandidate(source[aliases[aliasIndex]], "");
+            if (resolved) {
+              break;
+            }
+          }
+        }
+      }
+
+      output[key] = resolved || normalizeRouteCandidate(fallbackValue, fallbackValue);
+    });
+
+    output.packagePlan = output.package_plan;
+    output["package-plan"] = output.package_plan;
+    output.createContext = output.create_context;
+    output.definitionsCurrent = output.definitions_current;
+    output.persistentDraft = output.persistent_draft;
+    output.publishBundle = output.publish_bundle;
+    output.publishPrepare = output.publish_bundle;
+    output.publish_prepare = output.publish_bundle;
+    output["publish-prepare"] = output.publish_bundle;
+    output.cacheClear = output.cache_clear;
+    return output;
+  }
+
+  function collectionFromValue(value) {
+    try {
+      if (!value) {
+        return [];
+      }
+      if (Array.isArray(value)) {
+        return value.slice();
+      }
+      if (isObject(value)) {
+        var envelopeKeys = ["items", "results", "records", "values", "data"];
+        for (var index = 0; index < envelopeKeys.length; index += 1) {
+          if (Array.isArray(value[envelopeKeys[index]])) {
+            return value[envelopeKeys[index]].slice();
+          }
+        }
+        return Object.keys(value).map(function (mapKey) {
+          var item = value[mapKey];
+          if (isObject(item)) {
+            var copy = Object.assign({}, item);
+            if (!copy.__map_key) {
+              copy.__map_key = mapKey;
+            }
+            return copy;
+          }
+          return item;
+        });
+      }
+      return [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function datasetKey(datasetName, item) {
+    try {
+      if (!isObject(item)) {
+        return "";
+      }
+      var fields = DATASET_KEY_FIELDS[datasetName] || ["id", "key"];
+      for (var index = 0; index < fields.length; index += 1) {
+        var value = cleanString(item[fields[index]]);
+        if (value) {
+          return value;
+        }
+      }
+      return cleanString(item.__map_key);
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function definitionPriority(item) {
+    try {
+      var source = firstString(item.catalog_source, item.catalogSource, item.source).toLowerCase();
+      var priority = parseInt(item.priority, 10);
+      var score = Number.isFinite(priority) ? priority : 0;
+      if (source.indexOf("db") !== -1 || source.indexOf("postgres") !== -1 || source.indexOf("user") !== -1) {
+        score += 10000;
+      } else if (source.indexOf("registry") !== -1 || source.indexOf("baseline") !== -1) {
+        score += 1000;
+      }
+      if (item.active === false || item.enabled === false || item.deleted === true) {
+        score -= 100000;
+      }
+      return score;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  function dedupeDataset(datasetName, values) {
+    var output = [];
+    var positions = Object.create(null);
+    var fingerprints = Object.create(null);
+
+    collectionFromValue(values).forEach(function (rawItem) {
+      if (!isObject(rawItem)) {
+        return;
+      }
+      var item = Object.assign({}, rawItem);
+      delete item.__map_key;
+      var key = datasetKey(datasetName, rawItem);
+      var fingerprint = "";
+      try {
+        fingerprint = JSON.stringify(item);
+      } catch (fingerprintError) {
+        fingerprint = key;
+      }
+
+      if (!key) {
+        if (!fingerprints[fingerprint]) {
+          fingerprints[fingerprint] = true;
+          output.push(item);
+        }
+        return;
+      }
+
+      if (!Object.prototype.hasOwnProperty.call(positions, key)) {
+        positions[key] = output.length;
+        output.push(item);
+        return;
+      }
+
+      var existingIndex = positions[key];
+      var existing = output[existingIndex];
+      if (definitionPriority(item) > definitionPriority(existing)) {
+        output[existingIndex] = item;
+      }
+    });
+
+    return output;
+  }
+
+  function collectDataset(datasetName, sources) {
+    var aliases = DATASET_ALIASES[datasetName] || [datasetName];
+    var merged = [];
+
+    (Array.isArray(sources) ? sources : []).forEach(function (source) {
+      if (!isObject(source)) {
+        return;
+      }
+      for (var index = 0; index < aliases.length; index += 1) {
+        if (Object.prototype.hasOwnProperty.call(source, aliases[index])) {
+          merged = merged.concat(collectionFromValue(source[aliases[index]]));
+        }
+      }
+    });
+
+    return dedupeDataset(datasetName, merged);
+  }
+
+  function buildDatasetMap(datasetName, values) {
+    var output = Object.create(null);
+    dedupeDataset(datasetName, values).forEach(function (item) {
+      var key = datasetKey(datasetName, item);
+      if (key && !Object.prototype.hasOwnProperty.call(output, key)) {
+        output[key] = item;
+      }
+    });
+    return output;
+  }
+
+  function generatorData(generatorContext) {
+    if (!isObject(generatorContext)) {
+      return {};
+    }
+    return isObject(generatorContext.data) ? generatorContext.data :
+      isObject(generatorContext.payload) ? generatorContext.payload :
+      isObject(generatorContext.generator_data) ? generatorContext.generator_data :
+      isObject(generatorContext.generatorData) ? generatorContext.generatorData :
+      generatorContext;
+  }
+
+  function normalizeDefinitions(definitionsJson, generatorContext) {
+    var raw = isObject(definitionsJson) ? definitionsJson : {};
+    var generator = generatorData(generatorContext);
+    var generatorDefinitions = isObject(generator.definition_context) ? generator.definition_context :
+      isObject(generator.definitions) ? generator.definitions : {};
+    var sources = [
+      raw,
+      raw.records,
+      raw.catalogs,
+      raw.definitions,
+      raw.options,
+      generatorDefinitions,
+      generatorDefinitions.records,
+      generatorDefinitions.catalogs,
+      generatorDefinitions.definitions,
+      generatorDefinitions.options
+    ];
+
+    var catalogs = {};
+    Object.keys(DATASET_ALIASES).forEach(function (datasetName) {
+      catalogs[datasetName] = collectDataset(datasetName, sources);
+    });
+
+    var counts = {};
+    Object.keys(catalogs).forEach(function (datasetName) {
+      counts[datasetName] = catalogs[datasetName].length;
+    });
+    counts.objectKinds = counts.object_kinds;
+    counts.familyProfiles = counts.family_profiles;
+    counts.variantProfiles = counts.variant_profiles;
+    counts.documentTypes = counts.document_types;
+    counts.profileBindings = counts.profile_bindings;
+
+    var maps = {
+      objectKindsById: buildDatasetMap("object_kinds", catalogs.object_kinds),
+      familyProfilesById: buildDatasetMap("family_profiles", catalogs.family_profiles),
+      variantProfilesById: buildDatasetMap("variant_profiles", catalogs.variant_profiles),
+      variablesByKey: buildDatasetMap("variables", catalogs.variables),
+      unitsById: buildDatasetMap("units", catalogs.units),
+      materialsById: buildDatasetMap("materials", catalogs.materials),
+      documentTypesById: buildDatasetMap("document_types", catalogs.document_types),
+      profileBindingsById: buildDatasetMap("profile_bindings", catalogs.profile_bindings)
+    };
+    maps.object_kinds_by_id = maps.objectKindsById;
+    maps.family_profiles_by_id = maps.familyProfilesById;
+    maps.variant_profiles_by_id = maps.variantProfilesById;
+    maps.variables_by_key = maps.variablesByKey;
+    maps.units_by_id = maps.unitsById;
+    maps.materials_by_id = maps.materialsById;
+    maps.document_types_by_id = maps.documentTypesById;
+    maps.profile_bindings_by_id = maps.profileBindingsById;
+
+    var ok = toBoolean(raw.ok, false) || toBoolean(raw.healthy, false) || counts.variant_profiles > 0;
+    var ready = counts.object_kinds > 0 && counts.family_profiles > 0 && counts.variant_profiles > 0;
+
+    return {
+      raw: raw,
+      catalogs: catalogs,
+      counts: counts,
+      maps: maps,
+      ok: ok,
+      ready: ready,
+      definitionsVersion: firstString(raw.definitions_version, raw.definitionsVersion),
+      schemaVersion: firstString(raw.schema_version, raw.schemaVersion)
+    };
+  }
+
+  function normalizePayloadContract(rawContract, contextJson, generatorContext) {
+    var generator = generatorData(generatorContext);
+    var contextContract = isObject(contextJson.payload_contract) ? contextJson.payload_contract :
+      isObject(contextJson.payloadContract) ? contextJson.payloadContract : {};
+    var generatorContract = isObject(generator.payload_contract) ? generator.payload_contract :
+      isObject(generator.payloadContract) ? generator.payloadContract : {};
+    var raw = isObject(rawContract) ? rawContract : {};
+
+    var defaults = {
+      schema_version: "create_payload.v1",
+      schemaVersion: "create_payload.v1",
+      object_kind: STARTER_OBJECT_KIND,
+      objectKind: STARTER_OBJECT_KIND,
+      family_profile_id: STARTER_FAMILY_PROFILE_ID,
+      familyProfileId: STARTER_FAMILY_PROFILE_ID,
+      variant_profile_id: STARTER_VARIANT_PROFILE_ID,
+      variantProfileId: STARTER_VARIANT_PROFILE_ID,
+      default_variant_id: "default",
+      defaultVariantId: "default",
+      required_fields: ["family_name", "domain", "category", "subcategory", "object_kind"],
+      requiredFields: ["family_name", "domain", "category", "subcategory", "object_kind"]
+    };
+
+    var result = Object.assign({}, defaults, generatorContract, contextContract, raw);
+    result.schema_version = firstString(result.schema_version, result.schemaVersion, defaults.schema_version);
+    result.schemaVersion = result.schema_version;
+    result.object_kind = firstString(result.object_kind, result.objectKind, STARTER_OBJECT_KIND);
+    result.objectKind = result.object_kind;
+    result.family_profile_id = firstString(result.family_profile_id, result.familyProfileId, STARTER_FAMILY_PROFILE_ID);
+    result.familyProfileId = result.family_profile_id;
+    result.variant_profile_id = firstString(result.variant_profile_id, result.variantProfileId, STARTER_VARIANT_PROFILE_ID);
+    result.variantProfileId = result.variant_profile_id;
+    result.default_variant_id = firstString(result.default_variant_id, result.defaultVariantId, "default");
+    result.defaultVariantId = result.default_variant_id;
+    return result;
+  }
+
+  function normalizeUploadConfig(rawUpload, contextJson, generatorContext, catalogs, fileRoutes) {
+    var generator = generatorData(generatorContext);
+    var generatorUpload = isObject(generator.upload_config) ? generator.upload_config :
+      isObject(generator.uploadConfig) ? generator.uploadConfig :
+      isObject(generator.uploads) ? generator.uploads : {};
+    var contextUpload = isObject(contextJson.uploads) ? contextJson.uploads : {};
+    var raw = isObject(rawUpload) ? rawUpload : {};
+    var result = Object.assign({
+      component: "create.uploads",
+      version: COMPONENT_VERSION,
+      enabled: true,
+      frontend_only: false,
+      frontendOnly: false,
+      backend_enabled: true,
+      backendEnabled: true,
+      max_files_per_field: 12,
+      maxFilesPerField: 12,
+      max_file_size_mb: 250,
+      maxFileSizeMb: 250
+    }, generatorUpload, contextUpload, raw);
+
+    result.routes = isObject(result.routes) ? result.routes : fileRoutes;
+    result.document_types = catalogs.document_types;
+    result.documentTypes = catalogs.document_types;
+    result.geometry_model = Object.assign({
+      enabled: true,
+      field: "geometry_model_files",
+      metadata_field: "geometry_model_uploads_json",
+      metadataField: "geometry_model_uploads_json",
+      accept: ".glb,.gltf,.obj,.fbx,.stl,.zip",
+      multiple: true,
+      purpose: "geometry_model"
+    }, isObject(result.geometry_model) ? result.geometry_model : {});
+    result.documents = Object.assign({
+      enabled: true,
+      field: "technical_document_files",
+      metadata_field: "technical_document_uploads_json",
+      metadataField: "technical_document_uploads_json",
+      accept: ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp,.zip",
+      multiple: true,
+      purpose: "technical_documents"
+    }, isObject(result.documents) ? result.documents : {});
+    result.variant_documents = Object.assign({
+      enabled: true,
+      field: "variant_document_files",
+      metadata_field: "variant_document_uploads_json",
+      metadataField: "variant_document_uploads_json",
+      accept: ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp,.zip",
+      multiple: true,
+      purpose: "variant_documents"
+    }, isObject(result.variant_documents) ? result.variant_documents : {});
+    return result;
+  }
+
+  function dispatch(eventName, detail) {
+    try {
+      document.dispatchEvent(new CustomEvent(eventName, {
+        bubbles: true,
+        cancelable: false,
+        detail: detail || {}
+      }));
+      return true;
+    } catch (error) {
+      warnOnce("dispatch:" + eventName, "Could not dispatch " + eventName + ".", error);
+      return false;
+    }
+  }
+
+  function setAttribute(name, value) {
+    try {
+      document.documentElement.setAttribute(name, String(value));
+    } catch (error) {
+      /* no-op */
+    }
+  }
+
+  try {
+    var contextJson = readJsonScript("vp-create-context-json", {});
+    var generatorContext = readJsonScript("vp-generator-context-json", {});
+    var optionsJson = readJsonScript("vp-create-options-json", {});
+    var definitionsJson = readJsonScript("vp-create-definitions-json", {});
+    var healthJson = readJsonScript("vp-create-health-json", {});
+    var uploadJson = readJsonScript("vp-create-upload-json", {});
+    var payloadContractJson = readJsonScript("vp-create-payload-contract-json", {});
+    var uiStateJson = readJsonScript("vp-create-ui-state-json", {});
+    var wizardJson = readJsonScript("vp-create-wizard-json", {});
+    var generator = generatorData(generatorContext);
+
+    var createRoutes = buildRouteMap(CREATE_ROUTE_DEFAULTS, [
+      contextJson.route_overrides,
+      contextJson.routeOverrides,
+      contextJson.routes,
+      generator.routes,
+      optionsJson.routes
+    ]);
+
+    var definitionRoutes = buildRouteMap(DEFINITION_ROUTE_DEFAULTS, [
+      definitionsJson.routes,
+      readPath(generator, ["definition_context", "routes"], {}),
+      readPath(generator, ["definitions", "routes"], {})
+    ]);
+
+    var taxonomyRoutes = buildRouteMap({
+      index: {{ (_context_taxonomy_api_prefix ~ "/") | tojson }},
+      health: {{ (_context_taxonomy_api_prefix ~ "/health") | tojson }},
+      options: {{ (_context_taxonomy_api_prefix ~ "/options") | tojson }},
+      tree: {{ (_context_taxonomy_api_prefix ~ "/tree") | tojson }},
+      nodes: {{ (_context_taxonomy_api_prefix ~ "/nodes") | tojson }},
+      resolve: {{ (_context_taxonomy_api_prefix ~ "/resolve") | tojson }}
+    }, [contextJson.taxonomy && contextJson.taxonomy.routes]);
+
+    var fileRoutes = buildRouteMap({
+      index: {{ (_context_files_api_prefix ~ "/") | tojson }},
+      health: {{ (_context_files_api_prefix ~ "/health") | tojson }},
+      upload: {{ (_context_files_api_prefix ~ "/upload") | tojson }},
+      context: {{ (_context_files_api_prefix ~ "/context") | tojson }},
+      links: {{ (_context_files_api_prefix ~ "/links") | tojson }}
+    }, [uploadJson.routes]);
+
+    var definitionsState = normalizeDefinitions(definitionsJson, generatorContext);
+    var catalogs = definitionsState.catalogs;
+    var maps = definitionsState.maps;
+    var payloadContract = normalizePayloadContract(payloadContractJson, contextJson, generatorContext);
+    var uploadConfig = normalizeUploadConfig(uploadJson, contextJson, generatorContext, catalogs, fileRoutes);
+
+    var definitionEndpoints = {
+      options: definitionRoutes.options,
+      payload: definitionRoutes.payload,
+      resolveFamilyProfile: definitionRoutes.resolve_family_profile,
+      resolve_family_profile: definitionRoutes.resolve_family_profile,
+      resolveVariantProfile: definitionRoutes.resolve_variant_profile,
+      resolve_variant_profile: definitionRoutes.resolve_variant_profile,
+      variantProfileBase: definitionRoutes.variant_profile_base,
+      variant_profile_base: definitionRoutes.variant_profile_base,
+      emptyValuesBase: definitionRoutes.empty_variant_values_base,
+      empty_values_base: definitionRoutes.empty_variant_values_base,
+      validateVariant: definitionRoutes.validate_variant,
+      validate_variant: definitionRoutes.validate_variant
+    };
+
+    var definitionOptions = Object.assign({}, catalogs, {
+      objectKinds: catalogs.object_kinds,
+      familyProfiles: catalogs.family_profiles,
+      variantProfiles: catalogs.variant_profiles,
+      documentTypes: catalogs.document_types,
+      profileBindings: catalogs.profile_bindings
+    });
+
+    var definitionsApi = {
+      component: "create.definitionsApi",
+      version: COMPONENT_VERSION,
+      raw: definitionsJson,
+      health: {
+        ok: definitionsState.ok,
+        ready: definitionsState.ready
+      },
+      ok: definitionsState.ok,
+      ready: definitionsState.ready,
+      definitions_version: definitionsState.definitionsVersion,
+      definitionsVersion: definitionsState.definitionsVersion,
+      schema_version: definitionsState.schemaVersion,
+      schemaVersion: definitionsState.schemaVersion,
+      definitions: catalogs,
+      catalogs: catalogs,
+      definition_catalogs: catalogs,
+      definitionCatalogs: catalogs,
+      options: definitionOptions,
+      routes: definitionRoutes,
+      endpoints: definitionEndpoints,
+      maps: maps,
+      counts: definitionsState.counts,
+      object_kinds: catalogs.object_kinds,
+      objectKinds: catalogs.object_kinds,
+      family_profiles: catalogs.family_profiles,
+      familyProfiles: catalogs.family_profiles,
+      variant_profiles: catalogs.variant_profiles,
+      variantProfiles: catalogs.variant_profiles,
+      variables: catalogs.variables,
+      units: catalogs.units,
+      materials: catalogs.materials,
+      document_types: catalogs.document_types,
+      documentTypes: catalogs.document_types,
+      profile_bindings: catalogs.profile_bindings,
+      profileBindings: catalogs.profile_bindings,
+      getRoute: function (name, fallbackValue) {
+        return normalizeRouteCandidate(this.endpoints[name] || this.routes[name], fallbackValue || "");
+      },
+      findObjectKind: function (id) { return maps.objectKindsById[cleanString(id)] || null; },
+      findFamilyProfile: function (id) { return maps.familyProfilesById[cleanString(id)] || null; },
+      findVariantProfile: function (id) { return maps.variantProfilesById[cleanString(id)] || null; },
+      findVariable: function (id) { return maps.variablesByKey[cleanString(id)] || null; },
+      findUnit: function (id) { return maps.unitsById[cleanString(id)] || null; },
+      findMaterial: function (id) { return maps.materialsById[cleanString(id)] || null; },
+      findDocumentType: function (id) { return maps.documentTypesById[cleanString(id)] || null; }
+    };
+
+    var starterDefaults = Object.assign({}, uiStateJson.defaults || {}, {
+      object_kind: firstString(generator.object_kind, generator.objectKind, payloadContract.object_kind, STARTER_OBJECT_KIND),
+      family_profile_id: firstString(generator.family_profile_id, generator.familyProfileId, payloadContract.family_profile_id, STARTER_FAMILY_PROFILE_ID),
+      variant_profile_id: firstString(generator.variant_profile_id, generator.variantProfileId, payloadContract.variant_profile_id, STARTER_VARIANT_PROFILE_ID),
+      default_variant_id: firstString(generator.default_variant_id, generator.defaultVariantId, payloadContract.default_variant_id, "default")
+    });
+    starterDefaults.objectKind = starterDefaults.object_kind;
+    starterDefaults.familyProfileId = starterDefaults.family_profile_id;
+    starterDefaults.variantProfileId = starterDefaults.variant_profile_id;
+    starterDefaults.defaultVariantId = starterDefaults.default_variant_id;
+
+    var options = Object.assign({}, optionsJson, definitionOptions, {
+      definitions: catalogs,
+      definitions_options: definitionOptions,
+      definitionsOptions: definitionOptions,
+      definition_catalogs: catalogs,
+      definitionCatalogs: catalogs,
+      routes: createRoutes
+    });
+
+    var context = Object.assign({}, contextJson, {
+      routes: createRoutes,
+      definitions: {
+        ok: definitionsState.ok,
+        ready: definitionsState.ready,
+        routes: definitionRoutes,
+        endpoints: definitionEndpoints,
+        counts: definitionsState.counts
+      },
+      payload_contract: payloadContract,
+      payloadContract: payloadContract,
+      uploads: uploadConfig,
+      vplib_uid: firstString(generator.vplib_uid, generator.vplibUid, readPath(generatorContext, ["vplib_uid"], "")),
+      vplibUid: firstString(generator.vplib_uid, generator.vplibUid, readPath(generatorContext, ["vplib_uid"], "")),
+      context_uid: firstString(generatorContext.context_uid, generatorContext.contextUid, generator.context_uid, generator.contextUid),
+      contextUid: firstString(generatorContext.context_uid, generatorContext.contextUid, generator.context_uid, generator.contextUid),
+      object_kind: starterDefaults.object_kind,
+      objectKind: starterDefaults.object_kind,
+      family_profile_id: starterDefaults.family_profile_id,
+      familyProfileId: starterDefaults.family_profile_id,
+      variant_profile_id: starterDefaults.variant_profile_id,
+      variantProfileId: starterDefaults.variant_profile_id
+    });
+
+    var bundle = {
+      component: "create.context",
+      version: COMPONENT_VERSION,
+      context: context,
+      generatorContext: generatorContext,
+      generator_context: generatorContext,
+      options: options,
+      health: healthJson,
+      definitions: definitionsApi,
+      definitionsApi: definitionsApi,
+      definitionCatalogs: catalogs,
+      definition_catalogs: catalogs,
+      uploads: uploadConfig,
+      uploadConfig: uploadConfig,
+      payloadContract: payloadContract,
+      payload_contract: payloadContract,
+      uiState: Object.assign({}, uiStateJson, {
+        definitions_ready: definitionsState.ready,
+        definitionsReady: definitionsState.ready,
+        defaults: starterDefaults
+      }),
+      ui_state: Object.assign({}, uiStateJson, {
+        definitions_ready: definitionsState.ready,
+        definitionsReady: definitionsState.ready,
+        defaults: starterDefaults
+      }),
+      wizard: wizardJson,
+      routes: createRoutes,
+      preview: contextJson.preview || {},
+      theme: contextJson.theme || {},
+      actions: contextJson.actions || {},
+      template: contextJson.template || {},
+      variantRuntime: contextJson.variant_runtime || {},
+      variant_runtime: contextJson.variant_runtime || {},
+      loadedAt: new Date().toISOString(),
+      getRoute: function (name, fallbackValue) {
+        return normalizeRouteCandidate(createRoutes[name], fallbackValue || "");
+      },
+      getDefault: function (name, fallbackValue) {
+        return Object.prototype.hasOwnProperty.call(starterDefaults, name) ? starterDefaults[name] : fallbackValue;
+      },
+      getStep: function (stepIndex) {
+        var steps = Array.isArray(wizardJson.steps) ? wizardJson.steps : [];
+        var target = parseInt(stepIndex, 10);
+        for (var index = 0; index < steps.length; index += 1) {
+          if (parseInt(steps[index].index, 10) === target) {
+            return steps[index];
+          }
+        }
+        return null;
+      },
+      getDefinitions: function () { return definitionsApi; },
+      getDefinitionMaps: function () { return maps; },
+      getDefinitionCatalogs: function () { return catalogs; },
+      getUploads: function () { return Object.assign({}, uploadConfig); },
+      getPayloadContract: function () { return Object.assign({}, payloadContract); }
+    };
+
+    window.VectoplanCreateContext = bundle;
+    window.VectoplanGeneratorContext = generatorContext;
+    window.VectoplanCreateDefinitions = definitionsApi;
+    window.VectoplanCreateDefinitionCatalogs = catalogs;
+    window.VectoplanCreateDefinitionMaps = maps;
+    window.VectoplanCreateDefinitionsOptions = definitionOptions;
+    window.VectoplanCreateUploadConfig = uploadConfig;
+    window.VectoplanCreateRoutes = createRoutes;
+    window.VectoplanCreatePayloadContract = payloadContract;
+
+    setAttribute("data-vp-create-context-json-ready", "true");
+    setAttribute("data-vp-create-context-version", COMPONENT_VERSION);
+    setAttribute("data-vp-create-definitions-ready", definitionsState.ready ? "true" : "false");
+    setAttribute("data-vp-create-definitions-ok", definitionsState.ok ? "true" : "false");
+    setAttribute("data-vp-create-definition-object-kind-count", catalogs.object_kinds.length);
+    setAttribute("data-vp-create-definition-family-profile-count", catalogs.family_profiles.length);
+    setAttribute("data-vp-create-definition-variant-profile-count", catalogs.variant_profiles.length);
+    setAttribute("data-vp-create-definition-variable-count", catalogs.variables.length);
+    setAttribute("data-vp-create-upload-ready", uploadConfig.enabled !== false ? "true" : "false");
+    setAttribute("data-vp-create-upload-backend-enabled", uploadConfig.backendEnabled !== false && uploadConfig.backend_enabled !== false ? "true" : "false");
+    setAttribute("data-vp-create-route-download", createRoutes.download);
+    setAttribute("data-vp-create-starter-object-kind", starterDefaults.object_kind);
+    setAttribute("data-vp-create-starter-family-profile-id", starterDefaults.family_profile_id);
+    setAttribute("data-vp-create-starter-variant-profile-id", starterDefaults.variant_profile_id);
+
+    dispatch("vectoplan:create:context-ready", bundle);
+    dispatch("vectoplan:create:uploads-ready", uploadConfig);
+    if (definitionsState.ready) {
+      dispatch("vectoplan:create:definitions-ready", definitionsApi);
+    } else {
+      dispatch("vectoplan:create:definitions-unavailable", {
+        component: COMPONENT_NAME,
+        version: COMPONENT_VERSION,
+        ok: definitionsState.ok,
+        ready: definitionsState.ready,
+        counts: definitionsState.counts,
+        error: {
+          code: "definitions_not_ready",
+          message: "Definitionsdaten sind nicht vollständig verfügbar."
+        }
+      });
+    }
+  } catch (error) {
+    setAttribute("data-vp-create-context-json-ready", "false");
+    setAttribute("data-vp-create-context-error", cleanString(error && error.message ? error.message : error, "context_bootstrap_failed"));
+    warnOnce("bootstrap", "Defensive bootstrap failed.", error);
+  }
+})();
 </script>

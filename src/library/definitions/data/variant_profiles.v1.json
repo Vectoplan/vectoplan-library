@@ -4,12 +4,12 @@
   "definitions_version": "v1",
   "dataset": "variant_profiles",
   "label": "VECTOPLAN Variant Profile Definitions",
-  "description": "Backend-owned Feldprofile für Varianten. Diese Datei definiert, welche Abschnitte und Variablen im Variant Drawer erscheinen. Das Frontend rendert nur diese Profile und entscheidet nicht selbst, welche technischen Felder existieren.",
+  "description": "Backend-owned Feldprofile für Varianten. Diese Datei definiert die kanonischen Variant-Profile, deren Abschnitte, Felder, Pflichtwerte, Standardwerte und UI-Hinweise. Das Frontend rendert diese Profile, erzeugt keine eigenen technischen Felddefinitionen und verwendet die Profil-ID unverändert für Resolver-, Detail-, Validierungs- und Create-Aufrufe.",
   "items": [
     {
       "id": "simple_cell_block.v1",
       "label": "Einfacher Rasterblock",
-      "description": "Ein kompaktes Variantenprofil für einfache Rasterblöcke ohne tiefe technische Auswertung. Dient als stabiler Einstieg und hält den bestehenden basic_stone_block kompatibel.",
+      "description": "Stabiles Starterprofil für einen einfachen 1×1×1-Rasterblock. Alle für die erste Default-Variante erforderlichen Werte besitzen sichere Standardwerte, sodass der Create-Flow ohne Herstellerdaten, Dokumente oder externe 3D-Assets bis zum validierten .vplib-Download durchlaufen kann.",
       "active": true,
       "sort_order": 10,
       "tags": [
@@ -21,7 +21,10 @@
       "aliases": [
         "simple_block",
         "basic_block",
-        "basisblock"
+        "basisblock",
+        "simple_cell_block",
+        "basic_stone_block",
+        "starter_cell_block"
       ],
       "i18n": {
         "de": "Einfacher Rasterblock",
@@ -123,10 +126,13 @@
       "default_values": {
         "variant.variant_id": "default",
         "variant.label": "Standard",
+        "variant.description": "Standardvariante für einen einfachen Rasterblock.",
         "dimensions.width_mm": 1000,
         "dimensions.height_mm": 1000,
         "dimensions.depth_mm": 1000,
-        "material.type": "generic"
+        "material.type": "generic",
+        "material.subtype": "generic_block",
+        "material.color_hint": "#9CA3AF"
       },
       "document_types": [
         "datasheet",
@@ -155,7 +161,15 @@
       "metadata": {
         "owner": "vectoplan-library",
         "stability": "stable",
-        "migration_role": "basic_stone_block_compatibility"
+        "migration_role": "basic_stone_block_compatibility",
+        "canonical_profile_id": "simple_cell_block.v1",
+        "default_family_profile_id": "simple_cell_block",
+        "default_object_kind": "cell_block",
+        "supports_default_variant_generation": true,
+        "requires_external_assets": false,
+        "requires_documents": false,
+        "requires_manufacturer_data": false,
+        "creator_download_smoke_test_ready": true
       }
     },
     {

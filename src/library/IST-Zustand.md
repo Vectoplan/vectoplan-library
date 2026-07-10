@@ -1,10 +1,39 @@
 # IST-Zustand – `services/vectoplan-library/src/library`
 
-Stand: **2026-06-28**  
-Letzte Aktualisierung: **2026-06-28**  
+> Vollständige, fortgeschriebene Bestandsaufnahme. Frühere Inhalte wurden nicht entfernt, sondern korrigiert, präzisiert und um den verifizierten Stand vom 10. Juli 2026 ergänzt.
+
+Stand: **2026-07-10**  
+Letzte Aktualisierung: **2026-07-10**  
 Scope: `services/vectoplan-library/src/library` plus relevante Außenkanten in `routes/`, `src/routes/`, `models/`, `migrations/`, PostgreSQL/Alembic und API-Testpfade.
 
 Dieses Dokument beschreibt den aktuellen Aufbau der Library-Schicht so, dass ein Entwickler die Ordner, Dateien, Datenflüsse, Zuständigkeiten und Testreihenfolge nachvollziehen kann.
+
+Statusbasis dieser Aktualisierung:
+
+```text
+- bestehende Bestandsaufnahme vom 2026-06-28
+- aktueller Container-/Gunicorn-Start vom 2026-07-10
+- aktuelle PostgreSQL-/Alembic-Initialisierung
+- aktueller Definitions-Katalog und Profile-Resolver
+- aktuell getesteter Create-Wizard
+- erfolgreich getestete Validate-, Package-Plan-, Download-, Draft- und Save-Routen
+- aktueller Source-Save- und Published-DB-Sync-Vertrag
+- aktuell beobachtete leere Published Library vor explizitem DB-Sync
+- bekannte Startup-, Payload-Größen- und Integrationsrisiken
+```
+
+Diese Datei unterscheidet ausdrücklich zwischen:
+
+```text
+IST
+  bereits implementiert und/oder praktisch beobachtet
+
+TEILWEISE
+  strukturell vorhanden, aber noch nicht vollständig End-to-End verifiziert
+
+OFFEN
+  als nächste Arbeit vorgesehen, jedoch noch nicht produktiv umgesetzt
+```
 
 ---
 
@@ -37,6 +66,20 @@ Dieses Dokument beschreibt den aktuellen Aufbau der Library-Schicht so, dass ein
 25. Konventionen für neue Dateien und Erweiterungen
 26. Offene Punkte / nächste Arbeit
 27. Definition of Done
+28. Aktualisierungsprotokoll 2026-07-10
+29. Verifizierter Runtime-Zustand
+30. Aktueller Definitions- und Profilvertrag
+31. Aktueller Create-Wizard und Backend-Vertrag
+32. Download-, Draft-, Save- und Sync-Verhalten
+33. Automatisches Save→Sync: Zielbild und aktueller Nicht-Stand
+34. Detaillierte Zuständigkeiten im Save-/Sync-Pfad
+35. Aktuelle Route-Matrix mit HTTP-Methoden
+36. Transaktion, Idempotenz, Konkurrenz und Cache
+37. Fehler- und Recovery-Matrix
+38. Betriebsbeobachtungen, Warnungen und Performance
+39. Priorisierte weitere Bearbeitungsreihenfolge
+40. Aktualisierte Abnahme- und Regressionstests
+41. Kompakte Entwickler-Checkliste
 
 ---
 
@@ -96,11 +139,32 @@ Aktuell besonders wichtig:
 ```text
 - GET /scan bleibt read-only.
 - POST /sync ist der explizite DB-Write-Entry-Point.
+- POST /create/save schreibt aktuell nur das Directory Package in den Source Root.
+- POST /create/save synchronisiert aktuell noch nicht automatisch nach PostgreSQL.
+- GET /library/items liest den Published DB State und kann deshalb nach Source-Save weiterhin leer sein.
 - DB erzeugt keine vplib_uid.
 - vplib_uid kommt aus dem Package/Manifest oder aus dem Create-Flow.
 - Drafts sind Arbeitszustand, nicht Published State.
 - Published Tables sind die produktive sichtbare Library.
 - User Collections/Overrides sind getrennt vom Systemkatalog.
+```
+
+Am 2026-07-10 praktisch bestätigt:
+
+```text
+GET  /create                                      -> 200
+GET  /api/v1/vplib/definitions/options            -> 200
+GET  /definitions/resolve-family-profile          -> 200
+GET  /definitions/resolve-variant-profile         -> 200
+GET  /definitions/empty-variant-values/...        -> 200
+GET  /definitions/variant-profiles/...            -> 200
+POST /api/v1/vplib/create/validate                 -> 200
+POST /api/v1/vplib/create/package-plan             -> 200
+POST /api/v1/vplib/create/download                 -> 200
+POST /api/v1/vplib/create/drafts                   -> 200
+POST /api/v1/vplib/create/save                     -> 200
+GET  /api/v1/vplib/library/items                   -> 200, item_count=0 vor Sync
+GET  /api/v1/vplib/library/sync                    -> 405, weil die Route POST verlangt
 ```
 
 ---
@@ -199,7 +263,34 @@ Eigenschaften:
 - gut lesbar und reviewbar
 - Quelle für /scan und /sync
 - keine DB-Tabelle
-- kein Runtime-Cache
+- kein persistenter Runtime-Cache
+- neuer Create-Save schreibt in genau diesen Source Root
+- Source-Save allein bedeutet noch nicht Published DB State
+```
+
+Aktuell konfigurierte Runtime-Pfade im beobachteten Container:
+
+```text
+VPLIB Source Root:
+  /opt/vectoplan/services/vectoplan-library/sources
+
+Creative Library Package Root:
+  /opt/vectoplan/services/vectoplan-library/src/library
+
+Creative Library Source Root:
+  /opt/vectoplan/services/vectoplan-library/src/library/source
+
+Creative Library Generated Root:
+  /opt/vectoplan/services/vectoplan-library/generated/library
+
+Creative Library Cache Root:
+  /opt/vectoplan/services/vectoplan-library/generated/library_cache
+```
+
+Für den aktuellen Create-/Library-Flow ist der relevante Persistenzpfad:
+
+```text
+/opt/vectoplan/services/vectoplan-library/src/library/source
 ```
 
 Kanonisches Ziel-Layout:
@@ -619,13 +710,78 @@ JSON Seed Files
 
 ```text
 GET  /api/v1/vplib/definitions/health
+GET  /api/v1/vplib/definitions/routes
+GET  /api/v1/vplib/definitions/summary
+GET  /api/v1/vplib/definitions/options
+GET  /api/v1/vplib/definitions/payload
 GET  /api/v1/vplib/definitions/catalog
 GET  /api/v1/vplib/definitions/current
 GET  /api/v1/vplib/definitions/create-options
 GET  /api/v1/vplib/definitions/create-context
 GET  /api/v1/vplib/definitions/datasets
+GET  /api/v1/vplib/definitions/variant-profiles
+GET  /api/v1/vplib/definitions/variant-profiles/<profile_id>
+GET  /api/v1/vplib/definitions/resolve-family-profile
+GET  /api/v1/vplib/definitions/resolve-variant-profile
+GET  /api/v1/vplib/definitions/empty-variant-values/<profile_id>
+POST /api/v1/vplib/definitions/validate-variant
 POST /api/v1/vplib/definitions/seed/preview
 POST /api/v1/vplib/definitions/seed
+POST /api/v1/vplib/definitions/cache/clear
+```
+
+### 6.5 Aktuell gehärteter Katalog-Service
+
+`library_definition_catalog_service.py` wurde gegen fehlenden Flask-App-Kontext gehärtet.
+
+Aktuelles Verhalten:
+
+```text
+- Repository wird nicht blind außerhalb eines Flask-App-Kontexts initialisiert.
+- Bei fehlendem App-Kontext wird leise auf den Registry-/Seed-Pfad zurückgefallen.
+- Sobald ein gültiger App-Kontext existiert, kann das Repository lazy initialisiert werden.
+- identische Fehler werden dedupliziert.
+- identische Reads werden operationslokal wiederverwendet.
+- große Definition-Payloads werden nicht unnötig mehrfach aufgebaut.
+```
+
+Diese Änderung beseitigt den früheren Fehler:
+
+```text
+Working outside of application context
+```
+
+### 6.6 Aktueller Starter-Profilvertrag
+
+Für den aktuell getesteten Minimalfall gilt verbindlich:
+
+```text
+object_kind         = cell_block
+family_profile_id   = simple_cell_block
+variant_profile_id  = simple_cell_block.v1
+```
+
+Die Profilauflösung muss diese Identität konsistent durchreichen in:
+
+```text
+- Create Context
+- Create Payload
+- Package Context
+- Manifest
+- Family-/Variant-Dokumente
+- Package Plan
+- Source Package
+- Scanner-/Sync-Payload
+- Published DB Item
+```
+
+Unzulässig ist insbesondere:
+
+```text
+family_profile_id und variant_profile_id vertauschen
+simple_cell_block.v1 als Family-Profil behandeln
+Objekte oder beliebige Mappings als URL-Segment serialisieren
+/[object Object] aufrufen
 ```
 
 ---
@@ -826,6 +982,23 @@ Gleicher revision_hash = gleicher Inhaltsstand.
 Geänderter revision_hash = neue Revision möglich.
 ```
 
+### 8.5 Aktueller Single-Package-Bedarf
+
+Der bestehende Scan-Service kann die Source Library vollständig scannen und ScanResult-/Publish-Payloads erzeugen. Für die geplante automatische Save→Sync-Kette fehlt aktuell jedoch noch eine ausdrücklich öffentliche, getestete Einzel-Package-Orchestrierung.
+
+Ziel für diese spätere Ergänzung:
+
+```text
+saved target_dir
+  -> genau dieses Package lesen
+  -> genau dieses Package validieren
+  -> genau dieses Package fingerprinten
+  -> expected_vplib_uid gegen Manifest vergleichen
+  -> genau einen Sync-Kandidaten liefern
+```
+
+Dabei darf nicht bei jedem Create-Save der gesamte Source-Baum verarbeitet werden.
+
 ---
 
 ## 9. Ordner `validation/`
@@ -987,6 +1160,32 @@ InventoryAssetRef
 InventoryPlacementInfo
 InventoryStats
 ```
+
+### 10.8 Noch fehlendes zusammengesetztes Save-/Sync-Ergebnis
+
+Aktuell existieren getrennte Ergebnisformen für:
+
+```text
+- CreateResult aus Source-Save
+- LibrarySyncResult aus DB-Sync
+- Published Read Payload aus DB-Verifikation
+```
+
+Für eine spätere automatische Save→Sync-Orchestrierung fehlt noch ein gemeinsamer Domainvertrag, der mindestens diese Phasen unterscheidet:
+
+```text
+source_saved
+package_scanned
+package_valid
+sync_started
+db_synced
+published
+published_verified
+partial_failure
+retry_required
+```
+
+Dieser Vertrag ist im aktuellen IST noch nicht als eigene Domain-Datei implementiert.
 
 ---
 
@@ -1339,6 +1538,91 @@ Aufgaben:
 - Publish Bundle aus Create Payload bauen
 ```
 
+Aktueller Save-Vertrag:
+
+```text
+POST /api/v1/vplib/create/save
+  -> Payload normalisieren
+  -> Draft/Package Plan bauen
+  -> Source Root und Zielpfad absichern
+  -> Dokumente serialisieren
+  -> Directory Package schreiben
+  -> CreateResult(status="saved") zurückgeben
+```
+
+Aktuell zurückgegebene beziehungsweise fachlich relevante Save-Daten:
+
+```text
+vplib_uid
+family_id
+package_id
+package_path
+source_path
+source_parts
+target_dir
+source_root
+written_file_count
+written_files
+next_scan_route
+next_blocks_route
+```
+
+Der Service weist ausdrücklich darauf hin:
+
+```text
+Das Package wurde in den Source-Bereich geschrieben.
+Die Library-Sicht entsteht erst nach Scan/Validierung beziehungsweise DB-Sync.
+```
+
+Aktuelle Grenze:
+
+```text
+save_package() ruft den DB-Sync nicht automatisch auf.
+```
+
+### 12.13 Aktueller `library_db_sync_service.py`-Einzelkandidatenpfad
+
+Der DB-Sync-Service besitzt bereits einen technischen Einstieg für genau einen Kandidaten:
+
+```text
+sync_candidate_to_db(candidate, ...)
+```
+
+Dieser Pfad:
+
+```text
+- extrahiert Dokumente
+- liest vplib_uid
+- liest family_id und package_id
+- liest revision_hash
+- bewertet Validation
+- baut Publish Payload
+- upsertet Family/Item
+- erzeugt bei Änderung eine Revision
+- ersetzt Varianten, Assets und Dokumente
+- persistiert Issues
+- liefert inserted/updated/unchanged/revision_created
+```
+
+Wichtige Regel:
+
+```text
+Der Sync-Service erzeugt keine fehlende vplib_uid.
+```
+
+### 12.14 Noch fehlender Save-/Sync-Orchestrator
+
+Zwischen `library_create_service.py` und `library_db_sync_service.py` existiert aktuell noch kein eigener Service, der folgende Schritte als einen kontrollierten Vorgang verbindet:
+
+```text
+Source speichern
+  -> gespeichertes Package einzeln scannen
+  -> Kandidat einzeln synchronisieren
+  -> Published Read verifizieren
+```
+
+Deshalb bleibt der aktuelle Produktivvertrag zweistufig.
+
 ---
 
 ## 13. Ordner `repositories/`
@@ -1507,6 +1791,44 @@ Ziel für neue Pakete:
 
 ```text
 source/hochbau/bloecke/basis/basic_stone_block/
+```
+
+### 14.5 Aktuelle Pfad- und Identitätsinvarianten
+
+Für neue Create-Packages gilt:
+
+```text
+source_path = domain/category/subcategory/family_slug
+```
+
+Beispiel:
+
+```text
+hochbau/waende/aussenwaende/test
+```
+
+Kanonische IDs:
+
+```text
+family_id  = vp.{domain}.{category}.{subcategory}.{family_slug}
+package_id = vplib.{family_id}
+```
+
+Die technische Identität bleibt davon getrennt:
+
+```text
+vplib_uid = stabile, unveränderliche technische Package-ID
+```
+
+Der Package-Kontext schützt:
+
+```text
+- Source Root Escape
+- Archive Root Escape
+- Parent Traversal
+- absolute/relative Pfadverwechslung
+- Profilidentitäts-Manipulation über Metadata
+- object_kind/profile Inkonsistenz
 ```
 
 ---
@@ -1778,6 +2100,10 @@ Read-Model / API Response
 
 ```text
 POST /api/v1/vplib/create/draft
+POST /api/v1/vplib/create/validate
+POST /api/v1/vplib/create/package-plan
+POST /api/v1/vplib/create/download
+POST /api/v1/vplib/create/save
   ↓
 routes/create.py
   ↓
@@ -1787,10 +2113,39 @@ src/services/library_create_variant_payload_service.py
   ↓
 src/library/services/library_create_service.py
   ↓
-CreateResult / PackagePlan / Archive / PersistentDraftPayload
+CreateResult / PackagePlan / Archive / Source Directory Package / PersistentDraftPayload
 ```
 
-### 17.5 Draft Publish Prepare
+Aktueller Unterschied der beiden produktrelevanten Aktionen:
+
+```text
+download
+  -> erzeugt ein .vplib ZIP-kompatibles Archiv im Speicher
+  -> schreibt nicht in Source
+  -> schreibt nicht in PostgreSQL
+
+save
+  -> schreibt ein Directory Package in src/library/source
+  -> schreibt aktuell nicht automatisch in PostgreSQL
+```
+
+### 17.5 Aktueller Source-Save bis Published Read
+
+```text
+POST /api/v1/vplib/create/save
+  -> Source Package geschrieben
+  -> needs DB sync
+
+POST /api/v1/vplib/library/sync
+  -> Source Scan
+  -> Validierung/Fingerprint
+  -> PostgreSQL Published State
+
+GET /api/v1/vplib/library/items
+  -> Published DB Read
+```
+
+### 17.6 Draft Publish Prepare
 
 ```text
 POST /api/v1/vplib/library/drafts/<draft_ref>/publish/prepare
@@ -1811,20 +2166,39 @@ optional creative_library_service.publish_bundle()
 ### 18.1 Library Core
 
 ```text
-GET  /api/v1/vplib/library/health
-GET  /api/v1/vplib/library/routes
-GET  /api/v1/vplib/library/selftest
-GET  /api/v1/vplib/library/scan
-POST /api/v1/vplib/library/sync
-GET  /api/v1/vplib/library/blocks
-GET  /api/v1/vplib/library/blocks/<block_id>
-GET  /api/v1/vplib/library/blocks/<block_id>/variants
-GET  /api/v1/vplib/library/tree
-GET  /api/v1/vplib/library/published
-GET  /api/v1/vplib/library/items
-GET  /api/v1/vplib/library/items/<item_ref>
-GET  /api/v1/vplib/library/scan-runs
-GET  /api/v1/vplib/library/inventory/slots
+GET    /api/v1/vplib/library/health
+GET    /api/v1/vplib/library/routes
+GET    /api/v1/vplib/library/selftest
+GET    /api/v1/vplib/library/scan
+POST   /api/v1/vplib/library/sync
+GET    /api/v1/vplib/library/blocks
+GET    /api/v1/vplib/library/blocks/<block_id>
+GET    /api/v1/vplib/library/blocks/<block_id>/variants
+GET    /api/v1/vplib/library/tree
+GET    /api/v1/vplib/library/published
+GET    /api/v1/vplib/library/items
+GET    /api/v1/vplib/library/items/<item_ref>
+GET    /api/v1/vplib/library/items/<item_ref>/variants
+GET    /api/v1/vplib/library/items/<item_ref>/revisions
+GET    /api/v1/vplib/library/items/<item_ref>/assets
+GET    /api/v1/vplib/library/items/<item_ref>/documents
+GET    /api/v1/vplib/library/vplib/<vplib_uid>
+GET    /api/v1/vplib/library/scan-runs
+POST   /api/v1/vplib/library/scan-runs
+POST   /api/v1/vplib/library/scan-runs/<scan_run_ref>/finish
+GET    /api/v1/vplib/library/scan-runs/<scan_run_ref>/issues
+POST   /api/v1/vplib/library/scan-runs/<scan_run_ref>/issues
+GET    /api/v1/vplib/library/inventory/slots
+POST   /api/v1/vplib/library/inventory/slots/<slot_index>
+DELETE /api/v1/vplib/library/inventory/slots/<slot_index>
+POST   /api/v1/vplib/library/cache/clear
+```
+
+Methodenhinweis:
+
+```text
+/library/sync ist ausschließlich POST.
+Das direkte Öffnen im Browser erzeugt GET und deshalb HTTP 405.
 ```
 
 ### 18.2 Definitions
@@ -1923,15 +2297,36 @@ Das erzeugt noch keinen Published DB State.
 
 ```text
 /create Payload
+  -> normalize payload
+  -> build draft
+  -> validate
+  -> package plan
   -> build Package Documents
   -> save_package
-  -> src/library/source/...
+  -> src/library/source/{domain}/{category}/{subcategory}/{family_slug}/
 ```
 
-Danach ist ein expliziter Sync nötig:
+Danach ist im aktuellen IST ein expliziter Sync nötig:
 
 ```text
 POST /api/v1/vplib/library/sync
+```
+
+Wichtig:
+
+```text
+POST /api/v1/vplib/create/save?sync=true
+```
+
+ist aktuell noch nicht als produktiv bestätigter automatischer End-to-End-Vertrag umgesetzt.
+
+Die Tatsache, dass `/create/save` HTTP 200 liefert, bestätigt nur den erfolgreichen Source-Save. Sie bestätigt noch nicht:
+
+```text
+- DB Sync
+- Published Item
+- Published Revision
+- Sichtbarkeit unter /library/items
 ```
 
 ### 19.3 Create mit Persistent Draft
@@ -2167,7 +2562,71 @@ GET /api/v1/vplib/library/items/<item_ref>/documents
 GET /api/v1/vplib/library/vplib/<vplib_uid>
 ```
 
-### 23.5 DB-Checks
+### 23.5 Am 2026-07-10 tatsächlich beobachtete Requestfolge
+
+```text
+GET /create
+  -> 200
+
+GET /api/v1/vplib/definitions/options
+  -> 200
+
+GET /api/v1/vplib/definitions/resolve-family-profile
+  -> 200
+
+GET /api/v1/vplib/definitions/resolve-variant-profile
+  -> 200
+
+GET /api/v1/vplib/definitions/empty-variant-values/simple_cell_block.v1
+  -> 200
+
+GET /api/v1/vplib/definitions/variant-profiles/simple_cell_block.v1?resolved=1
+  -> 200
+
+POST /api/v1/vplib/create/validate
+  -> 200
+
+POST /api/v1/vplib/create/package-plan
+  -> 200
+
+POST /api/v1/vplib/create/download
+  -> 200
+
+POST /api/v1/vplib/create/drafts
+  -> 200
+
+POST /api/v1/vplib/create/save
+  -> 200
+
+GET /api/v1/vplib/library/items
+  -> 200
+  -> backend=published_db
+  -> item_count=0
+```
+
+Interpretation:
+
+```text
+Create/Download/Source-Save funktionieren.
+Published DB war zum Prüfzeitpunkt noch nicht synchronisiert.
+```
+
+### 23.6 Verbindlicher Save-/Sync-Test
+
+```text
+1. POST /create/save
+2. Save-Response auswerten und vplib_uid/source_path sichern
+3. GET /library/scan?source=file
+4. prüfen, ob genau dieses Package als gültiger Kandidat erscheint
+5. POST /library/sync mit JSON Body {}
+6. SyncResult auf published/inserted/updated/unchanged prüfen
+7. GET /library/items
+8. GET /library/vplib/<vplib_uid>
+9. GET /library/items/<item_ref>/variants
+10. zweiten identischen Sync ausführen und Idempotenz prüfen
+```
+
+### 23.7 DB-Checks
 
 ```sql
 select id, vplib_uid, family_id, package_id, current_revision_id,
@@ -2279,6 +2738,74 @@ Fix:
 id nur vergleichen, wenn identifier numerisch ist.
 ```
 
+### 24.8 `/create/save` ist 200, `/library/items` bleibt leer
+
+Das ist im aktuellen Vertrag kein Widerspruch.
+
+Prüfreihenfolge:
+
+```text
+1. Save-Response enthält target_dir/source_path?
+2. Zielverzeichnis existiert im Creative Library Source Root?
+3. GET /library/scan?source=file findet den Kandidaten?
+4. Kandidat ist valid?
+5. vplib_uid vorhanden und konsistent?
+6. revision_hash vorhanden?
+7. POST /library/sync wurde tatsächlich ausgeführt?
+8. SyncResult enthält inserted/updated/unchanged/published?
+9. /library/items Filter auf active/deleted/publication_status prüfen.
+```
+
+### 24.9 `/library/sync` liefert 405
+
+Ursache:
+
+```text
+Die Route wurde im Browser als GET geöffnet.
+```
+
+Korrekt:
+
+```text
+POST /api/v1/vplib/library/sync
+Content-Type: application/json
+Body: {}
+```
+
+### 24.10 Definitions-Service außerhalb App-Kontext
+
+Früheres Symptom:
+
+```text
+Working outside of application context
+```
+
+Aktueller Fix:
+
+```text
+- App-Kontext vor Repositoryzugriff prüfen
+- Registry-Fallback verwenden
+- Repository später lazy initialisieren
+- Fehler deduplizieren
+```
+
+### 24.11 `/[object Object]` im Frontend
+
+Ursache:
+
+```text
+Ein Definitions-/Route-Objekt wurde ungeprüft als URL verwendet.
+```
+
+Aktueller Schutz:
+
+```text
+- Routen auf String normalisieren
+- externe/ungültige URL-Werte verwerfen
+- arbitrary object -> URL coercion verbieten
+- Variant-/Family-Datensätze typisiert indizieren
+```
+
 ---
 
 ## 25. Konventionen für neue Dateien und Erweiterungen
@@ -2341,6 +2868,49 @@ blueprint = your_blueprint
 ---
 
 ## 26. Offene Punkte / nächste Arbeit
+
+Stand 2026-07-10 werden offene Punkte in drei Gruppen getrennt:
+
+```text
+P0  Datenkonsistenz und produktiver Hauptfluss
+P1  belastbare Detail-/Child-Reads und Diagnostics
+P2  Bereinigung, Performance und Architekturvereinheitlichung
+```
+
+### P0 – Source-Save automatisch mit DB-Sync verbinden
+
+Aktueller IST:
+
+```text
+/create/save -> Source Package
+/library/sync -> Published DB
+```
+
+Ziel:
+
+```text
+/create/save
+  -> Source Package
+  -> Single-Package Scan
+  -> Single-Candidate DB Sync
+  -> Published Read Verification
+```
+
+Die Umsetzung ist noch offen. Sie muss serverseitig erfolgen und darf nicht als zweiter Browser-Request allein im Frontend implementiert werden.
+
+### P0 – Einzel-Package-Scan und Einzel-Package-Sync härten
+
+Anforderungen:
+
+```text
+- nur gerade gespeichertes target_dir verarbeiten
+- expected_vplib_uid prüfen
+- mark_missing_deleted=false erzwingen
+- publish_valid_only=true
+- keine Vollscan-Nebenwirkungen
+- ScanRun sauber abschließen oder fehlschlagen
+```
+
 
 ### P0 – End-to-End Sync final testen
 
@@ -2407,6 +2977,8 @@ Nicht blockierend, aber später säubern:
 
 ## 27. Definition of Done
 
+Der bestehende Library-Kern gilt erst dann als vollständig integriert, wenn Source-, DB- und Published-Read-Pfad gemeinsam nachweisbar funktionieren.
+
 Der Abschnitt gilt als stabil, wenn:
 
 ```text
@@ -2434,6 +3006,957 @@ Der Abschnitt gilt als stabil, wenn:
 
 ---
 
+## 28. Aktualisierungsprotokoll 2026-07-10
+
+### 28.1 Neu bestätigte Funktionsbereiche
+
+```text
+- Definitions-Katalog lädt ohne App-Kontext-Crash.
+- Family Profile simple_cell_block wird korrekt aufgelöst.
+- Variant Profile simple_cell_block.v1 wird korrekt aufgelöst.
+- Create Context stellt normalisierte String-Routen bereit.
+- Create Payload ist operational und ready.
+- Create Actions Runtime ist operational und ready.
+- Download startet und liefert ein gültiges .vplib Archiv.
+- Persistent Draft POST funktioniert.
+- Source Save POST funktioniert.
+- Published Items Route funktioniert technisch und liest PostgreSQL.
+```
+
+### 28.2 Neu erkannte Systemgrenze
+
+```text
+Erfolgreicher Source-Save != erfolgreicher Published DB Sync
+```
+
+Diese Grenze war in der Architektur bereits vorgesehen, wurde aber am 2026-07-10 praktisch sichtbar:
+
+```text
+POST /create/save -> 200
+GET /library/items -> item_count=0
+```
+
+### 28.3 Aktualisierte Kernprobleme
+
+```text
+- automatisches Save→Sync fehlt
+- Single-Package-Scan ist noch nicht als stabiler öffentlicher Servicevertrag dokumentiert
+- Single-Candidate-Sync existiert technisch, ist aber noch nicht in Create-Save orchestriert
+- Published Read-after-write wird nach Save noch nicht verifiziert
+- Responses und Health-Payloads sind teilweise sehr groß
+- Startup erzeugt weiterhin nicht blockierende Warnungen
+```
+
+### 28.4 Aktualisierte Profilidentität
+
+```text
+object_kind         = cell_block
+family_profile_id   = simple_cell_block
+variant_profile_id  = simple_cell_block.v1
+```
+
+### 28.5 Aktualisierte Source-Identität
+
+```text
+source_path = domain/category/subcategory/family_slug
+family_id   = vp.{domain}.{category}.{subcategory}.{family_slug}
+package_id  = vplib.{family_id}
+```
+
+---
+
+## 29. Verifizierter Runtime-Zustand
+
+### 29.1 Container und Prozessmodell
+
+Im beobachteten Start:
+
+```text
+Config:            development
+Gunicorn Workers:  2
+Gunicorn Threads:  2
+Gunicorn Timeout:  120
+Python:             3.12.13
+Bind:               0.0.0.0:5000
+```
+
+Konsequenz:
+
+```text
+- zwei parallele Worker können gleichzeitig Save-/Sync-Aufträge bearbeiten
+- prozesslokale Locks reichen für vplib_uid-Konkurrenz nicht aus
+- DB-Transaktionen und gegebenenfalls PostgreSQL-Advisory-Locks sind die belastbare Grenze
+```
+
+### 29.2 Datenbankzustand
+
+Beobachtet:
+
+```text
+Database Required:      true
+Database Auto Init:     true
+Database Auto Migrate:  true
+Database Auto Upgrade:  true
+SQLAlchemy Models:      39
+Metadata Tables:        39
+PostgreSQL erreichbar:  ja
+```
+
+Wichtige Library-Tabellen waren in der Metadata sichtbar:
+
+```text
+creative_library_items
+creative_library_revisions
+creative_library_variants
+creative_library_assets
+creative_library_documents
+creative_library_scan_runs
+creative_library_scan_issues
+creative_library_inventory_slots
+```
+
+### 29.3 Blueprint-Zustand
+
+Erfolgreich registriert wurden unter anderem:
+
+```text
+vplib
+vplib_library_api
+library_bp
+taxonomy
+library_definition_routes
+library_files
+creative_library_user
+creative_library_drafts
+vplib_create
+inventar
+inventar_user
+```
+
+Die Create- und Library-Routen waren damit tatsächlich erreichbar.
+
+### 29.4 Aktuell beobachtete Warnungen
+
+Nicht blockierend, aber offen:
+
+```text
+Extension error [routes]: One or more required blueprints are missing.
+Directory check failed for routes_root.
+VPLIB settings check failed: 'NoneType' object has no attribute '__dict__'
+Library settings check failed: 'NoneType' object has no attribute '__dict__'
+```
+
+Diese Warnungen verhinderten den erfolgreichen Gunicorn-Start nicht, sollten aber nicht dauerhaft als normal akzeptiert werden.
+
+### 29.5 Alembic-Beobachtung
+
+Beim Start wurde aufgrund einer erkannten Indexabweichung automatisch eine zusätzliche Migration erzeugt und anschließend angewendet.
+
+Risiko:
+
+```text
+Automatische Migrationserzeugung während eines normalen Containerstarts kann
+bei mehreren Instanzen, nicht deterministischen Indexausdrücken oder Read-only
+Deployments problematisch sein.
+```
+
+Empfehlung:
+
+```text
+- Migrationserzeugung in kontrollierten Build-/Development-Schritt verlagern
+- Runtime nur `flask db upgrade` ausführen lassen
+- wiederkehrende Indexdiffs beseitigen
+```
+
+---
+
+## 30. Aktueller Definitions- und Profilvertrag
+
+### 30.1 Datenquellen
+
+Der Definitions-Katalog kann Daten aus mehreren Quellen kombinieren:
+
+```text
+1. JSON Registry
+2. PostgreSQL Definition Tables
+3. Generator/Create Context
+4. Legacy Definitions Adapter
+```
+
+Dabei gelten folgende Prioritäten:
+
+```text
+- DB-Datensätze dürfen Registry-Datensätze fachlich ergänzen oder übersteuern.
+- Deduplizierung erfolgt dataset-spezifisch.
+- Ein Schlüssel darf nicht dataset-übergreifend fälschlich als Kollision gelten.
+- Profile, Variablen, Einheiten und Materialien benötigen getrennte Indizes.
+```
+
+### 30.2 Startervertrag
+
+Der aktuelle Minimalstarter verwendet:
+
+```json
+{
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1"
+}
+```
+
+### 30.3 Auflösungsrouten
+
+```text
+GET /definitions/resolve-family-profile
+GET /definitions/resolve-variant-profile
+GET /definitions/variant-profiles/simple_cell_block.v1?resolved=1
+GET /definitions/empty-variant-values/simple_cell_block.v1
+```
+
+Diese Routen wurden im aktuellen Browserlauf mit HTTP 200 beantwortet.
+
+### 30.4 URL-Sicherheitsvertrag
+
+Jeder Route-/Endpoint-Wert muss vor Nutzung normalisiert werden.
+
+Erlaubte Eingabeformen können sein:
+
+```text
+String
+{url: "..."}
+{href: "..."}
+{path: "..."}
+{endpoint: "..."}
+```
+
+Nach Normalisierung darf an das Frontend nur ein interner URL-String weitergegeben werden.
+
+Unzulässig:
+
+```text
+String(object) -> "[object Object]"
+```
+
+### 30.5 App-Kontext-Vertrag
+
+Der Katalog-Service darf beim Modulimport keine DB-Session erzwingen.
+
+```text
+kein App-Kontext
+  -> Registry-Fallback
+
+gültiger App-Kontext
+  -> Repository lazy verfügbar
+```
+
+---
+
+## 31. Aktueller Create-Wizard und Backend-Vertrag
+
+### 31.1 Frontend-Bereitschaft
+
+Im aktuellen Browserzustand wurden folgende Flags bestätigt:
+
+```text
+actionsReady   = true
+payloadReady   = true
+profilesReady  = true
+coreReady      = true
+contextReady   = true
+operational    = true
+```
+
+### 31.2 Direkte Actions-API
+
+Öffentliche Runtime:
+
+```text
+window.VectoplanCreateActions.runAction(action)
+```
+
+Unterstützte Hauptaktionen:
+
+```text
+draft
+validate
+package-plan
+download
+save
+persist-draft
+publish-prepare
+```
+
+### 31.3 HTML-/Runtime-Bridges
+
+Der Create-Wizard besitzt inzwischen mehrere abgestimmte Bindungsebenen:
+
+```text
+- data-create-action Attribute
+- Actions Runtime Listener
+- direkte Template-Bridge
+- frühe Shell-Bridge im Haupttemplate
+- Event-Marker gegen Doppelstarts
+```
+
+Zweck:
+
+```text
+Ein physischer Button-Klick soll dieselbe öffentliche runAction()-API nutzen wie ein Konsolentest.
+```
+
+### 31.4 Kontext-JSON
+
+`_context_json.html` stellt weiterhin unter anderem bereit:
+
+```text
+window.VectoplanCreateContext
+window.VectoplanGeneratorContext
+window.VectoplanCreateDefinitions
+window.VectoplanCreateDefinitionCatalogs
+window.VectoplanCreateDefinitionMaps
+window.VectoplanCreateDefinitionsOptions
+window.VectoplanCreateUploadConfig
+window.VectoplanCreateRoutes
+window.VectoplanCreatePayloadContract
+```
+
+Die Route-Werte werden als Strings gehärtet, damit keine Objekt-URL-Koercion entsteht.
+
+### 31.5 Backend-Abfolge pro Aktion
+
+```text
+validate
+  -> POST /create/validate
+
+package-plan
+  -> POST /create/validate
+  -> POST /create/package-plan
+
+download
+  -> POST /create/validate
+  -> POST /create/package-plan
+  -> POST /create/download
+
+save
+  -> POST /create/save
+  -> aktuell kein automatischer POST /library/sync
+```
+
+---
+
+## 32. Download-, Draft-, Save- und Sync-Verhalten
+
+### 32.1 Download
+
+```text
+POST /api/v1/vplib/create/download
+```
+
+Eigenschaften:
+
+```text
+- erzeugt das Archiv im Speicher
+- verwendet .vplib Dateiendung
+- liefert Content-Disposition als Attachment
+- schreibt nicht in Source
+- schreibt nicht in PostgreSQL
+```
+
+### 32.2 Persistent Draft
+
+```text
+POST /api/v1/vplib/create/drafts
+```
+
+Eigenschaften:
+
+```text
+- schreibt Draft Working State
+- ist nicht automatisch Published State
+- darf später validiert und publish-prepared werden
+```
+
+### 32.3 Source Save
+
+```text
+POST /api/v1/vplib/create/save
+```
+
+Eigenschaften:
+
+```text
+- verlangt aktiven Write-Modus
+- schreibt Directory Package
+- liefert Source-Pfad und technische Identität
+- erzeugt noch keinen garantierten Published DB State
+```
+
+### 32.4 DB Sync
+
+```text
+POST /api/v1/vplib/library/sync
+```
+
+Eigenschaften:
+
+```text
+- ist explizit schreibend
+- kann selbst scannen oder vorhandene Kandidaten verarbeiten
+- legt ScanRun an
+- upsertet Published Item
+- erzeugt Revision bei geändertem revision_hash
+- ersetzt Varianten, Assets und Dokumente
+- persistiert Issues
+```
+
+### 32.5 Published Read
+
+```text
+GET /api/v1/vplib/library/items
+```
+
+Eigenschaften:
+
+```text
+- liest PostgreSQL
+- filtert standardmäßig aktive, nicht gelöschte Published Items
+- liest nicht automatisch direkt aus Source
+- HTTP 200 mit item_count=0 ist vor dem ersten Sync korrekt
+```
+
+---
+
+## 33. Automatisches Save→Sync: Zielbild und aktueller Nicht-Stand
+
+### 33.1 Aktueller IST
+
+```text
+save und sync sind getrennte Operationen
+```
+
+### 33.2 Gewünschtes späteres Verhalten
+
+```text
+POST /create/save
+  -> Source atomar speichern
+  -> einzelnes Package scannen
+  -> expected_vplib_uid prüfen
+  -> einzelnen Kandidaten synchronisieren
+  -> Published Item uncached verifizieren
+  -> erst danach vollständigen Erfolg melden
+```
+
+### 33.3 Was noch nicht existiert
+
+```text
+- kein dedizierter CreateSaveSyncService
+- kein gemeinsames SaveSyncResult-Domainmodell
+- keine bestätigte `save?sync=true` End-to-End-Implementierung
+- keine automatische Published-Verifikation nach Source-Save
+- keine serverseitige Retry-/Recovery-Orchestrierung
+```
+
+### 33.4 Warum kein interner HTTP-Selbstaufruf
+
+Der Save-Service soll später nicht per HTTP die eigene `/library/sync`-Route aufrufen.
+
+Stattdessen:
+
+```text
+Route -> Route Service -> fachlicher Orchestrator -> Scan/Sync/Published Services
+```
+
+Vorteile:
+
+```text
+- keine zusätzliche HTTP-Schicht
+- klarer App-/DB-Kontext
+- bessere Transaktionskontrolle
+- einfacher testbar
+- keine Abhängigkeit vom Browser
+```
+
+### 33.5 Warum kein Vollscan bei jedem Save
+
+```text
+- unnötige Latenz
+- unnötige Arbeit bei großer Library
+- Konkurrenz zwischen mehreren Saves
+- Risiko für mark_missing_deleted
+- schwerere Fehlerzuordnung
+```
+
+Ziel ist deshalb ein Single-Package-Pfad.
+
+---
+
+## 34. Detaillierte Zuständigkeiten im Save-/Sync-Pfad
+
+### `library_create_service.py`
+
+```text
+zuständig für:
+- Payload -> Draft/Plan/Dokumente
+- Source-Pfad
+- sichere Dateierzeugung
+- Source-Save-Ergebnis
+
+nicht zuständig für:
+- PostgreSQL Published State
+- Published Read-Verifikation
+```
+
+### `library_scan_service.py`
+
+```text
+zuständig für:
+- Package Discovery/Read
+- Library Validation
+- Fingerprint
+- ScanResult
+
+nicht zuständig für:
+- DB Writes
+```
+
+### `library_db_sync_service.py`
+
+```text
+zuständig für:
+- ScanResult/Kandidat -> DB-Publish
+- ScanRun
+- Issues
+- Revisionserkennung
+
+nicht zuständig für:
+- neue vplib_uid erzeugen
+- Source-Dateien schreiben
+```
+
+### `creative_library_service.py`
+
+```text
+zuständig für:
+- Publish Bundle fachlich verarbeiten
+- Published Item/Revision/Children orchestrieren
+- Published Queries
+- ScanRuns/Issues/Inventory
+```
+
+### `creative_library_repository.py`
+
+```text
+zuständig für:
+- SQLAlchemy Session
+- Upsert/Query
+- Commit/Flush/Rollback
+- Modelkompatibilität
+```
+
+### `routes/create.py`
+
+```text
+zuständig für:
+- HTTP Request lesen
+- Parameter normalisieren
+- Route Service aufrufen
+- HTTP Response bilden
+
+nicht zuständig für:
+- Scanner intern nachbauen
+- Repository direkt verwenden
+```
+
+---
+
+## 35. Aktuelle Route-Matrix mit HTTP-Methoden
+
+### Create
+
+| Methode | Route | Wirkung |
+|---|---|---|
+| GET | `/create` | Wizard rendern |
+| GET | `/api/v1/vplib/create/health` | Create Health |
+| GET | `/api/v1/vplib/create/routes` | Route-Metadaten |
+| GET | `/api/v1/vplib/create/options` | Create Options |
+| GET/POST | `/api/v1/vplib/create/context` | Create Context |
+| POST | `/api/v1/vplib/create/draft` | transienten Draft bauen |
+| POST | `/api/v1/vplib/create/drafts` | persistenten Draft schreiben |
+| POST | `/api/v1/vplib/create/validate` | Payload validieren |
+| POST | `/api/v1/vplib/create/package-plan` | Package Plan bauen |
+| POST | `/api/v1/vplib/create/publish-bundle` | Publish Payload vorbereiten |
+| POST | `/api/v1/vplib/create/download` | `.vplib` herunterladen |
+| POST | `/api/v1/vplib/create/save` | Source Package schreiben |
+| POST | `/api/v1/vplib/create/cache/clear` | Runtime-Caches leeren |
+
+### Library
+
+| Methode | Route | Wirkung |
+|---|---|---|
+| GET | `/api/v1/vplib/library/scan` | read-only Source Scan |
+| POST | `/api/v1/vplib/library/sync` | Published DB schreiben |
+| GET | `/api/v1/vplib/library/items` | Published Items lesen |
+| GET | `/api/v1/vplib/library/vplib/<vplib_uid>` | Item über technische ID lesen |
+| GET | `/api/v1/vplib/library/tree` | Published Tree |
+| GET | `/api/v1/vplib/library/scan-runs` | Sync-/Scan-Runs lesen |
+
+### Methodensicherheit
+
+```text
+GET auf einer POST-only Route -> 405 Method Not Allowed
+```
+
+Das ist insbesondere für `/library/sync` und `/create/save` erwartetes Verhalten.
+
+---
+
+## 36. Transaktion, Idempotenz, Konkurrenz und Cache
+
+### 36.1 Idempotenz
+
+```text
+gleiche vplib_uid + gleicher revision_hash
+  -> kein zweites Item
+  -> keine unnötige neue Revision
+  -> Status unchanged möglich
+```
+
+```text
+gleiche vplib_uid + neuer revision_hash
+  -> gleiches Item
+  -> neue Revision
+  -> current_revision aktualisieren
+```
+
+### 36.2 Konkurrenz
+
+Bei zwei Gunicorn-Workern können zwei Requests dieselbe `vplib_uid` parallel bearbeiten.
+
+Deshalb benötigt der spätere automatische Save→Sync-Pfad mindestens:
+
+```text
+- Unique Constraints
+- saubere DB-Transaktion
+- Rollback bei Child-Fehlern
+- optional PostgreSQL-Advisory-Lock pro vplib_uid
+```
+
+### 36.3 `mark_missing_deleted`
+
+Bei einem einzelnen gespeicherten Package muss gelten:
+
+```text
+mark_missing_deleted = false
+```
+
+Sonst könnte ein Teilscan fälschlich alle anderen Families als fehlend interpretieren.
+
+### 36.4 Cache
+
+Nach erfolgreichem Sync müssen bei vorhandenen Caches mindestens invalidiert werden:
+
+```text
+- Published Items List
+- Item Detail für vplib_uid
+- Tree
+- Inventory-Fallback
+- Filesystem Scan Cache für betroffenen Pfad
+```
+
+### 36.5 Read-after-write
+
+Ein vollständiger automatischer Save-Erfolg sollte später erst bestätigt werden, wenn:
+
+```text
+repository commit erfolgreich
+und
+Published Read über vplib_uid erfolgreich
+```
+
+---
+
+## 37. Fehler- und Recovery-Matrix
+
+| Phase | Fehler | Source | DB | Antwort/Recovery |
+|---|---|---:|---:|---|
+| Payload | ungültige Eingabe | unverändert | unverändert | 400/422, korrigieren |
+| Plan | ungültiger Package-Plan | unverändert | unverändert | 422 |
+| Save | Zielkonflikt | alt bleibt | unverändert | 409 oder Overwrite bewusst |
+| Save | Schreibfehler | evtl. temporär | unverändert | 500, Temp bereinigen |
+| Scan | Package nicht lesbar | gespeichert | unverändert | invalid, Diagnose behalten |
+| Validation | fachlich ungültig | gespeichert | unverändert | 422/partial, reparieren |
+| Sync | DB nicht erreichbar | gespeichert | unverändert | 503, später erneut syncen |
+| Sync | Child Write scheitert | gespeichert | Rollback | retrybar |
+| Verify | DB Commit ok, Read fehlt | gespeichert | wahrscheinlich geschrieben | Cache leeren, uncached retry |
+
+Wichtige Saga-Regel:
+
+```text
+Dateisystem und PostgreSQL können nicht als eine gemeinsame ACID-Transaktion behandelt werden.
+```
+
+Deshalb muss der Status immer klar ausweisen:
+
+```text
+source_saved
+db_synced
+published_verified
+needs_sync
+retryable
+```
+
+---
+
+## 38. Betriebsbeobachtungen, Warnungen und Performance
+
+### 38.1 Große Responses
+
+Im aktuellen Log wurden unter anderem beobachtet:
+
+```text
+GET /health/ready                         ca. 1,062,112 Bytes
+GET /create                               ca. 1,297,170 Bytes
+GET /definitions/options                  ca.   185,662 Bytes
+resolve-variant-profile                   bis ca. 235,935 Bytes
+POST /create/drafts                       ca.   690,833 Bytes
+```
+
+Risiken:
+
+```text
+- unnötige Netzwerklast
+- hohe JSON-Serialisierungskosten
+- Browser-Memory
+- langsame Health-Probes
+- Log-/Tracing-Overhead
+```
+
+### 38.2 Health-Response
+
+Eine Readiness-Antwort über ungefähr 1 MB ist operativ zu groß.
+
+Ziel:
+
+```text
+/health/live  -> minimal
+/health/ready -> kompakte Capabilities und Fehler
+/health/full  -> optionale ausführliche Diagnose
+```
+
+### 38.3 Definitions-Payload
+
+Die Definitions-API sollte unterscheiden:
+
+```text
+summary/options
+  -> kleine UI-Listen
+
+catalog/detail
+  -> vollständige Datensätze nur bei Bedarf
+```
+
+### 38.4 `/create`-Payload
+
+Das Haupttemplate bettet derzeit umfangreiche Context-/Definitionsdaten ein.
+
+Optimierungsziel:
+
+```text
+- keine mehrfachen identischen Definitionen
+- Maps statt wiederholter Vollobjekte
+- Detailprofile lazy laden
+- große Diagnostics nicht in Standardseite einbetten
+```
+
+### 38.5 Auto-Migration
+
+Wiederholte automatische Migrationserzeugung ist als Development-Hilfe tolerierbar, aber nicht als stabiler Produktionsmechanismus.
+
+---
+
+## 39. Priorisierte weitere Bearbeitungsreihenfolge
+
+### P0 – Aktuellen manuellen Sync einmal vollständig verifizieren
+
+```text
+1. Source Save
+2. Filesystem Scan
+3. POST /library/sync
+4. /library/items
+5. /library/vplib/<vplib_uid>
+6. Varianten/Revisions/Dokumente
+7. identischer zweiter Sync
+```
+
+### P0 – Automatischen Save→Sync-Vertrag implementieren
+
+Empfohlene Reihenfolge:
+
+```text
+1. gemeinsames SaveSyncResult-Domainmodell
+2. atomaren Source-Save härten
+3. Single-Package-Scan API
+4. Single-Candidate-Sync API
+5. Published-Verifikation
+6. SaveSync-Orchestrator
+7. Create Route Service umstellen
+8. Frontendstatus anpassen
+9. Integrationstests
+```
+
+### P1 – Published Child-Routen
+
+```text
+- Varianten count und NULL/deleted Filter
+- Revision Detail
+- Assets
+- Dokumente
+```
+
+### P1 – Startup-Warnungen
+
+```text
+- Blueprint-Requirement-Liste korrigieren
+- routes_root Check korrigieren
+- Settings-Health ohne None.__dict__
+```
+
+### P1 – Payload-Größen
+
+```text
+- Readiness kompakt machen
+- Create Context deduplizieren
+- Definitions Options verkleinern
+```
+
+### P2 – Compatibility-Pfade vereinheitlichen
+
+```text
+- routes/api.py vs routes/library_routes.py
+- root Repository-Fassade vs repositories/sql
+- creative_library_service vs library_published_service
+```
+
+---
+
+## 40. Aktualisierte Abnahme- und Regressionstests
+
+### 40.1 Definitions
+
+```text
+- kein App-Kontext-Crash
+- keine falschen Collision-Warnungen
+- kein /[object Object]
+- simple_cell_block auflösbar
+- simple_cell_block.v1 auflösbar
+```
+
+### 40.2 Create
+
+```text
+- Core operational
+- Payload ready
+- Profiles ready
+- physischer Button-Klick startet genau eine Aktion
+- Validate erfolgreich
+- Package Plan erfolgreich
+- Download gültiges .vplib
+- Source Save erfolgreich
+```
+
+### 40.3 Source
+
+```text
+- target_dir unter Creative Library Source Root
+- vierteiliger Source-Pfad
+- Manifest enthält stabile vplib_uid
+- family_id/package_id kanonisch
+- Package Reader liest alle Kerndokumente
+```
+
+### 40.4 Sync
+
+```text
+- POST-Methode
+- ScanRun erzeugt
+- genau erwartete vplib_uid synchronisiert
+- revision_hash vorhanden
+- Item inserted/updated/unchanged
+- keine unerwarteten Deletions
+- zweiter identischer Sync idempotent
+```
+
+### 40.5 Published Read
+
+```text
+- /library/items item_count >= 1
+- /library/vplib/<vplib_uid> erfolgreich
+- Detail current revision korrekt
+- Varianten vorhanden
+- Dokumente vorhanden
+- Tree enthält Taxonomiepfad
+```
+
+### 40.6 Fehlerfälle
+
+```text
+- Write Mode aus
+- Source Root nicht schreibbar
+- DB nicht erreichbar
+- ungültige vplib_uid
+- fehlender revision_hash
+- paralleler identischer Save
+- ungültiges Package
+```
+
+---
+
+## 41. Kompakte Entwickler-Checkliste
+
+### Bei Änderungen am Create-Save
+
+```text
+[ ] verändert sich Source-Pfad?
+[ ] bleibt vplib_uid stabil?
+[ ] bleiben family_id/package_id kanonisch?
+[ ] ist Write Mode berücksichtigt?
+[ ] ist Save-Ergebnis kompakt und JSON-safe?
+[ ] wird DB-Sync fälschlich angenommen oder wirklich ausgeführt?
+```
+
+### Bei Änderungen am Sync
+
+```text
+[ ] erzeugt der Service keine vplib_uid?
+[ ] ist revision_hash vorhanden?
+[ ] ist mark_missing_deleted passend zum Scan-Scope?
+[ ] laufen Family/Revision/Children in einer Transaktion?
+[ ] ist der Vorgang idempotent?
+[ ] werden Issues kompakt gespeichert?
+```
+
+### Bei Änderungen an Published Reads
+
+```text
+[ ] NULL-Status korrekt behandelt?
+[ ] deleted Filter korrekt?
+[ ] active/visible/publication_status klar?
+[ ] String-Identifier nicht gegen bigint verglichen?
+[ ] keine ORM-Objekte rekursiv serialisiert?
+```
+
+### Bei Änderungen an Definitions
+
+```text
+[ ] App-Kontext optional?
+[ ] Registry-Fallback vorhanden?
+[ ] dataset-spezifische Deduplizierung?
+[ ] Endpoints echte Strings?
+[ ] Profile IDs nicht vertauscht?
+```
+
+---
+
 ## Kurzfazit
 
 `src/library` ist jetzt die zentrale fachliche Library-Schicht zwischen VPLIB-Core, Source-Dateien, PostgreSQL und API. Die wichtigsten Architekturentscheidungen sind:
@@ -2441,6 +3964,7 @@ Der Abschnitt gilt als stabil, wenn:
 ```text
 - source/ bleibt die lesbare Package-Quelle.
 - /scan ist read-only.
+- /create/save schreibt aktuell Source, aber noch nicht automatisch Published DB.
 - /sync ist der bewusste DB-Write-Pfad.
 - Published DB ist der produktive Read-Pfad.
 - Drafts sind Arbeitszustand.

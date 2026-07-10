@@ -4,12 +4,14 @@
 
   Zweck:
   - Finaler Wizard-Schritt für die /create-Oberfläche.
-  - Stellt die Create-Backend-Aktionen als reine UI-Hooks bereit.
-  - Keine Business-Logik im Template.
-  - Keine direkte Dateioperation im Browser.
-  - Keine Formularauswertung im Template.
-  - Keine API-Aufrufe im Template.
-  - Ausführung erfolgt ausschließlich über create_actions.js.
+  - Stellt die Create-Backend-Aktionen als explizite UI-Hooks bereit.
+  - Keine Business-Logik und keine eigenen API-Aufrufe im Template.
+  - Eine kleine HTML-Bridge verbindet die Buttons direkt mit der öffentlichen
+    VectoplanCreateActions.runAction()-API.
+  - create_actions.js bleibt allein für Payload, Preflight, Backend und Download
+    verantwortlich.
+  - Die Bridge arbeitet vor der defer-geladenen Runtime, wartet bei Bedarf und
+    verhindert doppelte Ausführung durch kompatible Event-Markierungen.
 ----------------------------------------------------------------------------- #}
 
 {# -----------------------------------------------------------------------------
@@ -180,7 +182,10 @@
   data-vp-actions-root="true"
   data-vp-actions-ready="false"
   data-vp-actions-template-ready="true"
-  data-vp-actions-version="0.7.0"
+  data-vp-actions-html-bridge="true"
+  data-vp-actions-html-bridge-ready="false"
+  data-vp-actions-html-bridge-version="1.0.0"
+  data-vp-actions-version="1.0.0"
   data-vp-actions-layout="vertical"
   data-vp-actions-definitions-ready="{% if _actions_definitions_ok %}true{% else %}false{% endif %}"
   data-vp-actions-generator-ready="{% if _actions_generator_ready %}true{% else %}false{% endif %}"
@@ -286,6 +291,8 @@
           data-vp-action-button
           data-vp-action-kind="draft"
           data-vp-action-route="{{ _actions_route_draft }}"
+          data-vp-actions-inline-bridge="true"
+          onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
           <span class="vp-create-button__label">
             Draft bauen
@@ -304,6 +311,8 @@
           data-vp-action-button
           data-vp-action-kind="validate"
           data-vp-action-route="{{ _actions_route_validate }}"
+          data-vp-actions-inline-bridge="true"
+          onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
           <span class="vp-create-button__label">
             Validieren
@@ -322,6 +331,8 @@
           data-vp-action-button
           data-vp-action-kind="package-plan"
           data-vp-action-route="{{ _actions_route_package_plan }}"
+          data-vp-actions-inline-bridge="true"
+          onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
           <span class="vp-create-button__label">
             Package-Plan
@@ -340,6 +351,8 @@
           data-vp-action-button
           data-vp-action-kind="download"
           data-vp-action-route="{{ _actions_route_download }}"
+          data-vp-actions-inline-bridge="true"
+          onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
           <span class="vp-create-button__label">
             VPLIB downloaden
@@ -358,6 +371,8 @@
           data-vp-action-button
           data-vp-action-kind="persist-draft"
           data-vp-action-route="{{ _actions_route_persistent_draft }}"
+          data-vp-actions-inline-bridge="true"
+          onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
           <span class="vp-create-button__label">
             Draft speichern
@@ -376,6 +391,8 @@
           data-vp-action-button
           data-vp-action-kind="publish-prepare"
           data-vp-action-route="{{ _actions_route_publish_bundle }}"
+          data-vp-actions-inline-bridge="true"
+          onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
           <span class="vp-create-button__label">
             Publish vorbereiten
@@ -395,6 +412,8 @@
           data-vp-action-button
           data-vp-action-kind="save"
           data-vp-action-route="{{ _actions_route_save }}"
+          data-vp-actions-inline-bridge="true"
+          onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
           {% if not _actions_write_enabled %}disabled aria-disabled="true"{% else %}aria-disabled="false"{% endif %}
         >
           <span class="vp-create-button__label">
@@ -411,122 +430,28 @@
         </button>
       </div>
 
-      <section
-        class="vplib-create-step__field vplib-create-step__field--full vp-create-actions-result"
-        data-vp-actions-result
-        data-create-result-section="true"
-        data-vp-actions-result-visible="false"
-        aria-labelledby="vp-create-actions-result-title"
-      >
-        <header class="vp-create-actions-result__header">
-          <div>
-            <h3
-              id="vp-create-actions-result-title"
-              class="vp-create-actions-result__title"
-            >
-              Ergebnis
-            </h3>
 
-            <p
-              class="vp-create-actions-result__summary"
-              data-vp-actions-result-summary
-              data-create-result-summary="true"
-              hidden
-            ></p>
-          </div>
 
-          <div class="vp-create-actions-result__tools">
-            <button
-              class="vp-create-button vp-create-button--ghost"
-              type="button"
-              data-vp-actions-result-copy
-              data-create-copy-result="true"
-              disabled
-              aria-disabled="true"
-            >
-              Kopieren
-            </button>
 
-            <button
-              class="vp-create-button vp-create-button--ghost"
-              type="button"
-              data-vp-actions-result-clear
-              data-create-clear-result="true"
-              disabled
-              aria-disabled="true"
-            >
-              Leeren
-            </button>
-          </div>
-        </header>
-
-        <dl
-          class="vp-create-actions-result__meta"
-          data-vp-actions-result-meta
-          aria-label="Aktionsergebnis-Metadaten"
-        >
-          <div>
-            <dt>Aktion</dt>
-            <dd data-create-result-last-action data-vp-result-last-action>Keine</dd>
-          </div>
-
-          <div>
-            <dt>Status</dt>
-            <dd data-create-result-status data-vp-result-status>—</dd>
-          </div>
-
-          <div>
-            <dt>HTTP</dt>
-            <dd data-create-result-http-status data-vp-result-http-status>—</dd>
-          </div>
-
-          <div>
-            <dt>Fehler</dt>
-            <dd data-create-result-error-count data-vp-result-error-count>0</dd>
-          </div>
-
-          <div>
-            <dt>Warnungen</dt>
-            <dd data-create-result-warning-count data-vp-result-warning-count>0</dd>
-          </div>
-        </dl>
-
-        <pre
-          class="vp-create-actions-result__output"
-          data-vp-actions-result-output
-          data-create-result-output="true"
-          hidden
-        ><code data-vp-actions-result-code>{}</code></pre>
-      </section>
-
-      <div
-        class="vplib-create-step__field vplib-create-step__field--full vp-create-derived-note"
-        data-vp-derived-note="actions"
-        aria-label="Ablaufhinweis"
-      >
-        <div class="vp-create-derived-note__inner">
-          <span class="vp-create-derived-note__label">
-            Ablauf:
-          </span>
-
-          <span class="vp-create-derived-note__text">
-            Empfohlen: Draft → Validieren → Package-Plan → Download. Save nur bei aktivem Write-Flag.
-          </span>
-        </div>
-      </div>
     </div>
   </div>
 
   <script type="application/json" data-vp-actions-config>
     {
       "component": "create.actions",
-      "version": "0.7.0",
+      "version": "1.0.0",
       "apiPrefix": {{ _actions_api_prefix | tojson }},
       "writeEnabled": {% if _actions_write_enabled %}true{% else %}false{% endif %},
       "healthOk": {% if _actions_health_ok %}true{% else %}false{% endif %},
       "definitionsReady": {% if _actions_definitions_ok %}true{% else %}false{% endif %},
       "generatorContextReady": {% if _actions_generator_ready %}true{% else %}false{% endif %},
       "payloadContractReady": {% if _actions_payload_contract_ready %}true{% else %}false{% endif %},
+      "htmlBridge": {
+        "enabled": true,
+        "version": "1.0.0",
+        "global": "VectoplanCreateActionsTemplateBridge",
+        "handler": "vpRunCreateAction"
+      },
       "sourceRoot": {{ _actions_source_root | tojson }},
       "routes": {
         "draft": {{ _actions_route_draft | tojson }},
@@ -562,58 +487,649 @@
   (function () {
     "use strict";
 
-    function bootActionsTemplate() {
+    var GLOBAL_NAME = "VectoplanCreateActionsTemplateBridge";
+    var TEMPLATE_VERSION = "1.0.0";
+    var ACTIONS_RUNTIME_NAME = "VectoplanCreateActions";
+    var ORCHESTRATOR_NAME = "VectoplanCreate";
+    var ROOT_SELECTOR = "[data-vp-actions-root='true']";
+    var BUTTON_SELECTOR = "[data-create-action][data-vp-action-button]";
+    var FORM_SELECTOR = "[data-vp-create-form], [data-create-form='true'], #vp-create-form, form[data-create-form]";
+    var STATUS_SELECTOR = "[data-vp-action-status], [data-create-action-status='true']";
+    var EVENT_HANDLED_KEY = "__vpCreateActionsHandled";
+    var ROOT_HANDLER_KEY = "__vpCreateActionsTemplateDocumentHandler";
+    var ROOT_PENDING_ATTR = "data-vp-actions-html-bridge-pending";
+    var BUTTON_PENDING_ATTR = "data-vp-actions-html-bridge-pending";
+    var MAX_RUNTIME_WAIT_MS = 10000;
+    var RUNTIME_POLL_MS = 40;
+    var MAX_ERROR_HISTORY = 12;
+
+    var bridgeToken = [
+      GLOBAL_NAME,
+      TEMPLATE_VERSION,
+      Date.now(),
+      Math.random().toString(36).slice(2)
+    ].join(":");
+
+    var runtimeWaitPromise = null;
+    var state = {
+      version: TEMPLATE_VERSION,
+      initialized: false,
+      ready: false,
+      bound: false,
+      clickCount: 0,
+      handledCount: 0,
+      duplicateCount: 0,
+      blockedCount: 0,
+      runtimeWaitCount: 0,
+      runtimeResolveCount: 0,
+      actionStartCount: 0,
+      actionCompleteCount: 0,
+      actionErrorCount: 0,
+      currentAction: "",
+      lastAction: "",
+      lastResult: null,
+      lastError: null,
+      lastClick: null,
+      errors: []
+    };
+
+    function nowIso() {
       try {
-        var root = document.querySelector("[data-vp-actions-root='true']");
-        var configNode = root ? root.querySelector("[data-vp-actions-config]") : null;
-        var config = {};
-
-        if (!root || root.getAttribute("data-vp-actions-template-booted") === "true") {
-          return;
-        }
-
-        try {
-          if (configNode && configNode.textContent) {
-            config = JSON.parse(configNode.textContent);
-          }
-        } catch (jsonError) {
-          config = {};
-        }
-
-        root.setAttribute("data-vp-actions-template-booted", "true");
-        root.setAttribute("data-vp-actions-template-version", "0.7.0");
-
-        document.dispatchEvent(new CustomEvent("vectoplan:create:actions-template-ready", {
-          bubbles: true,
-          cancelable: false,
-          detail: {
-            component: "create.actions.template",
-            version: "0.7.0",
-            root: root,
-            config: config
-          }
-        }));
+        return new Date().toISOString();
       } catch (error) {
-        try {
-          if (window.console && typeof window.console.warn === "function") {
-            window.console.warn("[VECTOPLAN Create Actions Template] Boot failed.", error);
-          }
-        } catch (consoleError) {
-          /* no-op */
-        }
+        return "";
       }
     }
 
-    try {
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", bootActionsTemplate, {
-          once: true
+    function rememberError(stage, error) {
+      try {
+        var normalized = {
+          stage: String(stage || "bridge"),
+          name: error && error.name ? String(error.name) : "Error",
+          message: error && error.message ? String(error.message) : String(error || "Unknown error"),
+          timestamp: nowIso()
+        };
+
+        state.lastError = normalized;
+        state.errors.push(normalized);
+
+        if (state.errors.length > MAX_ERROR_HISTORY) {
+          state.errors.splice(0, state.errors.length - MAX_ERROR_HISTORY);
+        }
+
+        return normalized;
+      } catch (normalizationError) {
+        return {
+          stage: String(stage || "bridge"),
+          name: "Error",
+          message: "Unknown bridge error",
+          timestamp: nowIso()
+        };
+      }
+    }
+
+    function clone(value) {
+      try {
+        return JSON.parse(JSON.stringify(value));
+      } catch (error) {
+        return value;
+      }
+    }
+
+    function getRoot(button) {
+      try {
+        if (button && typeof button.closest === "function") {
+          var buttonRoot = button.closest(ROOT_SELECTOR);
+          if (buttonRoot) {
+            return buttonRoot;
+          }
+        }
+
+        return document.querySelector(ROOT_SELECTOR);
+      } catch (error) {
+        rememberError("get_root", error);
+        return null;
+      }
+    }
+
+    function getStatusNode(root) {
+      try {
+        return root && typeof root.querySelector === "function"
+          ? root.querySelector(STATUS_SELECTOR)
+          : document.querySelector(STATUS_SELECTOR);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function setStatus(root, message, status) {
+      try {
+        var statusNode = getStatusNode(root);
+        var safeStatus = String(status || "idle");
+
+        if (statusNode) {
+          statusNode.textContent = String(message || "Bereit.");
+          statusNode.setAttribute("data-vp-actions-status", safeStatus);
+        }
+
+        if (root) {
+          root.setAttribute("data-vp-actions-state", safeStatus);
+          root.setAttribute("data-vp-actions-html-bridge-status", safeStatus);
+        }
+      } catch (error) {
+        rememberError("set_status", error);
+      }
+    }
+
+    function dispatch(name, detail) {
+      try {
+        document.dispatchEvent(new CustomEvent(name, {
+          bubbles: true,
+          cancelable: false,
+          detail: detail || {}
+        }));
+        return true;
+      } catch (error) {
+        rememberError("dispatch:" + name, error);
+        return false;
+      }
+    }
+
+    function normalizeAction(value) {
+      try {
+        var action = String(value || "").trim().replace(/_/g, "-");
+        var aliases = {
+          "persistent-draft": "persist-draft",
+          "publish-bundle": "publish-prepare"
+        };
+        var known = {
+          "draft": true,
+          "validate": true,
+          "package-plan": true,
+          "download": true,
+          "persist-draft": true,
+          "publish-prepare": true,
+          "save": true
+        };
+
+        action = aliases[action] || action;
+        return known[action] ? action : "";
+      } catch (error) {
+        return "";
+      }
+    }
+
+    function resolveButton(event, explicitButton) {
+      try {
+        if (explicitButton && explicitButton.nodeType === 1) {
+          return explicitButton;
+        }
+
+        var target = event && event.target ? event.target : null;
+        return target && typeof target.closest === "function"
+          ? target.closest(BUTTON_SELECTOR)
+          : null;
+      } catch (error) {
+        rememberError("resolve_button", error);
+        return null;
+      }
+    }
+
+    function resolveForm(button) {
+      try {
+        if (button && button.form) {
+          return button.form;
+        }
+
+        if (button && typeof button.closest === "function") {
+          var closestForm = button.closest("form");
+          if (closestForm) {
+            return closestForm;
+          }
+        }
+
+        return document.querySelector(FORM_SELECTOR);
+      } catch (error) {
+        rememberError("resolve_form", error);
+        return null;
+      }
+    }
+
+    function resolveRuntime() {
+      try {
+        var actionsRuntime = window[ACTIONS_RUNTIME_NAME];
+
+        if (actionsRuntime && typeof actionsRuntime.runAction === "function") {
+          return {
+            name: ACTIONS_RUNTIME_NAME,
+            version: actionsRuntime.version || "",
+            runAction: function (action, form, button) {
+              return actionsRuntime.runAction(action, form, button);
+            }
+          };
+        }
+
+        var orchestrator = window[ORCHESTRATOR_NAME];
+
+        if (orchestrator && typeof orchestrator.runAction === "function") {
+          return {
+            name: ORCHESTRATOR_NAME,
+            version: orchestrator.version || "",
+            runAction: function (action) {
+              return orchestrator.runAction(action);
+            }
+          };
+        }
+
+        return null;
+      } catch (error) {
+        rememberError("resolve_runtime", error);
+        return null;
+      }
+    }
+
+    function waitForRuntime(timeoutMs) {
+      try {
+        var immediate = resolveRuntime();
+        if (immediate) {
+          state.runtimeResolveCount += 1;
+          return Promise.resolve(immediate);
+        }
+
+        if (runtimeWaitPromise) {
+          return runtimeWaitPromise;
+        }
+
+        state.runtimeWaitCount += 1;
+        var startedAt = Date.now();
+        var safeTimeout = Number(timeoutMs);
+
+        if (!Number.isFinite(safeTimeout) || safeTimeout < 250) {
+          safeTimeout = MAX_RUNTIME_WAIT_MS;
+        }
+
+        runtimeWaitPromise = new Promise(function (resolve, reject) {
+          function poll() {
+            try {
+              var runtime = resolveRuntime();
+
+              if (runtime) {
+                state.runtimeResolveCount += 1;
+                runtimeWaitPromise = null;
+                resolve(runtime);
+                return;
+              }
+
+              if (Date.now() - startedAt >= safeTimeout) {
+                runtimeWaitPromise = null;
+                reject(new Error(
+                  "VectoplanCreateActions wurde nicht innerhalb von " + safeTimeout + " ms verfügbar."
+                ));
+                return;
+              }
+
+              window.setTimeout(poll, RUNTIME_POLL_MS);
+            } catch (pollError) {
+              runtimeWaitPromise = null;
+              reject(pollError);
+            }
+          }
+
+          poll();
         });
-      } else {
-        bootActionsTemplate();
+
+        return runtimeWaitPromise;
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
+
+    function markEventHandled(event) {
+      try {
+        if (!event) {
+          return true;
+        }
+
+        if (event[EVENT_HANDLED_KEY]) {
+          state.duplicateCount += 1;
+          return false;
+        }
+
+        event[EVENT_HANDLED_KEY] = bridgeToken;
+        return true;
+      } catch (error) {
+        rememberError("mark_event", error);
+        return true;
+      }
+    }
+
+    function stopEvent(event) {
+      try {
+        if (!event) {
+          return;
+        }
+
+        if (typeof event.preventDefault === "function") {
+          event.preventDefault();
+        }
+
+        if (typeof event.stopImmediatePropagation === "function") {
+          event.stopImmediatePropagation();
+        } else if (typeof event.stopPropagation === "function") {
+          event.stopPropagation();
+        }
+      } catch (error) {
+        rememberError("stop_event", error);
+      }
+    }
+
+    function setButtonPending(button, pending) {
+      try {
+        if (!button) {
+          return;
+        }
+
+        if (pending) {
+          button.setAttribute(BUTTON_PENDING_ATTR, "true");
+          button.setAttribute("aria-busy", "true");
+        } else {
+          button.removeAttribute(BUTTON_PENDING_ATTR);
+          button.setAttribute("aria-busy", "false");
+        }
+      } catch (error) {
+        rememberError("set_button_pending", error);
+      }
+    }
+
+    function executeAction(action, button) {
+      var root = getRoot(button);
+      var form = resolveForm(button);
+
+      if (!form) {
+        var noFormError = new Error("Create-Formular wurde nicht gefunden.");
+        state.actionErrorCount += 1;
+        rememberError("execute:no_form", noFormError);
+        setStatus(root, noFormError.message, "error");
+        return Promise.reject(noFormError);
+      }
+
+      if (button && button.getAttribute(BUTTON_PENDING_ATTR) === "true") {
+        state.blockedCount += 1;
+        setStatus(root, "Diese Aktion wird bereits verarbeitet.", "warning");
+        return Promise.resolve({
+          ok: false,
+          status: "template_action_pending",
+          action: action
+        });
+      }
+
+      state.currentAction = action;
+      state.lastAction = action;
+      state.actionStartCount += 1;
+      setButtonPending(button, true);
+
+      if (root) {
+        root.setAttribute(ROOT_PENDING_ATTR, action);
+      }
+
+      setStatus(root, "Aktion „" + action + "“ wird gestartet …", "loading");
+      dispatch("vectoplan:create:actions-template-action-start", {
+        component: GLOBAL_NAME,
+        version: TEMPLATE_VERSION,
+        action: action
+      });
+
+      return waitForRuntime(MAX_RUNTIME_WAIT_MS)
+        .then(function (runtime) {
+          if (root) {
+            root.setAttribute("data-vp-actions-runtime", runtime.name);
+            root.setAttribute("data-vp-actions-runtime-version", runtime.version || "");
+          }
+
+          return Promise.resolve(runtime.runAction(action, form, button));
+        })
+        .then(function (result) {
+          state.actionCompleteCount += 1;
+          state.lastResult = clone(result);
+          state.lastError = null;
+
+          dispatch("vectoplan:create:actions-template-action-complete", {
+            component: GLOBAL_NAME,
+            version: TEMPLATE_VERSION,
+            action: action,
+            result: result || null
+          });
+
+          return result;
+        })
+        .catch(function (error) {
+          state.actionErrorCount += 1;
+          var normalized = rememberError("execute:" + action, error);
+          setStatus(root, "Aktion konnte nicht gestartet werden: " + normalized.message, "error");
+
+          dispatch("vectoplan:create:actions-template-action-error", {
+            component: GLOBAL_NAME,
+            version: TEMPLATE_VERSION,
+            action: action,
+            error: normalized
+          });
+
+          try {
+            if (window.console && typeof window.console.warn === "function") {
+              window.console.warn("[VECTOPLAN Create Actions Template] Action failed.", normalized);
+            }
+          } catch (consoleError) {
+            /* no-op */
+          }
+
+          return {
+            ok: false,
+            status: "template_action_failed",
+            action: action,
+            errors: [normalized]
+          };
+        })
+        .then(function (result) {
+          state.currentAction = "";
+          setButtonPending(button, false);
+
+          if (root) {
+            root.removeAttribute(ROOT_PENDING_ATTR);
+          }
+
+          return result;
+        }, function (error) {
+          state.currentAction = "";
+          setButtonPending(button, false);
+
+          if (root) {
+            root.removeAttribute(ROOT_PENDING_ATTR);
+          }
+
+          throw error;
+        });
+    }
+
+    function handleClick(event, explicitButton) {
+      try {
+        var button = resolveButton(event, explicitButton);
+
+        if (!button) {
+          return true;
+        }
+
+        var root = getRoot(button);
+        if (!root || !root.contains(button)) {
+          return true;
+        }
+
+        state.clickCount += 1;
+
+        if (!markEventHandled(event)) {
+          return false;
+        }
+
+        stopEvent(event);
+
+        var action = normalizeAction(button.getAttribute("data-create-action"));
+        state.lastClick = {
+          action: action,
+          timestamp: nowIso(),
+          disabled: !!button.disabled,
+          ariaDisabled: button.getAttribute("aria-disabled") || "",
+          source: explicitButton ? "inline" : "capture"
+        };
+
+        if (!action) {
+          state.blockedCount += 1;
+          setStatus(root, "Unbekannte Create-Aktion.", "error");
+          return false;
+        }
+
+        if (button.disabled || button.getAttribute("aria-disabled") === "true") {
+          state.blockedCount += 1;
+          setStatus(root, "Die Aktion „" + action + "“ ist derzeit deaktiviert.", "warning");
+          return false;
+        }
+
+        state.handledCount += 1;
+        executeAction(action, button).catch(function (error) {
+          rememberError("handle_click:" + action, error);
+        });
+
+        return false;
+      } catch (error) {
+        rememberError("handle_click", error);
+        return false;
+      }
+    }
+
+    function documentClickHandler(event) {
+      try {
+        var button = resolveButton(event, null);
+        if (!button) {
+          return;
+        }
+
+        var root = getRoot(button);
+        if (!root || !root.contains(button)) {
+          return;
+        }
+
+        handleClick(event, null);
+      } catch (error) {
+        rememberError("document_click", error);
+      }
+    }
+
+    function parseConfig(root) {
+      try {
+        var node = root ? root.querySelector("[data-vp-actions-config]") : null;
+        if (!node || !node.textContent) {
+          return {};
+        }
+        return JSON.parse(node.textContent);
+      } catch (error) {
+        rememberError("parse_config", error);
+        return {};
+      }
+    }
+
+    function bindDocumentCapture() {
+      try {
+        var previous = window[ROOT_HANDLER_KEY];
+
+        if (previous && typeof previous === "function") {
+          try {
+            document.removeEventListener("click", previous, true);
+          } catch (removeError) {
+            rememberError("remove_previous_handler", removeError);
+          }
+        }
+
+        document.addEventListener("click", documentClickHandler, true);
+        window[ROOT_HANDLER_KEY] = documentClickHandler;
+        state.bound = true;
+        return true;
+      } catch (error) {
+        state.bound = false;
+        rememberError("bind_document_capture", error);
+        return false;
+      }
+    }
+
+    function bootActionsTemplate() {
+      try {
+        var root = document.querySelector(ROOT_SELECTOR);
+        if (!root) {
+          return false;
+        }
+
+        var config = parseConfig(root);
+        var bound = bindDocumentCapture();
+
+        root.setAttribute("data-vp-actions-template-booted", "true");
+        root.setAttribute("data-vp-actions-template-version", TEMPLATE_VERSION);
+        root.setAttribute("data-vp-actions-html-bridge-ready", bound ? "true" : "false");
+        root.setAttribute("data-vp-actions-html-bridge-token", bridgeToken);
+
+        state.initialized = true;
+        state.ready = bound;
+
+        dispatch("vectoplan:create:actions-template-ready", {
+          component: "create.actions.template",
+          version: TEMPLATE_VERSION,
+          bridge: GLOBAL_NAME,
+          bridgeReady: bound,
+          root: root,
+          config: config
+        });
+
+        return bound;
+      } catch (error) {
+        state.initialized = false;
+        state.ready = false;
+        rememberError("boot", error);
+        return false;
+      }
+    }
+
+    function getState() {
+      try {
+        return clone(state);
+      } catch (error) {
+        return {
+          version: TEMPLATE_VERSION,
+          initialized: state.initialized,
+          ready: state.ready,
+          error: rememberError("get_state", error)
+        };
+      }
+    }
+
+    var api = {
+      version: TEMPLATE_VERSION,
+      boot: bootActionsTemplate,
+      handleClick: handleClick,
+      executeAction: executeAction,
+      waitForRuntime: waitForRuntime,
+      resolveRuntime: resolveRuntime,
+      getState: getState
+    };
+
+    window[GLOBAL_NAME] = api;
+    window.vpRunCreateAction = handleClick;
+
+    try {
+      bootActionsTemplate();
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", function () {
+          bootActionsTemplate();
+        }, { once: true });
       }
     } catch (error) {
-      /* no-op */
+      rememberError("schedule_boot", error);
     }
   })();
 </script>
