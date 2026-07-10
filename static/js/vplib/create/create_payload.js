@@ -4,10 +4,40 @@
 
   var GLOBAL_NAME = "VectoplanCreatePayload";
   var MODULE_NAME = "payload";
-  var PAYLOAD_VERSION = "0.7.0";
+  var PAYLOAD_VERSION = "0.8.0";
   var CORE_NAME = "VectoplanCreateCore";
+  var VARIANT_PROFILES_NAME = "VectoplanCreateVariantProfiles";
   var BOOT_RETRY_MS = 40;
   var BOOT_MAX_ATTEMPTS = 80;
+  var DEFAULT_READY_TIMEOUT_MS = 20000;
+  var DEFAULT_STARTER_OBJECT_KIND = "cell_block";
+  var DEFAULT_STARTER_FAMILY_PROFILE_ID = "simple_cell_block";
+  var DEFAULT_STARTER_VARIANT_PROFILE_ID = "simple_cell_block.v1";
+  var DEFAULT_STARTER_VALUES = {
+    "variant.variant_id": "default",
+    "variant.label": "Standard",
+    "dimensions.width_mm": 1000,
+    "dimensions.height_mm": 1000,
+    "dimensions.depth_mm": 1000,
+    "material.type": "generic",
+    "material.subtype": "generic",
+    "material.color_hint": "#b8b8b8"
+  };
+  var REQUIRED_STARTER_VALUE_KEYS = [
+    "dimensions.width_mm",
+    "dimensions.height_mm",
+    "dimensions.depth_mm"
+  ];
+  var OPTIONAL_EMPTY_PAYLOAD_KEYS = [
+    "family_description",
+    "familyDescription",
+    "material_class",
+    "materialClass",
+    "generator_context_uid",
+    "generatorContextUid",
+    "generator_context_schema_version",
+    "generatorContextSchemaVersion"
+  ];
 
   var FIELD_NAMES = {
     vplibUid: "vplib_uid",
@@ -142,14 +172,27 @@
   var localState = {
     version: PAYLOAD_VERSION,
     initialized: false,
+    operational: false,
+    status: "created",
+    readinessPromise: null,
+    readinessResult: null,
+    activePreparePromise: null,
+    activePrepareKey: "",
+    prepareGeneration: 0,
     lastPayload: null,
+    lastValidPayload: null,
+    lastPayloadSignature: "",
     lastPayloadSummary: null,
+    lastPreparedAt: null,
     lastSync: null,
     lastUploadSync: null,
     lastUploadSignature: "",
     lastError: null,
     lastValidation: null,
+    profileReadiness: null,
     collectCount: 0,
+    prepareCount: 0,
+    suppressedPrepareCount: 0,
     syncCount: 0,
     uploadSyncCount: 0,
     skippedUploadSyncCount: 0,
@@ -160,6 +203,830 @@
     uploadErrorCount: 0,
     uploadSyncActive: false
   };
+
+
+  function createPayloadError(code, message, details, cause) {
+    var payloadError;
+
+    try {
+      payloadError = new Error(String(message || code || "Create payload error."));
+    } catch (constructionError) {
+      payloadError = {
+        name: "Error",
+        message: String(message || code || "Create payload error.")
+      };
+    }
+
+    try {
+      payloadError.name = "VectoplanCreatePayloadError";
+      payloadError.code = String(code || "create_payload_error");
+      payloadError.component = GLOBAL_NAME;
+      payloadError.componentVersion = PAYLOAD_VERSION;
+      payloadError.__vp_create_payload_error = true;
+
+      if (details && typeof details === "object") {
+        payloadError.details = cloneObject(details);
+
+        if (details.status !== undefined && details.status !== null) {
+          payloadError.status = details.status;
+        }
+
+        if (details.action) {
+          payloadError.action = String(details.action);
+        }
+      }
+
+      if (cause !== undefined && cause !== null) {
+        try {
+          payloadError.cause = cause;
+        } catch (causeError) {
+          /* no-op */
+        }
+      }
+    } catch (enrichmentError) {
+      /* Preserve the original Error. */
+    }
+
+    return payloadError;
+  }
+
+  function ensurePayloadError(error, fallbackCode, fallbackMessage, details) {
+    try {
+      if (error && error.__vp_create_payload_error === true && error.message) {
+        return error;
+      }
+
+      if (error instanceof Error) {
+        if (!error.code) {
+          error.code = fallbackCode || error.name || "create_payload_error";
+        }
+
+        if (!error.component) {
+          error.component = GLOBAL_NAME;
+        }
+
+        error.__vp_create_payload_error = true;
+
+        if (details && typeof details === "object" && !error.details) {
+          error.details = cloneObject(details);
+        }
+
+        return error;
+      }
+
+      var source = error && error.error && typeof error.error === "object"
+        ? error.error
+        : (error || {});
+
+      return createPayloadError(
+        source.code ||
+          source.error_code ||
+          source.status ||
+          source.name ||
+          fallbackCode ||
+          "create_payload_error",
+        source.message ||
+          source.detail ||
+          source.description ||
+          fallbackMessage ||
+          (typeof error === "string" ? error : "") ||
+          "Create payload error.",
+        Object.assign({}, details || {}, {
+          status: source.status || null,
+          payload: source.payload || source.raw || source.response || null
+        }),
+        error
+      );
+    } catch (normalizationError) {
+      return createPayloadError(
+        fallbackCode || "create_payload_error",
+        fallbackMessage || "Create payload error could not be normalized.",
+        details || {},
+        error
+      );
+    }
+  }
+
+  function buildPayloadFailure(kind, error, extra) {
+    try {
+      var normalized = normalizeError(error);
+      var payload = Object.assign({
+        ok: false,
+        ready: false,
+        healthy: false,
+        status: "blocked",
+        kind: kind || "payload",
+        component: GLOBAL_NAME,
+        version: PAYLOAD_VERSION,
+        error: normalized
+      }, extra || {});
+
+      payload.ok = false;
+      payload.ready = false;
+      payload.error = normalized;
+
+      return payload;
+    } catch (buildError) {
+      return {
+        ok: false,
+        ready: false,
+        healthy: false,
+        status: "unavailable",
+        kind: kind || "payload",
+        component: GLOBAL_NAME,
+        version: PAYLOAD_VERSION,
+        error: {
+          code: "payload_failure_build_failed",
+          message: "Payload failure result could not be created."
+        }
+      };
+    }
+  }
+
+  function shouldReject(options) {
+    try {
+      return !!(options && options.rejectOnError === true);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function setPayloadStatus(status, error, details) {
+    try {
+      var nextStatus = String(status || "created").trim().toLowerCase() || "created";
+      var normalizedError = error ? normalizeError(error) : null;
+
+      localState.status = nextStatus;
+      localState.operational = nextStatus === "ready";
+      localState.lastError = normalizedError;
+
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-payload-initialized",
+        localState.initialized ? "true" : "false"
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-payload-ready",
+        localState.operational ? "true" : "false"
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-payload-operational",
+        localState.operational ? "true" : "false"
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-payload-status",
+        nextStatus
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-payload-version",
+        PAYLOAD_VERSION
+      );
+
+      safeDispatch("vectoplan:create:payload-status-changed", {
+        component: GLOBAL_NAME,
+        version: PAYLOAD_VERSION,
+        initialized: localState.initialized,
+        ready: localState.operational,
+        operational: localState.operational,
+        status: nextStatus,
+        error: normalizedError,
+        details: details || null
+      });
+
+      return nextStatus;
+    } catch (statusError) {
+      localState.status = String(status || "created");
+      localState.operational = localState.status === "ready";
+      localState.lastError = error ? normalizeError(error) : null;
+      return localState.status;
+    }
+  }
+
+  function getVariantProfilesRuntime() {
+    try {
+      var runtime = window[VARIANT_PROFILES_NAME];
+
+      return runtime && typeof runtime === "object" ? runtime : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getProfileReadinessSync() {
+    try {
+      var profilesRuntime = getVariantProfilesRuntime();
+
+      if (!profilesRuntime) {
+        return {
+          ok: false,
+          ready: false,
+          status: "unavailable",
+          error: {
+            code: "variant_profiles_runtime_missing",
+            message: "VectoplanCreateVariantProfiles is not available."
+          }
+        };
+      }
+
+      if (typeof profilesRuntime.getReadiness === "function") {
+        var readiness = profilesRuntime.getReadiness();
+
+        if (readiness && typeof readiness === "object") {
+          return readiness;
+        }
+      }
+
+      if (typeof profilesRuntime.getState === "function") {
+        var runtimeState = profilesRuntime.getState();
+
+        return {
+          ok: runtimeState && (runtimeState.ready === true || runtimeState.operational === true),
+          ready: runtimeState && (runtimeState.ready === true || runtimeState.operational === true),
+          status: runtimeState && runtimeState.status ? runtimeState.status : "initialized",
+          state: runtimeState || null
+        };
+      }
+
+      return {
+        ok: false,
+        ready: false,
+        status: "initialized"
+      };
+    } catch (error) {
+      return buildPayloadFailure("profile_readiness", error);
+    }
+  }
+
+  function getProfileBundleSync() {
+    try {
+      var profilesRuntime = getVariantProfilesRuntime();
+
+      if (!profilesRuntime) {
+        return null;
+      }
+
+      if (typeof profilesRuntime.getResolvedProfileBundleSync === "function") {
+        var bundle = profilesRuntime.getResolvedProfileBundleSync();
+
+        if (bundle && typeof bundle === "object") {
+          return bundle;
+        }
+      }
+
+      if (typeof profilesRuntime.getCacheSnapshot === "function") {
+        var cache = profilesRuntime.getCacheSnapshot();
+
+        if (cache && cache.currentBundle) {
+          return cache.currentBundle;
+        }
+
+        if (cache && cache.resolvedProfileBundle) {
+          return cache.resolvedProfileBundle;
+        }
+
+        if (cache && cache.lastResolved) {
+          return cache.lastResolved;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getResolvedProfileDefaults() {
+    try {
+      var bundle = getProfileBundleSync() || {};
+      var readiness = getProfileReadinessSync() || {};
+      var profile = bundle.variant_profile ||
+        bundle.variantProfile ||
+        bundle.profile ||
+        readiness.profile ||
+        getNested(readiness, ["bundle", "variant_profile"], {}) ||
+        getNested(readiness, ["bundle", "profile"], {}) ||
+        {};
+      var defaults = {};
+
+      [
+        DEFAULT_STARTER_VALUES,
+        profile.default_values,
+        profile.defaultValues,
+        bundle.empty_values,
+        bundle.emptyValues,
+        readiness.defaults
+      ].forEach(function (source) {
+        if (!source || typeof source !== "object" || Array.isArray(source)) {
+          return;
+        }
+
+        Object.keys(source).forEach(function (key) {
+          if (source[key] !== undefined && source[key] !== null) {
+            defaults[key] = clone(source[key]);
+          }
+        });
+      });
+
+      return defaults;
+    } catch (error) {
+      return cloneObject(DEFAULT_STARTER_VALUES);
+    }
+  }
+
+  function ensurePayloadReady(options) {
+    var config = options || {};
+
+    try {
+      if (
+        localState.operational === true &&
+        localState.readinessResult &&
+        config.force !== true &&
+        config.forceReload !== true
+      ) {
+        return Promise.resolve(localState.readinessResult);
+      }
+
+      if (
+        localState.readinessPromise &&
+        config.force !== true &&
+        config.forceReload !== true
+      ) {
+        return localState.readinessPromise;
+      }
+
+      setPayloadStatus("loading", null, {
+        source: config.source || "ensure_payload_ready"
+      });
+
+      var coreRuntime = ensureCore();
+      var corePromise = Promise.resolve({
+        ok: true,
+        ready: true
+      });
+
+      if (coreRuntime && typeof coreRuntime.ensureReady === "function") {
+        corePromise = Promise.resolve(coreRuntime.ensureReady({
+          source: config.source || "payload",
+          force: config.force === true || config.forceReload === true,
+          rejectOnError: false,
+          timeoutMs: config.timeoutMs || DEFAULT_READY_TIMEOUT_MS
+        }));
+      }
+
+      var readinessPromise = corePromise
+        .then(function (coreReadiness) {
+          if (
+            coreReadiness &&
+            coreReadiness.ok === false &&
+            coreReadiness.ready !== true
+          ) {
+            throw createPayloadError(
+              "create_core_not_ready",
+              "VectoplanCreateCore is not ready.",
+              {
+                readiness: coreReadiness
+              }
+            );
+          }
+
+          var profilesRuntime = getVariantProfilesRuntime();
+
+          if (!profilesRuntime) {
+            throw createPayloadError(
+              "variant_profiles_runtime_missing",
+              "VectoplanCreateVariantProfiles is not available."
+            );
+          }
+
+          var profilePromise;
+
+          if (typeof profilesRuntime.whenReady === "function") {
+            profilePromise = profilesRuntime.whenReady({
+              source: config.source || "payload",
+              force: config.force === true || config.forceReload === true,
+              rejectOnError: false,
+              context: config.context || null
+            });
+          } else if (typeof profilesRuntime.ensureProfileReady === "function") {
+            profilePromise = profilesRuntime.ensureProfileReady(
+              config.variantProfileId || DEFAULT_STARTER_VARIANT_PROFILE_ID,
+              config.context || null,
+              {
+                source: config.source || "payload",
+                force: config.force === true || config.forceReload === true,
+                rejectOnError: false
+              }
+            );
+          } else {
+            profilePromise = getProfileReadinessSync();
+          }
+
+          return Promise.resolve(profilePromise).then(function (profileReadiness) {
+            return {
+              core: coreReadiness,
+              profile: profileReadiness
+            };
+          });
+        })
+        .then(function (resolved) {
+          var profileReadiness = resolved.profile || {};
+          var ready = profileReadiness.ready === true ||
+            profileReadiness.operational === true ||
+            (
+              profileReadiness.ok === true &&
+              String(profileReadiness.status || "").toLowerCase() === "ready"
+            );
+
+          if (!ready) {
+            throw createPayloadError(
+              "variant_profile_not_ready",
+              "The variant profile is not ready for payload generation.",
+              {
+                readiness: profileReadiness
+              }
+            );
+          }
+
+          var result = {
+            ok: true,
+            ready: true,
+            healthy: true,
+            operational: true,
+            status: "ready",
+            component: GLOBAL_NAME,
+            version: PAYLOAD_VERSION,
+            core: resolved.core || null,
+            profile: profileReadiness,
+            starter: {
+              object_kind: profileReadiness.object_kind ||
+                profileReadiness.objectKind ||
+                DEFAULT_STARTER_OBJECT_KIND,
+              family_profile_id: profileReadiness.family_profile_id ||
+                profileReadiness.familyProfileId ||
+                DEFAULT_STARTER_FAMILY_PROFILE_ID,
+              variant_profile_id: profileReadiness.variant_profile_id ||
+                profileReadiness.variantProfileId ||
+                DEFAULT_STARTER_VARIANT_PROFILE_ID
+            }
+          };
+
+          localState.readinessResult = result;
+          localState.profileReadiness = clone(profileReadiness);
+          localState.lastError = null;
+          setPayloadStatus("ready", null, result);
+
+          safeDispatch("vectoplan:create:payload-ready", getState());
+
+          return result;
+        })
+        .catch(function (error) {
+          var normalized = ensurePayloadError(
+            error,
+            "payload_readiness_failed",
+            "Payload runtime could not become ready."
+          );
+          var failed = buildPayloadFailure("readiness", normalized, {
+            source: config.source || "ensure_payload_ready"
+          });
+
+          localState.readinessResult = failed;
+          localState.profileReadiness = getProfileReadinessSync();
+          setPayloadStatus("blocked", normalized, failed);
+
+          safeDispatch("vectoplan:create:payload-blocked", failed);
+
+          if (shouldReject(config)) {
+            throw normalized;
+          }
+
+          return failed;
+        });
+
+      localState.readinessPromise = readinessPromise.then(function (result) {
+        localState.readinessPromise = null;
+        return result;
+      }, function (error) {
+        localState.readinessPromise = null;
+        throw ensurePayloadError(
+          error,
+          "payload_readiness_failed",
+          "Payload runtime could not become ready."
+        );
+      });
+
+      return localState.readinessPromise;
+    } catch (error) {
+      var setupError = ensurePayloadError(
+        error,
+        "payload_readiness_setup_failed",
+        "Payload readiness could not be prepared."
+      );
+      var setupFailure = buildPayloadFailure("readiness", setupError);
+
+      localState.readinessResult = setupFailure;
+      setPayloadStatus("unavailable", setupError, setupFailure);
+
+      if (shouldReject(config)) {
+        return Promise.reject(setupError);
+      }
+
+      return Promise.resolve(setupFailure);
+    }
+  }
+
+  function isOperational() {
+    return localState.operational === true;
+  }
+
+  function invalidatePreparedPayload(reason) {
+    try {
+      localState.lastPayloadSignature = "";
+      localState.activePreparePromise = null;
+      localState.activePrepareKey = "";
+      localState.lastPreparedAt = null;
+
+      safeDispatch("vectoplan:create:payload-invalidated", {
+        component: GLOBAL_NAME,
+        version: PAYLOAD_VERSION,
+        reason: reason || "unknown"
+      });
+
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function canonicalize(value) {
+    if (Array.isArray(value)) {
+      return value.map(canonicalize);
+    }
+
+    if (value && typeof value === "object") {
+      var result = {};
+
+      Object.keys(value).sort().forEach(function (key) {
+        var child = value[key];
+
+        if (child !== undefined) {
+          result[key] = canonicalize(child);
+        }
+      });
+
+      return result;
+    }
+
+    return value;
+  }
+
+  function stableStringify(value) {
+    try {
+      return JSON.stringify(canonicalize(value));
+    } catch (error) {
+      return stringifyJson(value);
+    }
+  }
+
+  function payloadSignature(payload) {
+    try {
+      return stableStringify(payload || {});
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function preparePayload(form, options) {
+    var config = options || {};
+    var safeForm = resolveForm(form);
+    var action = String(config.action || "download").trim() || "download";
+    var key = action + "::" + String(
+      safeForm && (
+        safeForm.getAttribute("id") ||
+        safeForm.getAttribute("name") ||
+        safeForm.getAttribute("data-vp-create-form") ||
+        "form"
+      ) || "form"
+    );
+
+    try {
+      if (!safeForm) {
+        var missingFormError = createPayloadError(
+          "create_form_not_found",
+          "Create form not found.",
+          {
+            action: action
+          }
+        );
+
+        if (shouldReject(config)) {
+          return Promise.reject(missingFormError);
+        }
+
+        return Promise.resolve(buildPayloadFailure("prepare", missingFormError, {
+          action: action
+        }));
+      }
+
+      if (
+        localState.activePreparePromise &&
+        localState.activePrepareKey === key &&
+        config.force !== true &&
+        config.forceReload !== true
+      ) {
+        localState.suppressedPrepareCount += 1;
+        return localState.activePreparePromise;
+      }
+
+      localState.prepareGeneration += 1;
+      var generation = localState.prepareGeneration;
+      localState.prepareCount += 1;
+      localState.activePrepareKey = key;
+
+      var readinessPromise;
+      var coreRuntime = ensureCore();
+
+      if (
+        coreRuntime &&
+        typeof coreRuntime.ensureActionReady === "function"
+      ) {
+        readinessPromise = coreRuntime.ensureActionReady(action, {
+          source: config.source || "payload_prepare",
+          force: config.force === true || config.forceReload === true,
+          rejectOnError: false,
+          timeoutMs: config.timeoutMs || DEFAULT_READY_TIMEOUT_MS
+        });
+      } else {
+        readinessPromise = ensurePayloadReady({
+          source: config.source || "payload_prepare",
+          force: config.force === true || config.forceReload === true,
+          rejectOnError: false,
+          timeoutMs: config.timeoutMs || DEFAULT_READY_TIMEOUT_MS
+        });
+      }
+
+      localState.activePreparePromise = Promise.resolve(readinessPromise)
+        .then(function (readiness) {
+          if (!readiness || readiness.ok === false || readiness.ready !== true) {
+            throw createPayloadError(
+              "payload_dependencies_not_ready",
+              "Payload dependencies are not ready.",
+              {
+                action: action,
+                readiness: readiness
+              }
+            );
+          }
+
+          return ensurePayloadReady({
+            source: config.source || "payload_prepare",
+            force: config.force === true || config.forceReload === true,
+            rejectOnError: false,
+            timeoutMs: config.timeoutMs || DEFAULT_READY_TIMEOUT_MS
+          });
+        })
+        .then(function (payloadReadiness) {
+          if (
+            !payloadReadiness ||
+            payloadReadiness.ok === false ||
+            payloadReadiness.ready !== true
+          ) {
+            throw createPayloadError(
+              "payload_runtime_not_ready",
+              "Payload runtime is not ready.",
+              {
+                action: action,
+                readiness: payloadReadiness
+              }
+            );
+          }
+
+          syncProfileIdsIntoForm(safeForm, {
+            source: config.source || "preparePayload"
+          });
+
+          var payload = collectPayload(safeForm, Object.assign({}, config, {
+            source: config.source || "preparePayload",
+            applyStarterDefaults: true,
+            strictValidation: true
+          }));
+
+          var validation = validatePayload(payload, {
+            action: action,
+            strict: true
+          });
+
+          if (!validation.ok) {
+            throw createPayloadError(
+              "payload_validation_failed",
+              "Create payload is not valid for " + action + ".",
+              {
+                action: action,
+                validation: validation
+              }
+            );
+          }
+
+          var signature = payloadSignature(payload);
+          var result = {
+            ok: true,
+            ready: true,
+            healthy: true,
+            status: "ready",
+            action: action,
+            component: GLOBAL_NAME,
+            version: PAYLOAD_VERSION,
+            payload: clone(payload),
+            summary: summarizePayload(payload),
+            validation: validation,
+            signature: signature,
+            prepared_at: timestamp(),
+            preparedAt: timestamp()
+          };
+
+          if (generation === localState.prepareGeneration) {
+            localState.lastValidPayload = clone(payload);
+            localState.lastPayload = clone(payload);
+            localState.lastPayloadSignature = signature;
+            localState.lastPayloadSummary = clone(result.summary);
+            localState.lastPreparedAt = result.prepared_at;
+            localState.lastValidation = clone(validation);
+            localState.lastError = null;
+          }
+
+          safeDispatch("vectoplan:create:payload-prepared", clone(result));
+
+          return result;
+        })
+        .catch(function (error) {
+          var normalized = ensurePayloadError(
+            error,
+            "payload_prepare_failed",
+            "Create payload preparation failed.",
+            {
+              action: action
+            }
+          );
+          var failed = buildPayloadFailure("prepare", normalized, {
+            action: action,
+            last_valid_payload_available: !!localState.lastValidPayload,
+            lastValidPayloadAvailable: !!localState.lastValidPayload
+          });
+
+          localState.lastError = normalizeError(normalized);
+
+          safeDispatch("vectoplan:create:payload-prepare-failed", failed);
+
+          if (shouldReject(config)) {
+            throw normalized;
+          }
+
+          return failed;
+        })
+        .then(function (result) {
+          if (generation === localState.prepareGeneration) {
+            localState.activePreparePromise = null;
+            localState.activePrepareKey = "";
+          }
+
+          return result;
+        }, function (error) {
+          if (generation === localState.prepareGeneration) {
+            localState.activePreparePromise = null;
+            localState.activePrepareKey = "";
+          }
+
+          throw error;
+        });
+
+      return localState.activePreparePromise;
+    } catch (error) {
+      var failedError = ensurePayloadError(
+        error,
+        "payload_prepare_setup_failed",
+        "Create payload preparation could not be started.",
+        {
+          action: action
+        }
+      );
+
+      if (shouldReject(config)) {
+        return Promise.reject(failedError);
+      }
+
+      return Promise.resolve(buildPayloadFailure("prepare", failedError, {
+        action: action
+      }));
+    }
+  }
+
+  function getLastValidPayload() {
+    return localState.lastValidPayload ? clone(localState.lastValidPayload) : null;
+  }
+
 
   function boot(attempt) {
     try {
@@ -187,6 +1054,15 @@
   function initialize(coreRuntime) {
     try {
       if (initialized) {
+        if (!localState.operational && !localState.readinessPromise) {
+          ensurePayloadReady({
+            source: "initialize_existing",
+            rejectOnError: false
+          }).catch(function (error) {
+            safeWarn("Existing payload readiness check failed.", error);
+          });
+        }
+
         return api;
       }
 
@@ -209,20 +1085,36 @@
 
       initialized = true;
       localState.initialized = true;
+      setPayloadStatus("initialized", null, {
+        source: "initialize"
+      });
 
       if (typeof core.registerModule === "function") {
         core.registerModule(MODULE_NAME, api);
       }
 
-      safeSetAttribute(document.documentElement, "data-vp-create-payload-ready", "true");
+      safeSetAttribute(document.documentElement, "data-vp-create-payload-initialized", "true");
+      safeSetAttribute(document.documentElement, "data-vp-create-payload-ready", "false");
       safeSetAttribute(document.documentElement, "data-vp-create-payload-version", PAYLOAD_VERSION);
 
-      safeDispatch("vectoplan:create:payload-ready", getState());
+      safeDispatch("vectoplan:create:payload-initialized", getState());
+
+      ensurePayloadReady({
+        source: "initialize",
+        rejectOnError: false
+      }).catch(function (error) {
+        safeWarn("Initial payload readiness check failed.", error);
+      });
 
       return api;
     } catch (error) {
+      initialized = false;
       localState.initialized = false;
+      localState.operational = false;
       localState.lastError = normalizeError(error);
+      setPayloadStatus("unavailable", error, {
+        source: "initialize"
+      });
       safeError("Payload initialization failed.", error);
       return api;
     }
@@ -278,6 +1170,7 @@
         ].forEach(function (eventName) {
           document.addEventListener(eventName, function () {
             try {
+              invalidatePreparedPayload(eventName);
               syncVariantRuntimeToForm(null, {
                 source: eventName
               });
@@ -292,6 +1185,7 @@
         UPLOAD_EVENT_NAMES.forEach(function (eventName) {
           document.addEventListener(eventName, function (event) {
             try {
+              invalidatePreparedPayload(eventName);
               var detail = event && event.detail ? event.detail : {};
               var eventSource = detail.source || eventName;
 
@@ -313,14 +1207,96 @@
       bindOnce("create-payload-context-ready-sync", function () {
         document.addEventListener("vectoplan:create:context-ready", function () {
           try {
+            invalidatePreparedPayload("context-ready");
             ensureDefinitionVariantHiddenFields();
             ensureUploadHiddenFields();
             syncProfileIdsIntoForm(null, {
               source: "context-ready"
             });
+
+            ensurePayloadReady({
+              source: "context-ready",
+              force: true,
+              rejectOnError: false
+            }).catch(function (readinessError) {
+              safeWarn("Payload readiness after context-ready failed.", readinessError);
+            });
           } catch (handlerError) {
             safeWarn("Context-ready payload sync failed.", handlerError);
           }
+        });
+      });
+
+      bindOnce("create-payload-cache-invalidation", function () {
+        document.addEventListener("input", function (event) {
+          try {
+            var target = event && event.target ? event.target : null;
+
+            if (!target || !target.matches || !target.closest) {
+              return;
+            }
+
+            var form = target.closest(selectorFor("form"));
+
+            if (form) {
+              invalidatePreparedPayload("form-input");
+            }
+          } catch (handlerError) {
+            safeWarn("Payload input invalidation failed.", handlerError);
+          }
+        }, true);
+
+        document.addEventListener("change", function (event) {
+          try {
+            var target = event && event.target ? event.target : null;
+
+            if (!target || !target.matches || !target.closest) {
+              return;
+            }
+
+            var form = target.closest(selectorFor("form"));
+
+            if (form) {
+              invalidatePreparedPayload("form-change");
+            }
+          } catch (handlerError) {
+            safeWarn("Payload change invalidation failed.", handlerError);
+          }
+        }, true);
+      });
+
+      bindOnce("create-payload-readiness-events", function () {
+        [
+          "vectoplan:create:core-operational",
+          "vectoplan:create:variant-profiles-ready",
+          "vectoplan:create:variant-profiles-status-changed"
+        ].forEach(function (eventName) {
+          document.addEventListener(eventName, function (event) {
+            try {
+              var detail = event && event.detail ? event.detail : {};
+
+              if (
+                eventName === "vectoplan:create:variant-profiles-status-changed" &&
+                detail.ready !== true &&
+                detail.operational !== true
+              ) {
+                localState.operational = false;
+                localState.readinessResult = null;
+                setPayloadStatus("blocked", detail.error || null, detail);
+                invalidatePreparedPayload(eventName);
+                return;
+              }
+
+              ensurePayloadReady({
+                source: eventName,
+                rejectOnError: false
+              }).catch(function (readinessError) {
+                safeWarn("Payload readiness event handling failed: " + eventName, readinessError);
+              });
+            } catch (handlerError) {
+              safeWarn("Payload readiness event failed: " + eventName, handlerError);
+            }
+          });
         });
       });
     } catch (error) {
@@ -336,7 +1312,10 @@
       var safeOptions = options || {};
 
       if (!safeForm) {
-        throw new Error("Create form not found.");
+        throw createPayloadError(
+          "create_form_not_found",
+          "Create form not found."
+        );
       }
 
       localState.collectCount += 1;
@@ -364,14 +1343,31 @@
       augmentPayloadWithUploads(payload, safeForm, safeOptions);
       syncProfileIdsIntoPayload(payload, safeForm);
       normalizePayloadBeforeSend(payload, safeForm);
+      applyStarterPayloadDefaults(payload, safeForm, safeOptions);
+      pruneOptionalEmptyPayloadFields(payload);
+      stabilizePayloadJsonFields(payload);
       applyPayloadContract(payload, safeForm, safeOptions);
+
+      var validation = validatePayload(payload, {
+        action: safeOptions.action || "",
+        strict: safeOptions.strictValidation === true
+      });
 
       localState.lastPayload = clone(payload);
       localState.lastPayloadSummary = summarizePayload(payload);
+      localState.lastPayloadSignature = payloadSignature(payload);
+      localState.lastValidation = clone(validation);
+
+      if (validation.ok) {
+        localState.lastValidPayload = clone(payload);
+        localState.lastError = null;
+      }
 
       safeDispatch("vectoplan:create:payload-collected", {
         payload: clone(payload),
         summary: localState.lastPayloadSummary,
+        validation: validation,
+        signature: localState.lastPayloadSignature,
         source: safeOptions.source || "api"
       });
 
@@ -382,6 +1378,679 @@
       return {};
     }
   }
+
+  function applyStarterPayloadDefaults(payload, form, options) {
+    try {
+      if (!payload || typeof payload !== "object") {
+        return payload;
+      }
+
+      var safeForm = resolveForm(form);
+      var config = options || {};
+      var context = buildPayloadContext(safeForm);
+      var readiness = getProfileReadinessSync() || {};
+      var bundle = getProfileBundleSync() || {};
+      var objectKind = normalizeToken(
+        firstScalar(payload.object_kind || payload.objectKind) ||
+          context.object_kind ||
+          DEFAULT_STARTER_OBJECT_KIND,
+        DEFAULT_STARTER_OBJECT_KIND
+      );
+      var familyProfileId = String(
+        firstScalar(payload.family_profile_id || payload.familyProfileId) ||
+          context.family_profile_id ||
+          readiness.family_profile_id ||
+          readiness.familyProfileId ||
+          getNested(bundle, ["family_profile_id"], "") ||
+          ""
+      ).trim();
+      var variantProfileId = String(
+        firstScalar(payload.variant_profile_id || payload.variantProfileId) ||
+          context.variant_profile_id ||
+          readiness.variant_profile_id ||
+          readiness.variantProfileId ||
+          getNested(bundle, ["variant_profile_id"], "") ||
+          ""
+      ).trim();
+      var starterMode = objectKind === DEFAULT_STARTER_OBJECT_KIND && (
+        (!familyProfileId && !variantProfileId) ||
+        familyProfileId === DEFAULT_STARTER_FAMILY_PROFILE_ID ||
+        variantProfileId === DEFAULT_STARTER_VARIANT_PROFILE_ID ||
+        config.forceStarterDefaults === true
+      );
+
+      payload.object_kind = objectKind;
+      payload.objectKind = objectKind;
+
+      if (!starterMode) {
+        return payload;
+      }
+
+      familyProfileId = familyProfileId || DEFAULT_STARTER_FAMILY_PROFILE_ID;
+      variantProfileId = variantProfileId || DEFAULT_STARTER_VARIANT_PROFILE_ID;
+
+      if (
+        familyProfileId === DEFAULT_STARTER_FAMILY_PROFILE_ID &&
+        !variantProfileId
+      ) {
+        variantProfileId = DEFAULT_STARTER_VARIANT_PROFILE_ID;
+      }
+
+      if (
+        variantProfileId === DEFAULT_STARTER_VARIANT_PROFILE_ID &&
+        !familyProfileId
+      ) {
+        familyProfileId = DEFAULT_STARTER_FAMILY_PROFILE_ID;
+      }
+
+      payload.family_profile_id = familyProfileId;
+      payload.familyProfileId = familyProfileId;
+      payload.variant_profile_id = variantProfileId;
+      payload.variantProfileId = variantProfileId;
+
+      var hiddenFields = ensureDefinitionVariantHiddenFields(safeForm);
+
+      if (hiddenFields.familyProfileId) {
+        hiddenFields.familyProfileId.value = familyProfileId;
+      }
+
+      if (hiddenFields.variantProfileId) {
+        hiddenFields.variantProfileId.value = variantProfileId;
+      }
+
+      var defaults = getResolvedProfileDefaults();
+      var geometryUnit = String(
+        firstScalar(payload.geometry_unit || payload.geometryUnit) ||
+          "m"
+      ).trim().toLowerCase();
+
+      payload.geometry_unit = geometryUnit;
+      payload.geometryUnit = geometryUnit;
+
+      var widthMm = positiveNumber(
+        defaults["dimensions.width_mm"],
+        DEFAULT_STARTER_VALUES["dimensions.width_mm"]
+      );
+      var heightMm = positiveNumber(
+        defaults["dimensions.height_mm"],
+        DEFAULT_STARTER_VALUES["dimensions.height_mm"]
+      );
+      var depthMm = positiveNumber(
+        defaults["dimensions.depth_mm"],
+        DEFAULT_STARTER_VALUES["dimensions.depth_mm"]
+      );
+
+      if (
+        config.forceStarterDimensions === true ||
+        !isPositiveNumeric(payload.geometry_width || payload.geometryWidth)
+      ) {
+        payload.geometry_width = formatGeometryValue(
+          convertMillimetersToUnit(widthMm, geometryUnit)
+        );
+      }
+
+      if (
+        config.forceStarterDimensions === true ||
+        !isPositiveNumeric(payload.geometry_height || payload.geometryHeight)
+      ) {
+        payload.geometry_height = formatGeometryValue(
+          convertMillimetersToUnit(heightMm, geometryUnit)
+        );
+      }
+
+      if (
+        config.forceStarterDimensions === true ||
+        !isPositiveNumeric(payload.geometry_depth || payload.geometryDepth)
+      ) {
+        payload.geometry_depth = formatGeometryValue(
+          convertMillimetersToUnit(depthMm, geometryUnit)
+        );
+      }
+
+      payload.geometryWidth = payload.geometry_width;
+      payload.geometryHeight = payload.geometry_height;
+      payload.geometryDepth = payload.geometry_depth;
+      payload.primitive_shape = normalizeToken(
+        payload.primitive_shape || payload.primitiveShape || "block",
+        "block"
+      );
+      payload.primitiveShape = payload.primitive_shape;
+      payload.editor_cells_x = "1";
+      payload.editor_cells_y = "1";
+      payload.editor_cells_z = "1";
+      payload.editorCellsX = "1";
+      payload.editorCellsY = "1";
+      payload.editorCellsZ = "1";
+
+      var variants = Array.isArray(payload.definition_variants)
+        ? payload.definition_variants
+        : safeJsonParse(payload.definition_variants_json, []);
+
+      variants = normalizeDefinitionVariants(variants, {
+        domain: payload.domain,
+        category: payload.category,
+        subcategory: payload.subcategory,
+        taxonomy_path: payload.taxonomy_path,
+        object_kind: objectKind,
+        objectKind: objectKind,
+        family_profile_id: familyProfileId,
+        familyProfileId: familyProfileId,
+        variant_profile_id: variantProfileId,
+        variantProfileId: variantProfileId
+      });
+
+      if (!variants.length) {
+        variants = [buildDefaultVariant({
+          object_kind: objectKind,
+          family_profile_id: familyProfileId,
+          variant_profile_id: variantProfileId
+        })];
+      }
+
+      variants = ensureSingleDefaultVariant(variants);
+
+      var defaultVariantId = resolveDefaultVariantId(variants, safeForm);
+      var defaultFound = false;
+
+      variants = variants.map(function (variant, index) {
+        var item = normalizeDefinitionVariant(variant, index, {
+          object_kind: objectKind,
+          family_profile_id: familyProfileId,
+          variant_profile_id: variantProfileId
+        }) || buildDefaultVariant({
+          object_kind: objectKind,
+          family_profile_id: familyProfileId,
+          variant_profile_id: variantProfileId
+        });
+        var isDefault = item.variant_id === defaultVariantId ||
+          item.is_default === true ||
+          item.isDefault === true ||
+          (!defaultFound && index === 0);
+
+        if (isDefault && !defaultFound) {
+          defaultFound = true;
+          item.variant_id = item.variant_id || "default";
+          item.variantId = item.variant_id;
+          item.label = item.label || "Standard";
+          item.name = item.label;
+          item.is_default = true;
+          item.isDefault = true;
+          item.family_profile_id = familyProfileId;
+          item.familyProfileId = familyProfileId;
+          item.variant_profile_id = variantProfileId;
+          item.variantProfileId = variantProfileId;
+          item.object_kind = objectKind;
+          item.objectKind = objectKind;
+
+          var values = Object.assign(
+            {},
+            starterVariantDefinitionValues(defaults),
+            item.definition_values || item.definitionValues || {}
+          );
+
+          values = pruneEmptyObject(values);
+
+          item.definition_values = values;
+          item.definitionValues = values;
+          item.definition_values_json = stableStringify(values);
+          item.definitionValuesJson = item.definition_values_json;
+          item.additional_field_keys = uniqueArray(
+            Object.keys(values).concat(item.additional_field_keys || item.additionalFieldKeys || [])
+          );
+          item.additionalFieldKeys = item.additional_field_keys;
+        } else {
+          item.is_default = false;
+          item.isDefault = false;
+        }
+
+        return item;
+      });
+
+      if (!defaultFound && variants.length) {
+        variants[0].is_default = true;
+        variants[0].isDefault = true;
+        defaultVariantId = variants[0].variant_id || "default";
+      } else {
+        defaultVariantId = variants.filter(function (item) {
+          return item.is_default === true || item.isDefault === true;
+        })[0].variant_id;
+      }
+
+      payload.definition_variants = variants;
+      payload.definitionVariants = variants;
+      payload.definition_variants_json = stableStringify(variants);
+      payload.definitionVariantsJson = payload.definition_variants_json;
+      payload.default_variant_id = defaultVariantId || "default";
+      payload.defaultVariantId = payload.default_variant_id;
+      payload.starter_profile_applied = true;
+      payload.starterProfileApplied = true;
+
+      if (hiddenFields.definitionVariantsJson) {
+        hiddenFields.definitionVariantsJson.value = payload.definition_variants_json;
+      }
+
+      if (hiddenFields.defaultVariantId) {
+        hiddenFields.defaultVariantId.value = payload.default_variant_id;
+      }
+
+      return payload;
+    } catch (error) {
+      safeWarn("Starter payload defaults failed.", error);
+      return payload;
+    }
+  }
+
+  function starterVariantDefinitionValues(defaults) {
+    try {
+      var source = Object.assign({}, DEFAULT_STARTER_VALUES, defaults || {});
+      var values = {};
+
+      Object.keys(source).forEach(function (key) {
+        if (
+          key === "variant.variant_id" ||
+          key === "variant.variantId" ||
+          key === "variant.id" ||
+          key === "variant.label" ||
+          key === "variant.description"
+        ) {
+          return;
+        }
+
+        if (source[key] !== undefined && source[key] !== null) {
+          values[key] = clone(source[key]);
+        }
+      });
+
+      REQUIRED_STARTER_VALUE_KEYS.forEach(function (key) {
+        if (!isPositiveNumeric(values[key])) {
+          values[key] = DEFAULT_STARTER_VALUES[key];
+        }
+      });
+
+      if (!values["material.type"]) {
+        values["material.type"] = DEFAULT_STARTER_VALUES["material.type"];
+      }
+
+      return values;
+    } catch (error) {
+      return {
+        "dimensions.width_mm": 1000,
+        "dimensions.height_mm": 1000,
+        "dimensions.depth_mm": 1000,
+        "material.type": "generic"
+      };
+    }
+  }
+
+  function convertMillimetersToUnit(valueMm, unit) {
+    var value = positiveNumber(valueMm, 1000);
+    var normalizedUnit = String(unit || "m").trim().toLowerCase();
+
+    if (normalizedUnit === "mm") {
+      return value;
+    }
+
+    if (normalizedUnit === "cm") {
+      return value / 10;
+    }
+
+    return value / 1000;
+  }
+
+  function formatGeometryValue(value) {
+    try {
+      var number = Number(value);
+
+      if (!Number.isFinite(number) || number <= 0) {
+        return "1.00";
+      }
+
+      return number.toFixed(6)
+        .replace(/0+$/, "")
+        .replace(/\.$/, "") || "1";
+    } catch (error) {
+      return "1.00";
+    }
+  }
+
+  function positiveNumber(value, fallback) {
+    var number = Number(
+      String(value === undefined || value === null ? "" : value)
+        .replace(",", ".")
+    );
+
+    if (!Number.isFinite(number) || number <= 0) {
+      return Number(fallback) > 0 ? Number(fallback) : 1;
+    }
+
+    return number;
+  }
+
+  function isPositiveNumeric(value) {
+    var number = Number(
+      String(value === undefined || value === null ? "" : value)
+        .replace(",", ".")
+    );
+
+    return Number.isFinite(number) && number > 0;
+  }
+
+  function pruneEmptyObject(value) {
+    try {
+      if (Array.isArray(value)) {
+        return value.map(pruneEmptyObject).filter(function (item) {
+          return !isEmptyOptionalValue(item);
+        });
+      }
+
+      if (value && typeof value === "object") {
+        var result = {};
+
+        Object.keys(value).forEach(function (key) {
+          var child = pruneEmptyObject(value[key]);
+
+          if (!isEmptyOptionalValue(child)) {
+            result[key] = child;
+          }
+        });
+
+        return result;
+      }
+
+      return value;
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function isEmptyOptionalValue(value) {
+    if (value === undefined || value === null || value === "") {
+      return true;
+    }
+
+    if (Array.isArray(value)) {
+      return value.length === 0;
+    }
+
+    if (value && typeof value === "object") {
+      return Object.keys(value).length === 0;
+    }
+
+    return false;
+  }
+
+  function pruneOptionalEmptyPayloadFields(payload) {
+    try {
+      OPTIONAL_EMPTY_PAYLOAD_KEYS.forEach(function (key) {
+        if (isEmptyOptionalValue(payload[key])) {
+          delete payload[key];
+        }
+      });
+
+      var variants = Array.isArray(payload.definition_variants)
+        ? payload.definition_variants
+        : safeJsonParse(payload.definition_variants_json, []);
+
+      if (Array.isArray(variants)) {
+        variants = variants.map(function (variant) {
+          var item = cloneObject(variant);
+          var values = pruneEmptyObject(
+            item.definition_values ||
+            item.definitionValues ||
+            {}
+          );
+
+          item.definition_values = values;
+          item.definitionValues = values;
+          item.definition_values_json = stableStringify(values);
+          item.definitionValuesJson = item.definition_values_json;
+
+          if (!item.description) {
+            item.description = "";
+          }
+
+          return item;
+        });
+
+        payload.definition_variants = variants;
+        payload.definitionVariants = variants;
+        payload.definition_variants_json = stableStringify(variants);
+        payload.definitionVariantsJson = payload.definition_variants_json;
+      }
+
+      return payload;
+    } catch (error) {
+      safeWarn("Optional payload pruning failed.", error);
+      return payload;
+    }
+  }
+
+  function stabilizePayloadJsonFields(payload) {
+    try {
+      if (Array.isArray(payload.definition_variants)) {
+        payload.definition_variants_json = stableStringify(
+          payload.definition_variants
+        );
+        payload.definitionVariantsJson = payload.definition_variants_json;
+      }
+
+      if (payload.uploads && typeof payload.uploads === "object") {
+        payload.uploads_json = stableStringify(payload.uploads);
+        payload.uploadsJson = payload.uploads_json;
+      }
+
+      [
+        ["geometry_model_uploads", "geometry_model_uploads_json", "geometryModelUploadsJson"],
+        ["technical_document_uploads", "technical_document_uploads_json", "technicalDocumentUploadsJson"],
+        ["variant_document_uploads", "variant_document_uploads_json", "variantDocumentUploadsJson"]
+      ].forEach(function (keys) {
+        if (payload[keys[0]] && typeof payload[keys[0]] === "object") {
+          payload[keys[1]] = stableStringify(payload[keys[0]]);
+          payload[keys[2]] = payload[keys[1]];
+        }
+      });
+
+      return payload;
+    } catch (error) {
+      safeWarn("Payload JSON stabilization failed.", error);
+      return payload;
+    }
+  }
+
+  function validatePayload(payload, options) {
+    try {
+      var config = options || {};
+      var strict = config.strict === true;
+      var source = payload && typeof payload === "object" ? payload : {};
+      var errors = [];
+      var warnings = [];
+      var objectKind = normalizeToken(
+        firstScalar(source.object_kind || source.objectKind),
+        ""
+      );
+      var familyProfileId = String(
+        firstScalar(source.family_profile_id || source.familyProfileId) || ""
+      ).trim();
+      var variantProfileId = String(
+        firstScalar(source.variant_profile_id || source.variantProfileId) || ""
+      ).trim();
+      var variants = Array.isArray(source.definition_variants)
+        ? source.definition_variants
+        : safeJsonParse(source.definition_variants_json, []);
+      var defaultVariantId = String(
+        firstScalar(source.default_variant_id || source.defaultVariantId) || ""
+      ).trim();
+
+      [
+        ["domain", source.domain],
+        ["category", source.category],
+        ["subcategory", source.subcategory],
+        ["object_kind", objectKind]
+      ].forEach(function (entry) {
+        if (!String(entry[1] || "").trim()) {
+          errors.push({
+            severity: "error",
+            code: "required_field_missing",
+            field: entry[0],
+            message: "Required payload field is missing: " + entry[0]
+          });
+        }
+      });
+
+      if (!String(source.family_name || source.familyName || "").trim()) {
+        (strict ? errors : warnings).push({
+          severity: strict ? "error" : "warning",
+          code: "family_name_missing",
+          field: "family_name",
+          message: "A family name is required before the create action."
+        });
+      }
+
+      if (!familyProfileId) {
+        errors.push({
+          severity: "error",
+          code: "family_profile_id_missing",
+          field: "family_profile_id",
+          message: "family_profile_id is required."
+        });
+      }
+
+      if (!variantProfileId) {
+        errors.push({
+          severity: "error",
+          code: "variant_profile_id_missing",
+          field: "variant_profile_id",
+          message: "variant_profile_id is required."
+        });
+      }
+
+      if (!Array.isArray(variants) || !variants.length) {
+        errors.push({
+          severity: "error",
+          code: "definition_variants_missing",
+          field: "definition_variants_json",
+          message: "At least one definition variant is required."
+        });
+      } else {
+        var defaultVariant = variants.filter(function (variant) {
+          return (
+            variant.is_default === true ||
+            variant.isDefault === true ||
+            variant.variant_id === defaultVariantId ||
+            variant.variantId === defaultVariantId
+          );
+        })[0];
+
+        if (!defaultVariant) {
+          errors.push({
+            severity: "error",
+            code: "default_variant_missing",
+            field: "default_variant_id",
+            message: "The default variant does not exist."
+          });
+        }
+
+        if (
+          objectKind === DEFAULT_STARTER_OBJECT_KIND &&
+          variantProfileId === DEFAULT_STARTER_VARIANT_PROFILE_ID &&
+          defaultVariant
+        ) {
+          var values = defaultVariant.definition_values ||
+            defaultVariant.definitionValues ||
+            {};
+
+          REQUIRED_STARTER_VALUE_KEYS.forEach(function (key) {
+            if (!isPositiveNumeric(values[key])) {
+              errors.push({
+                severity: "error",
+                code: "starter_dimension_missing",
+                field: key,
+                message: "Starter variant dimension must be greater than zero: " + key
+              });
+            }
+          });
+        }
+      }
+
+      if (
+        objectKind === DEFAULT_STARTER_OBJECT_KIND &&
+        (
+          familyProfileId === DEFAULT_STARTER_FAMILY_PROFILE_ID ||
+          variantProfileId === DEFAULT_STARTER_VARIANT_PROFILE_ID
+        )
+      ) {
+        if (familyProfileId !== DEFAULT_STARTER_FAMILY_PROFILE_ID) {
+          errors.push({
+            severity: "error",
+            code: "starter_family_profile_mismatch",
+            field: "family_profile_id",
+            expected: DEFAULT_STARTER_FAMILY_PROFILE_ID,
+            actual: familyProfileId,
+            message: "Starter cell block requires simple_cell_block."
+          });
+        }
+
+        if (variantProfileId !== DEFAULT_STARTER_VARIANT_PROFILE_ID) {
+          errors.push({
+            severity: "error",
+            code: "starter_variant_profile_mismatch",
+            field: "variant_profile_id",
+            expected: DEFAULT_STARTER_VARIANT_PROFILE_ID,
+            actual: variantProfileId,
+            message: "Starter cell block requires simple_cell_block.v1."
+          });
+        }
+      }
+
+      var uploadsSummary = source.uploads_summary ||
+        source.uploadsSummary ||
+        {};
+
+      if (
+        Number(uploadsSummary.errorCount || uploadsSummary.error_count || 0) > 0
+      ) {
+        errors.push({
+          severity: "error",
+          code: "upload_validation_failed",
+          field: "uploads",
+          message: "One or more optional uploads are invalid."
+        });
+      }
+
+      var result = {
+        ok: errors.length === 0,
+        valid: errors.length === 0,
+        ready: errors.length === 0,
+        status: errors.length === 0 ? "valid" : "invalid",
+        action: config.action || "",
+        strict: strict,
+        errors: errors,
+        warnings: warnings,
+        issues: errors.concat(warnings),
+        checked_at: timestamp(),
+        checkedAt: timestamp()
+      };
+
+      return result;
+    } catch (error) {
+      return {
+        ok: false,
+        valid: false,
+        ready: false,
+        status: "invalid",
+        errors: [{
+          severity: "error",
+          code: "payload_validation_exception",
+          message: String(error && error.message ? error.message : error)
+        }],
+        warnings: [],
+        issues: [],
+        checked_at: timestamp()
+      };
+    }
+  }
+
+
 
   function collectFormPayloadRaw(form) {
     try {
@@ -1139,6 +2808,33 @@
   function buildDefaultVariant(context) {
     try {
       var safeContext = context || {};
+      var objectKind = normalizeToken(
+        safeContext.object_kind ||
+        safeContext.objectKind ||
+        DEFAULT_STARTER_OBJECT_KIND,
+        DEFAULT_STARTER_OBJECT_KIND
+      );
+      var familyProfileId = String(
+        safeContext.family_profile_id ||
+        safeContext.familyProfileId ||
+        (
+          objectKind === DEFAULT_STARTER_OBJECT_KIND
+            ? DEFAULT_STARTER_FAMILY_PROFILE_ID
+            : ""
+        )
+      ).trim();
+      var variantProfileId = String(
+        safeContext.variant_profile_id ||
+        safeContext.variantProfileId ||
+        (
+          objectKind === DEFAULT_STARTER_OBJECT_KIND
+            ? DEFAULT_STARTER_VARIANT_PROFILE_ID
+            : ""
+        )
+      ).trim();
+      var definitionValues = objectKind === DEFAULT_STARTER_OBJECT_KIND
+        ? starterVariantDefinitionValues(getResolvedProfileDefaults())
+        : {};
 
       return {
         variant_id: "default",
@@ -1148,26 +2844,49 @@
         description: "",
         is_default: true,
         isDefault: true,
-        family_profile_id: safeContext.family_profile_id || "",
-        familyProfileId: safeContext.family_profile_id || "",
-        variant_profile_id: safeContext.variant_profile_id || "",
-        variantProfileId: safeContext.variant_profile_id || "",
-        object_kind: safeContext.object_kind || "cell_block",
-        objectKind: safeContext.object_kind || "cell_block",
-        definition_values: {},
-        definitionValues: {},
-        additional_field_keys: [],
-        additionalFieldKeys: [],
+        family_profile_id: familyProfileId,
+        familyProfileId: familyProfileId,
+        variant_profile_id: variantProfileId,
+        variantProfileId: variantProfileId,
+        object_kind: objectKind,
+        objectKind: objectKind,
+        definition_values: definitionValues,
+        definitionValues: definitionValues,
+        definition_values_json: stableStringify(definitionValues),
+        definitionValuesJson: stableStringify(definitionValues),
+        additional_field_keys: Object.keys(definitionValues),
+        additionalFieldKeys: Object.keys(definitionValues),
         source: "payload_default"
       };
     } catch (error) {
+      var fallbackValues = {
+        "dimensions.width_mm": 1000,
+        "dimensions.height_mm": 1000,
+        "dimensions.depth_mm": 1000,
+        "material.type": "generic"
+      };
+
       return {
         variant_id: "default",
+        variantId: "default",
         label: "Standard",
+        name: "Standard",
         description: "",
         is_default: true,
-        definition_values: {},
-        additional_field_keys: []
+        isDefault: true,
+        family_profile_id: DEFAULT_STARTER_FAMILY_PROFILE_ID,
+        familyProfileId: DEFAULT_STARTER_FAMILY_PROFILE_ID,
+        variant_profile_id: DEFAULT_STARTER_VARIANT_PROFILE_ID,
+        variantProfileId: DEFAULT_STARTER_VARIANT_PROFILE_ID,
+        object_kind: DEFAULT_STARTER_OBJECT_KIND,
+        objectKind: DEFAULT_STARTER_OBJECT_KIND,
+        definition_values: fallbackValues,
+        definitionValues: fallbackValues,
+        definition_values_json: stableStringify(fallbackValues),
+        definitionValuesJson: stableStringify(fallbackValues),
+        additional_field_keys: Object.keys(fallbackValues),
+        additionalFieldKeys: Object.keys(fallbackValues),
+        source: "payload_default_fallback"
       };
     }
   }
@@ -2174,6 +3893,7 @@
       var variantProfileBundle = getCurrentVariantProfileBundle();
       var profileContext = variantProfileBundle.context || {};
       var profilePayload = variantProfileBundle.payload || variantProfileBundle || {};
+      var profileReadiness = getProfileReadinessSync() || {};
       var defaults = getDefaultValues();
 
       var context = {
@@ -2195,15 +3915,19 @@
         object_kind: getFieldValue(safeForm, FIELD_NAMES.objectKind) ||
           profileContext.object_kind ||
           profileContext.objectKind ||
+          profileReadiness.object_kind ||
+          profileReadiness.objectKind ||
           defaults.object_kind ||
           defaults.objectKind ||
-          "cell_block",
+          DEFAULT_STARTER_OBJECT_KIND,
 
         family_profile_id: getFieldValue(safeForm, FIELD_NAMES.familyProfileId) ||
           profilePayload.family_profile_id ||
           profilePayload.familyProfileId ||
           profileContext.family_profile_id ||
           profileContext.familyProfileId ||
+          profileReadiness.family_profile_id ||
+          profileReadiness.familyProfileId ||
           defaults.family_profile_id ||
           defaults.familyProfileId ||
           "",
@@ -2215,6 +3939,8 @@
           profilePayload.id ||
           profileContext.variant_profile_id ||
           profileContext.variantProfileId ||
+          profileReadiness.variant_profile_id ||
+          profileReadiness.variantProfileId ||
           defaults.variant_profile_id ||
           defaults.variantProfileId ||
           ""
@@ -2223,9 +3949,31 @@
       context.domain = normalizeToken(context.domain, "hochbau");
       context.category = normalizeToken(context.category, "bloecke");
       context.subcategory = normalizeToken(context.subcategory, "basis");
-      context.object_kind = normalizeToken(context.object_kind, "cell_block");
+      context.object_kind = normalizeToken(
+        context.object_kind,
+        DEFAULT_STARTER_OBJECT_KIND
+      );
       context.objectKind = context.object_kind;
-      context.taxonomy_path = normalizeTaxonomyPath(defaults.taxonomy_path || defaults.taxonomyPath || buildTaxonomyPath(context));
+
+      if (context.object_kind === DEFAULT_STARTER_OBJECT_KIND) {
+        context.family_profile_id = String(
+          context.family_profile_id || DEFAULT_STARTER_FAMILY_PROFILE_ID
+        ).trim();
+        context.variant_profile_id = String(
+          context.variant_profile_id || DEFAULT_STARTER_VARIANT_PROFILE_ID
+        ).trim();
+      } else {
+        context.family_profile_id = String(context.family_profile_id || "").trim();
+        context.variant_profile_id = String(context.variant_profile_id || "").trim();
+      }
+
+      context.familyProfileId = context.family_profile_id;
+      context.variantProfileId = context.variant_profile_id;
+      context.taxonomy_path = normalizeTaxonomyPath(
+        defaults.taxonomy_path ||
+        defaults.taxonomyPath ||
+        buildTaxonomyPath(context)
+      );
       context.taxonomyPath = context.taxonomy_path;
 
       return context;
@@ -2238,12 +3986,12 @@
         subcategory: "basis",
         taxonomy_path: "hochbau/bloecke/basis",
         taxonomyPath: "hochbau/bloecke/basis",
-        object_kind: "cell_block",
-        objectKind: "cell_block",
-        family_profile_id: "",
-        familyProfileId: "",
-        variant_profile_id: "",
-        variantProfileId: ""
+        object_kind: DEFAULT_STARTER_OBJECT_KIND,
+        objectKind: DEFAULT_STARTER_OBJECT_KIND,
+        family_profile_id: DEFAULT_STARTER_FAMILY_PROFILE_ID,
+        familyProfileId: DEFAULT_STARTER_FAMILY_PROFILE_ID,
+        variant_profile_id: DEFAULT_STARTER_VARIANT_PROFILE_ID,
+        variantProfileId: DEFAULT_STARTER_VARIANT_PROFILE_ID
       };
     }
   }
@@ -2598,7 +4346,16 @@
       return {
         version: PAYLOAD_VERSION,
         initialized: initialized,
+        operational: localState.operational,
+        ready: localState.operational,
+        status: localState.status,
+        readiness: clone(localState.readinessResult),
+        profileReadiness: clone(localState.profileReadiness),
+        prepareInProgress: !!localState.activePreparePromise,
+        activePrepareKey: localState.activePrepareKey,
         collectCount: localState.collectCount,
+        prepareCount: localState.prepareCount,
+        suppressedPrepareCount: localState.suppressedPrepareCount,
         syncCount: localState.syncCount,
         uploadSyncCount: localState.uploadSyncCount,
         skippedUploadSyncCount: localState.skippedUploadSyncCount,
@@ -2608,18 +4365,30 @@
         uploadFileCount: localState.uploadFileCount,
         uploadErrorCount: localState.uploadErrorCount,
         uploadSyncActive: localState.uploadSyncActive,
-        lastSync: localState.lastSync,
-        lastUploadSync: localState.lastUploadSync,
-        lastPayloadSummary: localState.lastPayloadSummary,
-        lastValidation: localState.lastValidation,
-        lastError: localState.lastError,
+        lastSync: clone(localState.lastSync),
+        lastUploadSync: clone(localState.lastUploadSync),
+        lastPayloadSummary: clone(localState.lastPayloadSummary),
+        lastPayloadSignature: localState.lastPayloadSignature,
+        lastPreparedAt: localState.lastPreparedAt,
+        lastValidPayloadAvailable: !!localState.lastValidPayload,
+        lastValidation: clone(localState.lastValidation),
+        lastError: clone(localState.lastError),
         payloadContract: getPayloadContract(),
-        uploadConfig: getUploadConfig()
+        uploadConfig: getUploadConfig(),
+        starter: {
+          object_kind: DEFAULT_STARTER_OBJECT_KIND,
+          family_profile_id: DEFAULT_STARTER_FAMILY_PROFILE_ID,
+          variant_profile_id: DEFAULT_STARTER_VARIANT_PROFILE_ID,
+          default_values: cloneObject(DEFAULT_STARTER_VALUES)
+        }
       };
     } catch (error) {
       return {
         version: PAYLOAD_VERSION,
         initialized: initialized,
+        operational: false,
+        ready: false,
+        status: "unavailable",
         state_error: String(error && error.message ? error.message : error)
       };
     }
@@ -2860,14 +4629,33 @@
 
   function normalizeError(error) {
     try {
+      var normalized = ensurePayloadError(
+        error,
+        "create_payload_error",
+        "Create payload error."
+      );
+
       return {
-        message: String(error && error.message ? error.message : error),
-        stack: error && error.stack ? String(error.stack) : "",
+        code: normalized.code || normalized.name || "create_payload_error",
+        message: String(normalized.message || "Create payload error."),
+        name: normalized.name || "Error",
+        status: normalized.status || null,
+        action: normalized.action || null,
+        details: normalized.details || null,
+        stack: normalized.stack ? String(normalized.stack) : "",
+        component: normalized.component || GLOBAL_NAME,
         timestamp: timestamp()
       };
     } catch (normalizationError) {
       return {
-        message: "Unknown error",
+        code: "create_payload_error",
+        message: "Unknown payload error",
+        name: "Error",
+        status: null,
+        action: null,
+        details: null,
+        stack: "",
+        component: GLOBAL_NAME,
         timestamp: timestamp()
       };
     }
@@ -3333,10 +5121,31 @@
   var api = {
     version: PAYLOAD_VERSION,
 
+    constants: {
+      DEFAULT_READY_TIMEOUT_MS: DEFAULT_READY_TIMEOUT_MS,
+      DEFAULT_STARTER_OBJECT_KIND: DEFAULT_STARTER_OBJECT_KIND,
+      DEFAULT_STARTER_FAMILY_PROFILE_ID: DEFAULT_STARTER_FAMILY_PROFILE_ID,
+      DEFAULT_STARTER_VARIANT_PROFILE_ID: DEFAULT_STARTER_VARIANT_PROFILE_ID,
+      DEFAULT_STARTER_VALUES: cloneObject(DEFAULT_STARTER_VALUES)
+    },
+
     initialize: initialize,
+    ensureReady: ensurePayloadReady,
+    whenReady: ensurePayloadReady,
+    waitUntilReady: ensurePayloadReady,
+    isOperational: isOperational,
+
     collectPayload: collectPayload,
     collectFormPayload: collectPayload,
+    collectPayloadSync: collectPayload,
     collectFormPayloadRaw: collectFormPayloadRaw,
+    preparePayload: preparePayload,
+    collectPayloadAsync: preparePayload,
+    buildPayload: preparePayload,
+    getLastValidPayload: getLastValidPayload,
+    invalidatePreparedPayload: invalidatePreparedPayload,
+    payloadSignature: payloadSignature,
+    validatePayload: validatePayload,
 
     syncVariantRuntimeToForm: syncVariantRuntimeToForm,
     ensureDefinitionVariantHiddenFields: ensureDefinitionVariantHiddenFields,
@@ -3352,11 +5161,15 @@
 
     normalizeDefinitionVariant: normalizeDefinitionVariant,
     normalizeDefinitionVariants: normalizeDefinitionVariants,
+    buildDefaultVariant: buildDefaultVariant,
     buildFallbackDefinitionVariantsFromLegacyRows: buildFallbackDefinitionVariantsFromLegacyRows,
 
     augmentPayloadWithContext: augmentPayloadWithContext,
     augmentPayloadWithDefinitionVariants: augmentPayloadWithDefinitionVariants,
     normalizePayloadBeforeSend: normalizePayloadBeforeSend,
+    applyStarterPayloadDefaults: applyStarterPayloadDefaults,
+    pruneOptionalEmptyPayloadFields: pruneOptionalEmptyPayloadFields,
+    stabilizePayloadJsonFields: stabilizePayloadJsonFields,
     applyPayloadContract: applyPayloadContract,
     syncProfileIdsIntoPayload: syncProfileIdsIntoPayload,
     syncProfileIdsIntoForm: syncProfileIdsIntoForm,
@@ -3366,6 +5179,17 @@
     getGeneratorContext: getGeneratorContext,
     getPayloadContract: getPayloadContract,
     getUploadConfig: getUploadConfig,
+    getVariantProfilesRuntime: getVariantProfilesRuntime,
+    getProfileReadinessSync: getProfileReadinessSync,
+    getProfileBundleSync: getProfileBundleSync,
+    getResolvedProfileDefaults: getResolvedProfileDefaults,
+
+    createError: createPayloadError,
+    ensureError: ensurePayloadError,
+    normalizeError: normalizeError,
+    buildFailureResult: buildPayloadFailure,
+    setPayloadStatus: setPayloadStatus,
+    stableStringify: stableStringify,
 
     getState: getState
   };

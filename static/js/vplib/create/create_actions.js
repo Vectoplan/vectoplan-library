@@ -4,13 +4,40 @@
 
   var GLOBAL_NAME = "VectoplanCreateActions";
   var MODULE_NAME = "actions";
-  var ACTIONS_VERSION = "0.7.0";
+  var ACTIONS_VERSION = "0.9.0";
   var CORE_NAME = "VectoplanCreateCore";
   var PAYLOAD_NAME = "VectoplanCreatePayload";
   var BOOT_RETRY_MS = 40;
   var BOOT_MAX_ATTEMPTS = 80;
   var ACTION_LOCK = "create-actions-run";
-  var ACTION_LOCK_MS = 1500;
+  var ACTION_LOCK_MS = 120000;
+  var DEFAULT_REQUEST_TIMEOUT_MS = 60000;
+  var DEFAULT_PREFLIGHT_TIMEOUT_MS = 45000;
+  var DEFAULT_DOWNLOAD_TIMEOUT_MS = 120000;
+  var DEFAULT_MIN_ARCHIVE_BYTES = 64;
+  var DOWNLOAD_URL_REVOKE_DELAY_MS = 60000;
+  var MUTATION_REBIND_DELAY_MS = 40;
+  var MAX_BINDING_ERROR_HISTORY = 16;
+  var BINDING_REGISTRY_NAME = "__VECTOPLAN_CREATE_ACTIONS_BINDINGS__";
+  var EVENT_HANDLED_KEY = "__vpCreateActionsHandled";
+  var DIRECT_HANDLER_KEY = "__vpCreateActionsDirectHandler";
+  var DIRECT_BOUND_ATTR = "data-vp-create-actions-direct-bound";
+  var DIRECT_BOUND_VERSION_ATTR = "data-vp-create-actions-direct-bound-version";
+  var BINDING_VERIFY_DELAYS = [0, 120, 600, 1600];
+  var VPLIB_ARCHIVE_MIME_TYPES = {
+    "application/zip": true,
+    "application/x-zip-compressed": true,
+    "application/octet-stream": true,
+    "application/vnd.vectoplan.vplib": true,
+    "application/vnd.vectoplan-library": true
+  };
+  var CRITICAL_ACTIONS = {
+    validate: true,
+    "package-plan": true,
+    download: true,
+    save: true,
+    "publish-prepare": true
+  };
 
   var KNOWN_ACTIONS = {
     draft: true,
@@ -82,6 +109,17 @@
   var classes = null;
   var initialized = false;
   var bindingDone = false;
+  var actionClickHandler = null;
+  var resultClickHandler = null;
+  var mutationObserver = null;
+  var mutationRebindTimer = null;
+  var bindingVerifyTimers = [];
+  var runtimeToken = [
+    GLOBAL_NAME,
+    ACTIONS_VERSION,
+    Date.now(),
+    Math.random().toString(36).slice(2)
+  ].join(":");
 
   var localState = {
     version: ACTIONS_VERSION,
@@ -104,7 +142,39 @@
     lastRequestAt: "",
     lastResponseAt: "",
     lastUploadFileCount: 0,
-    lastUploadErrorCount: 0
+    lastUploadErrorCount: 0,
+    operational: false,
+    status: "created",
+    readinessPromise: null,
+    readinessResult: null,
+    activeActionPromise: null,
+    activeActionKey: "",
+    actionGeneration: 0,
+    requestSequence: 0,
+    lastRequestId: "",
+    lastPreflight: null,
+    lastDownloadValidation: null,
+    suppressedActionCount: 0,
+    abortController: null,
+    bindingAttempts: 0,
+    bindingSuccessCount: 0,
+    bindingRepairCount: 0,
+    delegatedActionListenerBound: false,
+    delegatedResultListenerBound: false,
+    mutationObserverActive: false,
+    directButtonCount: 0,
+    actionButtonCount: 0,
+    clickCount: 0,
+    delegatedClickCount: 0,
+    directClickCount: 0,
+    suppressedDuplicateClickCount: 0,
+    blockedClickCount: 0,
+    lastClick: null,
+    lastBindingVerification: null,
+    bindingErrors: [],
+    downloadTriggerCount: 0,
+    lastDownloadTrigger: null,
+    objectUrlCleanupCount: 0
   };
 
   function boot(attempt) {
@@ -133,6 +203,20 @@
   function initialize(coreRuntime) {
     try {
       if (initialized) {
+        repairControlBindings({
+          source: "initialize_existing",
+          quiet: true
+        });
+
+        if (!localState.operational && !localState.readinessPromise) {
+          ensureActionsReady({
+            source: "initialize_existing",
+            rejectOnError: false
+          }).catch(function (readinessError) {
+            safeWarn("Existing actions readiness check failed.", readinessError);
+          });
+        }
+
         return api;
       }
 
@@ -151,361 +235,1555 @@
         core.refreshContext();
       }
 
-      bindControls();
+      bindControls({
+        source: "initialize",
+        force: true
+      });
       clearResult({ silent: true });
-      enforceStaticDisabledButtons();
 
       initialized = true;
       localState.initialized = true;
+      setActionsStatus("initialized", null, {
+        source: "initialize"
+      });
 
       if (typeof core.registerModule === "function") {
         core.registerModule(MODULE_NAME, api);
       }
 
-      safeSetAttribute(document.documentElement, "data-vp-create-actions-ready", "true");
+      safeSetAttribute(document.documentElement, "data-vp-create-actions-initialized", "true");
+      safeSetAttribute(document.documentElement, "data-vp-create-actions-ready", "false");
       safeSetAttribute(document.documentElement, "data-vp-create-actions-version", ACTIONS_VERSION);
 
-      safeDispatch("vectoplan:create:actions-ready", getState());
+      enforceStaticDisabledButtons();
+      safeDispatch("vectoplan:create:actions-initialized", getState());
+
+      ensureActionsReady({
+        source: "initialize",
+        rejectOnError: false
+      }).catch(function (readinessError) {
+        safeWarn("Initial actions readiness check failed.", readinessError);
+      });
 
       return api;
     } catch (error) {
+      initialized = false;
       localState.initialized = false;
+      localState.operational = false;
       localState.lastError = normalizeError(error);
+      setActionsStatus("unavailable", error, {
+        source: "initialize"
+      });
       safeError("Actions initialization failed.", error);
       return api;
     }
   }
 
-  function bindControls() {
+  function getBindingRegistry() {
     try {
-      if (bindingDone) {
-        return;
+      var registry = window[BINDING_REGISTRY_NAME];
+
+      if (!registry || typeof registry !== "object") {
+        registry = {
+          version: ACTIONS_VERSION,
+          ownerToken: runtimeToken,
+          events: {},
+          observer: null,
+          createdAt: timestamp()
+        };
+        window[BINDING_REGISTRY_NAME] = registry;
       }
 
-      bindingDone = true;
-      localState.bindingDone = true;
+      if (!registry.events || typeof registry.events !== "object") {
+        registry.events = {};
+      }
 
-      bindOnce("create-actions-click", bindActionButtons);
-      bindOnce("create-actions-result-controls", bindResultControls);
-      bindOnce("create-actions-write-state", bindWriteStateUpdates);
-      bindOnce("create-actions-payload-refresh", bindPayloadRuntimeUpdates);
+      return registry;
     } catch (error) {
+      return {
+        version: ACTIONS_VERSION,
+        ownerToken: runtimeToken,
+        events: {},
+        observer: null,
+        ephemeral: true
+      };
+    }
+  }
+
+  function rememberBindingError(stage, error) {
+    try {
+      localState.bindingErrors.push({
+        stage: String(stage || "binding"),
+        error: normalizeError(error),
+        timestamp: timestamp()
+      });
+
+      if (localState.bindingErrors.length > MAX_BINDING_ERROR_HISTORY) {
+        localState.bindingErrors.splice(
+          0,
+          localState.bindingErrors.length - MAX_BINDING_ERROR_HISTORY
+        );
+      }
+    } catch (historyError) {
+      /* Binding diagnostics must never break the UI. */
+    }
+  }
+
+  function bindManagedEvent(slot, target, eventName, handler, capture) {
+    try {
+      if (!slot || !target || typeof target.addEventListener !== "function" || typeof handler !== "function") {
+        return false;
+      }
+
+      var registry = getBindingRegistry();
+      var existing = registry.events[slot];
+
+      if (
+        existing &&
+        existing.target &&
+        typeof existing.target.removeEventListener === "function" &&
+        typeof existing.handler === "function"
+      ) {
+        try {
+          existing.target.removeEventListener(
+            existing.eventName,
+            existing.handler,
+            !!existing.capture
+          );
+        } catch (removeError) {
+          rememberBindingError(slot + ":remove_previous", removeError);
+        }
+      }
+
+      target.addEventListener(eventName, handler, !!capture);
+      registry.events[slot] = {
+        target: target,
+        eventName: eventName,
+        handler: handler,
+        capture: !!capture,
+        ownerToken: runtimeToken,
+        version: ACTIONS_VERSION,
+        boundAt: timestamp()
+      };
+      registry.version = ACTIONS_VERSION;
+      registry.ownerToken = runtimeToken;
+
+      return true;
+    } catch (error) {
+      rememberBindingError(slot, error);
+      safeError("Managed event binding failed: " + slot, error);
+      return false;
+    }
+  }
+
+  function bindControls(options) {
+    var config = options || {};
+
+    try {
+      localState.bindingAttempts += 1;
+
+      var actionBound = bindActionButtons({
+        source: config.source || "bind_controls",
+        force: config.force === true
+      });
+      var resultBound = bindResultControls();
+      var writeBound = bindWriteStateUpdates();
+      var payloadBound = bindPayloadRuntimeUpdates();
+      var readinessBound = bindReadinessUpdates();
+      var observerBound = bindActionButtonObserver();
+      var directCount = bindDirectActionButtons(document, {
+        source: config.source || "bind_controls"
+      });
+
+      bindingDone = actionBound === true && resultBound === true;
+      localState.bindingDone = bindingDone;
+      localState.delegatedActionListenerBound = actionBound === true;
+      localState.delegatedResultListenerBound = resultBound === true;
+      localState.mutationObserverActive = observerBound === true;
+      localState.directButtonCount = directCount;
+      localState.actionButtonCount = qsa(selectorFor("actionButton")).length;
+
+      if (bindingDone) {
+        localState.bindingSuccessCount += 1;
+      }
+
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-actions-binding-ready",
+        bindingDone ? "true" : "false"
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-actions-binding-version",
+        ACTIONS_VERSION
+      );
+
+      scheduleBindingVerification(config.source || "bind_controls");
+
+      return {
+        ok: bindingDone,
+        ready: bindingDone,
+        status: bindingDone ? "bound" : "binding_failed",
+        actionDelegated: actionBound,
+        resultDelegated: resultBound,
+        writeUpdates: writeBound,
+        payloadUpdates: payloadBound,
+        readinessUpdates: readinessBound,
+        mutationObserver: observerBound,
+        directButtonCount: directCount,
+        actionButtonCount: localState.actionButtonCount,
+        version: ACTIONS_VERSION,
+        runtimeToken: runtimeToken
+      };
+    } catch (error) {
+      bindingDone = false;
+      localState.bindingDone = false;
+      rememberBindingError("bind_controls", error);
       safeError("Actions control binding failed.", error);
+      return {
+        ok: false,
+        ready: false,
+        status: "binding_failed",
+        error: normalizeError(error)
+      };
     }
   }
 
   function bindActionButtons() {
     try {
-      document.addEventListener("click", function (event) {
-        try {
-          var button = event.target && event.target.closest
-            ? event.target.closest(selectorFor("actionButton"))
-            : null;
+      if (!actionClickHandler) {
+        actionClickHandler = function (event) {
+          handleActionButtonClick(event, "delegated");
+        };
+      }
 
-          if (!button) {
-            return;
-          }
+      var bound = bindManagedEvent(
+        "actions:document-click",
+        document,
+        "click",
+        actionClickHandler,
+        true
+      );
 
-          var form = resolveForm();
-
-          if (form && !form.contains(button)) {
-            return;
-          }
-
-          event.preventDefault();
-
-          if (typeof event.stopPropagation === "function") {
-            event.stopPropagation();
-          }
-
-          var action = normalizeAction(button.getAttribute("data-create-action") || "");
-
-          if (!action) {
-            safeWarn("Action button without known action ignored.");
-            return;
-          }
-
-          if (localState.pending || isCorePending()) {
-            safeWarn("Action ignored because another action is pending.", {
-              requested: action,
-              current: localState.currentAction
-            });
-            return;
-          }
-
-          runAction(action, form, button);
-        } catch (clickError) {
-          safeWarn("Action click handling failed.", clickError);
-        }
-      }, true);
+      localState.delegatedActionListenerBound = bound;
+      return bound;
     } catch (error) {
+      rememberBindingError("bind_action_buttons", error);
       safeError("Action button binding failed.", error);
+      return false;
+    }
+  }
+
+  function handleActionButtonClick(event, source) {
+    try {
+      var target = event && event.target ? event.target : null;
+      var button = target && target.closest
+        ? target.closest(selectorFor("actionButton"))
+        : null;
+
+      if (!button) {
+        return false;
+      }
+
+      var handledBy = event ? event[EVENT_HANDLED_KEY] : null;
+
+      if (handledBy) {
+        localState.suppressedDuplicateClickCount += 1;
+        return false;
+      }
+
+      try {
+        event[EVENT_HANDLED_KEY] = runtimeToken;
+      } catch (markerError) {
+        /* Event marker is an optimization; direct/delegated dedupe remains best effort. */
+      }
+
+      var form = resolveForm();
+
+      if (form && !form.contains(button)) {
+        return false;
+      }
+
+      if (event && typeof event.preventDefault === "function") {
+        event.preventDefault();
+      }
+
+      if (event && typeof event.stopPropagation === "function") {
+        event.stopPropagation();
+      }
+
+      var action = normalizeAction(button.getAttribute("data-create-action") || "");
+      var clickSource = source || "unknown";
+
+      localState.clickCount += 1;
+      if (clickSource === "delegated") {
+        localState.delegatedClickCount += 1;
+      } else {
+        localState.directClickCount += 1;
+      }
+
+      localState.lastClick = {
+        action: action,
+        source: clickSource,
+        timestamp: timestamp(),
+        disabled: !!button.disabled,
+        ariaDisabled: button.getAttribute("aria-disabled") || "",
+        buttonId: button.id || ""
+      };
+
+      if (!action) {
+        localState.blockedClickCount += 1;
+        safeWarn("Action button without known action ignored.");
+        return false;
+      }
+
+      if (button.disabled || button.getAttribute("aria-disabled") === "true") {
+        localState.blockedClickCount += 1;
+        buildBlockedResult(
+          action,
+          "action_button_disabled",
+          "Die Aktion ist derzeit deaktiviert."
+        );
+        return true;
+      }
+
+      if (localState.pending || isCorePending()) {
+        localState.blockedClickCount += 1;
+        buildBlockedResult(
+          action,
+          "action_pending",
+          "Es läuft bereits eine Aktion."
+        );
+        return true;
+      }
+
+      Promise.resolve(runAction(action, form, button)).catch(function (actionError) {
+        handleRuntimeError(action, actionError);
+      });
+
+      return true;
+    } catch (clickError) {
+      rememberBindingError("handle_action_click", clickError);
+      safeWarn("Action click handling failed.", clickError);
+      return false;
+    }
+  }
+
+  function bindDirectActionButtons(root, options) {
+    try {
+      var config = options || {};
+      var scope = root && root.querySelectorAll ? root : document;
+      var buttons = qsa(selectorFor("actionButton"), scope);
+      var currentCount = 0;
+
+      if (
+        scope &&
+        scope.nodeType === 1 &&
+        scope.matches &&
+        scope.matches(selectorFor("actionButton"))
+      ) {
+        buttons.unshift(scope);
+      }
+
+      buttons.forEach(function (button) {
+        try {
+          if (!button || typeof button.addEventListener !== "function") {
+            return;
+          }
+
+          var existingHandler = button[DIRECT_HANDLER_KEY];
+
+          if (existingHandler && existingHandler.__vpOwnerToken === runtimeToken) {
+            currentCount += 1;
+            return;
+          }
+
+          if (existingHandler && typeof button.removeEventListener === "function") {
+            try {
+              button.removeEventListener("click", existingHandler, false);
+            } catch (removeError) {
+              rememberBindingError("direct_button_remove", removeError);
+            }
+          }
+
+          var directHandler = function (event) {
+            handleActionButtonClick(event, "direct");
+          };
+          directHandler.__vpOwnerToken = runtimeToken;
+          directHandler.__vpSource = config.source || "direct_button";
+
+          button.addEventListener("click", directHandler, false);
+          button[DIRECT_HANDLER_KEY] = directHandler;
+          button.setAttribute(DIRECT_BOUND_ATTR, "true");
+          button.setAttribute(DIRECT_BOUND_VERSION_ATTR, ACTIONS_VERSION);
+          currentCount += 1;
+        } catch (buttonError) {
+          rememberBindingError("direct_button_bind", buttonError);
+        }
+      });
+
+      localState.directButtonCount = currentCount;
+      localState.actionButtonCount = qsa(selectorFor("actionButton")).length;
+      return currentCount;
+    } catch (error) {
+      rememberBindingError("bind_direct_buttons", error);
+      safeWarn("Direct action-button binding failed.", error);
+      return 0;
+    }
+  }
+
+  function scheduleDirectButtonRefresh(reason) {
+    try {
+      if (mutationRebindTimer !== null) {
+        window.clearTimeout(mutationRebindTimer);
+      }
+
+      mutationRebindTimer = window.setTimeout(function () {
+        mutationRebindTimer = null;
+
+        try {
+          bindDirectActionButtons(document, {
+            source: reason || "mutation"
+          });
+          enforceStaticDisabledButtons();
+          verifyControlBindings({
+            source: reason || "mutation",
+            repair: false
+          });
+        } catch (error) {
+          rememberBindingError("mutation_refresh", error);
+        }
+      }, MUTATION_REBIND_DELAY_MS);
+
+      return true;
+    } catch (error) {
+      rememberBindingError("schedule_button_refresh", error);
+      return false;
+    }
+  }
+
+  function bindActionButtonObserver() {
+    try {
+      var Observer = window.MutationObserver || window.WebKitMutationObserver;
+
+      if (typeof Observer !== "function" || !document.documentElement) {
+        localState.mutationObserverActive = false;
+        return false;
+      }
+
+      var registry = getBindingRegistry();
+
+      if (registry.observer && registry.observer.observer) {
+        try {
+          registry.observer.observer.disconnect();
+        } catch (disconnectError) {
+          rememberBindingError("observer_disconnect", disconnectError);
+        }
+      }
+
+      mutationObserver = new Observer(function (mutations) {
+        try {
+          var relevant = false;
+
+          toArray(mutations).forEach(function (mutation) {
+            if (mutation && mutation.type === "childList" && mutation.addedNodes && mutation.addedNodes.length) {
+              relevant = true;
+            }
+          });
+
+          if (relevant) {
+            scheduleDirectButtonRefresh("dom_mutation");
+          }
+        } catch (observerError) {
+          rememberBindingError("observer_callback", observerError);
+        }
+      });
+
+      mutationObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+
+      registry.observer = {
+        observer: mutationObserver,
+        ownerToken: runtimeToken,
+        version: ACTIONS_VERSION,
+        boundAt: timestamp()
+      };
+      localState.mutationObserverActive = true;
+      return true;
+    } catch (error) {
+      mutationObserver = null;
+      localState.mutationObserverActive = false;
+      rememberBindingError("bind_mutation_observer", error);
+      return false;
     }
   }
 
   function bindResultControls() {
     try {
-      document.addEventListener("click", function (event) {
-        try {
-          var copyButton = event.target && event.target.closest
-            ? event.target.closest(selectorFor("resultCopy"))
-            : null;
+      if (!resultClickHandler) {
+        resultClickHandler = function (event) {
+          try {
+            var copyButton = event.target && event.target.closest
+              ? event.target.closest(selectorFor("resultCopy"))
+              : null;
 
-          if (copyButton) {
-            event.preventDefault();
-
-            if (typeof event.stopPropagation === "function") {
-              event.stopPropagation();
+            if (copyButton) {
+              event.preventDefault();
+              if (typeof event.stopPropagation === "function") {
+                event.stopPropagation();
+              }
+              copyResult(copyButton);
+              return;
             }
 
-            copyResult(copyButton);
-            return;
-          }
+            var clearButton = event.target && event.target.closest
+              ? event.target.closest(selectorFor("resultClear"))
+              : null;
 
-          var clearButton = event.target && event.target.closest
-            ? event.target.closest(selectorFor("resultClear"))
-            : null;
-
-          if (clearButton) {
-            event.preventDefault();
-
-            if (typeof event.stopPropagation === "function") {
-              event.stopPropagation();
+            if (clearButton) {
+              event.preventDefault();
+              if (typeof event.stopPropagation === "function") {
+                event.stopPropagation();
+              }
+              clearResult();
             }
-
-            clearResult();
+          } catch (clickError) {
+            rememberBindingError("result_click", clickError);
+            safeWarn("Result control click handling failed.", clickError);
           }
-        } catch (clickError) {
-          safeWarn("Result control click handling failed.", clickError);
-        }
-      }, true);
+        };
+      }
+
+      var bound = bindManagedEvent(
+        "actions:result-document-click",
+        document,
+        "click",
+        resultClickHandler,
+        true
+      );
+      localState.delegatedResultListenerBound = bound;
+      return bound;
     } catch (error) {
+      rememberBindingError("bind_result_controls", error);
       safeError("Result controls binding failed.", error);
+      return false;
     }
   }
 
   function bindWriteStateUpdates() {
     try {
-      document.addEventListener("vectoplan:create:core-context-refreshed", function () {
-        try {
-          enforceStaticDisabledButtons();
-        } catch (error) {
-          safeWarn("Write state refresh handling failed.", error);
-        }
-      });
+      var coreRefreshBound = bindManagedEvent(
+        "actions:core-context-refreshed",
+        document,
+        "vectoplan:create:core-context-refreshed",
+        function () {
+          try {
+            enforceStaticDisabledButtons();
+            bindDirectActionButtons(document, { source: "core_context_refreshed" });
+          } catch (error) {
+            safeWarn("Write state refresh handling failed.", error);
+          }
+        },
+        false
+      );
 
-      document.addEventListener("vectoplan:create:context-ready", function () {
-        try {
-          enforceStaticDisabledButtons();
-        } catch (error) {
-          safeWarn("Context ready write-state handling failed.", error);
-        }
-      });
+      var contextReadyBound = bindManagedEvent(
+        "actions:context-ready",
+        document,
+        "vectoplan:create:context-ready",
+        function () {
+          try {
+            enforceStaticDisabledButtons();
+            bindDirectActionButtons(document, { source: "context_ready" });
+          } catch (error) {
+            safeWarn("Context ready write-state handling failed.", error);
+          }
+        },
+        false
+      );
+
+      return coreRefreshBound && contextReadyBound;
     } catch (error) {
+      rememberBindingError("bind_write_state", error);
       safeWarn("Write state update binding failed.", error);
+      return false;
     }
   }
 
   function bindPayloadRuntimeUpdates() {
     try {
-      document.addEventListener("vectoplan:create:payload-ready", function () {
-        try {
-          payloadRuntime = window[PAYLOAD_NAME] || payloadRuntime;
-        } catch (error) {
-          safeWarn("Payload ready binding failed.", error);
-        }
-      });
-
-      document.addEventListener("vectoplan:create:payload-collected", function (event) {
-        try {
-          var detail = event && event.detail ? event.detail : {};
-
-          if (detail.summary) {
-            localState.lastPayloadSummary = clone(detail.summary);
-            updateUploadCountsFromSummary(detail.summary);
+      var payloadReadyBound = bindManagedEvent(
+        "actions:payload-ready",
+        document,
+        "vectoplan:create:payload-ready",
+        function () {
+          try {
+            payloadRuntime = window[PAYLOAD_NAME] || payloadRuntime;
+          } catch (error) {
+            safeWarn("Payload ready binding failed.", error);
           }
-        } catch (error) {
-          safeWarn("Payload collected handling failed.", error);
-        }
-      });
+        },
+        false
+      );
 
-      document.addEventListener("vectoplan:create:payload-uploads-synced", function (event) {
-        try {
-          var detail = event && event.detail ? event.detail : {};
+      var payloadCollectedBound = bindManagedEvent(
+        "actions:payload-collected",
+        document,
+        "vectoplan:create:payload-collected",
+        function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
 
-          if (detail.summary) {
-            localState.lastUploadFileCount = parseInt(detail.summary.fileCount || detail.summary.file_count || 0, 10) || 0;
-            localState.lastUploadErrorCount = parseInt(detail.summary.errorCount || detail.summary.error_count || 0, 10) || 0;
+            if (detail.summary) {
+              localState.lastPayloadSummary = clone(detail.summary);
+              updateUploadCountsFromSummary(detail.summary);
+            }
+          } catch (error) {
+            safeWarn("Payload collected handling failed.", error);
           }
-        } catch (error) {
-          safeWarn("Payload uploads synced handling failed.", error);
-        }
-      });
+        },
+        false
+      );
+
+      var uploadsSyncedBound = bindManagedEvent(
+        "actions:payload-uploads-synced",
+        document,
+        "vectoplan:create:payload-uploads-synced",
+        function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+
+            if (detail.summary) {
+              localState.lastUploadFileCount = parseInt(detail.summary.fileCount || detail.summary.file_count || 0, 10) || 0;
+              localState.lastUploadErrorCount = parseInt(detail.summary.errorCount || detail.summary.error_count || 0, 10) || 0;
+            }
+          } catch (error) {
+            safeWarn("Payload uploads synced handling failed.", error);
+          }
+        },
+        false
+      );
+
+      return payloadReadyBound && payloadCollectedBound && uploadsSyncedBound;
     } catch (error) {
+      rememberBindingError("bind_payload_updates", error);
       safeWarn("Payload runtime update binding failed.", error);
+      return false;
     }
   }
 
-  async function runAction(action, form, sourceButton) {
-    var lockAcquired = false;
+  function bindReadinessUpdates() {
+    try {
+      var results = [];
+
+      [
+        "vectoplan:create:core-ready",
+        "vectoplan:create:core-operational",
+        "vectoplan:create:payload-ready"
+      ].forEach(function (eventName) {
+        results.push(bindManagedEvent(
+          "actions:readiness:" + eventName,
+          document,
+          eventName,
+          function () {
+            ensureActionsReady({
+              source: eventName,
+              rejectOnError: false
+            }).catch(function (error) {
+              safeWarn("Actions readiness refresh failed: " + eventName, error);
+            });
+          },
+          false
+        ));
+      });
+
+      [
+        "vectoplan:create:core-blocked",
+        "vectoplan:create:payload-blocked"
+      ].forEach(function (eventName) {
+        results.push(bindManagedEvent(
+          "actions:blocked:" + eventName,
+          document,
+          eventName,
+          function (event) {
+            var detail = event && event.detail ? event.detail : {};
+            setActionsStatus("blocked", detail.error || detail, detail);
+          },
+          false
+        ));
+      });
+
+      return results.every(function (value) {
+        return value === true;
+      });
+    } catch (error) {
+      rememberBindingError("bind_readiness_updates", error);
+      safeWarn("Actions readiness event binding failed.", error);
+      return false;
+    }
+  }
+
+  function getBindingSnapshot() {
+    try {
+      var buttons = qsa(selectorFor("actionButton"));
+      var directCount = buttons.filter(function (button) {
+        try {
+          return !!(
+            button &&
+            button[DIRECT_HANDLER_KEY] &&
+            button[DIRECT_HANDLER_KEY].__vpOwnerToken === runtimeToken
+          );
+        } catch (error) {
+          return false;
+        }
+      }).length;
+      var registry = getBindingRegistry();
+      var eventRecords = registry.events || {};
+
+      return {
+        ok: localState.delegatedActionListenerBound === true || directCount > 0,
+        ready: bindingDone,
+        bindingDone: bindingDone,
+        version: ACTIONS_VERSION,
+        runtimeToken: runtimeToken,
+        actionButtonCount: buttons.length,
+        directButtonCount: directCount,
+        delegatedActionListenerBound: localState.delegatedActionListenerBound,
+        delegatedResultListenerBound: localState.delegatedResultListenerBound,
+        mutationObserverActive: localState.mutationObserverActive,
+        managedEventSlots: Object.keys(eventRecords),
+        bindingAttempts: localState.bindingAttempts,
+        bindingSuccessCount: localState.bindingSuccessCount,
+        bindingRepairCount: localState.bindingRepairCount,
+        clickCount: localState.clickCount,
+        delegatedClickCount: localState.delegatedClickCount,
+        directClickCount: localState.directClickCount,
+        suppressedDuplicateClickCount: localState.suppressedDuplicateClickCount,
+        lastClick: clone(localState.lastClick),
+        errors: clone(localState.bindingErrors)
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        ready: false,
+        bindingDone: false,
+        version: ACTIONS_VERSION,
+        error: normalizeError(error)
+      };
+    }
+  }
+
+  function verifyControlBindings(options) {
+    var config = options || {};
+
+    try {
+      var snapshot = getBindingSnapshot();
+      var needsRepair = snapshot.delegatedActionListenerBound !== true ||
+        snapshot.delegatedResultListenerBound !== true ||
+        (snapshot.actionButtonCount > 0 && snapshot.directButtonCount < snapshot.actionButtonCount);
+
+      if (needsRepair && config.repair !== false) {
+        localState.bindingRepairCount += 1;
+        bindControls({
+          source: config.source || "binding_verification",
+          force: true,
+          quiet: true
+        });
+        snapshot = getBindingSnapshot();
+      }
+
+      snapshot.verifiedAt = timestamp();
+      snapshot.source = config.source || "verify";
+      snapshot.repaired = needsRepair && config.repair !== false;
+      localState.lastBindingVerification = clone(snapshot);
+      bindingDone = snapshot.delegatedActionListenerBound === true &&
+        snapshot.delegatedResultListenerBound === true;
+      localState.bindingDone = bindingDone;
+
+      return snapshot;
+    } catch (error) {
+      rememberBindingError("verify_bindings", error);
+      return {
+        ok: false,
+        ready: false,
+        status: "verification_failed",
+        error: normalizeError(error)
+      };
+    }
+  }
+
+  function scheduleBindingVerification(reason) {
+    try {
+      bindingVerifyTimers.forEach(function (timerId) {
+        try {
+          window.clearTimeout(timerId);
+        } catch (error) {
+          /* no-op */
+        }
+      });
+      bindingVerifyTimers = [];
+
+      BINDING_VERIFY_DELAYS.forEach(function (delay) {
+        var timerId = window.setTimeout(function () {
+          verifyControlBindings({
+            source: (reason || "scheduled") + ":" + String(delay),
+            repair: true
+          });
+        }, delay);
+        bindingVerifyTimers.push(timerId);
+      });
+
+      return true;
+    } catch (error) {
+      rememberBindingError("schedule_binding_verification", error);
+      return false;
+    }
+  }
+
+  function repairControlBindings(options) {
+    try {
+      localState.bindingRepairCount += 1;
+      return bindControls(Object.assign({}, options || {}, {
+        force: true,
+        source: options && options.source ? options.source : "manual_repair"
+      }));
+    } catch (error) {
+      rememberBindingError("repair_bindings", error);
+      return {
+        ok: false,
+        ready: false,
+        status: "repair_failed",
+        error: normalizeError(error)
+      };
+    }
+  }
+
+  function createActionsError(code, message, details, cause) {
+    var actionError;
+
+    try {
+      actionError = new Error(String(message || code || "Create action failed."));
+    } catch (constructionError) {
+      actionError = {
+        name: "Error",
+        message: String(message || code || "Create action failed.")
+      };
+    }
+
+    try {
+      actionError.name = "VectoplanCreateActionsError";
+      actionError.code = String(code || "create_actions_error");
+      actionError.component = GLOBAL_NAME;
+      actionError.componentVersion = ACTIONS_VERSION;
+      actionError.__vp_create_actions_error = true;
+
+      if (details && typeof details === "object") {
+        actionError.details = clone(details);
+        actionError.status = details.status || null;
+        actionError.action = details.action || null;
+        actionError.url = details.url || null;
+        actionError.requestId = details.requestId || null;
+        actionError.payload = details.payload || null;
+      }
+
+      if (cause !== undefined && cause !== null) {
+        actionError.cause = cause;
+      }
+    } catch (enrichmentError) {
+      /* Preserve the Error instance. */
+    }
+
+    return actionError;
+  }
+
+  function ensureActionsError(error, fallbackCode, fallbackMessage, details) {
+    try {
+      if (error && error.__vp_create_actions_error === true && error.message) {
+        return error;
+      }
+
+      if (error instanceof Error) {
+        error.code = error.code || fallbackCode || error.name || "create_actions_error";
+        error.component = error.component || GLOBAL_NAME;
+        error.__vp_create_actions_error = true;
+
+        if (details && !error.details) {
+          error.details = clone(details);
+        }
+
+        return error;
+      }
+
+      var source = error && error.error && typeof error.error === "object"
+        ? error.error
+        : (error || {});
+
+      return createActionsError(
+        source.code || source.error_code || source.status || fallbackCode || "create_actions_error",
+        source.message || source.detail || source.description || fallbackMessage || (typeof error === "string" ? error : "") || "Create action failed.",
+        Object.assign({}, details || {}, {
+          status: source.status || null,
+          url: source.url || null,
+          requestId: source.requestId || source.request_id || null,
+          payload: source.payload || source.raw || source.response || null
+        }),
+        error
+      );
+    } catch (normalizationError) {
+      return createActionsError(
+        fallbackCode || "create_actions_error",
+        fallbackMessage || "Create action failed.",
+        details || {},
+        error
+      );
+    }
+  }
+
+  function setActionsStatus(status, error, details) {
+    try {
+      var nextStatus = String(status || "created").trim().toLowerCase() || "created";
+      var ready = nextStatus === "ready";
+
+      localState.status = nextStatus;
+      localState.operational = ready;
+      localState.lastError = error ? normalizeError(error) : null;
+
+      safeSetAttribute(document.documentElement, "data-vp-create-actions-initialized", initialized ? "true" : "false");
+      safeSetAttribute(document.documentElement, "data-vp-create-actions-ready", ready ? "true" : "false");
+      safeSetAttribute(document.documentElement, "data-vp-create-actions-operational", ready ? "true" : "false");
+      safeSetAttribute(document.documentElement, "data-vp-create-actions-status", nextStatus);
+      safeSetAttribute(document.documentElement, "data-vp-create-actions-version", ACTIONS_VERSION);
+
+      enforceStaticDisabledButtons();
+
+      safeDispatch("vectoplan:create:actions-status-changed", {
+        component: GLOBAL_NAME,
+        version: ACTIONS_VERSION,
+        initialized: initialized,
+        ready: ready,
+        operational: ready,
+        status: nextStatus,
+        error: localState.lastError,
+        details: details || null
+      });
+
+      return nextStatus;
+    } catch (statusError) {
+      localState.status = String(status || "created");
+      localState.operational = localState.status === "ready";
+      return localState.status;
+    }
+  }
+
+  function getPayloadRuntime() {
+    payloadRuntime = window[PAYLOAD_NAME] || payloadRuntime;
+    return payloadRuntime;
+  }
+
+  function ensureActionsReady(options) {
+    var config = options || {};
+
+    try {
+      if (
+        localState.operational === true &&
+        localState.readinessResult &&
+        config.force !== true &&
+        config.forceReload !== true
+      ) {
+        return Promise.resolve(localState.readinessResult);
+      }
+
+      if (
+        localState.readinessPromise &&
+        config.force !== true &&
+        config.forceReload !== true
+      ) {
+        return localState.readinessPromise;
+      }
+
+      ensureCore();
+      setActionsStatus("loading", null, {
+        source: config.source || "ensure_actions_ready"
+      });
+
+      var corePromise = Promise.resolve({ ok: true, ready: true });
+
+      if (core && typeof core.ensureReady === "function") {
+        corePromise = Promise.resolve(core.ensureReady({
+          source: config.source || "actions",
+          force: config.force === true || config.forceReload === true,
+          rejectOnError: false,
+          timeoutMs: config.timeoutMs || DEFAULT_REQUEST_TIMEOUT_MS
+        }));
+      }
+
+      localState.readinessPromise = corePromise
+        .then(function (coreReadiness) {
+          if (!coreReadiness || coreReadiness.ok === false || coreReadiness.ready !== true) {
+            throw createActionsError(
+              "create_core_not_ready",
+              "Create Core is not ready.",
+              { readiness: coreReadiness }
+            );
+          }
+
+          var payloadApi = getPayloadRuntime();
+
+          if (!payloadApi) {
+            throw createActionsError(
+              "payload_runtime_missing",
+              "VectoplanCreatePayload is not available."
+            );
+          }
+
+          if (typeof payloadApi.ensureReady === "function") {
+            return Promise.resolve(payloadApi.ensureReady({
+              source: config.source || "actions",
+              force: config.force === true || config.forceReload === true,
+              rejectOnError: false,
+              timeoutMs: config.timeoutMs || DEFAULT_REQUEST_TIMEOUT_MS
+            })).then(function (payloadReadiness) {
+              return {
+                core: coreReadiness,
+                payload: payloadReadiness
+              };
+            });
+          }
+
+          return {
+            core: coreReadiness,
+            payload: {
+              ok: true,
+              ready: true,
+              status: "legacy_payload_runtime"
+            }
+          };
+        })
+        .then(function (resolved) {
+          if (!resolved.payload || resolved.payload.ok === false || resolved.payload.ready !== true) {
+            throw createActionsError(
+              "payload_runtime_not_ready",
+              "Payload runtime is not ready.",
+              { readiness: resolved.payload }
+            );
+          }
+
+          var result = {
+            ok: true,
+            ready: true,
+            healthy: true,
+            operational: true,
+            status: "ready",
+            component: GLOBAL_NAME,
+            version: ACTIONS_VERSION,
+            core: resolved.core,
+            payload: resolved.payload
+          };
+
+          localState.readinessResult = result;
+          localState.lastError = null;
+          setActionsStatus("ready", null, result);
+          safeDispatch("vectoplan:create:actions-ready", getState());
+
+          return result;
+        })
+        .catch(function (error) {
+          var normalized = ensureActionsError(
+            error,
+            "actions_readiness_failed",
+            "Create actions could not become ready."
+          );
+          var failed = {
+            ok: false,
+            ready: false,
+            operational: false,
+            status: "blocked",
+            component: GLOBAL_NAME,
+            version: ACTIONS_VERSION,
+            error: normalizeError(normalized)
+          };
+
+          localState.readinessResult = failed;
+          setActionsStatus("blocked", normalized, failed);
+          safeDispatch("vectoplan:create:actions-blocked", failed);
+
+          if (config.rejectOnError === true) {
+            throw normalized;
+          }
+
+          return failed;
+        })
+        .then(function (result) {
+          localState.readinessPromise = null;
+          return result;
+        }, function (error) {
+          localState.readinessPromise = null;
+          throw error;
+        });
+
+      return localState.readinessPromise;
+    } catch (error) {
+      var failedError = ensureActionsError(
+        error,
+        "actions_readiness_setup_failed",
+        "Create actions readiness could not be prepared."
+      );
+
+      setActionsStatus("unavailable", failedError, null);
+
+      if (config.rejectOnError === true) {
+        return Promise.reject(failedError);
+      }
+
+      return Promise.resolve({
+        ok: false,
+        ready: false,
+        operational: false,
+        status: "unavailable",
+        error: normalizeError(failedError)
+      });
+    }
+  }
+
+  function isOperational() {
+    return localState.operational === true;
+  }
+
+  function actionRequiresReadiness(action) {
+    return CRITICAL_ACTIONS[normalizeAction(action)] === true;
+  }
+
+  function ensureActionRuntimeReady(action, options) {
     var normalizedAction = normalizeAction(action);
+    var config = options || {};
+
+    if (!actionRequiresReadiness(normalizedAction)) {
+      return Promise.resolve({
+        ok: true,
+        ready: true,
+        action: normalizedAction,
+        bypassed: true
+      });
+    }
+
+    if (core && typeof core.ensureActionReady === "function") {
+      return Promise.resolve(core.ensureActionReady(normalizedAction, {
+        source: config.source || "actions:" + normalizedAction,
+        force: config.force === true,
+        rejectOnError: false,
+        timeoutMs: config.timeoutMs || DEFAULT_REQUEST_TIMEOUT_MS
+      })).then(function (readiness) {
+        if (!readiness || readiness.ok === false || readiness.ready !== true) {
+          throw createActionsError(
+            "action_blocked_core_not_ready",
+            actionLabel(normalizedAction) + " kann nicht gestartet werden, weil der Creator noch nicht bereit ist.",
+            {
+              action: normalizedAction,
+              readiness: readiness
+            }
+          );
+        }
+
+        return readiness;
+      });
+    }
+
+    return ensureActionsReady({
+      source: config.source || "actions:" + normalizedAction,
+      rejectOnError: true,
+      timeoutMs: config.timeoutMs || DEFAULT_REQUEST_TIMEOUT_MS
+    });
+  }
+
+  function prepareActionPayload(form, action, options) {
+    var safeForm = resolveForm(form);
+    var normalizedAction = normalizeAction(action);
+    var config = options || {};
+    var runtime = getPayloadRuntime();
+
+    if (!runtime) {
+      return Promise.reject(createActionsError(
+        "payload_runtime_missing",
+        "VectoplanCreatePayload is not available.",
+        { action: normalizedAction }
+      ));
+    }
+
+    if (typeof runtime.preparePayload === "function") {
+      return Promise.resolve(runtime.preparePayload(safeForm, {
+        action: normalizedAction,
+        source: config.source || "action:" + normalizedAction,
+        force: config.force === true,
+        rejectOnError: false,
+        timeoutMs: config.timeoutMs || DEFAULT_REQUEST_TIMEOUT_MS,
+        syncVariants: true,
+        syncUploads: true,
+        strictValidation: true
+      })).then(function (prepared) {
+        if (!prepared || prepared.ok === false || prepared.ready !== true || !prepared.payload) {
+          throw createActionsError(
+            "payload_prepare_failed",
+            "Der Create-Payload für " + actionLabel(normalizedAction) + " konnte nicht vorbereitet werden.",
+            {
+              action: normalizedAction,
+              prepared: prepared
+            }
+          );
+        }
+
+        return prepared;
+      });
+    }
+
+    var payload = collectPayload(safeForm, {
+      source: config.source || "action:" + normalizedAction,
+      syncVariants: true,
+      syncUploads: true
+    });
+
+    if (!payload || typeof payload !== "object" || !Object.keys(payload).length) {
+      return Promise.reject(createActionsError(
+        "payload_empty",
+        "Der Create-Payload ist leer.",
+        { action: normalizedAction }
+      ));
+    }
+
+    return Promise.resolve({
+      ok: true,
+      ready: true,
+      status: "legacy_payload",
+      payload: payload,
+      summary: summarizePayload(payload)
+    });
+  }
+
+
+  function runAction(action, form, sourceButton) {
+    var normalizedAction = normalizeAction(action);
+    var safeForm = resolveForm(form);
+    var actionKey = normalizedAction + "::" + String(
+      safeForm && (safeForm.id || safeForm.name || "form") || "form"
+    );
 
     try {
       ensureCore();
 
       if (!normalizedAction) {
-        throw new Error("Unbekannte Aktion: " + action);
+        return Promise.resolve(handleRuntimeError(
+          String(action || "unknown"),
+          createActionsError("unknown_action", "Unbekannte Aktion: " + action)
+        ));
+      }
+
+      if (
+        localState.activeActionPromise &&
+        localState.activeActionKey === actionKey
+      ) {
+        localState.suppressedActionCount += 1;
+        return localState.activeActionPromise;
       }
 
       if (localState.pending || isCorePending()) {
-        return buildBlockedResult(normalizedAction, "action_pending", "Es läuft bereits eine Aktion.");
+        return Promise.resolve(buildBlockedResult(
+          normalizedAction,
+          "action_pending",
+          "Es läuft bereits eine Aktion."
+        ));
       }
-
-      lockAcquired = acquireActionLock(ACTION_LOCK, ACTION_LOCK_MS);
-
-      if (!lockAcquired) {
-        return buildBlockedResult(normalizedAction, "action_lock_active", "Aktion wurde blockiert, weil gerade eine andere Aktion verarbeitet wird.");
-      }
-
-      var safeForm = resolveForm(form);
 
       if (!safeForm) {
-        throw new Error("Create form not found.");
+        return Promise.resolve(handleRuntimeError(
+          normalizedAction,
+          createActionsError("create_form_not_found", "Create form not found.")
+        ));
       }
 
-      clearFieldIssues(safeForm);
+      localState.actionGeneration += 1;
+      var generation = localState.actionGeneration;
+      localState.activeActionKey = actionKey;
 
-      if (normalizedAction !== "download") {
-        printOutput({
+      var execute = async function () {
+        clearFieldIssues(safeForm);
+
+        if (normalizedAction !== "download") {
+          printOutput({
+            ok: true,
+            status: "pending",
+            action: normalizedAction,
+            message: "Anfrage läuft …"
+          }, {
+            reveal: false
+          });
+        }
+
+        localState.pending = true;
+        localState.currentAction = normalizedAction;
+        localState.actionCount += 1;
+        localState.lastRequestAt = timestamp();
+
+        dispatchActionEvent("vectoplan:create:action-start", normalizedAction, {
+          label: actionLabel(normalizedAction)
+        });
+
+        setBusy(safeForm, true, sourceButton);
+        setStatus(actionLabel(normalizedAction) + " wird vorbereitet …", "loading");
+
+        updateResultFromPayload(normalizedAction, {
           ok: true,
-          status: "pending",
-          action: normalizedAction,
-          message: "Anfrage läuft …"
-        }, {
-          reveal: false
+          status: "preparing",
+          _http_status: "—",
+          errors: [],
+          warnings: []
+        });
+
+        await ensureActionRuntimeReady(normalizedAction, {
+          source: "action:" + normalizedAction,
+          timeoutMs: normalizedAction === "download"
+            ? DEFAULT_DOWNLOAD_TIMEOUT_MS
+            : DEFAULT_REQUEST_TIMEOUT_MS
+        });
+
+        var prepared = await prepareActionPayload(safeForm, normalizedAction, {
+          source: "action:" + normalizedAction,
+          timeoutMs: normalizedAction === "download"
+            ? DEFAULT_DOWNLOAD_TIMEOUT_MS
+            : DEFAULT_REQUEST_TIMEOUT_MS
+        });
+        var payload = enrichPayloadForAction(prepared.payload, normalizedAction);
+
+        localState.lastPayloadSummary = prepared.summary || summarizePayload(payload);
+        updateUploadCountsFromSummary(localState.lastPayloadSummary);
+
+        setStatus(actionLabel(normalizedAction) + " läuft …", "loading");
+
+        var result;
+
+        if (normalizedAction === "draft") {
+          result = await postJson("draft", payload);
+        } else if (normalizedAction === "validate") {
+          result = await postJson("validate", payload);
+        } else if (normalizedAction === "package-plan") {
+          result = await postJson("package-plan", payload);
+        } else if (normalizedAction === "save") {
+          result = await confirmAndSave(payload);
+        } else if (normalizedAction === "download") {
+          result = await runDownloadWorkflow(payload);
+        } else if (normalizedAction === "persist-draft") {
+          result = await postJson("persist-draft", enrichPayloadForAction(payload, "persist-draft"));
+          localState.persistDraftCount += 1;
+        } else if (normalizedAction === "publish-prepare") {
+          result = await postJson("publish-prepare", enrichPayloadForAction(payload, "publish-prepare"));
+          localState.publishPrepareCount += 1;
+        } else {
+          throw createActionsError("unknown_action", "Unbekannte Aktion: " + normalizedAction);
+        }
+
+        localState.lastResponseAt = timestamp();
+
+        dispatchActionEvent("vectoplan:create:action-complete", normalizedAction, {
+          result: result,
+          summary: localState.lastPayloadSummary
+        });
+
+        return result;
+      };
+
+      var execution;
+
+      if (core && typeof core.withLock === "function") {
+        execution = core.withLock(ACTION_LOCK, execute, ACTION_LOCK_MS);
+
+        if (execution === undefined) {
+          return Promise.resolve(buildBlockedResult(
+            normalizedAction,
+            "action_lock_active",
+            "Aktion wurde blockiert, weil gerade eine andere Aktion verarbeitet wird."
+          ));
+        }
+      } else {
+        if (!acquireActionLock(ACTION_LOCK, ACTION_LOCK_MS)) {
+          return Promise.resolve(buildBlockedResult(
+            normalizedAction,
+            "action_lock_active",
+            "Aktion wurde blockiert, weil gerade eine andere Aktion verarbeitet wird."
+          ));
+        }
+
+        execution = Promise.resolve().then(execute).then(function (result) {
+          releaseActionLock(ACTION_LOCK);
+          return result;
+        }, function (error) {
+          releaseActionLock(ACTION_LOCK);
+          throw error;
         });
       }
 
-      localState.pending = true;
-      localState.currentAction = normalizedAction;
-      localState.actionCount += 1;
-      localState.lastRequestAt = timestamp();
+      localState.activeActionPromise = Promise.resolve(execution)
+        .catch(function (error) {
+          dispatchActionEvent("vectoplan:create:action-error", normalizedAction, {
+            error: normalizeError(error)
+          });
 
-      dispatchActionEvent("vectoplan:create:action-start", normalizedAction, {
-        label: actionLabel(normalizedAction)
-      });
+          return handleRuntimeError(normalizedAction, error);
+        })
+        .then(function (result) {
+          if (generation === localState.actionGeneration) {
+            localState.activeActionPromise = null;
+            localState.activeActionKey = "";
+          }
 
-      setBusy(safeForm, true, sourceButton);
-      setStatus(actionLabel(normalizedAction) + " läuft …", "loading");
+          return result;
+        }, function (error) {
+          if (generation === localState.actionGeneration) {
+            localState.activeActionPromise = null;
+            localState.activeActionKey = "";
+          }
 
-      updateResultFromPayload(normalizedAction, {
-        ok: true,
-        status: "pending",
-        _http_status: "—",
-        errors: [],
-        warnings: []
-      });
+          return handleRuntimeError(normalizedAction, error);
+        })
+        .finally(function () {
+          try {
+            setBusy(safeForm, false, sourceButton);
+          } catch (busyError) {
+            safeWarn("Busy reset failed.", busyError);
+          }
 
-      var payload = collectPayload(safeForm, {
-        source: "action:" + normalizedAction,
-        syncVariants: true,
-        syncUploads: true
-      });
+          localState.pending = false;
+          localState.currentAction = "";
+          setCorePending(false);
+        });
 
-      payload = enrichPayloadForAction(payload, normalizedAction);
-
-      localState.lastPayloadSummary = summarizePayload(payload);
-      updateUploadCountsFromSummary(localState.lastPayloadSummary);
-
-      var result;
-
-      if (normalizedAction === "draft") {
-        result = await postJson("draft", payload);
-      } else if (normalizedAction === "validate") {
-        result = await postJson("validate", payload);
-      } else if (normalizedAction === "package-plan") {
-        result = await postJson("package-plan", payload);
-      } else if (normalizedAction === "save") {
-        result = await confirmAndSave(payload);
-      } else if (normalizedAction === "download") {
-        result = await downloadVplib(payload);
-      } else if (normalizedAction === "persist-draft") {
-        result = await postJson("persist-draft", enrichPayloadForAction(payload, "persist-draft"));
-        localState.persistDraftCount += 1;
-      } else if (normalizedAction === "publish-prepare") {
-        result = await postJson("publish-prepare", enrichPayloadForAction(payload, "publish-prepare"));
-        localState.publishPrepareCount += 1;
-      } else {
-        throw new Error("Unbekannte Aktion: " + normalizedAction);
-      }
-
-      localState.lastResponseAt = timestamp();
-
-      dispatchActionEvent("vectoplan:create:action-complete", normalizedAction, {
-        result: result,
-        summary: localState.lastPayloadSummary
-      });
-
-      return result;
+      return localState.activeActionPromise;
     } catch (error) {
-      var failedAction = normalizedAction || normalizeAction(action) || String(action || "unknown");
-
-      dispatchActionEvent("vectoplan:create:action-error", failedAction, {
-        error: normalizeError(error)
-      });
-
-      return handleRuntimeError(failedAction, error);
-    } finally {
-      try {
-        setBusy(form || resolveForm(), false, sourceButton);
-      } catch (busyError) {
-        safeWarn("Busy reset failed.", busyError);
-      }
-
+      localState.activeActionPromise = null;
+      localState.activeActionKey = "";
       localState.pending = false;
       localState.currentAction = "";
       setCorePending(false);
-
-      if (lockAcquired) {
-        window.setTimeout(function () {
-          try {
-            releaseActionLock(ACTION_LOCK);
-          } catch (releaseError) {
-            safeWarn("Action lock release failed.", releaseError);
-          }
-        }, ACTION_LOCK_MS);
-      }
+      return Promise.resolve(handleRuntimeError(normalizedAction || action, error));
     }
   }
 
-  async function postJson(action, payload) {
-    try {
-      var normalizedAction = normalizeAction(action);
-      var response = await fetchJson(normalizedAction, enrichPayloadForAction(payload, normalizedAction));
+  async function runDownloadWorkflow(payload) {
+    var preflight = {
+      validate: null,
+      packagePlan: null,
+      startedAt: timestamp()
+    };
 
-      localState.lastResult = response;
-      localState.lastAction = normalizedAction;
-      localState.lastHttpStatus = response && typeof response._http_status !== "undefined" ? response._http_status : null;
+    setStatus("Download wird validiert …", "loading");
+    preflight.validate = await fetchJson("validate", enrichPayloadForAction(payload, "validate"), {
+      timeoutMs: DEFAULT_PREFLIGHT_TIMEOUT_MS,
+      purpose: "download_preflight_validate"
+    });
 
-      if (core && core.state) {
-        core.state.lastResult = response;
-        core.state.lastAction = normalizedAction;
-      }
-
-      printOutput(response, { reveal: true });
-      applyResultToUi(response);
-      updateResultFromPayload(normalizedAction, response);
-
-      if (response && response.ok) {
-        setStatus(actionLabel(normalizedAction) + " erfolgreich.", "ok");
-      } else {
-        setStatus(actionLabel(normalizedAction) + " fehlgeschlagen.", "error");
-      }
-
-      return response;
-    } catch (error) {
-      throw error;
+    if (!responseIndicatesSuccess(preflight.validate)) {
+      localState.lastPreflight = preflight;
+      renderFailedResponse("download", preflight.validate, "Validierung für Download fehlgeschlagen.");
+      return Object.assign({}, preflight.validate, {
+        route: "download",
+        status: preflight.validate.status || "download_validation_failed",
+        preflight: preflight
+      });
     }
+
+    setStatus("Package-Plan wird geprüft …", "loading");
+    preflight.packagePlan = await fetchJson("package-plan", enrichPayloadForAction(payload, "package-plan"), {
+      timeoutMs: DEFAULT_PREFLIGHT_TIMEOUT_MS,
+      purpose: "download_preflight_package_plan"
+    });
+
+    if (!responseIndicatesSuccess(preflight.packagePlan)) {
+      localState.lastPreflight = preflight;
+      renderFailedResponse("download", preflight.packagePlan, "Package-Plan für Download fehlgeschlagen.");
+      return Object.assign({}, preflight.packagePlan, {
+        route: "download",
+        status: preflight.packagePlan.status || "download_package_plan_failed",
+        preflight: preflight
+      });
+    }
+
+    preflight.completedAt = timestamp();
+    localState.lastPreflight = clone(preflight);
+
+    setStatus("VPLIB wird erzeugt und heruntergeladen …", "loading");
+    return downloadVplib(payload, {
+      preflight: preflight,
+      timeoutMs: DEFAULT_DOWNLOAD_TIMEOUT_MS
+    });
+  }
+
+  function responseIndicatesSuccess(response) {
+    try {
+      if (!response || typeof response !== "object") {
+        return false;
+      }
+
+      if (response.ok === true || response.valid === true || response.ready === true) {
+        return true;
+      }
+
+      var status = String(response.status || "").toLowerCase();
+      return ["ok", "valid", "ready", "success", "created", "planned"].indexOf(status) !== -1;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function renderFailedResponse(action, response, message) {
+    localState.lastResult = response;
+    localState.lastAction = action;
+    localState.lastHttpStatus = response && response._http_status !== undefined
+      ? response._http_status
+      : null;
+
+    if (core && core.state) {
+      core.state.lastResult = response;
+      core.state.lastAction = action;
+    }
+
+    printOutput(response, { reveal: true });
+    applyResultToUi(response);
+    updateResultFromPayload(action, response);
+    setStatus(message || actionLabel(action) + " fehlgeschlagen.", "error");
+  }
+
+  async function postJson(action, payload) {
+    var normalizedAction = normalizeAction(action);
+    var response = await fetchJson(
+      normalizedAction,
+      enrichPayloadForAction(payload, normalizedAction),
+      {
+        timeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
+        purpose: normalizedAction
+      }
+    );
+
+    localState.lastResult = response;
+    localState.lastAction = normalizedAction;
+    localState.lastHttpStatus = response && typeof response._http_status !== "undefined"
+      ? response._http_status
+      : null;
+
+    if (core && core.state) {
+      core.state.lastResult = response;
+      core.state.lastAction = normalizedAction;
+    }
+
+    printOutput(response, { reveal: true });
+    applyResultToUi(response);
+    updateResultFromPayload(normalizedAction, response);
+
+    if (responseIndicatesSuccess(response)) {
+      setStatus(actionLabel(normalizedAction) + " erfolgreich.", "ok");
+    } else {
+      setStatus(actionLabel(normalizedAction) + " fehlgeschlagen.", "error");
+    }
+
+    return response;
   }
 
   async function confirmAndSave(payload) {
@@ -597,139 +1875,317 @@
     }
   }
 
-  async function downloadVplib(payload) {
-    try {
-      var enrichedPayload = enrichPayloadForAction(payload, "download");
-      var url = resolveActionRouteUrl("download", "/download");
+  async function downloadVplib(payload, options) {
+    var config = options || {};
+    var enrichedPayload = enrichPayloadForAction(payload, "download");
+    var url = resolveActionRouteUrl("download", "/download");
+    var requestId = nextRequestId("download");
 
-      localState.lastRoute = url;
+    localState.lastRoute = url;
+    localState.lastRequestId = requestId;
 
-      var response = await fetch(url, {
-        method: "POST",
-        headers: buildJsonHeaders("application/octet-stream, application/json"),
-        body: JSON.stringify(enrichedPayload || {}),
-        credentials: "same-origin"
-      });
+    var response = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: buildJsonHeaders("application/vnd.vectoplan.vplib, application/zip, application/octet-stream, application/json", requestId),
+      body: JSON.stringify(enrichedPayload || {}),
+      credentials: "same-origin",
+      cache: "no-store"
+    }, config.timeoutMs || DEFAULT_DOWNLOAD_TIMEOUT_MS, {
+      action: "download",
+      requestId: requestId
+    });
 
-      var contentType = response.headers.get("content-type") || "";
+    var contentType = String(response.headers.get("content-type") || "").toLowerCase();
+    var disposition = response.headers.get("content-disposition") || "";
+    var appearsJson = contentType.indexOf("application/json") !== -1;
+    var appearsHtml = contentType.indexOf("text/html") !== -1;
+    var hasAttachmentHeader = /attachment/i.test(disposition);
 
-      if (!response.ok || contentType.indexOf("application/json") !== -1) {
-        var errorPayload = await readResponseAsJson(response);
+    if (!response.ok || appearsJson || appearsHtml) {
+      var errorPayload = await readResponseAsJson(response);
+      errorPayload.route = errorPayload.route || "download";
+      errorPayload._request_id = requestId;
+      renderFailedResponse("download", errorPayload, "Download fehlgeschlagen.");
+      return errorPayload;
+    }
 
-        localState.lastResult = errorPayload;
-        localState.lastAction = "download";
-        localState.lastHttpStatus = response.status;
+    var blob = await response.blob();
+    var archiveValidation = await validateVplibBlob(blob, {
+      contentType: contentType,
+      disposition: disposition,
+      hasAttachmentHeader: hasAttachmentHeader
+    });
 
-        if (core && core.state) {
-          core.state.lastResult = errorPayload;
-          core.state.lastAction = "download";
-        }
+    localState.lastDownloadValidation = clone(archiveValidation);
 
-        printOutput(errorPayload, { reveal: true });
-        applyResultToUi(errorPayload);
-        updateResultFromPayload("download", errorPayload);
-        setStatus("Download fehlgeschlagen.", "error");
-
-        return errorPayload;
-      }
-
-      var blob = await response.blob();
-      var filename = extractDownloadFilename(response) || inferDownloadFilename(enrichedPayload);
-
-      triggerBrowserDownload(blob, filename);
-
-      localState.downloadCount += 1;
-
-      var result = {
-        ok: true,
-        status: "download_started",
+    if (!archiveValidation.ok) {
+      var invalidArchive = {
+        ok: false,
+        status: "invalid_vplib_archive",
         route: "download",
-        filename: filename,
-        size_bytes: blob.size,
-        sizeBytes: blob.size,
         _http_status: response.status,
-        headers: {
-          create_status: response.headers.get("x-vectoplan-create-status") || "",
-          create_route: response.headers.get("x-vectoplan-create-route") || "",
-          create_version: response.headers.get("x-vectoplan-create-version") || "",
-          vplib_uid: response.headers.get("x-vectoplan-vplib-uid") || ""
-        },
+        _request_id: requestId,
+        errors: archiveValidation.errors,
+        archive_validation: archiveValidation,
+        archiveValidation: archiveValidation,
         _payload_summary: summarizePayload(enrichedPayload)
       };
 
-      localState.lastResult = result;
-      localState.lastAction = "download";
-      localState.lastHttpStatus = response.status;
-
-      if (core && core.state) {
-        core.state.lastResult = result;
-        core.state.lastAction = "download";
-      }
-
-      printOutput(result, { reveal: true });
-      updateResultFromPayload("download", result);
-      setStatus("Download gestartet.", "ok");
-
-      return result;
-    } catch (error) {
-      throw error;
+      renderFailedResponse("download", invalidArchive, "Download-Antwort ist kein gültiges VPLIB-Archiv.");
+      return invalidArchive;
     }
+
+    var filename = extractDownloadFilename(response) || inferDownloadFilename(enrichedPayload);
+    triggerBrowserDownload(blob, filename);
+
+    localState.downloadCount += 1;
+
+    var result = {
+      ok: true,
+      ready: true,
+      status: "download_started",
+      route: "download",
+      filename: filename,
+      size_bytes: blob.size,
+      sizeBytes: blob.size,
+      content_type: contentType,
+      contentType: contentType,
+      archive_validation: archiveValidation,
+      archiveValidation: archiveValidation,
+      preflight: config.preflight || null,
+      _http_status: response.status,
+      _request_id: requestId,
+      headers: {
+        create_status: response.headers.get("x-vectoplan-create-status") || "",
+        create_route: response.headers.get("x-vectoplan-create-route") || "",
+        create_version: response.headers.get("x-vectoplan-create-version") || "",
+        vplib_uid: response.headers.get("x-vectoplan-vplib-uid") || "",
+        content_disposition: disposition
+      },
+      _payload_summary: summarizePayload(enrichedPayload)
+    };
+
+    localState.lastResult = result;
+    localState.lastAction = "download";
+    localState.lastHttpStatus = response.status;
+
+    if (core && core.state) {
+      core.state.lastResult = result;
+      core.state.lastAction = "download";
+    }
+
+    printOutput(result, { reveal: true });
+    updateResultFromPayload("download", result);
+    setStatus("Download gestartet: " + filename, "ok");
+
+    return result;
   }
 
-  async function fetchJson(action, payload) {
-    try {
-      var normalizedAction = normalizeAction(action);
-      var fallbackPath = ACTION_PATHS[normalizedAction] || "/" + normalizedAction;
-      var url = resolveActionRouteUrl(normalizedAction, fallbackPath);
+  async function validateVplibBlob(blob, metadata) {
+    var errors = [];
+    var contentType = String(metadata && metadata.contentType || "").toLowerCase();
 
-      localState.lastRoute = url;
-
-      var response = await fetch(url, {
-        method: "POST",
-        headers: buildJsonHeaders("application/json"),
-        body: JSON.stringify(enrichPayloadForAction(payload || {}, normalizedAction)),
-        credentials: "same-origin"
+    if (!blob || typeof blob.size !== "number") {
+      errors.push({
+        severity: "error",
+        code: "download_blob_missing",
+        message: "Die Download-Antwort enthält keinen Blob."
       });
+    } else if (blob.size < DEFAULT_MIN_ARCHIVE_BYTES) {
+      errors.push({
+        severity: "error",
+        code: "download_blob_too_small",
+        message: "Das erzeugte VPLIB-Archiv ist ungewöhnlich klein.",
+        size_bytes: blob.size
+      });
+    }
 
-      var json = await readResponseAsJson(response);
+    if (
+      contentType &&
+      !VPLIB_ARCHIVE_MIME_TYPES[contentType] &&
+      contentType.indexOf("zip") === -1 &&
+      contentType.indexOf("octet-stream") === -1 &&
+      contentType.indexOf("vectoplan") === -1
+    ) {
+      errors.push({
+        severity: "error",
+        code: "download_content_type_invalid",
+        message: "Die Download-Antwort hat einen unerwarteten Content-Type: " + contentType
+      });
+    }
 
-      if (!json || typeof json !== "object") {
-        json = {
-          ok: false,
-          status: "invalid_json_response",
-          route: normalizedAction,
-          errors: [
-            {
-              severity: "error",
-              code: "invalid_json_response",
-              message: "Backend hat keine gültige JSON-Antwort geliefert."
-            }
-          ],
-          _http_status: response.status
-        };
+    var signature = "";
+
+    if (blob && blob.size >= 4 && typeof blob.slice === "function") {
+      try {
+        var headerBuffer = await blob.slice(0, 4).arrayBuffer();
+        var header = new Uint8Array(headerBuffer);
+        signature = Array.prototype.map.call(header, function (value) {
+          return value.toString(16).padStart(2, "0");
+        }).join("");
+
+        var zipSignature = header[0] === 0x50 && header[1] === 0x4b && (
+          (header[2] === 0x03 && header[3] === 0x04) ||
+          (header[2] === 0x05 && header[3] === 0x06) ||
+          (header[2] === 0x07 && header[3] === 0x08)
+        );
+
+        if (!zipSignature) {
+          errors.push({
+            severity: "error",
+            code: "download_archive_signature_invalid",
+            message: "Die Antwort besitzt keine gültige ZIP/VPLIB-Signatur.",
+            signature: signature
+          });
+        }
+      } catch (signatureError) {
+        errors.push({
+          severity: "error",
+          code: "download_archive_signature_unreadable",
+          message: String(signatureError && signatureError.message ? signatureError.message : signatureError)
+        });
       }
+    }
 
-      if (typeof json._http_status === "undefined") {
-        json._http_status = response.status;
-      }
+    return {
+      ok: errors.length === 0,
+      valid: errors.length === 0,
+      status: errors.length === 0 ? "valid" : "invalid",
+      size_bytes: blob && blob.size || 0,
+      sizeBytes: blob && blob.size || 0,
+      content_type: contentType,
+      contentType: contentType,
+      signature: signature,
+      attachment: !!(metadata && metadata.hasAttachmentHeader),
+      errors: errors
+    };
+  }
 
-      if (!json.route) {
-        json.route = normalizedAction;
-      }
+  async function fetchJson(action, payload, options) {
+    var config = options || {};
+    var normalizedAction = normalizeAction(action);
+    var fallbackPath = ACTION_PATHS[normalizedAction] || "/" + normalizedAction;
+    var url = resolveActionRouteUrl(normalizedAction, fallbackPath);
+    var requestId = nextRequestId(config.purpose || normalizedAction);
 
-      if (!json._payload_summary) {
-        json._payload_summary = summarizePayload(payload || {});
-      }
+    localState.lastRoute = url;
+    localState.lastRequestId = requestId;
 
-      return json;
+    var response = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: buildJsonHeaders("application/json", requestId),
+      body: JSON.stringify(enrichPayloadForAction(payload || {}, normalizedAction)),
+      credentials: "same-origin",
+      cache: "no-store"
+    }, config.timeoutMs || DEFAULT_REQUEST_TIMEOUT_MS, {
+      action: normalizedAction,
+      requestId: requestId
+    });
+
+    var json = await readResponseAsJson(response);
+
+    if (!json || typeof json !== "object") {
+      json = {
+        ok: false,
+        status: "invalid_json_response",
+        route: normalizedAction,
+        errors: [{
+          severity: "error",
+          code: "invalid_json_response",
+          message: "Backend hat keine gültige JSON-Antwort geliefert."
+        }],
+        _http_status: response.status
+      };
+    }
+
+    if (typeof json._http_status === "undefined") {
+      json._http_status = response.status;
+    }
+
+    json._request_id = json._request_id || requestId;
+    json.route = json.route || normalizedAction;
+    json._payload_summary = json._payload_summary || summarizePayload(payload || {});
+
+    if (!response.ok && json.ok !== false) {
+      json.ok = false;
+    }
+
+    return json;
+  }
+
+  async function fetchWithTimeout(url, fetchOptions, timeoutMs, metadata) {
+    var safeTimeout = parseInt(timeoutMs, 10);
+
+    if (!Number.isFinite(safeTimeout) || safeTimeout < 1000) {
+      safeTimeout = DEFAULT_REQUEST_TIMEOUT_MS;
+    }
+
+    var controller = typeof AbortController === "function"
+      ? new AbortController()
+      : null;
+    var timeoutId = null;
+    var requestMetadata = metadata || {};
+
+    if (controller) {
+      fetchOptions.signal = controller.signal;
+      localState.abortController = controller;
+      timeoutId = window.setTimeout(function () {
+        try {
+          controller.abort();
+        } catch (abortError) {
+          /* no-op */
+        }
+      }, safeTimeout);
+    }
+
+    try {
+      return await fetch(url, fetchOptions);
     } catch (error) {
-      throw error;
+      var aborted = error && (
+        error.name === "AbortError" ||
+        String(error.message || "").toLowerCase().indexOf("abort") !== -1
+      );
+
+      if (aborted) {
+        throw createActionsError(
+          "request_timeout",
+          actionLabel(requestMetadata.action) + " wurde nach " + String(safeTimeout) + " ms abgebrochen.",
+          {
+            action: requestMetadata.action,
+            url: url,
+            requestId: requestMetadata.requestId,
+            timeoutMs: safeTimeout
+          },
+          error
+        );
+      }
+
+      throw ensureActionsError(
+        error,
+        "network_request_failed",
+        actionLabel(requestMetadata.action) + " konnte das Backend nicht erreichen.",
+        {
+          action: requestMetadata.action,
+          url: url,
+          requestId: requestMetadata.requestId
+        }
+      );
+    } finally {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+
+      if (localState.abortController === controller) {
+        localState.abortController = null;
+      }
     }
   }
 
   async function readResponseAsJson(response) {
+    var text = "";
+
     try {
-      var text = await response.text();
+      text = await response.text();
 
       if (!text) {
         return {
@@ -750,16 +2206,25 @@
       return {
         ok: false,
         status: "response_parse_failed",
-        errors: [
-          {
-            severity: "error",
-            code: "response_parse_failed",
-            message: String(error && error.message ? error.message : error)
-          }
-        ],
+        errors: [{
+          severity: "error",
+          code: "response_parse_failed",
+          message: String(error && error.message ? error.message : error),
+          response_preview: String(text || "").slice(0, 500)
+        }],
         _http_status: response && response.status ? response.status : 0
       };
     }
+  }
+
+  function nextRequestId(purpose) {
+    localState.requestSequence += 1;
+    return [
+      "vp-create",
+      String(purpose || "request").replace(/[^a-z0-9_-]/gi, "-").toLowerCase(),
+      Date.now(),
+      localState.requestSequence
+    ].join("-");
   }
 
   function collectPayload(form, options) {
@@ -1163,27 +2628,29 @@
   function enforceStaticDisabledButtons(root) {
     try {
       var scope = root || document;
-      var saveButton = qs("[data-create-action='save']");
+      var ready = localState.operational === true;
 
-      if (saveButton && !isWriteEnabled()) {
-        saveButton.disabled = true;
-        saveButton.setAttribute("aria-disabled", "true");
-        saveButton.setAttribute("title", "Speichern ist deaktiviert. Backend-Schreibmodus erforderlich.");
-      } else if (saveButton && isWriteEnabled()) {
-        saveButton.removeAttribute("title");
-
-        if (saveButton.getAttribute("data-create-static-disabled") !== "true") {
-          saveButton.disabled = false;
-          saveButton.setAttribute("aria-disabled", "false");
-        }
-      }
-
-      var fixedButtons = qsa("button[data-create-static-disabled='true']", scope);
-
-      fixedButtons.forEach(function (button) {
+      qsa(selectorFor("actionButton"), scope).forEach(function (button) {
         try {
-          button.disabled = true;
-          button.setAttribute("aria-disabled", "true");
+          var action = normalizeAction(button.getAttribute("data-create-action") || "");
+          var staticallyDisabled = button.getAttribute("data-create-static-disabled") === "true";
+          var requiresReady = actionRequiresReadiness(action);
+          var disabledByReadiness = requiresReady && !ready;
+          var disabledByWriteMode = action === "save" && !isWriteEnabled();
+          var shouldDisable = staticallyDisabled || disabledByReadiness || disabledByWriteMode || localState.pending;
+
+          button.disabled = shouldDisable;
+          button.setAttribute("aria-disabled", shouldDisable ? "true" : "false");
+          button.setAttribute("data-vp-action-readiness-required", requiresReady ? "true" : "false");
+          button.setAttribute("data-vp-action-readiness-blocked", disabledByReadiness ? "true" : "false");
+
+          if (disabledByWriteMode) {
+            button.setAttribute("title", "Speichern ist deaktiviert. Backend-Schreibmodus erforderlich.");
+          } else if (disabledByReadiness) {
+            button.setAttribute("title", "Creator wird vorbereitet. Die Aktion wird freigegeben, sobald Profile und Payload bereit sind.");
+          } else if (!staticallyDisabled) {
+            button.removeAttribute("title");
+          }
         } catch (buttonError) {
           safeWarn("Static disabled button enforcement skipped.", buttonError);
         }
@@ -1682,26 +3149,81 @@
 
   function triggerBrowserDownload(blob, filename) {
     try {
-      var url = URL.createObjectURL(blob);
-      var anchor = document.createElement("a");
+      if (!blob || typeof blob.size !== "number") {
+        throw createActionsError(
+          "download_blob_missing",
+          "Der Browser-Download kann ohne Blob nicht gestartet werden."
+        );
+      }
 
-      anchor.href = url;
-      anchor.download = filename || "package.vplib";
+      var objectUrl = URL.createObjectURL(blob);
+      var anchor = document.createElement("a");
+      var safeFilename = sanitizeFilename(filename || "package.vplib");
+      var host = document.body || document.documentElement;
+
+      anchor.href = objectUrl;
+      anchor.download = safeFilename;
       anchor.rel = "noopener";
       anchor.style.display = "none";
+      anchor.setAttribute("data-vp-create-temporary-download", "true");
 
-      document.body.appendChild(anchor);
-      anchor.click();
+      if (!host || typeof host.appendChild !== "function") {
+        URL.revokeObjectURL(objectUrl);
+        throw createActionsError(
+          "download_dom_unavailable",
+          "Der temporäre Download-Link konnte nicht in das Dokument eingefügt werden."
+        );
+      }
+
+      host.appendChild(anchor);
+
+      if (typeof anchor.click === "function") {
+        anchor.click();
+      } else if (typeof MouseEvent === "function") {
+        anchor.dispatchEvent(new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          view: window
+        }));
+      } else {
+        throw createActionsError(
+          "download_click_unavailable",
+          "Der Browser unterstützt keinen programmatischen Download-Klick."
+        );
+      }
+
+      localState.downloadTriggerCount += 1;
+      localState.lastDownloadTrigger = {
+        ok: true,
+        filename: safeFilename,
+        sizeBytes: blob.size,
+        objectUrlCreated: true,
+        cleanupDelayMs: DOWNLOAD_URL_REVOKE_DELAY_MS,
+        timestamp: timestamp()
+      };
 
       window.setTimeout(function () {
         try {
-          URL.revokeObjectURL(url);
-          anchor.remove();
-        } catch (error) {
-          /* no-op */
+          URL.revokeObjectURL(objectUrl);
+          if (anchor && typeof anchor.remove === "function") {
+            anchor.remove();
+          } else if (anchor && anchor.parentNode) {
+            anchor.parentNode.removeChild(anchor);
+          }
+          localState.objectUrlCleanupCount += 1;
+        } catch (cleanupError) {
+          rememberBindingError("download_url_cleanup", cleanupError);
         }
-      }, 0);
+      }, DOWNLOAD_URL_REVOKE_DELAY_MS);
+
+      return clone(localState.lastDownloadTrigger);
     } catch (error) {
+      localState.lastDownloadTrigger = {
+        ok: false,
+        filename: sanitizeFilename(filename || "package.vplib"),
+        error: normalizeError(error),
+        timestamp: timestamp()
+      };
       safeError("Browser download trigger failed.", error);
       throw error;
     }
@@ -1929,6 +3451,36 @@
         lastResponseAt: localState.lastResponseAt,
         lastUploadFileCount: localState.lastUploadFileCount,
         lastUploadErrorCount: localState.lastUploadErrorCount,
+        operational: localState.operational,
+        ready: localState.operational,
+        status: localState.status,
+        readiness: clone(localState.readinessResult),
+        activeAction: localState.activeActionKey,
+        actionInFlight: !!localState.activeActionPromise,
+        suppressedActionCount: localState.suppressedActionCount,
+        lastRequestId: localState.lastRequestId,
+        lastPreflight: clone(localState.lastPreflight),
+        lastDownloadValidation: clone(localState.lastDownloadValidation),
+        binding: getBindingSnapshot(),
+        bindingAttempts: localState.bindingAttempts,
+        bindingSuccessCount: localState.bindingSuccessCount,
+        bindingRepairCount: localState.bindingRepairCount,
+        delegatedActionListenerBound: localState.delegatedActionListenerBound,
+        delegatedResultListenerBound: localState.delegatedResultListenerBound,
+        mutationObserverActive: localState.mutationObserverActive,
+        directButtonCount: localState.directButtonCount,
+        actionButtonCount: localState.actionButtonCount,
+        clickCount: localState.clickCount,
+        delegatedClickCount: localState.delegatedClickCount,
+        directClickCount: localState.directClickCount,
+        suppressedDuplicateClickCount: localState.suppressedDuplicateClickCount,
+        blockedClickCount: localState.blockedClickCount,
+        lastClick: clone(localState.lastClick),
+        lastBindingVerification: clone(localState.lastBindingVerification),
+        bindingErrors: clone(localState.bindingErrors),
+        downloadTriggerCount: localState.downloadTriggerCount,
+        lastDownloadTrigger: clone(localState.lastDownloadTrigger),
+        objectUrlCleanupCount: localState.objectUrlCleanupCount,
         routes: clone(getCreateContext().routes || {})
       };
     } catch (error) {
@@ -1942,13 +3494,28 @@
 
   function normalizeError(error) {
     try {
+      var normalized = ensureActionsError(
+        error,
+        "create_actions_error",
+        "Create action failed."
+      );
+
       return {
-        message: String(error && error.message ? error.message : error),
-        stack: error && error.stack ? String(error.stack) : "",
+        code: normalized.code || normalized.name || "create_actions_error",
+        message: String(normalized.message || "Create action failed."),
+        name: normalized.name || "Error",
+        status: normalized.status || null,
+        action: normalized.action || null,
+        url: normalized.url || null,
+        requestId: normalized.requestId || null,
+        payload: normalized.payload || null,
+        details: normalized.details || null,
+        stack: normalized.stack ? String(normalized.stack) : "",
         timestamp: timestamp()
       };
     } catch (normalizationError) {
       return {
+        code: "create_actions_error",
         message: "Unknown error",
         timestamp: timestamp()
       };
@@ -2148,11 +3715,15 @@
     }
   }
 
-  function buildJsonHeaders(accept) {
+  function buildJsonHeaders(accept, requestId) {
     try {
       var headers = {
         "Content-Type": "application/json",
-        "Accept": accept || "application/json"
+        "Accept": accept || "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-Vectoplan-Component": GLOBAL_NAME,
+        "X-Vectoplan-Component-Version": ACTIONS_VERSION,
+        "X-Vectoplan-Request-Id": requestId || nextRequestId("headers")
       };
 
       var csrf = getCsrfToken();
@@ -2498,24 +4069,32 @@
 
   function bindOnce(key, callback) {
     try {
+      if (typeof callback !== "function") {
+        return false;
+      }
+
       if (core && typeof core.bindOnce === "function") {
-        core.bindOnce(key, callback);
-        return;
+        return core.bindOnce(key, callback) === true;
       }
 
       var attr = "data-vp-" + String(key || "bind-once").replace(/[^a-z0-9_-]/gi, "-");
 
       if (document.documentElement.getAttribute(attr) === "true") {
-        return;
+        return false;
+      }
+
+      var result = callback();
+
+      if (result === false) {
+        return false;
       }
 
       document.documentElement.setAttribute(attr, "true");
-
-      if (typeof callback === "function") {
-        callback();
-      }
+      return true;
     } catch (error) {
+      rememberBindingError("bind_once:" + key, error);
       safeWarn("bindOnce failed: " + key, error);
+      return false;
     }
   }
 
@@ -2811,6 +4390,33 @@
         },
         acquireLock: acquireActionLock,
         releaseLock: releaseActionLock,
+        withLock: function (name, callback, ttl) {
+          if (!acquireActionLock(name, ttl)) {
+            return undefined;
+          }
+
+          var result;
+          try {
+            result = callback();
+          } catch (error) {
+            releaseActionLock(name);
+            throw error;
+          }
+
+          return Promise.resolve(result).then(function (value) {
+            releaseActionLock(name);
+            return value;
+          }, function (error) {
+            releaseActionLock(name);
+            throw error;
+          });
+        },
+        ensureReady: function () {
+          return Promise.resolve({ ok: true, ready: true });
+        },
+        ensureActionReady: function () {
+          return Promise.resolve({ ok: true, ready: true });
+        },
         warn: fallbackWarn,
         error: fallbackWarn
       };
@@ -2823,12 +4429,27 @@
     version: ACTIONS_VERSION,
 
     initialize: initialize,
+    bindControls: bindControls,
+    repairBindings: repairControlBindings,
+    verifyBindings: verifyControlBindings,
+    diagnoseBindings: getBindingSnapshot,
+    bindDirectActionButtons: bindDirectActionButtons,
+    ensureReady: ensureActionsReady,
+    whenReady: ensureActionsReady,
+    waitUntilReady: ensureActionsReady,
+    isOperational: isOperational,
 
     runAction: runAction,
+    runDownloadWorkflow: runDownloadWorkflow,
+    prepareActionPayload: prepareActionPayload,
+    ensureActionReady: ensureActionRuntimeReady,
     postJson: postJson,
     fetchJson: fetchJson,
     confirmAndSave: confirmAndSave,
     downloadVplib: downloadVplib,
+    triggerBrowserDownload: triggerBrowserDownload,
+    validateVplibBlob: validateVplibBlob,
+    responseIndicatesSuccess: responseIndicatesSuccess,
 
     printOutput: printOutput,
     clearResult: clearResult,
@@ -2847,6 +4468,10 @@
     getGeneratorContext: getGeneratorContext,
     getPayloadContract: getPayloadContract,
 
+    createError: createActionsError,
+    ensureError: ensureActionsError,
+    normalizeError: normalizeError,
+    setActionsStatus: setActionsStatus,
     getState: getState
   };
 

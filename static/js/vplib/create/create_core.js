@@ -3,22 +3,66 @@
   "use strict";
 
   var GLOBAL_NAME = "VectoplanCreateCore";
-  var CORE_VERSION = "0.7.0";
+  var CORE_VERSION = "0.8.0";
   var DEFAULT_API_PREFIX = "/api/v1/vplib/create";
   var DEFAULT_DEFINITIONS_API_PREFIX = "/api/v1/vplib/definitions";
   var DEFAULT_TAXONOMY_API_PREFIX = "/api/v1/vplib/taxonomy";
   var DEFAULT_FILES_API_PREFIX = "/api/v1/vplib/files";
   var DEFAULT_THEME_STORAGE_KEY = "vectoplan.create.theme";
-  var DEFAULT_LOCK_TIMEOUT_MS = 2500;
+  var DEFAULT_LOCK_TIMEOUT_MS = 60000;
+  var DEFAULT_ASYNC_LOCK_TIMEOUT_MS = 120000;
+  var DEFAULT_CORE_READINESS_TIMEOUT_MS = 20000;
+  var DEFAULT_CORE_READINESS_POLL_MS = 50;
+  var DEFAULT_STARTER_OBJECT_KIND = "cell_block";
+  var DEFAULT_STARTER_FAMILY_PROFILE_ID = "simple_cell_block";
+  var DEFAULT_STARTER_VARIANT_PROFILE_ID = "simple_cell_block.v1";
+
+  var CORE_STATUS_CREATED = "created";
+  var CORE_STATUS_INITIALIZED = "initialized";
+  var CORE_STATUS_LOADING = "loading";
+  var CORE_STATUS_READY = "ready";
+  var CORE_STATUS_BLOCKED = "blocked";
+  var CORE_STATUS_UNAVAILABLE = "unavailable";
+
+  var CRITICAL_ACTIONS = {
+    validate: true,
+    package_plan: true,
+    "package-plan": true,
+    download: true,
+    save: true,
+    publish_bundle: true,
+    publishBundle: true,
+    publish_prepare: true,
+    publishPrepare: true,
+    "publish-prepare": true
+  };
 
   var existingRuntime = window[GLOBAL_NAME] || null;
 
   if (existingRuntime && existingRuntime.version === CORE_VERSION && existingRuntime.state) {
     try {
       existingRuntime.refreshContext();
+
+      if (typeof existingRuntime.ensureReady === "function") {
+        Promise.resolve(existingRuntime.ensureReady({
+          source: "duplicate_script_load",
+          rejectOnError: false
+        })).catch(function (existingReadinessError) {
+          if (typeof existingRuntime.warn === "function") {
+            existingRuntime.warn(
+              "Existing Create Core readiness refresh failed.",
+              existingReadinessError
+            );
+          }
+        });
+      }
+
       existingRuntime.log("create_core.js already initialized; refreshed existing runtime.", {
         existingVersion: existingRuntime.version,
-        incomingVersion: CORE_VERSION
+        incomingVersion: CORE_VERSION,
+        ready: typeof existingRuntime.isOperational === "function"
+          ? existingRuntime.isOperational()
+          : !!existingRuntime.state.coreReady
       });
     } catch (existingError) {
       /* no-op */
@@ -275,7 +319,19 @@
   var state = {
     initialized: false,
     coreReady: false,
+    contextReady: false,
     domReady: false,
+    status: CORE_STATUS_CREATED,
+    operational: false,
+    variantProfilesReady: false,
+    readinessPromise: null,
+    readinessResult: null,
+    readinessGeneration: 0,
+    bootstrapPromise: null,
+    bootstrapGeneration: 0,
+    dependencyEventsBound: false,
+    lastReadySignature: "",
+    lockSequence: 0,
 
     version: CORE_VERSION,
     apiPrefix: DEFAULT_API_PREFIX,
@@ -306,6 +362,27 @@
     lastResult: null,
     lastAction: "",
     lastError: null,
+    lastFailure: null,
+    dependencies: previousState.dependencies && typeof previousState.dependencies === "object"
+      ? cloneObject(previousState.dependencies)
+      : {
+        context: {
+          ready: false,
+          status: CORE_STATUS_CREATED,
+          error: null
+        },
+        definitions: {
+          ready: false,
+          status: CORE_STATUS_CREATED,
+          error: null
+        },
+        variantProfiles: {
+          ready: false,
+          status: CORE_STATUS_CREATED,
+          error: null,
+          result: null
+        }
+      },
 
     variantIndex: 1,
     variableIndex: 1,
@@ -406,6 +483,1107 @@
     }
   }
 
+
+  function createCoreError(code, message, details, cause) {
+    var coreError;
+
+    try {
+      coreError = new Error(String(message || code || "Create Core error."));
+    } catch (constructionError) {
+      coreError = {
+        name: "Error",
+        message: String(message || code || "Create Core error.")
+      };
+    }
+
+    try {
+      coreError.name = "VectoplanCreateCoreError";
+      coreError.code = String(code || "create_core_error");
+      coreError.component = GLOBAL_NAME;
+      coreError.componentVersion = CORE_VERSION;
+      coreError.__vp_create_core_error = true;
+
+      if (details && typeof details === "object") {
+        coreError.details = cloneObject(details);
+
+        if (details.status !== undefined && details.status !== null) {
+          coreError.status = details.status;
+        }
+
+        if (details.action) {
+          coreError.action = String(details.action);
+        }
+
+        if (details.dependency) {
+          coreError.dependency = String(details.dependency);
+        }
+      }
+
+      if (cause !== undefined && cause !== null) {
+        try {
+          coreError.cause = cause;
+        } catch (causeError) {
+          /* no-op */
+        }
+      }
+    } catch (enrichmentError) {
+      /* Preserve the Error even if enrichment fails. */
+    }
+
+    return coreError;
+  }
+
+  function ensureCoreError(err, fallbackCode, fallbackMessage, details) {
+    try {
+      if (err && err.__vp_create_core_error === true && err.message) {
+        return err;
+      }
+
+      if (err instanceof Error) {
+        if (!err.code) {
+          err.code = fallbackCode || err.name || "create_core_error";
+        }
+
+        if (!err.component) {
+          err.component = GLOBAL_NAME;
+        }
+
+        err.__vp_create_core_error = true;
+
+        if (details && typeof details === "object" && !err.details) {
+          err.details = cloneObject(details);
+        }
+
+        return err;
+      }
+
+      var source = err && err.error && typeof err.error === "object"
+        ? err.error
+        : (err || {});
+
+      var code = source.code ||
+        source.error_code ||
+        source.status ||
+        source.name ||
+        fallbackCode ||
+        "create_core_error";
+
+      var message = source.message ||
+        source.detail ||
+        source.description ||
+        fallbackMessage ||
+        (typeof err === "string" ? err : "") ||
+        "Create Core error.";
+
+      return createCoreError(code, message, Object.assign({}, details || {}, {
+        status: source.status || null,
+        payload: source.payload || source.raw || source.response || null
+      }), err);
+    } catch (normalizationError) {
+      return createCoreError(
+        fallbackCode || "create_core_error",
+        fallbackMessage || "Create Core error could not be normalized.",
+        details || {},
+        err
+      );
+    }
+  }
+
+  function normalizeCoreError(err) {
+    try {
+      var normalized = ensureCoreError(
+        err,
+        "create_core_error",
+        "Create Core error."
+      );
+
+      return {
+        code: normalized.code || normalized.name || "create_core_error",
+        message: normalized.message || "Create Core error.",
+        name: normalized.name || "Error",
+        status: normalized.status || null,
+        action: normalized.action || null,
+        dependency: normalized.dependency || null,
+        details: normalized.details || null,
+        component: normalized.component || GLOBAL_NAME
+      };
+    } catch (normalizationError) {
+      return {
+        code: "create_core_error",
+        message: "Create Core error could not be normalized.",
+        name: "Error",
+        status: null,
+        action: null,
+        dependency: null,
+        details: null,
+        component: GLOBAL_NAME
+      };
+    }
+  }
+
+  function buildCoreFailure(kind, err, extra) {
+    try {
+      var normalizedError = normalizeCoreError(err);
+      var code = String(normalizedError.code || "").toLowerCase();
+      var status = CORE_STATUS_BLOCKED;
+
+      if (
+        code.indexOf("unavailable") !== -1 ||
+        code.indexOf("timeout") !== -1 ||
+        code.indexOf("missing_api") !== -1
+      ) {
+        status = CORE_STATUS_UNAVAILABLE;
+      }
+
+      var payload = Object.assign({
+        ok: false,
+        ready: false,
+        healthy: false,
+        operational: false,
+        status: status,
+        kind: kind || "core",
+        component: GLOBAL_NAME,
+        version: CORE_VERSION,
+        error: normalizedError
+      }, extra || {});
+
+      payload.ok = false;
+      payload.ready = false;
+      payload.operational = false;
+      payload.error = normalizedError;
+      payload.status = payload.status || status;
+
+      return payload;
+    } catch (buildError) {
+      return {
+        ok: false,
+        ready: false,
+        healthy: false,
+        operational: false,
+        status: CORE_STATUS_UNAVAILABLE,
+        kind: kind || "core",
+        component: GLOBAL_NAME,
+        version: CORE_VERSION,
+        error: {
+          code: "core_failure_result_error",
+          message: "Create Core failure result could not be created."
+        }
+      };
+    }
+  }
+
+  function shouldReject(options) {
+    try {
+      return !!(options && options.rejectOnError === true);
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function setCoreStatus(status, err, details) {
+    try {
+      var nextStatus = String(status || CORE_STATUS_CREATED).trim().toLowerCase() || CORE_STATUS_CREATED;
+      var normalizedError = err ? normalizeCoreError(err) : null;
+
+      state.status = nextStatus;
+      state.coreReady = nextStatus === CORE_STATUS_READY;
+      state.operational = state.coreReady;
+      state.lastError = err || null;
+      state.lastFailure = normalizedError;
+
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-core-initialized",
+        state.initialized ? "true" : "false"
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-core-context-ready",
+        state.contextReady ? "true" : "false"
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-core-ready",
+        state.coreReady ? "true" : "false"
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-core-operational",
+        state.operational ? "true" : "false"
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-core-status",
+        nextStatus
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-core-version",
+        CORE_VERSION
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-variant-profiles-ready",
+        state.variantProfilesReady ? "true" : "false"
+      );
+
+      dispatch("vectoplan:create:core-status-changed", {
+        component: GLOBAL_NAME,
+        version: CORE_VERSION,
+        initialized: state.initialized,
+        contextReady: state.contextReady,
+        ready: state.coreReady,
+        operational: state.operational,
+        status: nextStatus,
+        error: normalizedError,
+        details: details || null,
+        dependencies: cloneObject(state.dependencies)
+      });
+
+      return nextStatus;
+    } catch (statusError) {
+      state.status = String(status || CORE_STATUS_CREATED);
+      state.coreReady = state.status === CORE_STATUS_READY;
+      state.operational = state.coreReady;
+      state.lastError = err || null;
+      return state.status;
+    }
+  }
+
+  function getVariantProfilesApi() {
+    try {
+      var api = window.VectoplanCreateVariantProfiles;
+
+      if (!api || typeof api !== "object") {
+        return null;
+      }
+
+      return api;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function getVariantProfilesReadiness() {
+    try {
+      var profileApi = getVariantProfilesApi();
+
+      if (!profileApi) {
+        return {
+          ok: false,
+          ready: false,
+          operational: false,
+          status: CORE_STATUS_UNAVAILABLE,
+          error: {
+            code: "variant_profiles_api_missing",
+            message: "VectoplanCreateVariantProfiles is not available."
+          }
+        };
+      }
+
+      if (typeof profileApi.getReadiness === "function") {
+        var readiness = profileApi.getReadiness();
+
+        if (readiness && typeof readiness === "object") {
+          return readiness;
+        }
+      }
+
+      if (typeof profileApi.getState === "function") {
+        var profileState = profileApi.getState();
+
+        if (profileState && typeof profileState === "object") {
+          return {
+            ok: profileState.ready === true || profileState.operational === true,
+            ready: profileState.ready === true || profileState.operational === true,
+            operational: profileState.ready === true || profileState.operational === true,
+            status: profileState.status || (
+              profileState.ready === true || profileState.operational === true
+                ? CORE_STATUS_READY
+                : CORE_STATUS_INITIALIZED
+            ),
+            state: profileState
+          };
+        }
+      }
+
+      var operational = typeof profileApi.isOperational === "function"
+        ? profileApi.isOperational() === true
+        : false;
+
+      return {
+        ok: operational,
+        ready: operational,
+        operational: operational,
+        status: operational ? CORE_STATUS_READY : CORE_STATUS_INITIALIZED
+      };
+    } catch (err) {
+      return buildCoreFailure("variant_profiles_readiness", err, {
+        dependency: "variant_profiles"
+      });
+    }
+  }
+
+  function waitForVariantProfilesApi(options) {
+    var config = options || {};
+    var timeoutMs = parseInt(
+      config.timeoutMs !== undefined
+        ? config.timeoutMs
+        : DEFAULT_CORE_READINESS_TIMEOUT_MS,
+      10
+    );
+    var pollMs = parseInt(
+      config.pollMs !== undefined
+        ? config.pollMs
+        : DEFAULT_CORE_READINESS_POLL_MS,
+      10
+    );
+
+    if (!Number.isFinite(timeoutMs) || timeoutMs < 100) {
+      timeoutMs = DEFAULT_CORE_READINESS_TIMEOUT_MS;
+    }
+
+    if (!Number.isFinite(pollMs) || pollMs < 10) {
+      pollMs = DEFAULT_CORE_READINESS_POLL_MS;
+    }
+
+    return new Promise(function (resolve, reject) {
+      var startedAt = Date.now();
+      var settled = false;
+      var timer = null;
+
+      function cleanup() {
+        try {
+          if (timer !== null) {
+            window.clearTimeout(timer);
+            timer = null;
+          }
+
+          document.removeEventListener(
+            "vectoplan:create:variant-profiles-initialized",
+            handleCandidateEvent
+          );
+          document.removeEventListener(
+            "vectoplan:create:variant-profiles-ready",
+            handleCandidateEvent
+          );
+        } catch (cleanupError) {
+          /* no-op */
+        }
+      }
+
+      function finishResolve(api) {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        cleanup();
+        resolve(api);
+      }
+
+      function finishReject(err) {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        cleanup();
+        reject(err);
+      }
+
+      function check() {
+        var api = getVariantProfilesApi();
+
+        if (api) {
+          finishResolve(api);
+          return;
+        }
+
+        if (Date.now() - startedAt >= timeoutMs) {
+          finishReject(createCoreError(
+            "variant_profiles_api_timeout",
+            "VectoplanCreateVariantProfiles was not available within " + String(timeoutMs) + " ms.",
+            {
+              dependency: "variant_profiles",
+              timeoutMs: timeoutMs
+            }
+          ));
+          return;
+        }
+
+        timer = window.setTimeout(check, pollMs);
+      }
+
+      function handleCandidateEvent() {
+        check();
+      }
+
+      try {
+        document.addEventListener(
+          "vectoplan:create:variant-profiles-initialized",
+          handleCandidateEvent
+        );
+        document.addEventListener(
+          "vectoplan:create:variant-profiles-ready",
+          handleCandidateEvent
+        );
+      } catch (eventError) {
+        /* Polling remains available. */
+      }
+
+      check();
+    });
+  }
+
+  function validateVariantProfilesReadiness(result, profileApi) {
+    try {
+      var readiness = result && typeof result === "object"
+        ? result
+        : getVariantProfilesReadiness();
+      var apiOperational = profileApi && typeof profileApi.isOperational === "function"
+        ? profileApi.isOperational() === true
+        : false;
+      var ready = readiness.ready === true ||
+        readiness.operational === true ||
+        (
+          readiness.ok === true &&
+          (
+            apiOperational ||
+            String(readiness.status || "").toLowerCase() === CORE_STATUS_READY
+          )
+        );
+
+      if (!ready) {
+        return buildCoreFailure(
+          "variant_profiles_readiness",
+          createCoreError(
+            "variant_profiles_not_ready",
+            "Variant Profiles are initialized but not operational.",
+            {
+              dependency: "variant_profiles",
+              readiness: readiness
+            }
+          ),
+          {
+            dependency: "variant_profiles",
+            result: readiness
+          }
+        );
+      }
+
+      var variantProfileId = String(
+        readiness.variant_profile_id ||
+        readiness.variantProfileId ||
+        getNested(readiness, ["bundle", "variant_profile_id"], "") ||
+        getNested(readiness, ["bundle", "variantProfileId"], "") ||
+        ""
+      ).trim();
+
+      return {
+        ok: true,
+        ready: true,
+        healthy: true,
+        operational: true,
+        status: CORE_STATUS_READY,
+        dependency: "variant_profiles",
+        variant_profile_id: variantProfileId,
+        family_profile_id: String(
+          readiness.family_profile_id ||
+          readiness.familyProfileId ||
+          getNested(readiness, ["bundle", "family_profile_id"], "") ||
+          getNested(readiness, ["bundle", "familyProfileId"], "") ||
+          ""
+        ).trim(),
+        object_kind: String(
+          readiness.object_kind ||
+          readiness.objectKind ||
+          getNested(readiness, ["bundle", "context", "object_kind"], "") ||
+          DEFAULT_STARTER_OBJECT_KIND
+        ).trim(),
+        result: readiness
+      };
+    } catch (err) {
+      return buildCoreFailure("variant_profiles_readiness", err, {
+        dependency: "variant_profiles",
+        result: result || null
+      });
+    }
+  }
+
+  function evaluateCriticalDependencies() {
+    try {
+      var contextReady = state.contextReady === true;
+      var definitionsAreReady = definitionsReady();
+      var variantReadiness = getVariantProfilesReadiness();
+      var variantProfilesAreReady = variantReadiness.ready === true ||
+        variantReadiness.operational === true;
+      var errors = [];
+
+      if (!contextReady) {
+        errors.push({
+          code: "core_context_not_ready",
+          message: "Create Core context is not ready."
+        });
+      }
+
+      if (!variantProfilesAreReady) {
+        errors.push({
+          code: "variant_profiles_not_ready",
+          message: "Variant Profiles are not ready.",
+          readiness: variantReadiness
+        });
+      }
+
+      return {
+        ok: errors.length === 0,
+        ready: errors.length === 0,
+        operational: errors.length === 0,
+        status: errors.length === 0 ? CORE_STATUS_READY : CORE_STATUS_BLOCKED,
+        contextReady: contextReady,
+        definitionsReady: definitionsAreReady,
+        variantProfilesReady: variantProfilesAreReady,
+        variantProfiles: variantReadiness,
+        errors: errors
+      };
+    } catch (err) {
+      return buildCoreFailure("critical_dependencies", err);
+    }
+  }
+
+  function ensureCoreReady(options) {
+    var config = options || {};
+
+    try {
+      if (
+        state.coreReady === true &&
+        state.readinessResult &&
+        config.force !== true &&
+        config.forceReload !== true
+      ) {
+        return Promise.resolve(state.readinessResult);
+      }
+
+      if (
+        state.readinessPromise &&
+        config.force !== true &&
+        config.forceReload !== true
+      ) {
+        return state.readinessPromise;
+      }
+
+      state.readinessGeneration += 1;
+      var generation = state.readinessGeneration;
+
+      if (config.refreshContext !== false) {
+        refreshContext();
+      }
+
+      setCoreStatus(CORE_STATUS_LOADING, null, {
+        source: config.source || "ensure_core_ready"
+      });
+
+      var readinessPromise = waitForVariantProfilesApi(config)
+        .then(function (profileApi) {
+          var readinessMethod = null;
+
+          if (typeof profileApi.whenReady === "function") {
+            readinessMethod = profileApi.whenReady;
+          } else if (typeof profileApi.waitUntilReady === "function") {
+            readinessMethod = profileApi.waitUntilReady;
+          } else if (typeof profileApi.runReadinessCheck === "function") {
+            readinessMethod = profileApi.runReadinessCheck;
+          }
+
+          if (!readinessMethod) {
+            var immediateReadiness = getVariantProfilesReadiness();
+
+            if (
+              immediateReadiness.ready === true ||
+              immediateReadiness.operational === true
+            ) {
+              return {
+                profileApi: profileApi,
+                readiness: immediateReadiness
+              };
+            }
+
+            throw createCoreError(
+              "variant_profiles_readiness_api_missing",
+              "Variant Profiles API does not expose whenReady(), waitUntilReady() or runReadinessCheck().",
+              {
+                dependency: "variant_profiles"
+              }
+            );
+          }
+
+          return Promise.resolve(readinessMethod.call(profileApi, {
+            source: config.source || "create_core",
+            force: config.force === true || config.forceReload === true,
+            rejectOnError: false,
+            context: config.context || null
+          })).then(function (readiness) {
+            return {
+              profileApi: profileApi,
+              readiness: readiness
+            };
+          });
+        })
+        .then(function (resolved) {
+          var validated = validateVariantProfilesReadiness(
+            resolved.readiness,
+            resolved.profileApi
+          );
+
+          if (!validated.ok || !validated.ready) {
+            throw createCoreError(
+              "variant_profiles_not_ready",
+              getNested(
+                validated,
+                ["error", "message"],
+                "Variant Profiles are not ready."
+              ),
+              {
+                dependency: "variant_profiles",
+                readiness: validated
+              }
+            );
+          }
+
+          var dependencySummary = evaluateCriticalDependencies();
+
+          if (!dependencySummary.ok && dependencySummary.contextReady !== true) {
+            throw createCoreError(
+              "core_context_not_ready",
+              "Create Core context is not ready.",
+              {
+                dependency: "context",
+                dependencies: dependencySummary
+              }
+            );
+          }
+
+          var result = {
+            ok: true,
+            ready: true,
+            healthy: true,
+            operational: true,
+            status: CORE_STATUS_READY,
+            component: GLOBAL_NAME,
+            version: CORE_VERSION,
+            source: config.source || "ensure_core_ready",
+            contextReady: state.contextReady,
+            definitionsReady: definitionsReady(),
+            variantProfilesReady: true,
+            variantProfiles: validated,
+            dependencies: dependencySummary,
+            starter: {
+              object_kind: validated.object_kind || DEFAULT_STARTER_OBJECT_KIND,
+              family_profile_id: validated.family_profile_id || DEFAULT_STARTER_FAMILY_PROFILE_ID,
+              variant_profile_id: validated.variant_profile_id || DEFAULT_STARTER_VARIANT_PROFILE_ID
+            }
+          };
+
+          if (generation === state.readinessGeneration) {
+            state.variantProfilesReady = true;
+            state.dependencies.context = {
+              ready: state.contextReady,
+              status: state.contextReady ? CORE_STATUS_READY : CORE_STATUS_BLOCKED,
+              error: null
+            };
+            state.dependencies.definitions = {
+              ready: definitionsReady(),
+              status: definitionsReady() ? CORE_STATUS_READY : CORE_STATUS_INITIALIZED,
+              error: null
+            };
+            state.dependencies.variantProfiles = {
+              ready: true,
+              status: CORE_STATUS_READY,
+              error: null,
+              result: clone(validated)
+            };
+            state.readinessResult = result;
+            state.lastError = null;
+            state.lastFailure = null;
+
+            setCoreStatus(CORE_STATUS_READY, null, result);
+
+            var readySignature = safeJsonStringify({
+              version: CORE_VERSION,
+              variant_profile_id: result.starter.variant_profile_id,
+              family_profile_id: result.starter.family_profile_id,
+              object_kind: result.starter.object_kind
+            }, "");
+
+            if (readySignature !== state.lastReadySignature) {
+              state.lastReadySignature = readySignature;
+
+              info("Create Core operational.", {
+                version: CORE_VERSION,
+                variant_profile_id: result.starter.variant_profile_id,
+                family_profile_id: result.starter.family_profile_id,
+                object_kind: result.starter.object_kind
+              });
+
+              dispatch("vectoplan:create:core-ready", snapshot());
+              dispatch("vectoplan:create:core-operational", result);
+            }
+          }
+
+          return result;
+        })
+        .catch(function (err) {
+          var normalized = ensureCoreError(
+            err,
+            "core_readiness_failed",
+            "Create Core could not become operational."
+          );
+          var failed = buildCoreFailure("core_readiness", normalized, {
+            source: config.source || "ensure_core_ready",
+            dependencies: evaluateCriticalDependencies()
+          });
+
+          if (generation === state.readinessGeneration) {
+            state.variantProfilesReady = false;
+            state.dependencies.variantProfiles = {
+              ready: false,
+              status: failed.status,
+              error: failed.error,
+              result: failed
+            };
+            state.readinessResult = failed;
+            state.lastError = normalized;
+            state.lastFailure = failed;
+
+            setCoreStatus(
+              failed.status === CORE_STATUS_UNAVAILABLE
+                ? CORE_STATUS_UNAVAILABLE
+                : CORE_STATUS_BLOCKED,
+              normalized,
+              failed
+            );
+
+            dispatch("vectoplan:create:core-blocked", failed);
+          }
+
+          if (shouldReject(config)) {
+            throw normalized;
+          }
+
+          return failed;
+        });
+
+      state.readinessPromise = readinessPromise.then(function (result) {
+        if (generation === state.readinessGeneration) {
+          state.readinessPromise = null;
+        }
+
+        return result;
+      }, function (err) {
+        if (generation === state.readinessGeneration) {
+          state.readinessPromise = null;
+        }
+
+        throw ensureCoreError(
+          err,
+          "core_readiness_failed",
+          "Create Core could not become operational."
+        );
+      });
+
+      return state.readinessPromise;
+    } catch (err) {
+      var setupError = ensureCoreError(
+        err,
+        "core_readiness_setup_failed",
+        "Create Core readiness could not be prepared."
+      );
+      var setupFailure = buildCoreFailure("core_readiness", setupError, {
+        source: config.source || "ensure_core_ready"
+      });
+
+      state.readinessResult = setupFailure;
+      state.lastError = setupError;
+      state.lastFailure = setupFailure;
+      setCoreStatus(CORE_STATUS_UNAVAILABLE, setupError, setupFailure);
+
+      if (shouldReject(config)) {
+        return Promise.reject(setupError);
+      }
+
+      return Promise.resolve(setupFailure);
+    }
+  }
+
+  function whenReady(options) {
+    return ensureCoreReady(options || {});
+  }
+
+  function isOperational() {
+    return state.coreReady === true && state.operational === true;
+  }
+
+  function actionRequiresCoreReady(action) {
+    try {
+      var normalized = normalizeRouteAction(action);
+      var dashed = dashRouteAction(normalized);
+      var camel = camelRouteAction(normalized);
+
+      return CRITICAL_ACTIONS[normalized] === true ||
+        CRITICAL_ACTIONS[dashed] === true ||
+        CRITICAL_ACTIONS[camel] === true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function ensureActionReady(action, options) {
+    var config = options || {};
+    var normalizedAction = normalizeRouteAction(action);
+
+    try {
+      if (!actionRequiresCoreReady(normalizedAction)) {
+        return Promise.resolve({
+          ok: true,
+          ready: true,
+          operational: state.operational,
+          status: state.status,
+          action: normalizedAction,
+          bypassed: true,
+          reason: "action_does_not_require_core_readiness"
+        });
+      }
+
+      return ensureCoreReady({
+        source: config.source || "action:" + normalizedAction,
+        force: config.force === true,
+        forceReload: config.forceReload === true,
+        rejectOnError: false,
+        timeoutMs: config.timeoutMs,
+        context: config.context || null
+      }).then(function (readiness) {
+        if (readiness && readiness.ready === true && readiness.ok === true) {
+          return Object.assign({}, readiness, {
+            action: normalizedAction,
+            actionReady: true
+          });
+        }
+
+        var blockedError = createCoreError(
+          "action_blocked_core_not_ready",
+          actionLabel(normalizedAction) + " cannot start because Create Core is not ready.",
+          {
+            action: normalizedAction,
+            readiness: readiness
+          }
+        );
+        var blocked = buildCoreFailure("action_readiness", blockedError, {
+          action: normalizedAction,
+          actionReady: false,
+          readiness: readiness
+        });
+
+        dispatch("vectoplan:create:action-blocked", blocked);
+
+        if (shouldReject(config)) {
+          throw blockedError;
+        }
+
+        return blocked;
+      });
+    } catch (err) {
+      var failed = buildCoreFailure("action_readiness", err, {
+        action: normalizedAction,
+        actionReady: false
+      });
+
+      dispatch("vectoplan:create:action-blocked", failed);
+
+      if (shouldReject(config)) {
+        return Promise.reject(ensureCoreError(
+          err,
+          "action_readiness_failed",
+          actionLabel(normalizedAction) + " readiness failed.",
+          {
+            action: normalizedAction
+          }
+        ));
+      }
+
+      return Promise.resolve(failed);
+    }
+  }
+
+  function runWhenReady(action, callback, options) {
+    var config = options || {};
+    var normalizedAction = normalizeRouteAction(action);
+
+    if (typeof callback !== "function") {
+      return Promise.resolve(buildCoreFailure(
+        "action_callback",
+        createCoreError(
+          "action_callback_missing",
+          "No callback was supplied for " + actionLabel(normalizedAction) + ".",
+          {
+            action: normalizedAction
+          }
+        ),
+        {
+          action: normalizedAction
+        }
+      ));
+    }
+
+    return ensureActionReady(normalizedAction, config)
+      .then(function (readiness) {
+        if (!readiness || readiness.ok !== true || readiness.ready !== true) {
+          return readiness;
+        }
+
+        try {
+          return Promise.resolve(callback(readiness));
+        } catch (callbackError) {
+          throw ensureCoreError(
+            callbackError,
+            "action_callback_failed",
+            actionLabel(normalizedAction) + " failed.",
+            {
+              action: normalizedAction
+            }
+          );
+        }
+      })
+      .catch(function (err) {
+        var failed = buildCoreFailure("action", err, {
+          action: normalizedAction
+        });
+
+        if (shouldReject(config)) {
+          throw ensureCoreError(
+            err,
+            "action_failed",
+            actionLabel(normalizedAction) + " failed.",
+            {
+              action: normalizedAction
+            }
+          );
+        }
+
+        return failed;
+      });
+  }
+
+  function bindDependencyEvents() {
+    try {
+      if (state.dependencyEventsBound) {
+        return false;
+      }
+
+      document.addEventListener(
+        "vectoplan:create:variant-profiles-status-changed",
+        function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+            var ready = detail.ready === true || detail.operational === true;
+
+            state.variantProfilesReady = ready;
+            state.dependencies.variantProfiles = {
+              ready: ready,
+              status: detail.status || (
+                ready ? CORE_STATUS_READY : CORE_STATUS_INITIALIZED
+              ),
+              error: detail.error || null,
+              result: clone(detail)
+            };
+
+            safeSetAttribute(
+              document.documentElement,
+              "data-vp-create-variant-profiles-ready",
+              ready ? "true" : "false"
+            );
+
+            if (ready) {
+              ensureCoreReady({
+                source: "variant_profiles_status_changed",
+                rejectOnError: false
+              }).catch(function (readinessError) {
+                warn(
+                  "Create Core readiness after Variant Profiles status change failed.",
+                  readinessError
+                );
+              });
+            } else if (state.coreReady) {
+              setCoreStatus(
+                CORE_STATUS_BLOCKED,
+                createCoreError(
+                  "variant_profiles_lost_readiness",
+                  "Variant Profiles are no longer operational.",
+                  {
+                    dependency: "variant_profiles",
+                    detail: detail
+                  }
+                ),
+                detail
+              );
+            }
+          } catch (eventError) {
+            warn("Variant Profiles status event handling failed.", eventError);
+          }
+        }
+      );
+
+      document.addEventListener(
+        "vectoplan:create:variant-profiles-ready",
+        function () {
+          ensureCoreReady({
+            source: "variant_profiles_ready_event",
+            rejectOnError: false
+          }).catch(function (readinessError) {
+            warn(
+              "Create Core readiness after Variant Profiles ready event failed.",
+              readinessError
+            );
+          });
+        }
+      );
+
+      document.addEventListener(
+        "vectoplan:create:definitions-ready",
+        function (event) {
+          try {
+            var detail = event && event.detail ? event.detail : {};
+
+            if (detail.definitions && typeof detail.definitions === "object") {
+              state.definitions = cloneObject(detail.definitions);
+            }
+
+            state.dependencies.definitions = {
+              ready: definitionsReady(),
+              status: definitionsReady()
+                ? CORE_STATUS_READY
+                : CORE_STATUS_INITIALIZED,
+              error: null
+            };
+
+            safeSetAttribute(
+              document.documentElement,
+              "data-vp-create-definitions-ready",
+              definitionsReady() ? "true" : "false"
+            );
+          } catch (definitionsEventError) {
+            warn("Definitions-ready event handling failed.", definitionsEventError);
+          }
+        }
+      );
+
+      state.dependencyEventsBound = true;
+      return true;
+    } catch (err) {
+      warn("Create Core dependency event binding failed.", err);
+      return false;
+    }
+  }
+
   function onReady(callback) {
     try {
       if (typeof callback !== "function") {
@@ -490,9 +1668,35 @@
 
       refreshWizardConfig(app, form);
 
-      state.coreReady = true;
+      state.contextReady = true;
+      state.dependencies.context = {
+        ready: true,
+        status: CORE_STATUS_READY,
+        error: null
+      };
+      state.dependencies.definitions = {
+        ready: definitionsReady(),
+        status: definitionsReady()
+          ? CORE_STATUS_READY
+          : CORE_STATUS_INITIALIZED,
+        error: null
+      };
 
-      safeSetAttribute(document.documentElement, "data-vp-create-core-ready", "true");
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-core-context-ready",
+        "true"
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-core-ready",
+        state.coreReady ? "true" : "false"
+      );
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-core-operational",
+        state.operational ? "true" : "false"
+      );
       safeSetAttribute(document.documentElement, "data-vp-create-core-version", CORE_VERSION);
       safeSetAttribute(document.documentElement, "data-vp-create-theme", state.theme);
       safeSetAttribute(document.documentElement, "data-vp-create-generator-context-ready", hasGeneratorContext() ? "true" : "false");
@@ -508,14 +1712,30 @@
         currentStep: state.currentStep,
         theme: state.theme,
         writeEnabled: isWriteEnabled(),
+        initialized: state.initialized,
+        contextReady: state.contextReady,
+        coreReady: state.coreReady,
+        operational: state.operational,
+        status: state.status,
         generatorContextReady: hasGeneratorContext(),
-        definitionsReady: definitionsReady()
+        definitionsReady: definitionsReady(),
+        variantProfilesReady: state.variantProfilesReady
       });
 
       return snapshot();
     } catch (err) {
+      state.contextReady = false;
       state.coreReady = false;
+      state.operational = false;
+      state.dependencies.context = {
+        ready: false,
+        status: CORE_STATUS_UNAVAILABLE,
+        error: normalizeCoreError(err)
+      };
       state.lastError = err;
+      setCoreStatus(CORE_STATUS_UNAVAILABLE, err, {
+        source: "refresh_context"
+      });
       error("Context refresh failed.", err);
       return snapshot();
     }
@@ -949,27 +2169,70 @@
         return false;
       }
 
+      state.lockSequence += 1;
+      var token = key + ":" + String(now) + ":" + String(state.lockSequence);
+
       state.locks[key] = {
+        token: token,
         acquiredAt: now,
-        expiresAt: now + ttl
+        expiresAt: now + ttl,
+        ttlMs: ttl
       };
 
       return true;
     } catch (err) {
       warn("Lock acquisition failed.", err);
-      return true;
+      return false;
     }
   }
 
-  function releaseLock(name) {
+  function refreshLock(name, token, ttlMs) {
     try {
       var key = String(name || "default");
+      var lock = state.locks[key];
 
-      if (state.locks[key]) {
-        delete state.locks[key];
+      if (!lock) {
+        return false;
       }
+
+      if (token && lock.token && lock.token !== token) {
+        return false;
+      }
+
+      var ttl = parseInt(ttlMs || lock.ttlMs || DEFAULT_ASYNC_LOCK_TIMEOUT_MS, 10);
+
+      if (!Number.isFinite(ttl) || ttl < 50) {
+        ttl = DEFAULT_ASYNC_LOCK_TIMEOUT_MS;
+      }
+
+      lock.ttlMs = ttl;
+      lock.expiresAt = Date.now() + ttl;
+
+      return true;
+    } catch (err) {
+      warn("Lock refresh failed.", err);
+      return false;
+    }
+  }
+
+  function releaseLock(name, token) {
+    try {
+      var key = String(name || "default");
+      var lock = state.locks[key];
+
+      if (!lock) {
+        return false;
+      }
+
+      if (token && lock.token && lock.token !== token) {
+        return false;
+      }
+
+      delete state.locks[key];
+      return true;
     } catch (err) {
       warn("Lock release failed.", err);
+      return false;
     }
   }
 
@@ -994,22 +2257,52 @@
   }
 
   function withLock(name, callback, ttlMs) {
+    var key = String(name || "default");
+    var token = null;
+
     try {
       if (typeof callback !== "function") {
         return undefined;
       }
 
-      if (!acquireLock(name, ttlMs)) {
+      if (!acquireLock(key, ttlMs)) {
         return undefined;
       }
 
+      token = state.locks[key] ? state.locks[key].token : null;
+
+      var result;
+
       try {
-        return callback();
-      } finally {
-        releaseLock(name);
+        result = callback();
+      } catch (callbackError) {
+        releaseLock(key, token);
+        throw callbackError;
       }
+
+      if (result && typeof result.then === "function") {
+        refreshLock(
+          key,
+          token,
+          Math.max(
+            parseInt(ttlMs || 0, 10) || 0,
+            DEFAULT_ASYNC_LOCK_TIMEOUT_MS
+          )
+        );
+
+        return Promise.resolve(result).then(function (value) {
+          releaseLock(key, token);
+          return value;
+        }, function (err) {
+          releaseLock(key, token);
+          throw err;
+        });
+      }
+
+      releaseLock(key, token);
+      return result;
     } catch (err) {
-      releaseLock(name);
+      releaseLock(key, token);
       error("Locked operation failed: " + name, err);
       return undefined;
     }
@@ -2135,6 +3428,35 @@
 
   function definitionsReady() {
     try {
+      var profileApi = getVariantProfilesApi();
+
+      if (profileApi) {
+        if (
+          typeof profileApi.getCacheSnapshot === "function"
+        ) {
+          var cacheSnapshot = profileApi.getCacheSnapshot();
+
+          if (
+            cacheSnapshot &&
+            cacheSnapshot.definitionsLoaded === true
+          ) {
+            return true;
+          }
+        }
+
+        if (typeof profileApi.getState === "function") {
+          var profileState = profileApi.getState();
+
+          if (
+            profileState &&
+            profileState.cache &&
+            profileState.cache.definitionsLoaded === true
+          ) {
+            return true;
+          }
+        }
+      }
+
       if (!state.definitions || typeof state.definitions !== "object") {
         return false;
       }
@@ -2143,12 +3465,27 @@
         return true;
       }
 
-      var counts = state.definitions.counts || {};
-      return !!(
+      var counts = state.definitions.counts ||
+        state.definitions.definitionCounts ||
+        getNested(state.definitions, ["snapshot", "counts"], {}) ||
+        {};
+
+      if (
         counts.object_kinds ||
         counts.objectKinds ||
         counts.variant_profiles ||
         counts.variantProfiles
+      ) {
+        return true;
+      }
+
+      var datasets = state.definitions.datasets || {};
+
+      return !!(
+        (Array.isArray(datasets.object_kinds) && datasets.object_kinds.length) ||
+        (Array.isArray(datasets.variant_profiles) && datasets.variant_profiles.length) ||
+        (Array.isArray(state.definitions.object_kinds) && state.definitions.object_kinds.length) ||
+        (Array.isArray(state.definitions.variant_profiles) && state.definitions.variant_profiles.length)
       );
     } catch (err) {
       return false;
@@ -2161,6 +3498,10 @@
         version: CORE_VERSION,
         initialized: state.initialized,
         coreReady: state.coreReady,
+        contextReady: state.contextReady,
+        operational: state.operational,
+        ready: state.coreReady,
+        status: state.status,
         domReady: state.domReady,
         apiPrefix: state.apiPrefix,
         definitionsApiPrefix: state.definitionsApiPrefix,
@@ -2172,9 +3513,13 @@
         theme: state.theme,
         generatorContextReady: hasGeneratorContext(),
         definitionsReady: definitionsReady(),
+        variantProfilesReady: state.variantProfilesReady,
+        readiness: clone(state.readinessResult),
+        dependencies: cloneObject(state.dependencies),
         lastAction: state.lastAction,
         lastResult: clone(state.lastResult),
         lastError: state.lastError && state.lastError.message ? state.lastError.message : state.lastError ? String(state.lastError) : "",
+        lastFailure: clone(state.lastFailure),
         wizard: {
           currentStep: state.currentStep,
           stepCount: state.stepCount,
@@ -2199,21 +3544,98 @@
     }
   }
 
-  function bootstrapCore() {
-    try {
-      refreshContext();
-      state.initialized = true;
-      safeSetAttribute(document.documentElement, "data-vp-create-core-initialized", "true");
+  function bootstrapCore(options) {
+    var config = options || {};
 
-      dispatch("vectoplan:create:core-ready", snapshot());
+    try {
+      state.bootstrapGeneration += 1;
+      var generation = state.bootstrapGeneration;
+
+      refreshContext();
+      bindDependencyEvents();
+
+      state.initialized = true;
+      safeSetAttribute(
+        document.documentElement,
+        "data-vp-create-core-initialized",
+        "true"
+      );
+
+      setCoreStatus(CORE_STATUS_INITIALIZED, null, {
+        source: config.source || "bootstrap"
+      });
+
+      dispatch("vectoplan:create:core-initialized", snapshot());
+
+      state.bootstrapPromise = ensureCoreReady({
+        source: config.source || "bootstrap",
+        force: config.force === true,
+        rejectOnError: false,
+        timeoutMs: config.timeoutMs,
+        refreshContext: false
+      }).then(function (readiness) {
+        if (generation === state.bootstrapGeneration) {
+          state.bootstrapPromise = null;
+        }
+
+        return readiness;
+      }).catch(function (err) {
+        if (generation === state.bootstrapGeneration) {
+          state.bootstrapPromise = null;
+        }
+
+        var failed = buildCoreFailure("bootstrap", err, {
+          source: config.source || "bootstrap"
+        });
+
+        state.lastError = err;
+        state.lastFailure = failed;
+        setCoreStatus(CORE_STATUS_UNAVAILABLE, err, failed);
+        error("Core bootstrap readiness failed.", err);
+
+        return failed;
+      });
 
       return true;
     } catch (err) {
       state.initialized = false;
+      state.contextReady = false;
+      state.coreReady = false;
+      state.operational = false;
       state.lastError = err;
+      state.lastFailure = buildCoreFailure("bootstrap", err, {
+        source: config.source || "bootstrap"
+      });
+      setCoreStatus(CORE_STATUS_UNAVAILABLE, err, state.lastFailure);
       error("Core bootstrap failed.", err);
       return false;
     }
+  }
+
+  function bootstrapCoreAsync(options) {
+    var config = options || {};
+    var started = bootstrapCore(config);
+
+    if (!started) {
+      return Promise.resolve(
+        state.lastFailure ||
+        buildCoreFailure(
+          "bootstrap",
+          createCoreError(
+            "core_bootstrap_failed",
+            "Create Core bootstrap failed."
+          )
+        )
+      );
+    }
+
+    return state.bootstrapPromise ||
+      state.readinessPromise ||
+      ensureCoreReady({
+        source: config.source || "bootstrap_async",
+        rejectOnError: false,
+        timeoutMs: config.timeoutMs
+      });
   }
 
   function capitalize(value) {
@@ -2235,7 +3657,14 @@
       DEFAULT_TAXONOMY_API_PREFIX: DEFAULT_TAXONOMY_API_PREFIX,
       DEFAULT_FILES_API_PREFIX: DEFAULT_FILES_API_PREFIX,
       DEFAULT_THEME_STORAGE_KEY: DEFAULT_THEME_STORAGE_KEY,
-      DEFAULT_LOCK_TIMEOUT_MS: DEFAULT_LOCK_TIMEOUT_MS
+      DEFAULT_LOCK_TIMEOUT_MS: DEFAULT_LOCK_TIMEOUT_MS,
+      DEFAULT_ASYNC_LOCK_TIMEOUT_MS: DEFAULT_ASYNC_LOCK_TIMEOUT_MS,
+      DEFAULT_CORE_READINESS_TIMEOUT_MS: DEFAULT_CORE_READINESS_TIMEOUT_MS,
+      DEFAULT_CORE_READINESS_POLL_MS: DEFAULT_CORE_READINESS_POLL_MS,
+      DEFAULT_STARTER_OBJECT_KIND: DEFAULT_STARTER_OBJECT_KIND,
+      DEFAULT_STARTER_FAMILY_PROFILE_ID: DEFAULT_STARTER_FAMILY_PROFILE_ID,
+      DEFAULT_STARTER_VARIANT_PROFILE_ID: DEFAULT_STARTER_VARIANT_PROFILE_ID,
+      CRITICAL_ACTIONS: cloneObject(CRITICAL_ACTIONS)
     },
 
     selectors: SELECTORS,
@@ -2247,9 +3676,20 @@
 
     onReady: onReady,
     bootstrap: bootstrapCore,
+    bootstrapAsync: bootstrapCoreAsync,
     refreshContext: refreshContext,
     refreshWizardConfig: refreshWizardConfig,
     snapshot: snapshot,
+    ensureReady: ensureCoreReady,
+    whenReady: whenReady,
+    waitUntilReady: whenReady,
+    isOperational: isOperational,
+    evaluateCriticalDependencies: evaluateCriticalDependencies,
+    getVariantProfilesApi: getVariantProfilesApi,
+    getVariantProfilesReadiness: getVariantProfilesReadiness,
+    ensureActionReady: ensureActionReady,
+    runWhenReady: runWhenReady,
+    actionRequiresCoreReady: actionRequiresCoreReady,
 
     log: log,
     info: info,
@@ -2263,6 +3703,7 @@
     bindOnce: bindOnce,
 
     acquireLock: acquireLock,
+    refreshLock: refreshLock,
     releaseLock: releaseLock,
     isLocked: isLocked,
     withLock: withLock,
@@ -2337,12 +3778,22 @@
     normalizeIssueFieldName: normalizeIssueFieldName,
 
     hasGeneratorContext: hasGeneratorContext,
-    definitionsReady: definitionsReady
+    definitionsReady: definitionsReady,
+
+    createError: createCoreError,
+    ensureError: ensureCoreError,
+    normalizeError: normalizeCoreError,
+    buildFailureResult: buildCoreFailure,
+    setCoreStatus: setCoreStatus,
+    bindDependencyEvents: bindDependencyEvents
   };
 
   window[GLOBAL_NAME] = api;
 
   onReady(function () {
-    bootstrapCore();
+    bootstrapCore({
+      source: "dom_ready",
+      rejectOnError: false
+    });
   });
 })();

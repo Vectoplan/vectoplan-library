@@ -49,11 +49,18 @@ Important:
 - Binary download may use the existing in-memory archive builder as fallback.
 """
 
+import base64
+import binascii
+import hashlib
 import importlib
 import inspect
+import io
 import json
+import os
+import posixpath
 import traceback
 import uuid
+import zipfile
 from dataclasses import dataclass, field as dataclass_field
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -66,7 +73,7 @@ from typing import Any, Callable, Iterable, Mapping
 # Metadata / constants
 # ---------------------------------------------------------------------------
 
-LIBRARY_CREATE_ROUTE_SERVICE_VERSION = "0.6.1"
+LIBRARY_CREATE_ROUTE_SERVICE_VERSION = "0.7.0"
 LIBRARY_CREATE_ROUTE_SERVICE_COMPONENT = "library-create-route-service"
 
 CREATE_API_PREFIX = "/api/v1/vplib/create"
@@ -84,17 +91,113 @@ VPLIB_UID_KEYS = (
     "vplib_uid_v1",
 )
 
+
+STARTER_OBJECT_KIND = "cell_block"
+STARTER_FAMILY_PROFILE_ID = "simple_cell_block"
+STARTER_VARIANT_PROFILE_ID = "simple_cell_block.v1"
+STARTER_DEFAULT_VARIANT_ID = "default"
+STARTER_DEFAULT_LABEL = "Standard"
+STARTER_TAXONOMY = {
+    "domain": "hochbau",
+    "category": "bloecke",
+    "subcategory": "basis",
+}
+STARTER_DIMENSIONS_MM = {
+    "dimensions.width_mm": 1000,
+    "dimensions.height_mm": 1000,
+    "dimensions.depth_mm": 1000,
+}
+STARTER_REQUIRED_VALUE_KEYS = (
+    "variant.variant_id",
+    "variant.label",
+    "dimensions.width_mm",
+    "dimensions.height_mm",
+    "dimensions.depth_mm",
+)
+STARTER_UID_NAMESPACE = uuid.UUID("85c825f8-4c1c-4ad6-923f-4cf389854d42")
+
+VPLIB_ZIP_SIGNATURES = (
+    b"PK\x03\x04",
+    b"PK\x05\x06",
+    b"PK\x07\x08",
+)
+DEFAULT_MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
+DEFAULT_MAX_ARCHIVE_ENTRIES = 4096
+DEFAULT_MAX_ARCHIVE_UNCOMPRESSED_BYTES = 512 * 1024 * 1024
+DEFAULT_MAX_COMPRESSION_RATIO = 500.0
+DEFAULT_MAX_BINARY_NESTING = 10
+
+WORKFLOW_SUCCESS_STATUSES = {
+    "ok",
+    "ready",
+    "healthy",
+    "partial",
+    "success",
+    "valid",
+    "created",
+    "prepared",
+    "saved",
+    "persisted",
+    "draft_ready",
+    "package_plan_ready",
+    "archive_ready",
+    "download_ready",
+}
+WORKFLOW_INVALID_STATUSES = {
+    "invalid",
+    "validation_failed",
+    "draft_invalid",
+    "taxonomy_required_fields_missing",
+    "payload_normalization_failed",
+}
+
 GENERATOR_ROUTE_SERVICE_FEATURES = {
     "generator_context": True,
     "generator_workflow": True,
     "generator_diagnostics": True,
     "legacy_create_fallback": True,
+    "legacy_non_ok_fallback": True,
     "legacy_binary_download_fallback": True,
     "stable_vplib_uid": True,
+    "deterministic_starter_uid_fallback": True,
+    "starter_contract_normalization": True,
+    "starter_documents_optional": True,
+    "download_preflight": True,
+    "verified_zip_download": True,
+    "safe_archive_member_validation": True,
     "direct_db_dependency": False,
     "direct_file_write": False,
     "direct_package_generation": False,
 }
+
+
+# ---------------------------------------------------------------------------
+# Service contract errors
+# ---------------------------------------------------------------------------
+
+class LibraryCreateRouteServiceError(RuntimeError):
+    """Base error for route-service contract failures."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "create_route_service_error",
+        http_status: int = 500,
+        details: Mapping[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = str(code or "create_route_service_error")
+        self.http_status = _safe_http_status(http_status)
+        self.details = dict(details or {})
+
+
+class CreatePayloadContractError(LibraryCreateRouteServiceError):
+    """Raised when the normalized create payload violates the starter contract."""
+
+
+class CreateArchiveContractError(LibraryCreateRouteServiceError):
+    """Raised when generated VPLIB bytes are missing, malformed or unsafe."""
 
 
 # ---------------------------------------------------------------------------
@@ -653,6 +756,10 @@ def get_route_service_health() -> RouteResponse:
                 "definitions_available": bool(definitions_health.get("available")),
                 "taxonomy_required_fields": list(TAXONOMY_REQUIRED_FIELDS),
                 "vplib_uid_field": VPLIB_UID_FIELD,
+                "starter_object_kind": STARTER_OBJECT_KIND,
+                "starter_family_profile_id": STARTER_FAMILY_PROFILE_ID,
+                "starter_variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+                "verified_zip_download": True,
             },
             "generator_context_health": generator_context_health,
             "generator_workflow_health": generator_workflow_health,
@@ -988,41 +1095,82 @@ def build_draft_response(payload: Any) -> RouteResponse:
     )
 
 
+
 def validate_draft_response(payload: Any) -> RouteResponse:
-    """Validate incoming create/generator payload."""
-    normalized_or_error = _normalize_create_action_payload(payload, route="validate")
-    if isinstance(normalized_or_error, RouteResponse):
-        return normalized_or_error
-
-    return _workflow_route_response(
-        action="validate",
-        route="validate",
-        payload=normalized_or_error,
-        success_status="valid",
-        fallback_legacy_function="validate_draft",
-        fallback_http_status=422,
-    )
-
-
-def build_package_plan_response(payload: Any, *, include_documents: bool = True) -> RouteResponse:
-    """Build a package plan without route-level writing."""
-    normalized_or_error = _normalize_create_action_payload(payload, route="package-plan")
+    """Validate the canonical create payload used by plan and download."""
+    route = "validate"
+    normalized_or_error = _normalize_create_action_payload(payload, route=route)
     if isinstance(normalized_or_error, RouteResponse):
         return normalized_or_error
 
     normalized_payload = dict(normalized_or_error)
-    normalized_payload["include_documents"] = include_documents
+    starter_error = _validate_starter_contract_response(
+        normalized_payload,
+        route=route,
+    )
+    if starter_error is not None:
+        return starter_error
 
-    return _workflow_route_response(
+    normalized_payload["validate_before_write"] = True
+    normalized_payload["include_documents"] = _resolve_include_documents(
+        normalized_payload,
+        requested=normalized_payload.get("include_documents"),
+    )
+    normalized_payload["includeDocuments"] = normalized_payload["include_documents"]
+
+    response = _workflow_route_response(
+        action="validate",
+        route=route,
+        payload=normalized_payload,
+        success_status="valid",
+        fallback_legacy_function="validate_draft",
+        fallback_http_status=422,
+    )
+    return _attach_action_contract_to_response(
+        response,
+        normalized_payload,
+        action=route,
+    )
+
+
+def build_package_plan_response(payload: Any, *, include_documents: bool = True) -> RouteResponse:
+    """Build a package plan from the same canonical payload used by download."""
+    route = "package-plan"
+    normalized_or_error = _normalize_create_action_payload(payload, route=route)
+    if isinstance(normalized_or_error, RouteResponse):
+        return normalized_or_error
+
+    normalized_payload = dict(normalized_or_error)
+    starter_error = _validate_starter_contract_response(
+        normalized_payload,
+        route=route,
+    )
+    if starter_error is not None:
+        return starter_error
+
+    resolved_include_documents = _resolve_include_documents(
+        normalized_payload,
+        requested=include_documents,
+    )
+    normalized_payload["include_documents"] = resolved_include_documents
+    normalized_payload["includeDocuments"] = resolved_include_documents
+    normalized_payload["validate_before_write"] = True
+
+    response = _workflow_route_response(
         action="package_plan",
-        route="package-plan",
+        route=route,
         payload=normalized_payload,
         success_status="ok",
         fallback_legacy_function="build_package_plan",
-        fallback_kwargs={"include_documents": include_documents},
-        fallback_http_status=500,
+        fallback_kwargs={"include_documents": resolved_include_documents},
+        fallback_http_status=422,
     )
-
+    return _attach_action_contract_to_response(
+        response,
+        normalized_payload,
+        action=route,
+        extra={"include_documents": resolved_include_documents},
+    )
 
 def build_persistent_draft_payload_response(payload: Any) -> RouteResponse:
     """Build or persist CreativeLibraryDraftService-compatible payload."""
@@ -1110,18 +1258,84 @@ def save_package_response(payload: Any, *, overwrite: bool | None = None) -> Rou
     return response
 
 
+
 def build_download_response(payload: Any) -> RouteBinaryResponse:
-    """Build or prepare an in-memory .vplib archive for route handlers."""
+    """Build a verified in-memory ``.vplib`` ZIP archive."""
     route = "download"
 
     normalized_or_error = _normalize_create_action_payload(payload, route=route)
     if isinstance(normalized_or_error, RouteResponse):
         return _binary_from_route_response(normalized_or_error)
 
-    normalized_payload = normalized_or_error
+    normalized_payload = dict(normalized_or_error)
+    starter_error = _validate_starter_contract_response(
+        normalized_payload,
+        route=route,
+    )
+    if starter_error is not None:
+        return _binary_from_route_response(starter_error)
 
-    # First let the generator workflow prepare the download. It may delegate to
-    # the create service and return either metadata or direct binary content.
+    include_documents = _resolve_include_documents(
+        normalized_payload,
+        requested=normalized_payload.get("include_documents"),
+    )
+    normalized_payload["include_documents"] = include_documents
+    normalized_payload["includeDocuments"] = include_documents
+    normalized_payload["validate_before_write"] = True
+    normalized_payload["prefer_cache"] = False
+
+    preflight_payload: dict[str, Any] = {
+        "ok": True,
+        "status": "preflight_delegated_to_blueprint",
+        "external": True,
+    }
+    preflight_warnings: list[RouteIssue | dict[str, Any]] = []
+
+    # Direct service callers do not have the Flask blueprint's preflight. The
+    # blueprint marks its normalized payload with these internal fields.
+    blueprint_preflight = bool(
+        normalized_payload.get("_create_blueprint_version")
+        and normalized_payload.get("_create_route") == "download"
+    )
+    if not blueprint_preflight and _safe_bool(
+        normalized_payload.get("route_service_preflight"),
+        default=True,
+    ):
+        validation = validate_draft_response(dict(normalized_payload))
+        if not validation.ok:
+            return _binary_from_route_response(
+                _download_preflight_failure(
+                    validation,
+                    normalized_payload,
+                    stage="validation",
+                )
+            )
+
+        plan = build_package_plan_response(
+            dict(normalized_payload),
+            include_documents=include_documents,
+        )
+        if not plan.ok:
+            return _binary_from_route_response(
+                _download_preflight_failure(
+                    plan,
+                    normalized_payload,
+                    stage="package_plan",
+                )
+            )
+
+        preflight_payload = {
+            "ok": True,
+            "status": "preflight_ok",
+            "external": False,
+            "validation": _compact_route_response(validation),
+            "package_plan": _compact_route_response(plan),
+            "include_documents": include_documents,
+        }
+
+    workflow_warning: RouteIssue | dict[str, Any] | None = None
+
+    # Prefer direct workflow bytes when they are present and valid.
     if _is_generator_workflow_available():
         try:
             workflow_payload = _run_workflow_payload(
@@ -1130,77 +1344,207 @@ def build_download_response(payload: Any) -> RouteBinaryResponse:
                 extra_request={
                     "validate_before_write": True,
                     "prefer_cache": False,
+                    "include_documents": include_documents,
+                    "require_binary": True,
                 },
             )
+            workflow_response = _route_response_from_workflow_payload(
+                workflow_payload,
+                route=route,
+                success_status="download_ready",
+            )
 
-            binary = _extract_binary_download_payload(workflow_payload)
-            if binary is not None:
-                filename, content, meta_payload = binary
-                response = _route_response_from_workflow_payload(
-                    workflow_payload,
-                    route=route,
-                    success_status="download_ready",
-                )
-                response = _attach_vplib_uid_to_response(
-                    response,
-                    payload=normalized_payload,
-                    result=workflow_payload,
-                )
+            if workflow_response.ok:
+                binary = _extract_binary_download_payload(workflow_payload)
+                if binary is not None:
+                    filename, content, meta_payload = binary
+                    archive_metadata = validate_vplib_archive(content)
+                    workflow_response = _attach_vplib_uid_to_response(
+                        workflow_response,
+                        payload=normalized_payload,
+                        result=workflow_payload,
+                    )
 
-                return RouteBinaryResponse(
-                    ok=response.ok,
-                    status=response.status,
-                    route=route,
-                    filename=_safe_download_filename(filename),
-                    content=content if response.ok else b"",
-                    mimetype=DEFAULT_VPLIB_MIMETYPE,
-                    data={
-                        **response.data,
-                        "download": meta_payload,
+                    return RouteBinaryResponse(
+                        ok=True,
+                        status="download_ready",
+                        route=route,
+                        filename=_safe_download_filename(filename),
+                        content=content,
+                        mimetype=DEFAULT_VPLIB_MIMETYPE,
+                        data={
+                            **workflow_response.data,
+                            "download": meta_payload,
+                            "download_source": "generator_workflow",
+                            "archive": archive_metadata,
+                            "preflight": preflight_payload,
+                            "payload_contract": _payload_contract_metadata(
+                                normalized_payload
+                            ),
+                        },
+                        errors=workflow_response.errors,
+                        warnings=workflow_response.warnings,
+                        info=workflow_response.info,
+                        http_status=200,
+                    )
+
+                workflow_warning = _warning(
+                    "generator_workflow_binary_missing",
+                    "Generator workflow completed without direct archive bytes. "
+                    "The create-service archive fallback will be used.",
+                    field="generator_workflow.download",
+                    details={
+                        "status": workflow_response.status,
+                        "workflow_status": workflow_payload.get("status"),
                     },
-                    errors=response.errors,
-                    warnings=response.warnings,
-                    info=response.info,
-                    http_status=response.http_status,
                 )
+            else:
+                workflow_warning = _warning(
+                    "generator_workflow_download_not_ok",
+                    "Generator workflow did not produce a successful download. "
+                    "The create-service archive fallback will be used.",
+                    field="generator_workflow.download",
+                    details=_compact_route_response(workflow_response),
+                )
+        except Exception as exc:
+            workflow_warning = _exception_warning(
+                "generator_workflow_download_failed",
+                exc,
+                field="generator_workflow.download",
+                fallback_message=(
+                    "Generator workflow download failed. "
+                    "The create-service archive fallback will be used."
+                ),
+            )
 
-            # Metadata-only workflow response. Fall through to legacy archive
-            # builder, because existing route handlers expect bytes here.
-        except Exception:
-            pass
-
-    # Legacy binary fallback: existing create service builds .vplib in memory.
     if not _is_create_service_available():
         unavailable = _service_unavailable(route)
+        if workflow_warning is not None:
+            unavailable = RouteResponse(
+                ok=unavailable.ok,
+                status=unavailable.status,
+                route=unavailable.route,
+                data={
+                    **unavailable.data,
+                    "preflight": preflight_payload,
+                },
+                errors=unavailable.errors,
+                warnings=[workflow_warning, *unavailable.warnings],
+                info=unavailable.info,
+                http_status=unavailable.http_status,
+            )
         return _binary_from_route_response(unavailable)
 
     try:
         create_service = _create_service()
         build_archive = getattr(create_service, "build_vplib_archive", None)
         if not callable(build_archive):
-            raise RuntimeError("Create service does not expose build_vplib_archive.")
+            raise RuntimeError(
+                "Create service does not expose build_vplib_archive."
+            )
 
-        filename, content, result = build_archive(normalized_payload)
+        archive_result = _call_function_with_supported_kwargs(
+            build_archive,
+            normalized_payload,
+            validate_before_write=True,
+            include_documents=include_documents,
+            prefer_cache=False,
+        )
+        filename, content, result = _normalize_archive_builder_result(
+            archive_result
+        )
         wrapped = _wrap_create_result(result, route=route)
-        wrapped = _attach_vplib_uid_to_response(wrapped, payload=normalized_payload, result=result)
+        wrapped = _attach_vplib_uid_to_response(
+            wrapped,
+            payload=normalized_payload,
+            result=result,
+        )
+
+        if not wrapped.ok:
+            return RouteBinaryResponse(
+                ok=False,
+                status=wrapped.status,
+                route=route,
+                filename="invalid.vplib",
+                content=b"",
+                mimetype=DEFAULT_VPLIB_MIMETYPE,
+                data={
+                    **wrapped.data,
+                    "download_source": "legacy_create_service",
+                    "preflight": preflight_payload,
+                    "payload_contract": _payload_contract_metadata(
+                        normalized_payload
+                    ),
+                },
+                errors=wrapped.errors,
+                warnings=(
+                    [workflow_warning, *wrapped.warnings]
+                    if workflow_warning is not None
+                    else wrapped.warnings
+                ),
+                info=wrapped.info,
+                http_status=wrapped.http_status,
+            )
+
+        archive_metadata = validate_vplib_archive(content)
+        warnings = list(wrapped.warnings)
+        if workflow_warning is not None:
+            warnings.insert(0, workflow_warning)
 
         return RouteBinaryResponse(
-            ok=wrapped.ok,
-            status=wrapped.status,
+            ok=True,
+            status="download_ready",
             route=route,
             filename=_safe_download_filename(filename),
-            content=content if wrapped.ok else b"",
+            content=content,
             mimetype=DEFAULT_VPLIB_MIMETYPE,
             data={
                 **wrapped.data,
                 "download_source": "legacy_create_service",
+                "archive": archive_metadata,
+                "preflight": preflight_payload,
+                "payload_contract": _payload_contract_metadata(
+                    normalized_payload
+                ),
             },
             errors=wrapped.errors,
-            warnings=wrapped.warnings,
+            warnings=warnings,
             info=wrapped.info,
-            http_status=wrapped.http_status,
+            http_status=200,
         )
 
+    except CreateArchiveContractError as exc:
+        issue = _error(
+            exc.code,
+            str(exc),
+            field="download",
+            details=exc.details,
+        )
+        return RouteBinaryResponse(
+            ok=False,
+            status=exc.code,
+            route=route,
+            filename="invalid.vplib",
+            content=b"",
+            data={
+                "vplib_uid": _extract_vplib_uid_from_any(normalized_payload),
+                "route_service": _route_service_metadata(
+                    route,
+                    normalized_payload,
+                ),
+                "preflight": preflight_payload,
+                "payload_contract": _payload_contract_metadata(
+                    normalized_payload
+                ),
+            },
+            errors=[issue],
+            warnings=(
+                [workflow_warning]
+                if workflow_warning is not None
+                else preflight_warnings
+            ),
+            http_status=exc.http_status,
+        )
     except Exception as exc:
         issue = _exception_issue(
             "download_failed",
@@ -1215,12 +1559,23 @@ def build_download_response(payload: Any) -> RouteBinaryResponse:
             content=b"",
             data={
                 "vplib_uid": _extract_vplib_uid_from_any(normalized_payload),
-                "route_service": _route_service_metadata(route, normalized_payload),
+                "route_service": _route_service_metadata(
+                    route,
+                    normalized_payload,
+                ),
+                "preflight": preflight_payload,
+                "payload_contract": _payload_contract_metadata(
+                    normalized_payload
+                ),
             },
             errors=[issue],
+            warnings=(
+                [workflow_warning]
+                if workflow_warning is not None
+                else preflight_warnings
+            ),
             http_status=500,
         )
-
 
 def clear_cache_response() -> RouteResponse:
     """Clear create-route related caches."""
@@ -1681,6 +2036,7 @@ cache_clear = clear_cache_response
 # Workflow integration helpers
 # ---------------------------------------------------------------------------
 
+
 def _workflow_route_response(
     *,
     action: str,
@@ -1691,6 +2047,9 @@ def _workflow_route_response(
     fallback_kwargs: Mapping[str, Any] | None = None,
     fallback_http_status: int = 500,
 ) -> RouteResponse:
+    workflow_response: RouteResponse | None = None
+    workflow_warning: RouteIssue | dict[str, Any] | None = None
+
     if _is_generator_workflow_available():
         try:
             workflow_payload = _run_workflow_payload(
@@ -1700,30 +2059,59 @@ def _workflow_route_response(
                     "prefer_cache": False,
                     "include_context": True,
                     "include_options": True,
-                    "include_files": bool(payload.get("files") or payload.get("uploads")),
-                    "include_draft": bool(payload.get("draft_ref") or payload.get("draft_uid")),
-                    "include_published": bool(payload.get("item_ref") or payload.get("vplib_uid")),
+                    "include_files": bool(
+                        payload.get("files") or payload.get("uploads")
+                    ),
+                    "include_draft": bool(
+                        payload.get("draft_ref") or payload.get("draft_uid")
+                    ),
+                    "include_published": bool(
+                        payload.get("item_ref") or payload.get("vplib_uid")
+                    ),
+                    "include_documents": _resolve_include_documents(
+                        payload,
+                        requested=payload.get("include_documents"),
+                    ),
+                    "validate_before_write": True,
                 },
             )
 
-            response = _route_response_from_workflow_payload(
+            workflow_response = _route_response_from_workflow_payload(
                 workflow_payload,
                 route=route,
                 success_status=success_status,
             )
-            return _attach_vplib_uid_to_response(response, payload=payload, result=workflow_payload)
+            workflow_response = _attach_vplib_uid_to_response(
+                workflow_response,
+                payload=payload,
+                result=workflow_payload,
+            )
 
+            if workflow_response.ok:
+                return workflow_response
+
+            workflow_warning = _warning(
+                "generator_workflow_not_ok",
+                "Generator workflow returned a non-successful response. "
+                "A compatible create-service fallback will be attempted.",
+                field="generator_workflow",
+                details=_compact_route_response(workflow_response),
+            )
         except Exception as exc:
             workflow_warning = _exception_warning(
                 "generator_workflow_failed",
                 exc,
                 field="generator_workflow",
-                fallback_message="Generator workflow failed. Legacy fallback may be used.",
+                fallback_message=(
+                    "Generator workflow failed. "
+                    "A compatible create-service fallback will be attempted."
+                ),
             )
     else:
         workflow_warning = _warning(
             "generator_workflow_unavailable",
-            "Generator workflow service is unavailable. Legacy fallback may be used.",
+            "Generator workflow service is unavailable. "
+            "A compatible create-service fallback will be attempted.",
             field="generator_workflow",
             details=_safe_generator_workflow_health(),
         )
@@ -1737,20 +2125,42 @@ def _workflow_route_response(
             fallback_http_status=fallback_http_status,
         )
         warnings = list(legacy_response.warnings)
-        warnings.insert(0, workflow_warning)
+        if workflow_warning is not None:
+            warnings.insert(0, workflow_warning)
+
+        data = {
+            **legacy_response.data,
+            "generator_workflow_fallback": True,
+        }
+        if workflow_response is not None:
+            data["generator_workflow_response"] = _compact_route_response(
+                workflow_response
+            )
 
         return RouteResponse(
             ok=legacy_response.ok,
             status=legacy_response.status,
             route=legacy_response.route,
-            data={
-                **legacy_response.data,
-                "generator_workflow_fallback": True,
-            },
+            data=data,
             errors=legacy_response.errors,
             warnings=warnings,
             info=legacy_response.info,
             http_status=legacy_response.http_status,
+        )
+
+    if workflow_response is not None:
+        warnings = list(workflow_response.warnings)
+        if workflow_warning is not None:
+            warnings.insert(0, workflow_warning)
+        return RouteResponse(
+            ok=workflow_response.ok,
+            status=workflow_response.status,
+            route=workflow_response.route,
+            data=workflow_response.data,
+            errors=workflow_response.errors,
+            warnings=warnings,
+            info=workflow_response.info,
+            http_status=workflow_response.http_status,
         )
 
     return RouteResponse(
@@ -1769,7 +2179,7 @@ def _workflow_route_response(
                 details=_safe_generator_workflow_health(),
             )
         ],
-        warnings=[workflow_warning],
+        warnings=[workflow_warning] if workflow_warning is not None else [],
         http_status=503,
     )
 
@@ -1781,25 +2191,60 @@ def _run_workflow_payload(
     extra_request: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     module = _generator_workflow_module()
+    normalized_action = str(action or "").strip()
+    payload_dict = dict(payload)
+    correlation_id = str(
+        payload_dict.get("correlation_id")
+        or payload_dict.get("correlationId")
+        or payload_dict.get("client_request_id")
+        or payload_dict.get("clientRequestId")
+        or payload_dict.get("_request_id")
+        or uuid.uuid4()
+    )
 
     request_payload = {
-        "action": action,
-        "payload": dict(payload),
-        "user_id": payload.get("user_id", 1),
-        "inventory_key": payload.get("inventory_key", "default"),
-        "domain": payload.get("domain"),
-        "category": payload.get("category"),
-        "subcategory": payload.get("subcategory"),
-        "taxonomy_path": payload.get("taxonomy_path"),
-        "draft_ref": payload.get("draft_ref") or payload.get("draft_uid"),
-        "item_ref": payload.get("item_ref") or payload.get("item_id"),
-        "vplib_uid": _extract_vplib_uid_from_any(payload),
-        "allow_source_write": _safe_bool(payload.get("allow_source_write"), default=False),
-        "allow_publish_write": _safe_bool(payload.get("allow_publish_write"), default=False),
-        "allow_draft_write": _safe_bool(payload.get("allow_draft_write"), default=True),
-        "dry_run": _safe_bool(payload.get("dry_run"), default=False),
+        "action": normalized_action,
+        "payload": payload_dict,
+        "user_id": payload_dict.get("user_id", 1),
+        "inventory_key": payload_dict.get("inventory_key", "default"),
+        "domain": payload_dict.get("domain"),
+        "category": payload_dict.get("category"),
+        "subcategory": payload_dict.get("subcategory"),
+        "taxonomy_path": payload_dict.get("taxonomy_path"),
+        "object_kind": payload_dict.get("object_kind"),
+        "family_profile_id": payload_dict.get("family_profile_id"),
+        "variant_profile_id": payload_dict.get("variant_profile_id"),
+        "default_variant_id": payload_dict.get("default_variant_id"),
+        "draft_ref": payload_dict.get("draft_ref") or payload_dict.get("draft_uid"),
+        "item_ref": payload_dict.get("item_ref") or payload_dict.get("item_id"),
+        "vplib_uid": _extract_vplib_uid_from_any(payload_dict),
+        "correlation_id": correlation_id,
+        "allow_source_write": _safe_bool(
+            payload_dict.get("allow_source_write"),
+            default=False,
+        ),
+        "allow_publish_write": _safe_bool(
+            payload_dict.get("allow_publish_write"),
+            default=False,
+        ),
+        "allow_draft_write": _safe_bool(
+            payload_dict.get("allow_draft_write"),
+            default=True,
+        ),
+        "dry_run": _safe_bool(payload_dict.get("dry_run"), default=False),
+        "validate_before_write": _safe_bool(
+            payload_dict.get("validate_before_write"),
+            default=True,
+        ),
+        "include_documents": _resolve_include_documents(
+            payload_dict,
+            requested=payload_dict.get("include_documents"),
+        ),
+        "payload_fingerprint": _payload_fingerprint(payload_dict),
         **dict(extra_request or {}),
     }
+
+    last_type_error: TypeError | None = None
 
     for function_name in (
         "run_generator_workflow_payload",
@@ -1809,29 +2254,76 @@ def _run_workflow_payload(
         if not callable(function):
             continue
 
-        result = function(request_payload)
+        try:
+            result = _call_function_with_supported_kwargs(
+                function,
+                request_payload,
+            )
+        except TypeError as exc:
+            last_type_error = exc
+            try:
+                result = _call_function_with_supported_kwargs(
+                    function,
+                    **request_payload,
+                )
+            except TypeError:
+                continue
 
         if hasattr(result, "to_dict") and callable(result.to_dict):
-            try:
-                return result.to_dict(include_context=False, include_payloads=True)
-            except TypeError:
-                return result.to_dict()
+            for kwargs in (
+                {"include_context": False, "include_payloads": True},
+                {"include_payloads": True},
+                {},
+            ):
+                try:
+                    converted = result.to_dict(**kwargs)
+                    if isinstance(converted, Mapping):
+                        return dict(converted)
+                except TypeError:
+                    continue
 
         return _service_result_payload(result)
 
     service = _generator_workflow_service()
-    method = getattr(service, "run_payload", None)
-    if callable(method):
-        return _service_result_payload(method(request_payload))
+    for method_name in ("run_payload", "run"):
+        method = getattr(service, method_name, None)
+        if not callable(method):
+            continue
 
-    method = getattr(service, "run", None)
-    if callable(method):
-        result = method(request_payload)
+        try:
+            result = _call_function_with_supported_kwargs(
+                method,
+                request_payload,
+            )
+        except TypeError:
+            result = _call_function_with_supported_kwargs(
+                method,
+                **request_payload,
+            )
+
         if hasattr(result, "to_dict") and callable(result.to_dict):
-            return result.to_dict(include_context=False, include_payloads=True)
+            for kwargs in (
+                {"include_context": False, "include_payloads": True},
+                {"include_payloads": True},
+                {},
+            ):
+                try:
+                    converted = result.to_dict(**kwargs)
+                    if isinstance(converted, Mapping):
+                        return dict(converted)
+                except TypeError:
+                    continue
         return _service_result_payload(result)
 
-    raise RuntimeError("Generator workflow service exposes no known run method.")
+    if last_type_error is not None:
+        raise RuntimeError(
+            "Generator workflow service exposes methods with an unsupported "
+            f"signature: {last_type_error}"
+        ) from last_type_error
+
+    raise RuntimeError(
+        "Generator workflow service exposes no known run method."
+    )
 
 
 def _route_response_from_workflow_payload(
@@ -1840,19 +2332,22 @@ def _route_response_from_workflow_payload(
     route: str,
     success_status: str,
 ) -> RouteResponse:
-    payload = dict(workflow_payload)
-    ok = bool(payload.get("ok", False))
-    workflow_status = str(payload.get("status") or ("ok" if ok else "error"))
+    payload = dict(workflow_payload or {})
+    workflow_status = str(
+        payload.get("status")
+        or payload.get("workflow_status")
+        or ""
+    ).strip()
+    ok = _workflow_payload_ok(payload)
 
     data: dict[str, Any] = {
         "route_service": _route_service_metadata(route, payload),
         "workflow": payload,
-        "workflow_status": workflow_status,
+        "workflow_status": workflow_status or ("ok" if ok else "error"),
         "workflow_action": payload.get("action"),
         "correlation_id": payload.get("correlation_id"),
     }
 
-    # Preserve action-specific payloads as first-class route data.
     for key in (
         "payload",
         "draft_payload",
@@ -1881,7 +2376,6 @@ def _route_response_from_workflow_payload(
         payload.get("publish_payload"),
         payload.get("sync_payload"),
     )
-
     if isinstance(primary, Mapping):
         data.update(
             {
@@ -1891,7 +2385,10 @@ def _route_response_from_workflow_payload(
             }
         )
 
-    uid = _extract_vplib_uid_from_any(data) or _extract_vplib_uid_from_any(payload)
+    uid = (
+        _extract_vplib_uid_from_any(data)
+        or _extract_vplib_uid_from_any(payload)
+    )
     if uid:
         data[VPLIB_UID_FIELD] = uid
 
@@ -1907,14 +2404,17 @@ def _route_response_from_workflow_payload(
                     "status": workflow_status,
                     "action": payload.get("action"),
                 },
-            )
+            ).to_dict()
         )
 
     http_status = _http_status_from_workflow_payload(payload, ok=ok)
+    final_status = success_status if ok else (
+        workflow_status or "workflow_not_ok"
+    )
 
     return RouteResponse(
         ok=ok,
-        status=success_status if ok else workflow_status,
+        status=final_status,
         route=route,
         data=data,
         errors=errors,
@@ -1929,16 +2429,19 @@ def _http_status_from_workflow_payload(payload: Mapping[str, Any], *, ok: bool) 
     if explicit is not None:
         return _safe_http_status(explicit)
 
-    status = str(payload.get("status") or "").lower()
-    if status in {"invalid", "validation_failed"}:
+    status = str(payload.get("status") or "").strip().lower()
+    if status in WORKFLOW_INVALID_STATUSES:
         return 422
+    if status in {"bad_request", "invalid_request"}:
+        return 400
+    if status in {"not_found"}:
+        return 404
     if status in {"unavailable", "service_unavailable"}:
         return 503
-    if status in {"skipped"}:
+    if status in {"skipped", "write_disabled", "forbidden"}:
         return 403
 
     return 200 if ok else 500
-
 
 def _issues_from_workflow_payload(
     payload: Mapping[str, Any],
@@ -2140,16 +2643,1297 @@ def _legacy_create_action_response(
 
 
 # ---------------------------------------------------------------------------
+# Canonical create/starter contract
+# ---------------------------------------------------------------------------
+
+def _unwrap_normalizer_result(value: Any) -> tuple[Mapping[str, Any], dict[str, Any]]:
+    payload = _service_result_payload(value)
+    if not isinstance(payload, Mapping):
+        raise TypeError("Normalizer result is not a mapping.")
+
+    data = dict(payload)
+    report: dict[str, Any] = {}
+
+    for report_key in (
+        "report",
+        "normalization_report",
+        "normalizationReport",
+        "diagnostics",
+    ):
+        if isinstance(data.get(report_key), Mapping):
+            report[report_key] = _json_safe(dict(data[report_key]))
+
+    for payload_key in (
+        "normalized_payload",
+        "normalizedPayload",
+        "payload",
+        "data",
+        "result",
+    ):
+        candidate = data.get(payload_key)
+        if not isinstance(candidate, Mapping):
+            continue
+
+        candidate_dict = dict(candidate)
+        if payload_key == "data":
+            nested = (
+                candidate_dict.get("normalized_payload")
+                or candidate_dict.get("normalizedPayload")
+                or candidate_dict.get("payload")
+            )
+            if isinstance(nested, Mapping):
+                return dict(nested), report
+
+        if _looks_like_create_payload(candidate_dict):
+            return candidate_dict, report
+
+    return data, report
+
+
+def _looks_like_create_payload(value: Mapping[str, Any]) -> bool:
+    keys = {
+        "object_kind",
+        "objectKind",
+        "family_name",
+        "familyName",
+        "family_profile_id",
+        "familyProfileId",
+        "variant_profile_id",
+        "variantProfileId",
+        "definition_variants",
+        "definitionVariants",
+        "definition_variants_json",
+        "definitionVariantsJson",
+        "domain",
+        "category",
+        "subcategory",
+    }
+    return any(key in value for key in keys)
+
+
+def _normalize_create_contract_payload(
+    payload: Mapping[str, Any],
+    *,
+    route: str,
+) -> dict[str, Any]:
+    data = _json_safe_dict(payload)
+    _decode_create_json_fields(data)
+    _normalize_scalar_aliases(data)
+
+    object_kind = _normalize_slug_fallback(
+        _first_non_empty(
+            data.get("object_kind"),
+            data.get("objectKind"),
+            data.get("object_class"),
+        ),
+        default=STARTER_OBJECT_KIND,
+    )
+    family_profile_id = _clean_identifier(
+        _first_non_empty(
+            data.get("family_profile_id"),
+            data.get("familyProfileId"),
+        )
+    )
+    variant_profile_id = _clean_identifier(
+        _first_non_empty(
+            data.get("variant_profile_id"),
+            data.get("variantProfileId"),
+        )
+    )
+
+    starter_requested = (
+        object_kind == STARTER_OBJECT_KIND
+        and family_profile_id in {"", STARTER_FAMILY_PROFILE_ID}
+        and variant_profile_id in {"", STARTER_VARIANT_PROFILE_ID}
+    )
+    if starter_requested:
+        family_profile_id = STARTER_FAMILY_PROFILE_ID
+        variant_profile_id = STARTER_VARIANT_PROFILE_ID
+
+    data["object_kind"] = object_kind
+    data["objectKind"] = object_kind
+    data["family_profile_id"] = family_profile_id
+    data["familyProfileId"] = family_profile_id
+    data["variant_profile_id"] = variant_profile_id
+    data["variantProfileId"] = variant_profile_id
+
+    for key, default_value in STARTER_TAXONOMY.items():
+        data[key] = _normalize_slug_fallback(
+            data.get(key),
+            default=default_value,
+        )
+
+    taxonomy_path = _normalize_taxonomy_path(
+        _first_non_empty(
+            data.get("taxonomy_path"),
+            data.get("taxonomyPath"),
+            "/".join(data[key] for key in ("domain", "category", "subcategory")),
+        )
+    )
+    data["taxonomy_path"] = taxonomy_path
+    data["taxonomyPath"] = taxonomy_path
+
+    if starter_requested:
+        _materialize_starter_payload(data)
+
+    data["_create_route_service_route"] = route
+    data["_create_route_service_version"] = LIBRARY_CREATE_ROUTE_SERVICE_VERSION
+    data["_starter_contract"] = {
+        "requested": starter_requested,
+        "object_kind": object_kind,
+        "family_profile_id": family_profile_id,
+        "variant_profile_id": variant_profile_id,
+        "default_variant_id": data.get("default_variant_id"),
+        "documents_required": False if starter_requested else None,
+        "dimensions_mm": (
+            {
+                "width": _extract_dimension_value(data, "width"),
+                "height": _extract_dimension_value(data, "height"),
+                "depth": _extract_dimension_value(data, "depth"),
+            }
+            if starter_requested
+            else {}
+        ),
+    }
+    return data
+
+
+def _materialize_starter_payload(data: dict[str, Any]) -> None:
+    data["object_kind"] = STARTER_OBJECT_KIND
+    data["objectKind"] = STARTER_OBJECT_KIND
+    data["family_profile_id"] = STARTER_FAMILY_PROFILE_ID
+    data["familyProfileId"] = STARTER_FAMILY_PROFILE_ID
+    data["variant_profile_id"] = STARTER_VARIANT_PROFILE_ID
+    data["variantProfileId"] = STARTER_VARIANT_PROFILE_ID
+
+    family_name = str(
+        _first_non_empty(
+            data.get("family_name"),
+            data.get("familyName"),
+            "Simple Cell Block",
+        )
+    ).strip()
+    data["family_name"] = family_name
+    data["familyName"] = family_name
+
+    primitive_shape = str(
+        _first_non_empty(
+            data.get("primitive_shape"),
+            data.get("primitiveShape"),
+            "block",
+        )
+    ).strip()
+    data["primitive_shape"] = primitive_shape
+    data["primitiveShape"] = primitive_shape
+
+    geometry_unit = str(
+        _first_non_empty(
+            data.get("geometry_unit"),
+            data.get("geometryUnit"),
+            "m",
+        )
+    ).strip().lower()
+    if geometry_unit not in {"m", "mm", "cm"}:
+        geometry_unit = "m"
+
+    geometry_values: dict[str, str] = {}
+    dimension_values: dict[str, int] = {}
+    for axis in ("width", "height", "depth"):
+        snake = f"geometry_{axis}"
+        camel = f"geometry{axis.title()}"
+        raw_value = _first_non_empty(data.get(snake), data.get(camel), "1.00")
+        numeric = _positive_float(raw_value, default=1.0)
+        geometry_values[snake] = _format_decimal(numeric)
+        dimension_values[f"dimensions.{axis}_mm"] = _geometry_to_mm(
+            numeric,
+            geometry_unit,
+        )
+
+    data.update(geometry_values)
+    data["geometryWidth"] = data["geometry_width"]
+    data["geometryHeight"] = data["geometry_height"]
+    data["geometryDepth"] = data["geometry_depth"]
+    data["geometry_unit"] = geometry_unit
+    data["geometryUnit"] = geometry_unit
+
+    dimensions = _json_object(data.get("dimensions"))
+    dimensions["width_mm"] = dimension_values["dimensions.width_mm"]
+    dimensions["height_mm"] = dimension_values["dimensions.height_mm"]
+    dimensions["depth_mm"] = dimension_values["dimensions.depth_mm"]
+    data["dimensions"] = dimensions
+
+    for axis in ("x", "y", "z"):
+        snake = f"editor_cells_{axis}"
+        camel = f"editorCells{axis.upper()}"
+        value = max(1, _safe_int(_first_non_empty(data.get(snake), data.get(camel), 1), default=1))
+        data[snake] = str(value)
+        data[camel] = str(value)
+
+    variants = _json_list(
+        _first_non_empty(
+            data.get("definition_variants"),
+            data.get("definitionVariants"),
+            data.get("definition_variants_json"),
+            data.get("definitionVariantsJson"),
+        )
+    )
+    normalized_variants: list[dict[str, Any]] = []
+    for index, raw_variant in enumerate(variants):
+        variant = _json_object(raw_variant)
+        if not variant:
+            continue
+
+        variant_id = _normalize_slug_fallback(
+            _first_non_empty(
+                variant.get("variant_id"),
+                variant.get("variantId"),
+                variant.get("id"),
+            ),
+            default=(
+                STARTER_DEFAULT_VARIANT_ID
+                if index == 0
+                else f"variant_{index + 1}"
+            ),
+        )
+        label = str(
+            _first_non_empty(
+                variant.get("label"),
+                variant.get("name"),
+                variant.get("title"),
+                (
+                    STARTER_DEFAULT_LABEL
+                    if index == 0
+                    else f"Variante {index + 1}"
+                ),
+            )
+        ).strip()
+
+        definition_values = _json_object(
+            _first_non_empty(
+                variant.get("definition_values"),
+                variant.get("definitionValues"),
+                variant.get("values"),
+                variant.get("definition_values_json"),
+                variant.get("definitionValuesJson"),
+            )
+        )
+        definition_values.setdefault("variant.variant_id", variant_id)
+        definition_values.setdefault("variant.label", label)
+        for key, value in dimension_values.items():
+            definition_values.setdefault(key, value)
+
+        variant.update(
+            {
+                "variant_id": variant_id,
+                "variantId": variant_id,
+                "label": label,
+                "name": label,
+                "family_profile_id": STARTER_FAMILY_PROFILE_ID,
+                "familyProfileId": STARTER_FAMILY_PROFILE_ID,
+                "variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+                "variantProfileId": STARTER_VARIANT_PROFILE_ID,
+                "object_kind": STARTER_OBJECT_KIND,
+                "objectKind": STARTER_OBJECT_KIND,
+                "definition_values": definition_values,
+                "definitionValues": definition_values,
+                "definition_values_json": _compact_json(definition_values),
+                "definitionValuesJson": _compact_json(definition_values),
+                "additional_field_keys": _coerce_list(
+                    variant.get("additional_field_keys")
+                    or variant.get("additionalFieldKeys")
+                ),
+                "additionalFieldKeys": _coerce_list(
+                    variant.get("additional_field_keys")
+                    or variant.get("additionalFieldKeys")
+                ),
+            }
+        )
+        normalized_variants.append(variant)
+
+    if not normalized_variants:
+        definition_values = {
+            "variant.variant_id": STARTER_DEFAULT_VARIANT_ID,
+            "variant.label": STARTER_DEFAULT_LABEL,
+            **dimension_values,
+        }
+        normalized_variants = [
+            {
+                "variant_id": STARTER_DEFAULT_VARIANT_ID,
+                "variantId": STARTER_DEFAULT_VARIANT_ID,
+                "label": STARTER_DEFAULT_LABEL,
+                "name": STARTER_DEFAULT_LABEL,
+                "description": "",
+                "is_default": True,
+                "isDefault": True,
+                "family_profile_id": STARTER_FAMILY_PROFILE_ID,
+                "familyProfileId": STARTER_FAMILY_PROFILE_ID,
+                "variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+                "variantProfileId": STARTER_VARIANT_PROFILE_ID,
+                "object_kind": STARTER_OBJECT_KIND,
+                "objectKind": STARTER_OBJECT_KIND,
+                "definition_values": definition_values,
+                "definitionValues": definition_values,
+                "definition_values_json": _compact_json(definition_values),
+                "definitionValuesJson": _compact_json(definition_values),
+                "additional_field_keys": [],
+                "additionalFieldKeys": [],
+                "source": "library_create_route_service.starter_default",
+            }
+        ]
+
+    default_index = next(
+        (
+            index
+            for index, variant in enumerate(normalized_variants)
+            if _safe_bool(
+                _first_non_empty(
+                    variant.get("is_default"),
+                    variant.get("isDefault"),
+                ),
+                default=False,
+            )
+            or variant.get("variant_id") == STARTER_DEFAULT_VARIANT_ID
+        ),
+        0,
+    )
+    for index, variant in enumerate(normalized_variants):
+        is_default = index == default_index
+        variant["is_default"] = is_default
+        variant["isDefault"] = is_default
+
+    default_variant_id = str(
+        normalized_variants[default_index].get("variant_id")
+        or STARTER_DEFAULT_VARIANT_ID
+    )
+    data["definition_variants"] = normalized_variants
+    data["definitionVariants"] = normalized_variants
+    variants_json = _compact_json(normalized_variants)
+    data["definition_variants_json"] = variants_json
+    data["definitionVariantsJson"] = variants_json
+    data["default_variant_id"] = default_variant_id
+    data["defaultVariantId"] = default_variant_id
+
+    for kind, snake, camel in (
+        ("geometry_model", "geometry_model_uploads", "geometryModelUploads"),
+        (
+            "technical_documents",
+            "technical_document_uploads",
+            "technicalDocumentUploads",
+        ),
+        (
+            "variant_documents",
+            "variant_document_uploads",
+            "variantDocumentUploads",
+        ),
+    ):
+        value = _json_object(
+            _first_non_empty(
+                data.get(snake),
+                data.get(camel),
+                data.get(f"{snake}_json"),
+                data.get(f"{camel}Json"),
+            )
+        )
+        if not value:
+            value = _empty_upload_contract(kind)
+        value.setdefault("required", False)
+        value.setdefault("minimum_count", 0)
+        data[snake] = value
+        data[camel] = value
+        data[f"{snake}_json"] = _compact_json(value)
+        data[f"{camel}Json"] = data[f"{snake}_json"]
+
+    data.setdefault("uploads", {
+        "geometry_model": data["geometry_model_uploads"],
+        "technical_documents": data["technical_document_uploads"],
+        "variant_documents": data["variant_document_uploads"],
+    })
+    data.setdefault("assets", [])
+    data.setdefault("documents", [])
+    data["include_documents"] = _safe_bool(
+        data.get("include_documents"),
+        default=False,
+    )
+    data["includeDocuments"] = data["include_documents"]
+    data["documents_required"] = False
+    data["documentsRequired"] = False
+    data["allow_empty_documents"] = True
+    data["allowEmptyDocuments"] = True
+    data["validate_before_write"] = True
+
+
+def _decode_create_json_fields(data: dict[str, Any]) -> None:
+    json_fields = (
+        "definition_variants_json",
+        "definitionVariantsJson",
+        "geometry_model_uploads_json",
+        "geometryModelUploadsJson",
+        "technical_document_uploads_json",
+        "technicalDocumentUploadsJson",
+        "variant_document_uploads_json",
+        "variantDocumentUploadsJson",
+        "uploads_json",
+        "uploadsJson",
+    )
+    for key in json_fields:
+        value = data.get(key)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        try:
+            decoded = json.loads(value)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+
+        if key in {"definition_variants_json", "definitionVariantsJson"}:
+            if isinstance(decoded, list):
+                data.setdefault("definition_variants", decoded)
+                data.setdefault("definitionVariants", decoded)
+        elif isinstance(decoded, Mapping):
+            if key.startswith("geometry_"):
+                data.setdefault("geometry_model_uploads", dict(decoded))
+            elif key.startswith("technical_"):
+                data.setdefault("technical_document_uploads", dict(decoded))
+            elif key.startswith("variant_"):
+                data.setdefault("variant_document_uploads", dict(decoded))
+            elif key.startswith("uploads"):
+                data.setdefault("uploads", dict(decoded))
+
+
+def _normalize_scalar_aliases(data: dict[str, Any]) -> None:
+    aliases = (
+        ("family_name", "familyName"),
+        ("family_description", "familyDescription"),
+        ("object_kind", "objectKind"),
+        ("family_profile_id", "familyProfileId"),
+        ("variant_profile_id", "variantProfileId"),
+        ("default_variant_id", "defaultVariantId"),
+        ("taxonomy_path", "taxonomyPath"),
+        ("geometry_width", "geometryWidth"),
+        ("geometry_height", "geometryHeight"),
+        ("geometry_depth", "geometryDepth"),
+        ("geometry_unit", "geometryUnit"),
+        ("primitive_shape", "primitiveShape"),
+    )
+    for snake, camel in aliases:
+        value = _first_non_empty(data.get(snake), data.get(camel))
+        if value is None:
+            continue
+        if isinstance(value, (list, tuple)):
+            value = next(
+                (
+                    item
+                    for item in reversed(value)
+                    if item not in (None, "")
+                ),
+                "",
+            )
+        data[snake] = value
+        data[camel] = value
+
+
+def _validate_starter_contract_response(
+    payload: Mapping[str, Any],
+    *,
+    route: str,
+) -> RouteResponse | None:
+    starter = payload.get("_starter_contract")
+    if not isinstance(starter, Mapping) or not _safe_bool(
+        starter.get("requested"),
+        default=False,
+    ):
+        return None
+
+    issues: list[RouteIssue] = []
+    expected_scalars = {
+        "object_kind": STARTER_OBJECT_KIND,
+        "family_profile_id": STARTER_FAMILY_PROFILE_ID,
+        "variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+        "default_variant_id": STARTER_DEFAULT_VARIANT_ID,
+    }
+    for field_name, expected in expected_scalars.items():
+        actual = payload.get(field_name)
+        if actual != expected:
+            issues.append(
+                _error(
+                    "starter_contract_mismatch",
+                    f"Starter field {field_name!r} must equal {expected!r}.",
+                    field=field_name,
+                    details={"expected": expected, "actual": actual},
+                )
+            )
+
+    variants = _json_list(
+        _first_non_empty(
+            payload.get("definition_variants"),
+            payload.get("definitionVariants"),
+            payload.get("definition_variants_json"),
+            payload.get("definitionVariantsJson"),
+        )
+    )
+    if not variants:
+        issues.append(
+            _error(
+                "starter_variant_missing",
+                "The starter payload must contain one default variant.",
+                field="definition_variants",
+            )
+        )
+    else:
+        default_variant = next(
+            (
+                _json_object(variant)
+                for variant in variants
+                if _safe_bool(
+                    _first_non_empty(
+                        _json_object(variant).get("is_default"),
+                        _json_object(variant).get("isDefault"),
+                    ),
+                    default=False,
+                )
+            ),
+            _json_object(variants[0]),
+        )
+        values = _json_object(
+            _first_non_empty(
+                default_variant.get("definition_values"),
+                default_variant.get("definitionValues"),
+                default_variant.get("definition_values_json"),
+                default_variant.get("definitionValuesJson"),
+            )
+        )
+        for key in STARTER_REQUIRED_VALUE_KEYS:
+            if key not in values:
+                issues.append(
+                    _error(
+                        "starter_default_missing",
+                        f"Starter default value is missing: {key}",
+                        field=key,
+                    )
+                )
+
+        for key in STARTER_DIMENSIONS_MM:
+            if _positive_float(values.get(key), default=None) is None:
+                issues.append(
+                    _error(
+                        "starter_dimension_invalid",
+                        f"Starter dimension must be greater than zero: {key}",
+                        field=key,
+                        details={"actual": values.get(key)},
+                    )
+                )
+
+    if not issues:
+        return None
+
+    return RouteResponse(
+        ok=False,
+        status="starter_payload_invalid",
+        route=route,
+        data={
+            "route_service": _route_service_metadata(route, payload),
+            "starter_contract": _json_safe(starter),
+            "payload_contract": _payload_contract_metadata(payload),
+        },
+        errors=issues,
+        http_status=422,
+    )
+
+
+def _resolve_include_documents(
+    payload: Mapping[str, Any],
+    *,
+    requested: Any = None,
+) -> bool:
+    starter = payload.get("_starter_contract")
+    if isinstance(starter, Mapping) and _safe_bool(
+        starter.get("requested"),
+        default=False,
+    ):
+        if requested is not None and _safe_bool(requested, default=False):
+            documents = _coerce_list(payload.get("documents"))
+            document_uploads = _json_object(
+                payload.get("technical_document_uploads")
+            )
+            variant_uploads = _json_object(
+                payload.get("variant_document_uploads")
+            )
+            has_documents = bool(
+                documents
+                or document_uploads.get("files")
+                or variant_uploads.get("files")
+            )
+            return has_documents
+        return False
+
+    if requested is not None:
+        return _safe_bool(requested, default=True)
+    return _safe_bool(payload.get("include_documents"), default=True)
+
+
+def _download_preflight_failure(
+    response: RouteResponse,
+    payload: Mapping[str, Any],
+    *,
+    stage: str,
+) -> RouteResponse:
+    return RouteResponse(
+        ok=False,
+        status=f"download_preflight_{stage}_failed",
+        route="download",
+        data={
+            "route_service": _route_service_metadata("download", payload),
+            "preflight_stage": stage,
+            "preflight_response": _compact_route_response(response),
+            "payload_contract": _payload_contract_metadata(payload),
+        },
+        errors=response.errors
+        or [
+            _error(
+                f"download_preflight_{stage}_failed",
+                f"Download preflight failed during {stage}.",
+                field=stage,
+            )
+        ],
+        warnings=response.warnings,
+        info=response.info,
+        http_status=response.http_status if response.http_status >= 400 else 422,
+    )
+
+
+def _attach_action_contract_to_response(
+    response: RouteResponse,
+    payload: Mapping[str, Any],
+    *,
+    action: str,
+    extra: Mapping[str, Any] | None = None,
+) -> RouteResponse:
+    data = dict(response.data)
+    data["payload_contract"] = _payload_contract_metadata(payload)
+    data["normalized_payload_fingerprint"] = _payload_fingerprint(payload)
+    data["action"] = action
+    if extra:
+        data.update(_json_safe_dict(extra))
+
+    return RouteResponse(
+        ok=response.ok,
+        status=response.status,
+        route=response.route,
+        data=data,
+        errors=response.errors,
+        warnings=response.warnings,
+        info=response.info,
+        http_status=response.http_status,
+    )
+
+
+def _payload_contract_metadata(payload: Mapping[str, Any]) -> dict[str, Any]:
+    starter = payload.get("_starter_contract")
+    return {
+        "schema_version": "create_route_payload.v2",
+        "service_version": LIBRARY_CREATE_ROUTE_SERVICE_VERSION,
+        "vplib_uid": _extract_vplib_uid_from_any(payload),
+        "payload_fingerprint": _payload_fingerprint(payload),
+        "object_kind": payload.get("object_kind"),
+        "family_profile_id": payload.get("family_profile_id"),
+        "variant_profile_id": payload.get("variant_profile_id"),
+        "default_variant_id": payload.get("default_variant_id"),
+        "starter": _json_safe(starter) if isinstance(starter, Mapping) else {},
+        "include_documents": _resolve_include_documents(
+            payload,
+            requested=payload.get("include_documents"),
+        ),
+    }
+
+
+def _compact_route_response(response: RouteResponse) -> dict[str, Any]:
+    return {
+        "ok": response.ok,
+        "status": response.status,
+        "route": response.route,
+        "http_status": response.http_status,
+        "errors": [_issue_to_dict(issue) for issue in response.errors],
+        "warnings": [_issue_to_dict(issue) for issue in response.warnings],
+        "vplib_uid": _extract_vplib_uid_from_any(response.data),
+    }
+
+
+def _workflow_payload_ok(payload: Mapping[str, Any]) -> bool:
+    if "ok" in payload:
+        return _safe_bool(payload.get("ok"), default=False)
+    if "success" in payload:
+        return _safe_bool(payload.get("success"), default=False)
+    if "valid" in payload and str(payload.get("status") or "").lower() in {
+        "",
+        "valid",
+        "ok",
+        "ready",
+    }:
+        return _safe_bool(payload.get("valid"), default=False)
+
+    status = str(
+        payload.get("status")
+        or payload.get("workflow_status")
+        or ""
+    ).strip().lower()
+    if status in WORKFLOW_SUCCESS_STATUSES:
+        return True
+    if status in WORKFLOW_INVALID_STATUSES:
+        return False
+
+    for key in (
+        "payload",
+        "result",
+        "data",
+        "validation_payload",
+        "package_plan_payload",
+        "download_payload",
+    ):
+        nested = payload.get(key)
+        if isinstance(nested, Mapping):
+            if "ok" in nested:
+                return _safe_bool(nested.get("ok"), default=False)
+            nested_status = str(nested.get("status") or "").strip().lower()
+            if nested_status in WORKFLOW_SUCCESS_STATUSES:
+                return True
+
+    return False
+
+
+def _normalize_archive_builder_result(
+    result: Any,
+) -> tuple[str, bytes, Any]:
+    if isinstance(result, tuple):
+        if len(result) >= 3:
+            filename, content, metadata = result[0], result[1], result[2]
+        elif len(result) == 2:
+            filename, content = result
+            metadata = {
+                "ok": True,
+                "status": "archive_ready",
+                "data": {},
+            }
+        else:
+            raise CreateArchiveContractError(
+                "Archive builder returned an empty tuple.",
+                code="archive_builder_result_invalid",
+                http_status=500,
+            )
+    elif isinstance(result, Mapping):
+        filename = (
+            result.get("filename")
+            or result.get("download_filename")
+            or "package.vplib"
+        )
+        content = (
+            result.get("content")
+            or result.get("bytes")
+            or result.get("archive_bytes")
+            or result.get("binary")
+        )
+        metadata = result.get("result") or result
+    else:
+        filename = getattr(result, "filename", "package.vplib")
+        content = (
+            getattr(result, "content", None)
+            or getattr(result, "bytes", None)
+            or getattr(result, "archive_bytes", None)
+        )
+        metadata = getattr(result, "result", result)
+
+    binary = _coerce_binary_content(content)
+    if binary is None:
+        raise CreateArchiveContractError(
+            "Archive builder returned no binary content.",
+            code="archive_content_missing",
+            http_status=500,
+            details={"result_type": type(result).__name__},
+        )
+    return str(filename), binary, metadata
+
+
+def _coerce_binary_content(value: Any, *, key_hint: str = "") -> bytes | None:
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        content = value
+    elif isinstance(value, bytearray):
+        content = bytes(value)
+    elif isinstance(value, memoryview):
+        content = value.tobytes()
+    elif isinstance(value, io.BytesIO):
+        content = value.getvalue()
+    elif hasattr(value, "read") and callable(value.read):
+        position = None
+        try:
+            if hasattr(value, "tell") and callable(value.tell):
+                position = value.tell()
+            content = value.read()
+            if position is not None and hasattr(value, "seek") and callable(value.seek):
+                value.seek(position)
+        except Exception as exc:
+            raise CreateArchiveContractError(
+                "Binary archive stream could not be read.",
+                code="archive_stream_read_failed",
+                http_status=500,
+                details={"exception_type": type(exc).__name__},
+            ) from exc
+        return _coerce_binary_content(content)
+    elif isinstance(value, str):
+        text = value.strip()
+        if text.startswith("data:") and "," in text:
+            text = text.split(",", 1)[1]
+        is_base64_hint = "base64" in key_hint.lower()
+        if not is_base64_hint and not text.startswith("UEs"):
+            return None
+        try:
+            content = base64.b64decode(text, validate=True)
+        except (ValueError, binascii.Error) as exc:
+            raise CreateArchiveContractError(
+                "Base64 archive content is invalid.",
+                code="archive_base64_invalid",
+                http_status=500,
+            ) from exc
+    else:
+        return None
+
+    if len(content) > _configured_int(
+        "VECTOPLAN_CREATE_MAX_ARCHIVE_BYTES",
+        DEFAULT_MAX_ARCHIVE_BYTES,
+        minimum=1024,
+    ):
+        raise CreateArchiveContractError(
+            "Generated archive exceeds the configured size limit.",
+            code="archive_size_limit_exceeded",
+            http_status=500,
+            details={"size_bytes": len(content)},
+        )
+    return content
+
+
+def validate_vplib_archive(content: Any) -> dict[str, Any]:
+    binary = _coerce_binary_content(content)
+    if binary is None:
+        raise CreateArchiveContractError(
+            "Generated VPLIB archive has no binary content.",
+            code="archive_content_missing",
+            http_status=500,
+        )
+    if not binary:
+        raise CreateArchiveContractError(
+            "Generated VPLIB archive is empty.",
+            code="archive_empty",
+            http_status=500,
+        )
+    if not binary.startswith(VPLIB_ZIP_SIGNATURES):
+        raise CreateArchiveContractError(
+            "Generated VPLIB content does not have a ZIP signature.",
+            code="archive_signature_invalid",
+            http_status=500,
+        )
+    if not zipfile.is_zipfile(io.BytesIO(binary)):
+        raise CreateArchiveContractError(
+            "Generated VPLIB content is not a valid ZIP archive.",
+            code="archive_zip_invalid",
+            http_status=500,
+        )
+
+    max_entries = _configured_int(
+        "VECTOPLAN_CREATE_MAX_ARCHIVE_ENTRIES",
+        DEFAULT_MAX_ARCHIVE_ENTRIES,
+        minimum=1,
+    )
+    max_uncompressed = _configured_int(
+        "VECTOPLAN_CREATE_MAX_ARCHIVE_UNCOMPRESSED_BYTES",
+        DEFAULT_MAX_ARCHIVE_UNCOMPRESSED_BYTES,
+        minimum=1024,
+    )
+    try:
+        max_ratio = float(
+            os.getenv(
+                "VECTOPLAN_CREATE_MAX_COMPRESSION_RATIO",
+                str(DEFAULT_MAX_COMPRESSION_RATIO),
+            )
+        )
+    except Exception:
+        max_ratio = DEFAULT_MAX_COMPRESSION_RATIO
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(binary), "r") as archive:
+            members = archive.infolist()
+            if not members:
+                raise CreateArchiveContractError(
+                    "Generated VPLIB archive contains no files.",
+                    code="archive_has_no_entries",
+                    http_status=500,
+                )
+            if len(members) > max_entries:
+                raise CreateArchiveContractError(
+                    "Generated VPLIB archive contains too many entries.",
+                    code="archive_entry_limit_exceeded",
+                    http_status=500,
+                    details={
+                        "entry_count": len(members),
+                        "max_entries": max_entries,
+                    },
+                )
+
+            total_uncompressed = 0
+            total_compressed = 0
+            names: list[str] = []
+            for member in members:
+                name = _safe_archive_member_name(member.filename)
+                names.append(name)
+
+                if member.flag_bits & 0x1:
+                    raise CreateArchiveContractError(
+                        "Generated VPLIB archive contains encrypted entries.",
+                        code="archive_encrypted_entry",
+                        http_status=500,
+                        details={"member": name},
+                    )
+
+                total_uncompressed += int(member.file_size or 0)
+                total_compressed += int(member.compress_size or 0)
+                if total_uncompressed > max_uncompressed:
+                    raise CreateArchiveContractError(
+                        "Generated VPLIB archive exceeds the uncompressed size limit.",
+                        code="archive_uncompressed_limit_exceeded",
+                        http_status=500,
+                        details={
+                            "uncompressed_bytes": total_uncompressed,
+                            "max_uncompressed_bytes": max_uncompressed,
+                        },
+                    )
+
+                if member.file_size and member.compress_size == 0:
+                    raise CreateArchiveContractError(
+                        "Generated VPLIB archive contains an invalid compressed entry.",
+                        code="archive_compression_invalid",
+                        http_status=500,
+                        details={"member": name},
+                    )
+                if member.file_size and member.compress_size:
+                    ratio = float(member.file_size) / float(member.compress_size)
+                    if ratio > max_ratio:
+                        raise CreateArchiveContractError(
+                            "Generated VPLIB archive contains a suspicious compression ratio.",
+                            code="archive_compression_ratio_exceeded",
+                            http_status=500,
+                            details={
+                                "member": name,
+                                "ratio": ratio,
+                                "max_ratio": max_ratio,
+                            },
+                        )
+
+            corrupt_member = archive.testzip()
+            if corrupt_member:
+                raise CreateArchiveContractError(
+                    "Generated VPLIB archive failed CRC validation.",
+                    code="archive_crc_failed",
+                    http_status=500,
+                    details={"member": corrupt_member},
+                )
+    except CreateArchiveContractError:
+        raise
+    except (OSError, zipfile.BadZipFile, zipfile.LargeZipFile) as exc:
+        raise CreateArchiveContractError(
+            "Generated VPLIB archive could not be inspected.",
+            code="archive_inspection_failed",
+            http_status=500,
+            details={"exception_type": type(exc).__name__},
+        ) from exc
+
+    return {
+        "ok": True,
+        "sha256": hashlib.sha256(binary).hexdigest(),
+        "size_bytes": len(binary),
+        "entry_count": len(members),
+        "uncompressed_bytes": total_uncompressed,
+        "compressed_bytes": total_compressed,
+        "members": names[:64],
+        "has_manifest": any(
+            posixpath.basename(name).lower()
+            in {"vplib.manifest.json", "manifest.json"}
+            for name in names
+        ),
+    }
+
+
+def _safe_archive_member_name(value: Any) -> str:
+    raw = str(value or "").replace("\\", "/").replace("\x00", "").strip()
+    if not raw:
+        raise CreateArchiveContractError(
+            "Generated VPLIB archive contains an empty member name.",
+            code="archive_member_name_empty",
+            http_status=500,
+        )
+    if raw.startswith("/") or re_drive_prefix(raw):
+        raise CreateArchiveContractError(
+            "Generated VPLIB archive contains an absolute member path.",
+            code="archive_member_path_absolute",
+            http_status=500,
+            details={"member": raw[:200]},
+        )
+    normalized = posixpath.normpath(raw)
+    if normalized in {"", ".", ".."} or normalized.startswith("../"):
+        raise CreateArchiveContractError(
+            "Generated VPLIB archive contains an unsafe member path.",
+            code="archive_member_path_unsafe",
+            http_status=500,
+            details={"member": raw[:200]},
+        )
+    return normalized
+
+
+def re_drive_prefix(value: str) -> bool:
+    return len(value) >= 2 and value[0].isalpha() and value[1] == ":"
+
+
+def _configured_int(name: str, default: int, *, minimum: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except Exception:
+        value = default
+    return max(minimum, value)
+
+
+def _empty_upload_contract(kind: str) -> dict[str, Any]:
+    return {
+        "version": LIBRARY_CREATE_ROUTE_SERVICE_VERSION,
+        "kind": kind,
+        "count": 0,
+        "valid_count": 0,
+        "validCount": 0,
+        "invalid_count": 0,
+        "invalidCount": 0,
+        "files": [],
+        "errors": [],
+        "ok": True,
+        "required": False,
+        "minimum_count": 0,
+        "backend_enabled": True,
+        "backendEnabled": True,
+        "local_only": True,
+        "localOnly": True,
+        "source": "library_create_route_service.empty",
+    }
+
+
+def _json_object(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return _json_safe_dict(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if text.startswith("{") and text.endswith("}"):
+            try:
+                decoded = json.loads(text)
+                if isinstance(decoded, Mapping):
+                    return _json_safe_dict(decoded)
+            except Exception:
+                return {}
+    return {}
+
+
+def _json_list(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, str):
+        text = value.strip()
+        if text.startswith("[") and text.endswith("]"):
+            try:
+                decoded = json.loads(text)
+                if isinstance(decoded, list):
+                    return [_json_safe(item) for item in decoded]
+            except Exception:
+                return []
+    if isinstance(value, Mapping):
+        for key in ("items", "variants", "definition_variants", "definitionVariants"):
+            nested = value.get(key)
+            if isinstance(nested, list):
+                return [_json_safe(item) for item in nested]
+    return []
+
+
+def _clean_identifier(value: Any) -> str:
+    if value is None:
+        return ""
+    text = str(value).replace("\x00", "").strip()
+    if not text:
+        return ""
+    return text.replace(" ", "").replace("-", "_")
+
+
+def _normalize_taxonomy_path(value: Any) -> str:
+    parts = []
+    for part in str(value or "").replace("\\", "/").split("/"):
+        normalized = _normalize_slug_fallback(part, default="")
+        if normalized:
+            parts.append(normalized)
+    return "/".join(parts)
+
+
+def _positive_float(value: Any, *, default: float | None = None) -> float | None:
+    try:
+        number = float(str(value).replace(",", "."))
+    except Exception:
+        return default
+    if number <= 0:
+        return default
+    return number
+
+
+def _format_decimal(value: float) -> str:
+    return f"{value:.6f}".rstrip("0").rstrip(".") or "1"
+
+
+def _geometry_to_mm(value: float, unit: str) -> int:
+    factor = {"mm": 1.0, "cm": 10.0, "m": 1000.0}.get(unit, 1000.0)
+    result = int(round(value * factor))
+    return max(1, result)
+
+
+def _extract_dimension_value(payload: Mapping[str, Any], axis: str) -> Any:
+    dimensions = payload.get("dimensions")
+    if isinstance(dimensions, Mapping):
+        return dimensions.get(f"{axis}_mm")
+    return None
+
+
+def _compact_json(value: Any) -> str:
+    return json.dumps(
+        _json_safe(value),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+
+def _payload_fingerprint(payload: Mapping[str, Any]) -> str:
+    data = _json_safe_dict(payload)
+    variants = _json_list(
+        _first_non_empty(
+            data.get("definition_variants"),
+            data.get("definitionVariants"),
+            data.get("definition_variants_json"),
+            data.get("definitionVariantsJson"),
+        )
+    )
+    canonical_variants: list[dict[str, Any]] = []
+    for raw_variant in variants:
+        variant = _json_object(raw_variant)
+        if not variant:
+            continue
+        canonical_variants.append(
+            {
+                "variant_id": _first_non_empty(
+                    variant.get("variant_id"),
+                    variant.get("variantId"),
+                    variant.get("id"),
+                ),
+                "label": _first_non_empty(
+                    variant.get("label"),
+                    variant.get("name"),
+                ),
+                "is_default": _safe_bool(
+                    _first_non_empty(
+                        variant.get("is_default"),
+                        variant.get("isDefault"),
+                    ),
+                    default=False,
+                ),
+                "definition_values": _json_object(
+                    _first_non_empty(
+                        variant.get("definition_values"),
+                        variant.get("definitionValues"),
+                        variant.get("definition_values_json"),
+                        variant.get("definitionValuesJson"),
+                    )
+                ),
+            }
+        )
+
+    canonical = {
+        "family_name": _first_non_empty(
+            data.get("family_name"),
+            data.get("familyName"),
+        ),
+        "family_description": _first_non_empty(
+            data.get("family_description"),
+            data.get("familyDescription"),
+        ),
+        "domain": data.get("domain"),
+        "category": data.get("category"),
+        "subcategory": data.get("subcategory"),
+        "taxonomy_path": _first_non_empty(
+            data.get("taxonomy_path"),
+            data.get("taxonomyPath"),
+        ),
+        "object_kind": _first_non_empty(
+            data.get("object_kind"),
+            data.get("objectKind"),
+        ),
+        "family_profile_id": _first_non_empty(
+            data.get("family_profile_id"),
+            data.get("familyProfileId"),
+        ),
+        "variant_profile_id": _first_non_empty(
+            data.get("variant_profile_id"),
+            data.get("variantProfileId"),
+        ),
+        "default_variant_id": _first_non_empty(
+            data.get("default_variant_id"),
+            data.get("defaultVariantId"),
+        ),
+        "primitive_shape": _first_non_empty(
+            data.get("primitive_shape"),
+            data.get("primitiveShape"),
+        ),
+        "geometry_width": _first_non_empty(
+            data.get("geometry_width"),
+            data.get("geometryWidth"),
+        ),
+        "geometry_height": _first_non_empty(
+            data.get("geometry_height"),
+            data.get("geometryHeight"),
+        ),
+        "geometry_depth": _first_non_empty(
+            data.get("geometry_depth"),
+            data.get("geometryDepth"),
+        ),
+        "geometry_unit": _first_non_empty(
+            data.get("geometry_unit"),
+            data.get("geometryUnit"),
+        ),
+        "dimensions": _json_object(data.get("dimensions")),
+        "material_class": _first_non_empty(
+            data.get("material_class"),
+            data.get("materialClass"),
+        ),
+        "definition_variants": canonical_variants,
+    }
+    return hashlib.sha256(_compact_json(canonical).encode("utf-8")).hexdigest()
+
+def _stable_starter_uid_from_fingerprint(fingerprint: str) -> str:
+    return str(uuid.uuid5(STARTER_UID_NAMESPACE, fingerprint)).lower()
+
+
+def _stable_starter_vplib_uid(payload: Mapping[str, Any]) -> str:
+    return _stable_starter_uid_from_fingerprint(_payload_fingerprint(payload))
+
+
+# ---------------------------------------------------------------------------
 # Payload normalization
 # ---------------------------------------------------------------------------
 
+
 def _normalize_create_action_payload(payload: Any, *, route: str) -> dict[str, Any] | RouteResponse:
     """
-    Normalize a create action payload and ensure stable `vplib_uid`.
-
-    Returns:
-        dict on success
-        RouteResponse on failure
+    Normalize a create action payload, materialize the starter contract and
+    ensure a stable ``vplib_uid``.
     """
     try:
         base_payload = normalize_payload(payload)
@@ -2162,7 +3946,15 @@ def _normalize_create_action_payload(payload: Any, *, route: str) -> dict[str, A
             http_status=400,
         )
 
+    normalization_metadata: dict[str, Any] = {
+        "external_normalizer_available": _is_variant_payload_service_available(),
+        "external_normalizer_used": False,
+        "external_normalizer": None,
+    }
+
     try:
+        normalized_payload: Mapping[str, Any] = base_payload
+
         if _is_variant_payload_service_available():
             module = _variant_payload_service()
             normalizer = None
@@ -2175,26 +3967,70 @@ def _normalize_create_action_payload(payload: Any, *, route: str) -> dict[str, A
                 candidate = getattr(module, function_name, None)
                 if callable(candidate):
                     normalizer = candidate
+                    normalization_metadata["external_normalizer"] = function_name
                     break
 
             if normalizer is not None:
-                normalized_payload = _call_normalizer_flex(normalizer, base_payload)
-                if not isinstance(normalized_payload, Mapping):
-                    raise TypeError("Create payload normalizer returned non-mapping payload.")
+                normalized_result = _call_normalizer_flex(
+                    normalizer,
+                    base_payload,
+                )
+                unwrapped, report = _unwrap_normalizer_result(
+                    normalized_result
+                )
+                if not isinstance(unwrapped, Mapping):
+                    raise TypeError(
+                        "Create payload normalizer returned non-mapping payload."
+                    )
 
-                result = dict(normalized_payload)
-                uid = _extract_vplib_uid_from_any(result)
-                if uid:
-                    result[VPLIB_UID_FIELD] = uid
-                else:
-                    result[VPLIB_UID_FIELD] = _ensure_payload_vplib_uid(result)
+                normalized_payload = unwrapped
+                normalization_metadata["external_normalizer_used"] = True
+                if report:
+                    normalization_metadata["report"] = report
 
-                return result
+        result = _normalize_create_contract_payload(
+            normalized_payload,
+            route=route,
+        )
+        result["_payload_normalization"] = {
+            **normalization_metadata,
+            "route": route,
+            "payload_fingerprint": _payload_fingerprint(result),
+            "starter_contract": _json_safe(
+                result.get("_starter_contract", {})
+            ),
+        }
 
-        result = dict(base_payload)
-        result[VPLIB_UID_FIELD] = _ensure_payload_vplib_uid(result)
+        uid = _extract_vplib_uid_from_any(result)
+        if uid:
+            result[VPLIB_UID_FIELD] = uid
+        else:
+            result[VPLIB_UID_FIELD] = _ensure_payload_vplib_uid(result)
+
+        result["vplibUid"] = result[VPLIB_UID_FIELD]
         return result
 
+    except LibraryCreateRouteServiceError as exc:
+        return RouteResponse(
+            ok=False,
+            status=exc.code,
+            route=route,
+            data={
+                "route_service": _route_service_metadata(route, base_payload),
+                "vplib_uid": _extract_vplib_uid_from_any(base_payload),
+                "payload_normalizer_available": _is_variant_payload_service_available(),
+                "details": _json_safe(exc.details),
+            },
+            errors=[
+                _error(
+                    exc.code,
+                    str(exc),
+                    field=route,
+                    details=exc.details,
+                )
+            ],
+            http_status=exc.http_status,
+        )
     except Exception as exc:
         return RouteResponse(
             ok=False,
@@ -2210,7 +4046,10 @@ def _normalize_create_action_payload(payload: Any, *, route: str) -> dict[str, A
                     "create_payload_normalization_failed",
                     exc,
                     field=VPLIB_UID_FIELD,
-                    fallback_message="Create payload could not be normalized for VPLIB generation.",
+                    fallback_message=(
+                        "Create payload could not be normalized for "
+                        "VPLIB generation."
+                    ),
                 )
             ],
             http_status=422,
@@ -2229,14 +4068,27 @@ def _ensure_payload_vplib_uid(payload: Mapping[str, Any]) -> str:
         if normalized:
             return normalized
 
-        raise ValueError("Existing vplib_uid is invalid and will not be silently replaced.")
+        raise CreatePayloadContractError(
+            "Existing vplib_uid is invalid and will not be silently replaced.",
+            code="vplib_uid_invalid",
+            http_status=422,
+            details={"value": str(existing_raw)[:120]},
+        )
+
+    starter = payload.get("_starter_contract")
+    if isinstance(starter, Mapping) and _safe_bool(
+        starter.get("requested"),
+        default=False,
+    ):
+        return _stable_starter_vplib_uid(payload)
 
     generated = _generate_vplib_uid_safe()
-    if not generated:
-        generated = str(uuid.uuid4()).lower()
+    if generated:
+        normalized = _normalize_vplib_uid_safe(generated)
+        if normalized:
+            return normalized
 
-    return generated
-
+    return str(uuid.uuid4()).lower()
 
 def _generate_vplib_uid_safe() -> str | None:
     for import_path in (
@@ -2421,6 +4273,10 @@ def _route_service_metadata(route: str, payload: Any | None = None) -> dict[str,
         "generator_context": "library_generator_context_service",
         "vplib_uid_field": VPLIB_UID_FIELD,
         "vplib_uid": uid,
+        "starter_object_kind": STARTER_OBJECT_KIND,
+        "starter_family_profile_id": STARTER_FAMILY_PROFILE_ID,
+        "starter_variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+        "verified_zip_download": True,
     }
 
 
@@ -4178,43 +6034,87 @@ def _safe_normalize_payload_for_response(payload: Any, *, route: str) -> dict[st
         )
 
 
-def _extract_binary_download_payload(payload: Mapping[str, Any]) -> tuple[str, bytes, dict[str, Any]] | None:
-    """
-    Best-effort binary extraction from workflow payload.
 
-    Supports several future shapes:
-    - {"download_payload": {"filename": ..., "content": bytes}}
-    - {"payload": {"filename": ..., "content": bytes}}
-    - {"content": bytes, "filename": ...}
-    """
-    candidates = [
-        payload.get("download_payload"),
-        payload.get("payload"),
-        payload,
-    ]
+def _extract_binary_download_payload(
+    payload: Mapping[str, Any],
+) -> tuple[str, bytes, dict[str, Any]] | None:
+    """Recursively extract direct binary archive content from workflow output."""
+    seen: set[int] = set()
 
-    for candidate in candidates:
-        if not isinstance(candidate, Mapping):
-            continue
+    def walk(value: Any, depth: int) -> tuple[str, bytes, dict[str, Any]] | None:
+        if value is None or depth > DEFAULT_MAX_BINARY_NESTING:
+            return None
 
-        content = (
-            candidate.get("content")
-            or candidate.get("bytes")
-            or candidate.get("archive_bytes")
-            or candidate.get("binary")
-        )
+        identity = id(value)
+        if identity in seen:
+            return None
+        seen.add(identity)
 
-        if isinstance(content, bytes):
-            filename = (
-                candidate.get("filename")
-                or candidate.get("download_filename")
-                or candidate.get("archive_filename")
-                or "package.vplib"
+        if isinstance(value, Mapping):
+            candidate = dict(value)
+            content_keys = (
+                "content",
+                "bytes",
+                "archive_bytes",
+                "archiveBytes",
+                "binary",
+                "body",
+                "content_base64",
+                "contentBase64",
+                "archive_base64",
+                "archiveBase64",
             )
-            return str(filename), content, dict(candidate)
+            for key in content_keys:
+                if key not in candidate:
+                    continue
+                content = _coerce_binary_content(
+                    candidate.get(key),
+                    key_hint=key,
+                )
+                if content is None:
+                    continue
+                filename = (
+                    candidate.get("filename")
+                    or candidate.get("download_filename")
+                    or candidate.get("downloadFilename")
+                    or candidate.get("archive_filename")
+                    or candidate.get("archiveFilename")
+                    or "package.vplib"
+                )
+                return str(filename), content, candidate
 
-    return None
+            for key in (
+                "download_payload",
+                "downloadPayload",
+                "payload",
+                "result",
+                "data",
+                "archive",
+                "binary_response",
+                "binaryResponse",
+                "response",
+            ):
+                nested = candidate.get(key)
+                result = walk(nested, depth + 1)
+                if result is not None:
+                    return result
 
+            return None
+
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                result = walk(item, depth + 1)
+                if result is not None:
+                    return result
+            return None
+
+        content = _coerce_binary_content(value)
+        if content is not None:
+            return "package.vplib", content, {"source": type(value).__name__}
+
+        return None
+
+    return walk(payload, 0)
 
 # ---------------------------------------------------------------------------
 # Cache helpers
@@ -4233,6 +6133,7 @@ def clear_library_create_route_service_caches() -> dict[str, Any]:
         _load_taxonomy_module,
         _load_definition_catalog_service_module,
         _load_legacy_definitions_module,
+        _stable_starter_uid_from_fingerprint,
     ):
         try:
             cached_func.cache_clear()
@@ -4261,6 +6162,20 @@ __all__ = [
     "TAXONOMY_REQUIRED_FIELDS",
     "VPLIB_UID_FIELD",
     "VPLIB_UID_KEYS",
+    "STARTER_OBJECT_KIND",
+    "STARTER_FAMILY_PROFILE_ID",
+    "STARTER_VARIANT_PROFILE_ID",
+    "STARTER_DEFAULT_VARIANT_ID",
+    "STARTER_DEFAULT_LABEL",
+    "STARTER_DIMENSIONS_MM",
+    "DEFAULT_MAX_ARCHIVE_BYTES",
+    "DEFAULT_MAX_ARCHIVE_ENTRIES",
+    "DEFAULT_MAX_ARCHIVE_UNCOMPRESSED_BYTES",
+
+    # Errors
+    "LibraryCreateRouteServiceError",
+    "CreatePayloadContractError",
+    "CreateArchiveContractError",
 
     # Dataclasses
     "RouteBinaryResponse",
@@ -4289,6 +6204,7 @@ __all__ = [
     "sanitize_template_context",
     "response_to_tuple",
     "binary_response_to_meta_tuple",
+    "validate_vplib_archive",
     "clear_library_create_route_service_caches",
 
     # Aliases

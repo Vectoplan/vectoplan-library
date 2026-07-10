@@ -1,6 +1,7 @@
 # IST-Zustand – `services/vectoplan-library/routes`
 
-Stand: **2026-06-28**  
+Stand: **2026-07-10**  
+Letzte umfassende Aktualisierung: **2026-07-10**  
 Zielpfad im Projekt: `services/vectoplan-library/routes/IST-Zustand.md`  
 Dokumenttyp: technischer IST-Stand für die komplette Flask-Routenschicht.
 
@@ -25,7 +26,7 @@ routes/*
   ≠ Scanner-/Generator-/Repository-Implementierung
 ```
 
-Aktuell enthält der Ordner **12 geprüfte Python-Dateien** mit insgesamt **230 erkannten Route-Decorators**.  
+Die Inventur vom 28. Juni 2026 erfasste **12 Python-Dateien** und **230 Route-Decorators**. Diese Zahlen bleiben als historische Baseline erhalten; nach den nachfolgenden Änderungen an `create.py`, `library_definition_routes.py` und den Library-Adaptern muss die Decorator-Zahl vor einer erneuten exakten Angabe automatisiert aus dem aktuellen Checkout gezählt werden.  
 Die zentrale Registry ist `routes/__init__.py`; sie registriert Required- und Optional-Blueprints defensiv und speichert Metadaten in `app.extensions["vectoplan_library"]`.
 
 ---
@@ -1413,4 +1414,1478 @@ Nächster sinnvoller IST-Stand nach `routes/`:
 
 ```text
 src/library/services/IST-Zustand.md
+```
+---
+
+## 17. Aktualisierungsstand vom 10. Juli 2026
+
+### 17.1 Einordnung
+
+Seit dem dokumentierten Stand vom 28. Juni 2026 wurden vor allem diese HTTP-Pfade praktisch weitergeführt:
+
+```text
+/create
+/api/v1/vplib/create/*
+/api/v1/vplib/definitions/*
+/api/v1/vplib/library/*
+```
+
+Die wesentlichen Änderungen liegen nicht in einer neuen Route-Datei, sondern in der Härtung bestehender Adapter und ihrer nachgelagerten Services:
+
+```text
+routes/create.py
+  -> src/services/library_create_route_service.py
+  -> src/library/services/library_create_service.py
+
+routes/library_definition_routes.py
+  -> src/library/services/library_definition_catalog_service.py
+  -> Definition Registry / DB Catalog / App Context Fallback
+
+routes/library_routes.py
+  -> src/library/services/library_db_sync_service.py
+  -> src/library/services/creative_library_service.py
+  -> PostgreSQL Published State
+```
+
+### 17.2 Verbindliche Statusklassen
+
+Ab diesem Stand werden Aussagen in diesem Dokument in drei Klassen eingeteilt:
+
+```text
+VERIFIZIERT
+  Im Browser, HTTP-Log oder isolierten Runtime-Test tatsächlich beobachtet.
+
+STRUKTURELL VORHANDEN
+  Route und Delegationspfad existieren im Code, aber der vollständige produktive
+  End-to-End-Fall wurde nicht zwingend mit realen Daten bestätigt.
+
+GEPLANT / OFFEN
+  Architektur oder Zielverhalten ist beschlossen, aber noch nicht implementiert.
+```
+
+Diese Trennung ist besonders wichtig bei:
+
+```text
+- automatischem Save -> DB-Sync
+- vollständigen Upload-Bytes
+- Published-Verifikation direkt nach Save
+- Bereinigung doppelter Library-Routen
+- exakter aktueller Route-Decorator-Zählung
+```
+
+---
+
+## 18. Verifizierter Runtime-Stand
+
+### 18.1 Erfolgreich beobachtete Create-Aufrufe
+
+Am 10. Juli 2026 wurden im laufenden Service folgende Requests mit HTTP 200 beobachtet:
+
+```text
+GET  /create
+GET  /api/v1/vplib/definitions/options
+GET  /api/v1/vplib/definitions/resolve-family-profile
+GET  /api/v1/vplib/definitions/resolve-variant-profile
+GET  /api/v1/vplib/definitions/empty-variant-values/simple_cell_block.v1
+GET  /api/v1/vplib/definitions/variant-profiles/simple_cell_block.v1?resolved=1
+
+POST /api/v1/vplib/create/validate
+POST /api/v1/vplib/create/package-plan
+POST /api/v1/vplib/create/download
+POST /api/v1/vplib/create/drafts
+POST /api/v1/vplib/create/save
+```
+
+Damit sind folgende Route-Ketten praktisch bestätigt:
+
+```text
+Create-Template rendern
+Definitionen/Profile laden
+Starterprofil auflösen
+Payload validieren
+Package-Plan erzeugen
+.vplib als Backend-Download liefern
+persistenten Draft anlegen
+Directory-Package in Source speichern
+```
+
+### 18.2 Bewusst fehlgeschlagene Methodenaufrufe
+
+Folgende Aufrufe wurden über die Browser-Adresszeile als GET ausgeführt und korrekt mit HTTP 405 abgewiesen:
+
+```text
+GET /api/v1/vplib/library/sync
+GET /api/v1/vplib/create/save
+```
+
+Das ist kein Routingfehler. Beide Endpunkte sind schreibende POST-Routen:
+
+```text
+POST /api/v1/vplib/library/sync
+POST /api/v1/vplib/create/save
+```
+
+### 18.3 Published-Read vor Sync
+
+Folgender Read war technisch erfolgreich, lieferte aber keine Items:
+
+```text
+GET /api/v1/vplib/library/items
+HTTP 200
+published = true
+item_count = 0
+items = []
+backend = published_db
+```
+
+Das bedeutet:
+
+```text
+Route erreichbar
+Service erreichbar
+Published-Repository erreichbar
+DB-Read erfolgreich
+aber noch kein erfolgreich synchronisiertes Published Item vorhanden
+```
+
+Ein leeres `items`-Array bei HTTP 200 ist deshalb vor dem DB-Sync ein korrekter Zustand.
+
+---
+
+## 19. Aktueller Create-Routenvertrag
+
+### 19.1 Kanonischer Namespace
+
+```text
+GET  /create
+
+GET  /api/v1/vplib/create/health
+GET  /api/v1/vplib/create/routes
+GET  /api/v1/vplib/create/selftest
+GET  /api/v1/vplib/create/
+GET  /api/v1/vplib/create
+GET  /api/v1/vplib/create/options
+GET  /api/v1/vplib/create/definitions/current
+
+GET|POST /api/v1/vplib/create/context
+GET|POST /api/v1/vplib/create/create-context
+
+POST /api/v1/vplib/create/draft
+POST /api/v1/vplib/create/validate
+POST /api/v1/vplib/create/package-plan
+POST /api/v1/vplib/create/publish-bundle
+POST /api/v1/vplib/create/download
+POST /api/v1/vplib/create/save
+POST /api/v1/vplib/create/cache/clear
+
+POST  /api/v1/vplib/create/drafts
+GET   /api/v1/vplib/create/drafts/<draft_ref>
+PATCH /api/v1/vplib/create/drafts/<draft_ref>
+POST  /api/v1/vplib/create/drafts/<draft_ref>/validate
+POST  /api/v1/vplib/create/drafts/<draft_ref>/publish/prepare
+```
+
+`publish-bundle` ist im älteren Route-Katalog noch nicht enthalten und muss beim nächsten automatischen Decorator-Scan mitgezählt werden.
+
+### 19.2 Zuständigkeiten von `routes/create.py`
+
+`routes/create.py` darf:
+
+```text
+- Request-Body und Query-Flags lesen
+- Form-/JSON-Payload an den Route-Service delegieren
+- RouteResponse in JSON übertragen
+- Binärantwort über Flask send_file ausliefern
+- HTTP-Status und Diagnose-Header setzen
+- das Create-Template rendern
+- bei Templatefehler eine minimale Fallback-Seite ausliefern
+```
+
+`routes/create.py` darf nicht:
+
+```text
+- Package-Dokumente selbst bauen
+- Source-Dateien selbst schreiben
+- DB-Sync selbst implementieren
+- die eigene /library/sync-Route per internem HTTP-Request aufrufen
+- Definitionen im Route-Code hardcoden
+- Browser-Buttonbindungen als Backendproblem behandeln
+```
+
+### 19.3 Route-Service als primäre Fassade
+
+Die produktive Kette lautet:
+
+```text
+routes/create.py
+  -> src/services/library_create_route_service.py
+  -> Generator-/Create-/Definition-/Taxonomie-Services
+```
+
+Der Route-Service normalisiert:
+
+```text
+- Mapping
+- JSON-String
+- bytes mit JSON
+- MultiDict-artige Request-Daten
+- Dataclass-/to_dict()-Objekte
+```
+
+und liefert Route-nahe Resultate:
+
+```text
+RouteResponse
+RouteBinaryResponse
+RouteIssue
+```
+
+### 19.4 `publish-bundle`
+
+```text
+POST /api/v1/vplib/create/publish-bundle
+```
+
+baut ein Publish-Prepare-/Publish-Bundle, veröffentlicht aber nicht automatisch in den Published State.
+
+Die Route ist für diese Trennung wichtig:
+
+```text
+Create Payload
+  -> Publish Bundle bauen
+  ≠ automatisch in PostgreSQL veröffentlichen
+```
+
+---
+
+## 20. Download-Route
+
+### 20.1 Vertrag
+
+```text
+POST /api/v1/vplib/create/download
+Content-Type: application/json
+Response: Binärdatei / .vplib
+```
+
+Der Browser erzeugt das Archiv nicht selbst.
+
+### 20.2 Backend-Pipeline
+
+```text
+Request Payload
+  -> Create Route Service
+  -> Validierung
+  -> Package-Plan
+  -> Document Bundle
+  -> In-Memory .vplib Archive
+  -> Flask send_file(BytesIO(...))
+```
+
+### 20.3 Response-Header
+
+Die Route setzt beziehungsweise soll stabil setzen:
+
+```text
+Content-Disposition: attachment
+Cache-Control: no-store
+X-VECTOPLAN-Create-Status
+X-VECTOPLAN-Create-Route: download
+X-VECTOPLAN-Create-Version
+```
+
+### 20.4 Browser-Preflight
+
+Die Frontend-Action führt vor dem Binärrequest typischerweise aus:
+
+```text
+POST /validate
+POST /package-plan
+POST /download
+```
+
+Diese drei Requests wurden in dieser Reihenfolge mit HTTP 200 verifiziert.
+
+### 20.5 Fehlersemantik
+
+Wenn der Route-Service keine gültige Binärantwort liefert:
+
+```text
+- kein leerer Download vortäuschen
+- JSON-Fehlerantwort liefern
+- sicheren HTTP-Status verwenden
+- kein Blob mit JSON-Fehler als .vplib speichern
+```
+
+---
+
+## 21. Source-Save-Route
+
+### 21.1 Aktueller Vertrag
+
+```text
+POST /api/v1/vplib/create/save
+```
+
+Die Route:
+
+```text
+1. liest den Create-Payload
+2. liest optional overwrite
+3. delegiert an save_package_response(...)
+4. gibt das Source-Save-Ergebnis zurück
+```
+
+### 21.2 Aktueller Persistenzumfang
+
+Der Save-Vorgang schreibt ein Directory-Package nach:
+
+```text
+src/library/source/{domain}/{category}/{subcategory}/{family_slug}/
+```
+
+Er liefert typischerweise:
+
+```text
+vplib_uid
+family_id
+package_id
+package_path
+source_path
+source_parts
+target_dir
+source_root
+written_file_count
+written_files
+```
+
+### 21.3 Aktuelle Grenze
+
+Der Source-Save schreibt nicht automatisch den Published State:
+
+```text
+POST /create/save
+  -> Source Directory Package
+  -> noch kein garantierter DB-Sync
+```
+
+Der derzeitige Produktionszustand bleibt deshalb:
+
+```text
+POST /create/save
+danach
+POST /library/sync
+```
+
+### 21.4 Nicht implementiert
+
+Folgendes ist noch kein verlässlicher Vertrag:
+
+```text
+POST /api/v1/vplib/create/save?sync=true
+```
+
+Ebenso noch nicht umgesetzt:
+
+```text
+POST /create/save
+  -> Source Save
+  -> Single-Package Scan
+  -> DB-Sync
+  -> Published Read Verification
+  -> gemeinsame Erfolgsantwort
+```
+
+### 21.5 Konsequenz für Route-Antworten
+
+Ein HTTP 200 von `/create/save` bedeutet aktuell:
+
+```text
+Source Package erfolgreich geschrieben
+```
+
+Es bedeutet nicht automatisch:
+
+```text
+Item ist unter /library/items sichtbar
+```
+
+---
+
+## 22. Library-Sync-Route
+
+### 22.1 Kanonischer Aufruf
+
+```text
+POST /api/v1/vplib/library/sync
+Content-Type: application/json
+Body: {}
+```
+
+Alternative erlaubte Payloadformen können sein:
+
+```json
+{"scan": true}
+```
+
+```json
+{"scan_result": {}}
+```
+
+```json
+{"items": []}
+```
+
+```json
+{"candidates": []}
+```
+
+```json
+{"publish_payload": {}}
+```
+
+### 22.2 Service-Delegation
+
+```text
+routes/library_routes.py
+  -> sync_payload_from_request()
+  -> LibraryDbSyncService
+```
+
+Mögliche Servicepfade:
+
+```text
+sync_library_source(...)
+sync_scan_result_to_db(...)
+sync_candidate_to_db(...)
+```
+
+### 22.3 Sicherheitsdefaults
+
+Für einen normalen Vollsync:
+
+```text
+publish_valid_only = true
+mark_missing_deleted = false, sofern nicht ausdrücklich aktiviert
+include_raw_documents = konfigurierbar
+force_refresh = true
+```
+
+### 22.4 Single-Candidate-Fähigkeit
+
+Der Sync-Service besitzt bereits die Fähigkeit, einen einzelnen Kandidaten zu synchronisieren.
+
+Das ist wichtig für eine spätere automatische Save-Kopplung:
+
+```text
+gerade gespeichertes Package
+  -> genau einen Kandidaten lesen
+  -> genau einen Kandidaten synchronisieren
+```
+
+Nicht empfohlen:
+
+```text
+bei jedem Save den gesamten Source-Baum synchronisieren
+```
+
+### 22.5 Manuelle Route bleibt notwendig
+
+Auch nach einer späteren automatischen Save-Synchronisation muss die manuelle Route erhalten bleiben für:
+
+```text
+- Reparatur
+- Backfill
+- Repository-Import
+- Massenänderungen
+- Admin-Sync
+- erneute Verarbeitung nach DB-Ausfall
+```
+
+---
+
+## 23. Published-Read-Routen
+
+### 23.1 Kernrouten
+
+```text
+GET /api/v1/vplib/library/published
+GET /api/v1/vplib/library/items
+GET /api/v1/vplib/library/items/<item_ref>
+GET /api/v1/vplib/library/vplib/<vplib_uid>
+GET /api/v1/vplib/library/items/<item_ref>/variants
+GET /api/v1/vplib/library/items/<item_ref>/revisions
+GET /api/v1/vplib/library/items/<item_ref>/assets
+GET /api/v1/vplib/library/items/<item_ref>/documents
+```
+
+### 23.2 Standardfilter der Item-Liste
+
+Die beobachtete Item-Antwort verwendete:
+
+```text
+include_deleted = false
+active_only = true
+visible_only = false
+limit = 250
+offset = 0
+published = true
+backend = published_db
+```
+
+### 23.3 Read-Quelle
+
+```text
+Published Routes
+  -> CreativeLibraryService
+  -> CreativeLibraryRepository
+  -> PostgreSQL
+```
+
+Die Route soll nicht heimlich auf Source-Dateien zurückfallen, wenn sie als Published-DB-Route aufgerufen wird.
+
+### 23.4 Debug-Filesystem-Pfade
+
+Dateibasierte Vergleiche bleiben separat, beispielsweise:
+
+```text
+GET /api/v1/vplib/library/blocks?source=filesystem
+GET /api/v1/vplib/library/tree?source=filesystem
+```
+
+---
+
+## 24. Definition-Routen nach der Profil-Härtung
+
+### 24.1 Aktiver Startervertrag
+
+Der Create-Flow verwendet aktuell:
+
+```text
+object_kind = cell_block
+family_profile_id = simple_cell_block
+variant_profile_id = simple_cell_block.v1
+```
+
+### 24.2 Verifizierte Definition-Aufrufe
+
+```text
+GET /api/v1/vplib/definitions/options
+
+GET /api/v1/vplib/definitions/resolve-family-profile
+  ?domain=hochbau
+  &category=waende
+  &subcategory=aussenwaende
+  &object_kind=cell_block
+  &family_profile_id=simple_cell_block
+  &variant_profile_id=simple_cell_block.v1
+
+GET /api/v1/vplib/definitions/resolve-variant-profile
+  mit denselben Kontextfeldern
+
+GET /api/v1/vplib/definitions/empty-variant-values/simple_cell_block.v1
+
+GET /api/v1/vplib/definitions/variant-profiles/simple_cell_block.v1?resolved=1
+```
+
+Diese Pfade wurden nach den Korrekturen mit HTTP 200 beobachtet.
+
+### 24.3 Historischer Fehler
+
+Vor der Härtung konnte die direkte Profilroute antworten:
+
+```text
+404 Definition 'simple_cell_block.v1' in dataset 'variant_profiles' was not found
+```
+
+während die Resolve-Route bereits einen Fallback liefern konnte.
+
+Die Ursache war eine unterschiedliche Quellenauflösung zwischen:
+
+```text
+direkter Dataset-Lookup
+Resolve-Kontext
+App-/Registry-Fallback
+```
+
+### 24.4 Aktueller Zielvertrag
+
+Direkte und aufgelöste Zugriffe sollen denselben fachlichen Profilbestand sehen:
+
+```text
+DB Catalog
+  bevorzugt, wenn vollständig vorhanden
+
+App-/Registry-Definitionen
+  Fallback bei fehlendem DB-Eintrag
+
+Legacy Definitions
+  nur kontrollierter Compatibility-Fallback
+```
+
+### 24.5 Routen-Normalisierung
+
+Routen und Kontextwerte dürfen nie als beliebige Objekte in URLs eingesetzt werden.
+
+Zu verhindern:
+
+```text
+/[object Object]
+```
+
+Akzeptierte Routeformen:
+
+```text
+"/api/..."
+{"url": "/api/..."}
+{"href": "/api/..."}
+{"path": "/api/..."}
+{"endpoint": "/api/..."}
+```
+
+Nach Normalisierung muss das Ergebnis ein sicherer lokaler String-Pfad sein.
+
+### 24.6 Methodensemantik korrigieren
+
+Folgende GET|POST-Routen sind nicht automatisch DB-Writes:
+
+```text
+/create-context
+/upload-constraints
+/resolve-family-profile
+/resolve-variant-profile
+/empty-variant-values
+```
+
+Sie sind fachlich:
+
+```text
+read / compute / resolve
+```
+
+Der eindeutige Definitions-DB-Write ist:
+
+```text
+POST /api/v1/vplib/definitions/seed/run
+```
+
+---
+
+## 25. Route- und Browser-Binding-Grenze
+
+### 25.1 Beobachtetes Fehlerbild
+
+Der Download-Endpunkt funktionierte direkt über:
+
+```javascript
+window.VectoplanCreateActions.runAction("download")
+```
+
+Ein physischer Buttonklick startete zunächst jedoch keinen POST-Request.
+
+### 25.2 Bedeutung für die Routenschicht
+
+Wenn direkter Runtime-Aufruf funktioniert und der Server keinen Request erhält, ist die Route nicht die primäre Fehlerquelle.
+
+Diagnosegrenze:
+
+```text
+Buttonklick erzeugt keinen Netzwerkrequest
+  -> Template / DOM / JavaScript Binding prüfen
+
+Request erreicht Route und antwortet 4xx/5xx
+  -> Route / Service / Payload prüfen
+```
+
+### 25.3 Implementierte Browser-Brücken
+
+Die aktuelle UI besitzt mehrere defensive Ebenen:
+
+```text
+frühe Shell-Bridge in create.html
+direkte Bridge in _actions.html
+delegierter Listener in create_actions.js
+direkter Button-Fallback
+MutationObserver für ersetzte Buttons
+gemeinsamer Event-Marker gegen Doppelstarts
+```
+
+### 25.4 Route bleibt unverändert
+
+Die Route darf keine Sonderlogik enthalten, nur weil ein HTML-Button zeitweise nicht gebunden war.
+
+---
+
+## 26. Request- und Response-Verträge
+
+### 26.1 Request-Payloads
+
+Routen sollen defensiv unterstützen:
+
+```text
+application/json
+application/x-www-form-urlencoded
+multipart/form-data, wenn die Route echte Dateien unterstützt
+Query-Parameter für optionale Flags
+```
+
+### 26.2 Create-Payload
+
+Kernfelder:
+
+```text
+vplib_uid
+family_name
+family_description
+domain
+category
+subcategory
+taxonomy_path
+object_kind
+family_profile_id
+variant_profile_id
+definition_variants_json
+default_variant_id
+primitive_shape
+geometry_unit
+geometry_width
+geometry_height
+geometry_depth
+editor_cells_x
+editor_cells_y
+editor_cells_z
+material_class
+```
+
+### 26.3 Upload-Grenze
+
+Die Create-Payload-Runtime liefert derzeit Upload-Metadaten:
+
+```text
+geometry_model_uploads_json
+technical_document_uploads_json
+variant_document_uploads_json
+```
+
+Das ist nicht gleichbedeutend mit übertragenen Datei-Bytes.
+
+Echte Bytes gehören in:
+
+```text
+request.files
+File-/Draft-Upload-Route
+Storage-Service
+```
+
+### 26.4 JSON-Antworten
+
+Jede Route sollte mindestens stabil liefern:
+
+```text
+ok
+status
+route oder action
+payload oder data
+errors
+warnings
+generated_at
+component/version, sofern verfügbar
+```
+
+### 26.5 Binärantworten
+
+Binärrouten müssen zusätzlich sichern:
+
+```text
+korrekter MIME-Type
+Content-Disposition
+nichtleerer Inhalt
+keine JSON-Fehler als Binärdownload
+Cache-Control: no-store
+```
+
+---
+
+## 27. HTTP-Statusregeln
+
+### 27.1 Empfohlene Zuordnung
+
+```text
+200
+  erfolgreicher Read, Compute, Download oder idempotenter Write
+
+201
+  neue persistente Ressource erzeugt, sofern Route dies konsequent nutzt
+
+400
+  Request syntaktisch oder normalisierbar ungültig
+
+404
+  Ressource/Profil/Item nicht gefunden
+
+405
+  Route vorhanden, aber HTTP-Methode falsch
+
+409
+  Source-Ziel oder fachlicher Zustand kollidiert
+
+422
+  fachliche Validierung fehlgeschlagen
+
+500
+  unerwarteter interner Fehler
+
+503
+  abhängiger Service, Repository oder DB nicht verfügbar
+```
+
+### 27.2 Teilfehler beim zukünftigen Save-Sync
+
+Für eine spätere gekoppelte Operation muss die Antwort unterscheiden:
+
+```text
+source_saved_sync_failed
+sync_succeeded_verification_failed
+saved_and_published
+saved_and_unchanged
+```
+
+Ein pauschales `ok=true` ohne Phasenstatus wäre unzureichend.
+
+---
+
+## 28. Blueprint-Registry: beobachteter Stand
+
+### 28.1 Erfolgreich registrierte Blueprints
+
+Im Startlog wurden unter anderem erfolgreich registriert:
+
+```text
+vplib
+vplib_library_api
+library_bp
+taxonomy
+library_definition_routes
+library_files
+creative_library_user
+creative_library_drafts
+vplib_create
+inventar
+inventar_user
+```
+
+### 28.2 Gleichzeitig vorhandene Warnung
+
+Trotz erfolgreicher Einzelregistrierungen erschien:
+
+```text
+Extension error [routes]: One or more required blueprints are missing.
+```
+
+Das deutet auf eine Diagnose-/Timing-/Registry-Abweichung hin, nicht zwingend auf einen tatsächlich fehlenden produktiven Blueprint.
+
+### 28.3 Zusätzlich beobachtete Startup-Warnungen
+
+```text
+Directory check failed for routes_root
+VPLIB settings check failed: 'NoneType' object has no attribute '__dict__'
+Library settings check failed: 'NoneType' object has no attribute '__dict__'
+```
+
+### 28.4 Priorisierte Prüfung
+
+```text
+1. Zeitpunkt des Registry-Snapshots prüfen
+2. erwartete Blueprint-Namen gegen app.blueprints vergleichen
+3. required/optional Aliasnamen prüfen
+4. doppelte Registrierung in Prestart-, Migrate- und Gunicorn-Prozessen unterscheiden
+5. Extension-Health erst nach vollständiger Registrierung bewerten
+6. routes_root aus tatsächlichem Servicepfad ableiten
+7. Settings-Health None-sicher machen
+```
+
+Diese Warnungen blockierten den späteren erfolgreichen App-Start nicht, sollten aber nicht dauerhaft ignoriert werden.
+
+---
+
+## 29. Überlappung `library_routes.py` und `api.py`
+
+### 29.1 Aktuelles Risiko
+
+Beide Dateien können dieselben URL-/Methodenpaare registrieren:
+
+```text
+GET  /library/health
+GET  /library/scan
+POST /library/sync
+GET  /library/blocks
+GET  /library/blocks/<block_id>
+GET  /library/blocks/<block_id>/variants
+GET  /library/tree
+```
+
+### 29.2 Mögliche Folgen
+
+```text
+- Reihenfolge entscheidet, welcher Endpoint matched
+- unterschiedliche Response-Shapes unter derselben URL
+- unterschiedliche Fehlerbehandlung
+- schwer interpretierbare Route-Maps
+- Tests können unbemerkt den falschen Adapter treffen
+```
+
+### 29.3 Kanonische Entscheidung
+
+```text
+routes/library_routes.py
+  kanonische API
+
+routes/api.py
+  Compatibility-Layer
+```
+
+### 29.4 Nächste Bereinigung
+
+Eine der folgenden Strategien muss explizit umgesetzt werden:
+
+```text
+A. api.py nur noch nichtduplizierte Compatibility-Routen registrieren
+
+B. api.py mit eigenem Legacy-Prefix registrieren
+
+C. api.py aus der produktiven Registry entfernen, sobald Abdeckung vollständig ist
+
+D. api.py intern auf library_routes-nahe Services delegieren, ohne identische
+   Flask-Regeln doppelt zu registrieren
+```
+
+### 29.5 Verifikation
+
+Die tatsächliche `app.url_map` ist maßgeblich, nicht nur die Quelltextzählung.
+
+Zu prüfen:
+
+```text
+rule
+endpoint
+methods
+blueprint
+Registrierungsreihenfolge
+```
+
+---
+
+## 30. Sicherheits- und Robustheitsregeln
+
+### 30.1 Keine offenen Redirect-/URL-Objekte
+
+Routen aus Template-Kontext müssen lokale Pfade sein.
+
+### 30.2 Keine Dateipfade aus ungeprüften Nutzereingaben
+
+Source-, Download-, Upload- und Draft-Dokumentpfade müssen gegen:
+
+```text
+absolute paths
+../ traversal
+Backslash-Normalisierung
+ausführbare Dateitypen
+unerlaubte Zielmodule
+```
+
+gesichert werden.
+
+### 30.3 Keine ORM-Rohobjekte serialisieren
+
+Antworten sollen keine ungefilterten:
+
+```text
+SQLAlchemy Models
+Sessions
+Query Objects
+Scan Pipelines mit Rückreferenzen
+Exceptions mit sensitiven Verbindungsdaten
+```
+
+enthalten.
+
+### 30.4 Fehlerdetails
+
+In Development dürfen Diagnosefelder umfangreicher sein. Produktionsantworten sollen:
+
+```text
+Fehlercode
+sichere Meldung
+Feld/Scope
+Request-/Run-ID
+```
+
+liefern, aber keine Secrets.
+
+### 30.5 Schreibflags
+
+Source-Save und DB-Sync müssen separat konfigurierbar und im Health sichtbar sein:
+
+```text
+Create Write Enabled
+Library Sync Enabled
+DB Available
+Published Read Enabled
+```
+
+---
+
+## 31. Cache- und Deployment-Verhalten
+
+### 31.1 Statische Create-Dateien
+
+`routes/create.py` rendert das Template; die statischen Dateien werden über Flask/Proxy ausgeliefert.
+
+Nach Runtime-Änderungen müssen versionierte URLs verwendet werden:
+
+```text
+create_core.js?v=<asset-version>
+...
+create_actions.js?v=<asset-version>
+create.js?v=<asset-version>
+```
+
+### 31.2 Beobachtete 304-Antworten
+
+Im Browserlog wurden statische Dateien häufig mit HTTP 304 geladen.
+
+Das ist korrekt, wenn die Versionskennung geändert wurde. Bei unveränderter Versionskennung kann jedoch veralteter JavaScript-Code aktiv bleiben.
+
+### 31.3 Route-Verantwortung
+
+Die Route soll:
+
+```text
+- stabile Asset-Version in Template-Kontext geben
+- no-store für Binär-/sensible Create-Antworten setzen
+```
+
+Sie soll nicht:
+
+```text
+- Cache-Busting per zufälligem Wert bei jedem Request erzwingen
+- statische Dateien inline duplizieren
+```
+
+---
+
+## 32. Aktualisierte Testmatrix
+
+### 32.1 Nichtschreibende Basistests
+
+```text
+GET /api/v1/vplib/health
+GET /api/v1/vplib/library/health
+GET /api/v1/vplib/library/routes
+GET /api/v1/vplib/library/scan?source=file
+GET /api/v1/vplib/library/items
+GET /api/v1/vplib/definitions/health
+GET /api/v1/vplib/definitions/options
+GET /api/v1/vplib/taxonomy/create-options
+GET /api/v1/vplib/files/health
+GET /api/v1/vplib/create/health
+GET /api/v1/vplib/create/options
+GET /create
+```
+
+### 32.2 Create-Compute-Test
+
+```text
+POST /api/v1/vplib/create/draft
+POST /api/v1/vplib/create/validate
+POST /api/v1/vplib/create/package-plan
+POST /api/v1/vplib/create/publish-bundle
+```
+
+Erwartung:
+
+```text
+JSON
+kein Source-Write
+kein Published-Write
+stabile vplib_uid
+konsistente Profil-IDs
+```
+
+### 32.3 Download-Test
+
+```text
+POST /validate
+POST /package-plan
+POST /download
+```
+
+Prüfen:
+
+```text
+HTTP 200
+Content-Disposition
+MIME-Type
+Dateigröße > Minimalgrenze
+ZIP-Signatur
+vplib.manifest.json vorhanden
+vplib_uid konsistent
+```
+
+### 32.4 Source-Save-Test
+
+```text
+POST /api/v1/vplib/create/save
+```
+
+Prüfen:
+
+```text
+HTTP 200
+target_dir vorhanden
+written_file_count > 0
+Manifest vorhanden
+vplib_uid im Ergebnis
+Source-Pfad vierteilig
+noch keine automatische Behauptung published=true
+```
+
+### 32.5 Manueller Sync-Test
+
+```text
+POST /api/v1/vplib/library/sync
+Body {}
+```
+
+Prüfen:
+
+```text
+ScanRun erzeugt
+Kandidat gefunden
+vplib_uid übernommen
+Revision erzeugt oder unverändert erkannt
+Varianten/Dokumente geschrieben
+keine fremden Items als deleted markiert
+```
+
+### 32.6 Published-Verifikation
+
+```text
+GET /api/v1/vplib/library/items
+GET /api/v1/vplib/library/vplib/<vplib_uid>
+GET /api/v1/vplib/library/items/<item_ref>
+GET /api/v1/vplib/library/items/<item_ref>/variants
+GET /api/v1/vplib/library/items/<item_ref>/revisions
+GET /api/v1/vplib/library/items/<item_ref>/documents
+```
+
+### 32.7 Idempotenz
+
+```text
+identischen Source-Stand erneut synchronisieren
+```
+
+Erwartung:
+
+```text
+kein zweites Item
+keine neue Revision bei gleichem revision_hash
+stabile vplib_uid
+Child-Counts konsistent
+```
+
+### 32.8 Falsche Methoden
+
+Explizit testen:
+
+```text
+GET /library/sync -> 405
+GET /create/save  -> 405
+```
+
+---
+
+## 33. Diagnosematrix nach Symptom
+
+### Button reagiert nicht
+
+```text
+Kein Network Request:
+  Template-/JS-Binding prüfen.
+
+Network Request vorhanden:
+  Route und Response prüfen.
+```
+
+### Download startet, aber Datei ist ungültig
+
+```text
+Content-Type
+Content-Disposition
+Blob-Größe
+ZIP-Signatur
+Preflight-Responses
+Backend-Fehlerpayload
+```
+
+### Save meldet Erfolg, Items bleiben leer
+
+```text
+Source-Save-Ergebnis prüfen
+Filesystem-Scan prüfen
+POST /library/sync ausführen
+SyncResult/Issues prüfen
+Published Filter prüfen
+```
+
+### `/library/sync` antwortet 405
+
+```text
+Wurde GET statt POST verwendet?
+```
+
+### Profilroute antwortet 404
+
+```text
+DB Dataset
+Registry/App Definitions
+direkter Lookup
+resolved Lookup
+profile_id Alias
+Dataset-Deduplizierung
+```
+
+### App meldet fehlende Blueprints, Routes funktionieren aber
+
+```text
+Registry-Timing
+erwartete Namen
+Prestart-App vs Gunicorn-App
+Extension-Snapshot
+doppelte Initialisierung
+```
+
+### HTTP 200, aber `ok=false`
+
+```text
+Response-Fachstatus lesen
+errors/warnings prüfen
+nicht nur HTTP-Status auswerten
+```
+
+---
+
+## 34. Priorisierte weitere Bearbeitungsreihenfolge
+
+### P0 – Automatischer Save-Sync-Vertrag
+
+Noch nicht sofort in `routes/create.py` implementieren.
+
+Zuerst erforderlich:
+
+```text
+1. Single-Package Scan-Service
+2. Single-Candidate Sync-Orchestrierung
+3. Published-Verifikation per vplib_uid
+4. gemeinsames SaveSyncResult
+5. transaktionale und idempotente Service-Tests
+6. danach Route-Service umstellen
+7. zuletzt routes/create.py Antwortstatus anpassen
+```
+
+### P0 – Duplicate Library Routes
+
+```text
+library_routes.py als kanonisch bestätigen
+api.py Compatibility-Strategie festlegen
+app.url_map automatisiert prüfen
+```
+
+### P0 – Registry-Warnung
+
+```text
+falsch-positive required-blueprint Warnung beseitigen
+```
+
+### P1 – Routenzählung erneuern
+
+Die alte Zahl 230 darf erst ersetzt werden, nachdem ein Tool den aktuellen Checkout analysiert hat.
+
+Der Zähler muss unterstützen:
+
+```text
+@bp.get
+@bp.post
+@bp.patch
+@bp.put
+@bp.delete
+@bp.route(methods=[...])
+Mehrfachmethoden
+Blueprint-Prefixe
+vollständige Pfade
+```
+
+### P1 – Response-Helfer vereinheitlichen
+
+Gemeinsamer Vertrag für:
+
+```text
+json_safe
+safe_bool
+safe_int
+error serialization
+status mapping
+request context
+component/version
+```
+
+### P1 – Upload-Bytes
+
+```text
+Create-Metadaten und echte Multipart-Dateien klar trennen
+```
+
+### P2 – Compatibility-Layer reduzieren
+
+```text
+Legacy-Route-Aliase dokumentieren
+veraltete Pfade deprecaten
+Route-Map mit Deprecation-Metadaten ergänzen
+```
+
+---
+
+## 35. Aktualisierte Definition of Done
+
+Die Routenschicht gilt erst dann als vollständig stabil, wenn zusätzlich zu den ursprünglichen Kriterien gilt:
+
+```text
+1. Die aktuelle Route-Anzahl wurde automatisiert aus dem Checkout ermittelt.
+2. Jede URL-/Methodenkombination ist höchstens einmal produktiv registriert,
+   außer eine explizit getestete Compatibility-Regel verlangt etwas anderes.
+3. routes/library_routes.py ist eindeutig die kanonische Library-API.
+4. routes/api.py besitzt eine dokumentierte, konfliktfreie Rolle.
+5. Alle Blueprint-Registrierungen sind erfolgreich.
+6. Die Extension meldet keine falsche Required-Blueprint-Warnung.
+7. GET /create rendert mit aktuellem Context und versionierten Assets.
+8. Die Starter-Definition simple_cell_block.v1 ist direkt und resolved erreichbar.
+9. POST /create/validate funktioniert.
+10. POST /create/package-plan funktioniert.
+11. POST /create/download liefert ein valides .vplib.
+12. POST /create/save schreibt ein valides Source-Package.
+13. Die Save-Antwort behauptet ohne DB-Sync nicht, dass das Item published ist.
+14. POST /library/sync synchronisiert das Source-Package.
+15. GET /library/items zeigt das Item nach erfolgreichem Sync.
+16. GET /library/vplib/<vplib_uid> liefert dasselbe Item.
+17. Wiederholter Sync ist idempotent.
+18. Falsche HTTP-Methoden liefern 405.
+19. Route-Responses enthalten sichere, konsistente Fehlerstrukturen.
+20. Keine Route enthält direkte SQLAlchemy- oder Dateisystem-Fachlogik.
+21. Binärdownloads liefern keine JSON-Fehler als .vplib.
+22. Upload-Metadaten werden nicht mit tatsächlich gespeicherten Datei-Bytes verwechselt.
+23. Cache-/Asset-Versionen verhindern veraltete Create-Runtimes.
+24. Startup-, Route- und Settings-Health sind None-sicher.
+25. Der geplante automatische Save-Sync wird erst nach stabilen Service- und
+    Transaktionstests aktiviert.
+```
+
+---
+
+## 36. Kompakte aktuelle Architekturkarte
+
+```text
+Browser / Editor / API Client
+  ↓
+routes/create.py
+  ├─ GET /create
+  ├─ POST /validate
+  ├─ POST /package-plan
+  ├─ POST /download
+  └─ POST /save
+       ↓
+src/services/library_create_route_service.py
+       ↓
+src/library/services/library_create_service.py
+       ↓
+src/library/source/...
+
+separat:
+
+POST /api/v1/vplib/library/sync
+  ↓
+routes/library_routes.py
+  ↓
+LibraryDbSyncService
+  ↓
+CreativeLibraryService / Repository
+  ↓
+PostgreSQL Published State
+  ↓
+GET /api/v1/vplib/library/items
+```
+
+Definitionen laufen parallel:
+
+```text
+Create Browser Runtime
+  ↓
+routes/library_definition_routes.py
+  ↓
+Definition Catalog Service
+  ↓
+DB Catalog + App/Registry Fallback
+  ↓
+simple_cell_block / simple_cell_block.v1
+```
+
+Die wichtigste noch offene Verbindung lautet:
+
+```text
+Source Save
+  -X-> automatische Single-Package-Synchronisation
+```
+
+Sie ist geplant, aber in diesem dokumentierten Stand noch nicht produktiv umgesetzt.
+
+---
+
+## 37. Schlussfazit zum Stand vom 10. Juli 2026
+
+Die Routenschicht ist funktional breit und die wichtigsten Create- und Definition-Pfade sind praktisch lauffähig. Besonders belastbar sind inzwischen:
+
+```text
+Create-Seite
+Definition Options
+Family-/Variant-Profile Resolve
+Variant Defaults
+Create Validate
+Package Plan
+Backend-.vplib-Download
+Persistent Draft
+Source Save
+Published DB Read
+```
+
+Die zentralen verbleibenden Architekturarbeiten sind:
+
+```text
+- Source-Save und Published-Sync kontrolliert koppeln
+- doppelte Library-Routen bereinigen
+- falsch-positive Registry-Warnungen beseitigen
+- aktuelle Route-Anzahl automatisch neu bestimmen
+- Response-Helfer vereinheitlichen
+- echte Upload-Bytes vollständig anbinden
+```
+
+Bis zur automatischen Kopplung gilt weiterhin verbindlich:
+
+```text
+POST /api/v1/vplib/create/save
+  = Source Package speichern
+
+POST /api/v1/vplib/library/sync
+  = Published DB synchronisieren
+
+GET /api/v1/vplib/library/items
+  = veröffentlichten DB-Zustand lesen
 ```

@@ -78,7 +78,7 @@ from typing import Any, Iterable, Mapping, Optional, Sequence
 # Constants
 # ---------------------------------------------------------------------------
 
-LIBRARY_CREATE_SERVICE_VERSION = "0.4.0"
+LIBRARY_CREATE_SERVICE_VERSION = "0.5.0"
 LIBRARY_CREATE_SERVICE_COMPONENT = "library-create-service"
 
 CREATE_API_PREFIX = "/api/v1/vplib/create"
@@ -105,7 +105,29 @@ DEFAULT_OBJECT_KIND = "cell_block"
 DEFAULT_PRIMITIVE_SHAPE = "block"
 DEFAULT_UNIT = "m"
 
+STARTER_FAMILY_PROFILE_ID = "simple_cell_block"
+STARTER_VARIANT_PROFILE_ID = "simple_cell_block.v1"
+STARTER_DEFAULT_VARIANT_ID = "default"
+STARTER_DEFAULT_VARIANT_LABEL = "Standard"
+STARTER_DEFAULT_DESCRIPTION = "Einfacher scanner-lesbarer Rasterblock aus dem VPLIB Create Flow."
+STARTER_DIMENSIONS_MM = {
+    "dimensions.width_mm": 1000,
+    "dimensions.height_mm": 1000,
+    "dimensions.depth_mm": 1000,
+}
+STARTER_REQUIRED_DEFINITION_VALUE_KEYS = (
+    "variant.variant_id",
+    "variant.label",
+    "dimensions.width_mm",
+    "dimensions.height_mm",
+    "dimensions.depth_mm",
+)
+
 REQUIRED_TAXONOMY_FIELDS = ("domain", "category", "subcategory")
+
+MAX_ARCHIVE_ENTRY_COUNT = 512
+MAX_ARCHIVE_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
+DETERMINISTIC_ZIP_DATETIME = (1980, 1, 1, 0, 0, 0)
 
 ALLOWED_OBJECT_KINDS = {
     "cell_block",
@@ -205,6 +227,27 @@ def _load_definition_catalog_service_module() -> ModuleType:
             errors.append(f"{module_name}: {type(exc).__name__}: {exc}")
 
     raise ImportError("Could not import definition catalog service. " + " | ".join(errors))
+
+
+@lru_cache(maxsize=1)
+def _load_variant_payload_service_module() -> ModuleType:
+    """Load the canonical Create Variant Payload normalizer defensively."""
+    errors: list[str] = []
+
+    for module_name in (
+        "services.library_create_variant_payload_service",
+        "src.services.library_create_variant_payload_service",
+        "library.services.library_create_variant_payload_service",
+        "src.library.services.library_create_variant_payload_service",
+        "vectoplan_library.services.library_create_variant_payload_service",
+        "vectoplan_library.src.services.library_create_variant_payload_service",
+    ):
+        try:
+            return importlib.import_module(module_name)
+        except Exception as exc:
+            errors.append(f"{module_name}: {type(exc).__name__}: {exc}")
+
+    raise ImportError("Could not import create variant payload service. " + " | ".join(errors))
 
 
 def _get_taxonomy_import_error() -> BaseException | None:
@@ -320,6 +363,8 @@ class NormalizedCreateDraft:
     category: str
     subcategory: str
     object_kind: str
+    family_profile_id: str
+    variant_profile_id: str
 
     taxonomy_version: str
     classification_path: str
@@ -364,6 +409,14 @@ class NormalizedCreateDraft:
             "category": self.category,
             "subcategory": self.subcategory,
             "object_kind": self.object_kind,
+            "family_profile_id": self.family_profile_id,
+            "familyProfileId": self.family_profile_id,
+            "variant_profile_id": self.variant_profile_id,
+            "variantProfileId": self.variant_profile_id,
+            "profiles": {
+                "family_profile_id": self.family_profile_id,
+                "variant_profile_id": self.variant_profile_id,
+            },
             "taxonomy": {
                 "version": self.taxonomy_version,
                 "classification_path": self.classification_path,
@@ -539,6 +592,26 @@ def get_service_health() -> CreateResult:
             )
         )
 
+    payload_normalizer_health = _get_variant_payload_service_health()
+    if payload_normalizer_health.get("available"):
+        info.append(
+            _info(
+                "variant_payload_normalizer_available",
+                "Create Variant Payload Service ist verfügbar.",
+                field="payload_normalizer",
+                details=payload_normalizer_health,
+            )
+        )
+    else:
+        warnings.append(
+            _warning(
+                "variant_payload_normalizer_unavailable",
+                "Create Variant Payload Service ist nicht verfügbar; lokaler Fallback bleibt aktiv.",
+                field="payload_normalizer",
+                details=payload_normalizer_health,
+            )
+        )
+
     write_enabled = _env_bool(ENV_WRITE_ENABLED, default=False)
     overwrite_enabled = _env_bool(ENV_OVERWRITE_ENABLED, default=False)
     debug_enabled = _env_bool(ENV_DEBUG, default=False)
@@ -594,6 +667,16 @@ def get_service_health() -> CreateResult:
                 "available": definition_available,
                 "health": definition_health,
             },
+            "payload_normalizer": payload_normalizer_health,
+            "starter_contract": {
+                "object_kind": DEFAULT_OBJECT_KIND,
+                "family_profile_id": STARTER_FAMILY_PROFILE_ID,
+                "variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+                "default_variant_id": STARTER_DEFAULT_VARIANT_ID,
+                "dimensions_mm": dict(STARTER_DIMENSIONS_MM),
+                "documents_required": False,
+                "external_assets_required": False,
+            },
             "routes_expected": {
                 "page": "/create",
                 "health": f"{CREATE_API_PREFIX}/health",
@@ -608,6 +691,9 @@ def get_service_health() -> CreateResult:
             "capabilities": {
                 "build_directory_package": True,
                 "build_archive": True,
+                "validate_archive": True,
+                "deterministic_archive": True,
+                "starter_profile_contract": True,
                 "save_to_source_root": write_enabled,
                 "definition_catalog_options": definition_available,
                 "persistent_draft_payload": True,
@@ -661,6 +747,18 @@ def get_create_options(*, include_definitions: bool = True, user_id: Any = 1) ->
                 "existing_valid_uid_is_preserved": True,
                 "invalid_uid_is_rejected": True,
                 "database_creates_id": False,
+                "canonical_variant_payload_service": True,
+            },
+            "starter_contract": {
+                "object_kind": DEFAULT_OBJECT_KIND,
+                "family_profile_id": STARTER_FAMILY_PROFILE_ID,
+                "variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+                "default_variant_id": STARTER_DEFAULT_VARIANT_ID,
+                "default_variant_label": STARTER_DEFAULT_VARIANT_LABEL,
+                "dimensions_mm": dict(STARTER_DIMENSIONS_MM),
+                "documents_required": False,
+                "external_assets_required": False,
+                "manufacturer_data_required": False,
             },
             "taxonomy_source": "backend_taxonomy_service",
             "taxonomy_version": taxonomy_payload.get("taxonomy_version", ""),
@@ -990,13 +1088,10 @@ def build_package_plan(payload: Any, *, include_documents: bool = True) -> Creat
         )
 
 
-def build_vplib_archive(payload: Any) -> tuple[str, bytes, CreateResult]:
-    """
-    Build a .vplib archive in memory.
 
-    Returns:
-        (filename, archive_bytes, result)
-    """
+
+def build_vplib_archive(payload: Any) -> tuple[str, bytes, CreateResult]:
+    """Build and validate a deterministic ZIP-compatible ``.vplib`` archive."""
     try:
         plan = build_package_plan(payload, include_documents=True)
         if not plan.ok:
@@ -1004,26 +1099,67 @@ def build_vplib_archive(payload: Any) -> tuple[str, bytes, CreateResult]:
 
         draft = plan.data.get("draft") or {}
         documents = plan.data.get("documents") or {}
+        if not isinstance(documents, Mapping) or not documents:
+            return (
+                "invalid.vplib",
+                b"",
+                CreateResult(
+                    ok=False,
+                    status="archive_documents_missing",
+                    data={"vplib_uid": _extract_vplib_uid_from_any(plan.data)},
+                    errors=[
+                        _error(
+                            "archive_documents_missing",
+                            "Der Package-Plan enthält keine Dokumente für das Archiv.",
+                            field="documents",
+                        )
+                    ],
+                    http_status=422,
+                ),
+            )
+
+        document_errors = _validate_package_documents(documents)
+        if document_errors:
+            return (
+                "invalid.vplib",
+                b"",
+                CreateResult(
+                    ok=False,
+                    status="archive_documents_invalid",
+                    data={"vplib_uid": _extract_vplib_uid_from_any(plan.data)},
+                    errors=document_errors,
+                    warnings=plan.warnings,
+                    http_status=422,
+                ),
+            )
+
         family_slug = _safe_segment(str(draft.get("family_slug") or "package"))
         uid = _extract_vplib_uid_from_any(plan.data) or _extract_vplib_uid_from_any(draft)
-        filename = f"{family_slug}.vplib"
-
+        filename = _safe_archive_filename(f"{family_slug}.vplib")
         archive_buffer = io.BytesIO()
 
         with zipfile.ZipFile(
             archive_buffer,
             mode="w",
             compression=zipfile.ZIP_DEFLATED,
+            compresslevel=9,
+            strict_timestamps=True,
         ) as archive:
+            archive.comment = b"VECTOPLAN VPLIB"
             for relative_path in sorted(documents.keys()):
                 _assert_safe_relative_file(relative_path)
-                content = documents[relative_path]
-                archive.writestr(
-                    relative_path,
-                    _serialize_document(relative_path, content),
-                )
+                if _is_blocked_executable_path(relative_path):
+                    raise ValueError(f"Blocked executable path in archive: {relative_path}")
+                serialized = _serialize_document(relative_path, documents[relative_path])
+                _write_deterministic_zip_entry(archive, relative_path, serialized.encode("utf-8"))
 
         archive_bytes = archive_buffer.getvalue()
+        archive_validation = validate_vplib_archive_bytes(
+            archive_bytes,
+            expected_vplib_uid=uid,
+        )
+        if not archive_validation.ok:
+            return "invalid.vplib", b"", archive_validation
 
         result = CreateResult(
             ok=True,
@@ -1031,17 +1167,20 @@ def build_vplib_archive(payload: Any) -> tuple[str, bytes, CreateResult]:
             data={
                 "vplib_uid": uid,
                 "filename": filename,
+                "mimetype": "application/octet-stream",
                 "size_bytes": len(archive_bytes),
                 "sha256": hashlib.sha256(archive_bytes).hexdigest(),
                 "package_path": plan.data.get("package_path", ""),
                 "source_path": plan.data.get("source_path", ""),
-                "file_count": plan.data.get("file_count", 0),
+                "file_count": archive_validation.data.get("entry_count", 0),
+                "archive_validated": True,
+                "archive_validation": archive_validation.data,
+                "deterministic_zip": True,
             },
-            warnings=plan.warnings,
-            info=plan.info,
+            warnings=plan.warnings + archive_validation.warnings,
+            info=plan.info + archive_validation.info,
             http_status=200,
         )
-
         return filename, archive_bytes, result
     except Exception as exc:
         result = _failure(
@@ -1051,6 +1190,297 @@ def build_vplib_archive(payload: Any) -> tuple[str, bytes, CreateResult]:
             http_status=500,
         )
         return "invalid.vplib", b"", result
+
+
+def validate_vplib_archive_bytes(
+    content: bytes | bytearray | memoryview,
+    *,
+    expected_vplib_uid: Any | None = None,
+) -> CreateResult:
+    """Validate archive structure, paths, JSON documents and UID consistency."""
+    errors: list[CreateIssue] = []
+    warnings: list[CreateIssue] = []
+    info: list[CreateIssue] = []
+
+    try:
+        archive_bytes = bytes(content or b"")
+    except Exception as exc:
+        return _failure(
+            "archive_content_invalid",
+            "Archivinhalt ist nicht bytes-kompatibel.",
+            exc=exc,
+            http_status=422,
+        )
+
+    if len(archive_bytes) < 22 or archive_bytes[:2] != b"PK":
+        return CreateResult(
+            ok=False,
+            status="archive_signature_invalid",
+            data={"size_bytes": len(archive_bytes)},
+            errors=[
+                _error(
+                    "archive_signature_invalid",
+                    "VPLIB-Download ist kein gültiges ZIP-kompatibles Archiv.",
+                    field="archive",
+                )
+            ],
+            http_status=422,
+        )
+
+    expected_uid = _normalize_vplib_uid_safe(expected_vplib_uid)
+    total_uncompressed = 0
+    manifest_payload: dict[str, Any] = {}
+    modules_payload: dict[str, Any] = {}
+    names: list[str] = []
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(archive_bytes), mode="r") as archive:
+            infos = archive.infolist()
+            if len(infos) > MAX_ARCHIVE_ENTRY_COUNT:
+                errors.append(
+                    _error(
+                        "archive_entry_limit_exceeded",
+                        "Archiv enthält zu viele Einträge.",
+                        field="archive",
+                        details={"entry_count": len(infos), "maximum": MAX_ARCHIVE_ENTRY_COUNT},
+                    )
+                )
+
+            seen_names: set[str] = set()
+            for archive_info in infos:
+                name = str(archive_info.filename or "")
+                names.append(name)
+                try:
+                    _assert_safe_relative_file(name)
+                except Exception as exc:
+                    errors.append(
+                        _exception_issue(
+                            "archive_path_invalid",
+                            exc,
+                            field="archive",
+                            details={"path": name},
+                        )
+                    )
+                    continue
+
+                if name in seen_names:
+                    errors.append(
+                        _error(
+                            "archive_duplicate_entry",
+                            "Archiv enthält einen doppelten Pfad.",
+                            field="archive",
+                            details={"path": name},
+                        )
+                    )
+                seen_names.add(name)
+
+                if archive_info.is_dir():
+                    errors.append(
+                        _error(
+                            "archive_directory_entry_not_allowed",
+                            "Explizite Verzeichniseinträge sind im erzeugten VPLIB-Archiv nicht erforderlich.",
+                            field="archive",
+                            details={"path": name},
+                        )
+                    )
+
+                if archive_info.flag_bits & 0x1:
+                    errors.append(
+                        _error(
+                            "archive_encrypted_entry",
+                            "Verschlüsselte Archiveinträge sind nicht erlaubt.",
+                            field="archive",
+                            details={"path": name},
+                        )
+                    )
+
+                if _is_blocked_executable_path(name):
+                    errors.append(
+                        _error(
+                            "archive_blocked_file_type",
+                            "Ausführbare Dateitypen sind im VPLIB-Archiv nicht erlaubt.",
+                            field="archive",
+                            details={"path": name},
+                        )
+                    )
+
+                total_uncompressed += max(0, int(archive_info.file_size or 0))
+                if total_uncompressed > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
+                    errors.append(
+                        _error(
+                            "archive_size_limit_exceeded",
+                            "Entpackte Archivgröße überschreitet das Sicherheitslimit.",
+                            field="archive",
+                            details={
+                                "uncompressed_size": total_uncompressed,
+                                "maximum": MAX_ARCHIVE_UNCOMPRESSED_BYTES,
+                            },
+                        )
+                    )
+                    break
+
+                if archive_info.file_size > 1_048_576 and archive_info.compress_size > 0:
+                    ratio = archive_info.file_size / archive_info.compress_size
+                    if ratio > 1000:
+                        errors.append(
+                            _error(
+                                "archive_compression_ratio_invalid",
+                                "Archiv enthält einen verdächtig stark komprimierten Eintrag.",
+                                field="archive",
+                                details={"path": name, "ratio": ratio},
+                            )
+                        )
+
+            corrupt_name = archive.testzip()
+            if corrupt_name:
+                errors.append(
+                    _error(
+                        "archive_crc_failed",
+                        "CRC-Prüfung eines Archiveintrags ist fehlgeschlagen.",
+                        field="archive",
+                        details={"path": corrupt_name},
+                    )
+                )
+
+            required_base = {
+                MANIFEST_DOCUMENT_PATH,
+                "vplib.modules.json",
+                "family/identity.json",
+                "family/classification.json",
+                "variants/index.json",
+                "variants/default.json",
+                "editor/inventory.json",
+                "editor/placement.json",
+            }
+            for path in sorted(required_base - set(names)):
+                errors.append(
+                    _error(
+                        "archive_required_document_missing",
+                        f"Pflichtdokument fehlt im Archiv: {path}",
+                        field="archive",
+                        details={"path": path},
+                    )
+                )
+
+            for json_path in (MANIFEST_DOCUMENT_PATH, "vplib.modules.json"):
+                if json_path not in names:
+                    continue
+                try:
+                    decoded = json.loads(archive.read(json_path).decode("utf-8"))
+                    if not isinstance(decoded, Mapping):
+                        raise ValueError("JSON root must be an object")
+                    if json_path == MANIFEST_DOCUMENT_PATH:
+                        manifest_payload = dict(decoded)
+                    else:
+                        modules_payload = dict(decoded)
+                except Exception as exc:
+                    errors.append(
+                        _exception_issue(
+                            "archive_json_invalid",
+                            exc,
+                            field=json_path,
+                        )
+                    )
+
+            required_documents = modules_payload.get("required_documents")
+            if isinstance(required_documents, list):
+                for path in required_documents:
+                    path_text = str(path or "")
+                    if path_text and path_text not in names:
+                        errors.append(
+                            _error(
+                                "archive_module_document_missing",
+                                f"In vplib.modules.json referenziertes Pflichtdokument fehlt: {path_text}",
+                                field="vplib.modules.json.required_documents",
+                                details={"path": path_text},
+                            )
+                        )
+
+    except zipfile.BadZipFile as exc:
+        return _failure(
+            "archive_bad_zip",
+            "VPLIB-Archiv ist beschädigt oder kein ZIP-Archiv.",
+            exc=exc,
+            http_status=422,
+        )
+    except Exception as exc:
+        return _failure(
+            "archive_validation_failed",
+            "VPLIB-Archiv konnte nicht validiert werden.",
+            exc=exc,
+            http_status=422,
+        )
+
+    manifest_uid = _normalize_vplib_uid_safe(manifest_payload.get(VPLIB_UID_FIELD))
+    if not manifest_uid:
+        errors.append(
+            _error(
+                "archive_manifest_uid_invalid",
+                "Manifest enthält keine gültige vplib_uid.",
+                field=f"{MANIFEST_DOCUMENT_PATH}.{VPLIB_UID_FIELD}",
+            )
+        )
+    elif expected_uid and manifest_uid != expected_uid:
+        errors.append(
+            _error(
+                "archive_uid_mismatch",
+                "Manifest-vplib_uid stimmt nicht mit der erwarteten ID überein.",
+                field=f"{MANIFEST_DOCUMENT_PATH}.{VPLIB_UID_FIELD}",
+                details={"expected": expected_uid, "actual": manifest_uid},
+            )
+        )
+
+    if not errors:
+        info.append(
+            _info(
+                "archive_validated",
+                "VPLIB-Archiv wurde als sicheres scanner-lesbares ZIP validiert.",
+                details={"entry_count": len(names), "vplib_uid": manifest_uid},
+            )
+        )
+
+    return CreateResult(
+        ok=not errors,
+        status="archive_valid" if not errors else "archive_invalid",
+        data={
+            "vplib_uid": manifest_uid,
+            "entry_count": len(names),
+            "entries": sorted(names),
+            "size_bytes": len(archive_bytes),
+            "uncompressed_size_bytes": total_uncompressed,
+            "sha256": hashlib.sha256(archive_bytes).hexdigest(),
+            "manifest": manifest_payload,
+            "modules": modules_payload,
+        },
+        errors=errors,
+        warnings=warnings,
+        info=info,
+        http_status=200 if not errors else 422,
+    )
+
+
+def _write_deterministic_zip_entry(
+    archive: zipfile.ZipFile,
+    relative_path: str,
+    content: bytes,
+) -> None:
+    _assert_safe_relative_file(relative_path)
+    info = zipfile.ZipInfo(filename=relative_path, date_time=DETERMINISTIC_ZIP_DATETIME)
+    info.compress_type = zipfile.ZIP_DEFLATED
+    info.create_system = 3
+    info.external_attr = 0o100644 << 16
+    info.flag_bits |= 0x800
+    archive.writestr(info, content, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+
+
+def _safe_archive_filename(value: Any) -> str:
+    raw = str(value or "package.vplib").replace("\x00", "").replace("\\", "/").split("/")[-1].strip()
+    raw = re.sub(r"[^a-zA-Z0-9._ -]+", "_", raw).strip(" ._")
+    if not raw:
+        raw = "package.vplib"
+    if not raw.lower().endswith(".vplib"):
+        raw += ".vplib"
+    return raw[:180]
 
 
 def save_package(payload: Any, *, overwrite: bool | None = None) -> CreateResult:
@@ -1333,23 +1763,58 @@ def build_publish_bundle_from_create_payload(payload: Any) -> CreateResult:
         )
 
 
-def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) -> dict[str, Any]:
-    """
-    Build all phase-1 package documents.
 
-    Accepts either a NormalizedCreateDraft or its dict representation.
-    """
+
+def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) -> dict[str, Any]:
+    """Build a deterministic, scanner-readable VPLIB document bundle."""
     normalized = _ensure_normalized_draft(draft)
 
     family_id = normalized.family_id
     package_id = normalized.package_id
     classification_path = normalized.classification_path
     vplib_uid = normalized.vplib_uid
+    profiles = {
+        "family_profile_id": normalized.family_profile_id,
+        "variant_profile_id": normalized.variant_profile_id,
+    }
+    dimensions_mm = {
+        "width_mm": _unit_value_to_millimetres(normalized.geometry_width, normalized.geometry_unit),
+        "height_mm": _unit_value_to_millimetres(normalized.geometry_height, normalized.geometry_unit),
+        "depth_mm": _unit_value_to_millimetres(normalized.geometry_depth, normalized.geometry_unit),
+    }
+    starter_contract = (
+        normalized.object_kind == DEFAULT_OBJECT_KIND
+        and normalized.family_profile_id == STARTER_FAMILY_PROFILE_ID
+        and normalized.variant_profile_id == STARTER_VARIANT_PROFILE_ID
+    )
+
+    required_documents = [
+        "vplib.manifest.json",
+        "vplib.modules.json",
+        "family/identity.json",
+        "family/classification.json",
+        "family/lifecycle.json",
+        "family/metadata.json",
+        "variants/index.json",
+        "variants/default.json",
+        "editor/inventory.json",
+        "editor/placement.json",
+        "editor/targeting.json",
+        "editor/anchors.json",
+        "render/render_variants.json",
+        "render/bounds.json",
+        "physical/base.json",
+        "physical/dimensions.json",
+        "physical/collision.json",
+        "manufacturer/contract.json",
+        "definitions/profile.json",
+    ]
 
     documents: dict[str, Any] = {
         "vplib.manifest.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "package_format": "vplib",
+            "package_format_version": DEFAULT_SCHEMA_VERSION,
             "vplib_uid": vplib_uid,
             "package_id": package_id,
             "family_id": family_id,
@@ -1357,6 +1822,9 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "family_name": normalized.family_name,
             "package_version": normalized.package_version,
             "object_kind": normalized.object_kind,
+            "family_profile_id": normalized.family_profile_id,
+            "variant_profile_id": normalized.variant_profile_id,
+            "profiles": profiles,
             "taxonomy_version": normalized.taxonomy_version,
             "domain": normalized.domain,
             "category": normalized.category,
@@ -1372,16 +1840,28 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "classification_path": classification_path,
             "source_path": normalized.source_path,
             "default_variant_id": normalized.default_variant_id,
+            "variant_count": len(normalized.variants),
+            "documents_required": False if starter_contract else None,
+            "external_assets_required": False if starter_contract else None,
             "created_at": normalized.created_at,
             "created_by": LIBRARY_CREATE_SERVICE_COMPONENT,
+            "lifecycle": {
+                "status": "draft",
+                "published": False,
+                "scanner_ready": True,
+            },
             "generator": {
                 "component": LIBRARY_CREATE_SERVICE_COMPONENT,
                 "version": LIBRARY_CREATE_SERVICE_VERSION,
                 "mode": "simple_create",
+                "starter_contract": starter_contract,
             },
         },
         "vplib.modules.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
+            "profile_key": normalized.variant_profile_id,
+            "family_profile_id": normalized.family_profile_id,
+            "variant_profile_id": normalized.variant_profile_id,
             "modules": {
                 "family": True,
                 "variants": True,
@@ -1394,7 +1874,7 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                 "dynamic": normalized.object_kind == "adaptive_system",
                 "manufacturer": True,
                 "docs": True,
-                "definitions": bool(normalized.source.get("definition_context")),
+                "definitions": True,
                 "tests": False,
             },
             "active_modules": [
@@ -1411,29 +1891,34 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                     "dynamic": normalized.object_kind == "adaptive_system",
                     "manufacturer": True,
                     "docs": True,
-                    "definitions": bool(normalized.source.get("definition_context")),
+                    "definitions": True,
                     "tests": False,
                 }.items()
                 if enabled
             ],
-            "required_documents": [
-                "vplib.manifest.json",
-                "vplib.modules.json",
-                "family/identity.json",
-                "family/classification.json",
-                "variants/index.json",
-                "variants/default.json",
-                "editor/inventory.json",
-                "editor/placement.json",
-                "manufacturer/contract.json",
-            ],
+            "required_modules": ["family", "variants", "editor", "render", "physical", "definitions"],
+            "optional_modules": ["material", "calculation", "dynamic", "manufacturer", "docs"],
+            "excluded_modules": ["analysis", "tests"],
+            "module_versions": {
+                "family": DEFAULT_SCHEMA_VERSION,
+                "variants": DEFAULT_SCHEMA_VERSION,
+                "editor": DEFAULT_SCHEMA_VERSION,
+                "render": DEFAULT_SCHEMA_VERSION,
+                "physical": DEFAULT_SCHEMA_VERSION,
+                "definitions": DEFAULT_SCHEMA_VERSION,
+            },
+            "required_documents": required_documents,
         },
         "family/identity.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
+            "vplib_uid": vplib_uid,
             "family_id": family_id,
             "slug": normalized.family_slug,
             "label": normalized.family_name,
             "description": normalized.family_description,
+            "object_kind": normalized.object_kind,
+            "family_profile_id": normalized.family_profile_id,
+            "variant_profile_id": normalized.variant_profile_id,
             "status": "draft",
             "language": "de",
         },
@@ -1447,17 +1932,46 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "source_path": normalized.source_path,
             "labels": dict(normalized.taxonomy_labels),
             "object_kind": normalized.object_kind,
+            "profiles": profiles,
+        },
+        "family/lifecycle.json": {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
+            "status": "draft",
+            "created_at": normalized.created_at,
+            "updated_at": normalized.created_at,
+            "published_at": None,
+            "archived": False,
+        },
+        "family/aliases.json": {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
+            "aliases": [],
+            "legacy_ids": [],
+        },
+        "family/metadata.json": {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
+            "source": "create_flow",
+            "generator": LIBRARY_CREATE_SERVICE_COMPONENT,
+            "generator_version": LIBRARY_CREATE_SERVICE_VERSION,
+            "profiles": profiles,
+            "starter_contract": starter_contract,
         },
         "variants/index.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
+            "family_profile_id": normalized.family_profile_id,
+            "variant_profile_id": normalized.variant_profile_id,
             "default_variant_id": normalized.default_variant_id,
             "variant_count": len(normalized.variants),
             "variants": [
                 {
                     "variant_id": str(variant.get("variant_id") or ""),
+                    "variant_key": str(variant.get("variant_id") or ""),
                     "label": str(variant.get("label") or ""),
                     "description": str(variant.get("description") or ""),
+                    "family_profile_id": str(variant.get("family_profile_id") or normalized.family_profile_id),
+                    "variant_profile_id": str(variant.get("variant_profile_id") or normalized.variant_profile_id),
                     "is_default": bool(variant.get("variant_id") == normalized.default_variant_id),
+                    "active": bool(variant.get("active", True)),
+                    "visible": bool(variant.get("visible", True)),
                 }
                 for variant in normalized.variants
             ],
@@ -1480,6 +1994,8 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "source_path": normalized.source_path,
             "labels": dict(normalized.taxonomy_labels),
             "object_kind": normalized.object_kind,
+            "family_profile_id": normalized.family_profile_id,
+            "variant_profile_id": normalized.variant_profile_id,
             "tags": [],
         },
         "editor/placement.json": {
@@ -1501,12 +2017,31 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                     "z": normalized.editor_cell_size_z,
                     "unit": normalized.geometry_unit,
                 },
+                "dimensions_mm": dimensions_mm,
             },
+            "host_rules": _default_host_rules(normalized),
+        },
+        "editor/targeting.json": {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
+            "enabled": True,
+            "target_type": "grid_cell" if normalized.object_kind == "cell_block" else "object",
+            "selection_mode": "bounds",
+            "placement_profile": normalized.variant_profile_id,
+        },
+        "editor/anchors.json": {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
             "anchors": [
                 {"anchor_id": "center", "type": "center", "enabled": True},
                 {"anchor_id": "bottom_center", "type": "bottom_center", "enabled": True},
             ],
-            "host_rules": _default_host_rules(normalized),
+        },
+        "editor/sockets.json": {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
+            "sockets": [],
+        },
+        "editor/ports.json": {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
+            "ports": [],
         },
         "render/render_variants.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
@@ -1521,10 +2056,37 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                 }
             ],
         },
+        "render/bounds.json": {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
+            "type": "box",
+            "width": normalized.geometry_width,
+            "height": normalized.geometry_height,
+            "depth": normalized.geometry_depth,
+            "unit": normalized.geometry_unit,
+            "dimensions_mm": dimensions_mm,
+        },
+        "render/materials.json": {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
+            "materials": [
+                {
+                    "material_id": "default",
+                    "type": normalized.material_class or "generic",
+                    "color_hint": "#9CA3AF",
+                }
+            ],
+        },
+        "render/lod.json": {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
+            "levels": [
+                {"lod": 0, "mode": "primitive", "enabled": True},
+            ],
+        },
         "physical/base.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
+            "vplib_uid": vplib_uid,
             "family_id": family_id,
             "object_kind": normalized.object_kind,
+            "profiles": profiles,
             "unit": normalized.geometry_unit,
             "physical_model": "simple_box",
             "material_classes": normalized.material_classes,
@@ -1535,6 +2097,9 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "height": normalized.geometry_height,
             "depth": normalized.geometry_depth,
             "unit": normalized.geometry_unit,
+            "width_mm": dimensions_mm["width_mm"],
+            "height_mm": dimensions_mm["height_mm"],
+            "depth_mm": dimensions_mm["depth_mm"],
             "source": "create_form",
         },
         "physical/collision.json": {
@@ -1545,15 +2110,29 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "height": normalized.geometry_height,
             "depth": normalized.geometry_depth,
             "unit": normalized.geometry_unit,
+            "dimensions_mm": dimensions_mm,
         },
         "manufacturer/contract.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "manufacturer_products_allowed": False,
+            "manufacturer_data_required": False,
+            "documents_required": False,
             "overlay_level": "none",
             "allowed_overlay_levels": [],
             "required_fields": [],
             "override_slots": [],
             "notes": "Generated by simple create flow. Manufacturer overlays are intentionally disabled in phase 1.",
+        },
+        "definitions/profile.json": {
+            "schema_version": DEFAULT_SCHEMA_VERSION,
+            "object_kind": normalized.object_kind,
+            "family_profile_id": normalized.family_profile_id,
+            "variant_profile_id": normalized.variant_profile_id,
+            "default_variant_id": normalized.default_variant_id,
+            "starter_contract": starter_contract,
+            "required_definition_values": list(STARTER_REQUIRED_DEFINITION_VALUE_KEYS) if starter_contract else [],
+            "documents_required": False if starter_contract else None,
+            "external_assets_required": False if starter_contract else None,
         },
         "docs/notes.md": _build_notes_markdown(normalized),
     }
@@ -1615,16 +2194,9 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
 
     for variant in normalized.variants:
         variant_id = str(variant.get("variant_id") or "").strip()
-        if not variant_id or variant_id == "default":
+        if not variant_id or variant_id == normalized.default_variant_id:
             continue
-        documents[f"variants/{variant_id}.json"] = {
-            "schema_version": DEFAULT_SCHEMA_VERSION,
-            "variant_id": variant_id,
-            "label": str(variant.get("label") or variant_id),
-            "description": str(variant.get("description") or ""),
-            "kind": str(variant.get("kind") or "other"),
-            "overrides": _json_safe(variant.get("overrides") or {}),
-        }
+        documents[f"variants/{variant_id}.json"] = _build_variant_document(normalized, variant)
 
     return documents
 
@@ -1673,23 +2245,108 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+@lru_cache(maxsize=1024)
+def _created_at_for_vplib_uid(vplib_uid: str) -> str:
+    """Keep one creation timestamp per VPLIB UID for the current process."""
+    return _utc_now()
+
+
+def _resolve_created_at(payload: Mapping[str, Any], *, vplib_uid: str) -> str:
+    explicit = _first_value(
+        payload,
+        [
+            "created_at",
+            "createdAt",
+            ("manifest", "created_at"),
+            ("family", "created_at"),
+        ],
+        "",
+    )
+    text = str(explicit or "").replace("\x00", "").strip()
+    if text:
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        except Exception:
+            pass
+    return _created_at_for_vplib_uid(vplib_uid)
+
+
 # ---------------------------------------------------------------------------
 # Normalization
 # ---------------------------------------------------------------------------
 
-def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft, list[CreateIssue]]:
-    warnings: list[CreateIssue] = []
-    now = _utc_now()
 
+
+def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft, list[CreateIssue]]:
+    """Normalize a Create payload into the scanner-readable package contract."""
+    warnings: list[CreateIssue] = []
+
+    payload = _normalize_create_payload_contract(payload, warnings=warnings)
     payload = _maybe_apply_definition_context_defaults(payload, warnings=warnings)
 
     vplib_uid = _ensure_payload_vplib_uid(payload)
+    now = _resolve_created_at(payload, vplib_uid=vplib_uid)
+
+    object_kind = _normalize_object_kind(
+        _first_value(
+            payload,
+            [
+                "object_kind",
+                "objectKind",
+                "object_class",
+                ("family", "object_kind"),
+                ("family", "object_class"),
+                ("classification", "object_kind"),
+            ],
+            DEFAULT_OBJECT_KIND,
+        )
+    )
+    if object_kind not in ALLOWED_OBJECT_KINDS:
+        warnings.append(
+            _warning(
+                "unknown_object_kind_fallback",
+                f"Unbekannte Objektart wurde auf {DEFAULT_OBJECT_KIND} zurückgesetzt.",
+                field="object_kind",
+                details={"received": object_kind},
+            )
+        )
+        object_kind = DEFAULT_OBJECT_KIND
+
+    family_profile_id = _normalize_profile_id(
+        _first_value(
+            payload,
+            ["family_profile_id", "familyProfileId", ("profiles", "family_profile_id")],
+            "",
+        ),
+        versioned=False,
+    )
+    variant_profile_id = _normalize_profile_id(
+        _first_value(
+            payload,
+            ["variant_profile_id", "variantProfileId", ("profiles", "variant_profile_id")],
+            "",
+        ),
+        versioned=True,
+    )
+
+    starter_requested = (
+        object_kind == DEFAULT_OBJECT_KIND
+        and family_profile_id in {"", STARTER_FAMILY_PROFILE_ID}
+        and variant_profile_id in {"", STARTER_VARIANT_PROFILE_ID}
+    )
+    if starter_requested:
+        family_profile_id = STARTER_FAMILY_PROFILE_ID
+        variant_profile_id = STARTER_VARIANT_PROFILE_ID
 
     family_name = _clean_text(
         _first_value(
             payload,
             [
                 "family_name",
+                "familyName",
                 "name",
                 "label",
                 ("identity", "family_name"),
@@ -1697,7 +2354,7 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
                 ("family", "label"),
                 ("family", "name"),
             ],
-            "",
+            "Simple Cell Block" if starter_requested else "",
         ),
         max_length=160,
     )
@@ -1707,15 +2364,18 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
             payload,
             [
                 "family_description",
+                "familyDescription",
                 "description",
                 ("identity", "family_description"),
                 ("identity", "description"),
                 ("family", "description"),
             ],
-            "",
+            STARTER_DEFAULT_DESCRIPTION if starter_requested else "",
         ),
         max_length=MAX_TEXT_LENGTH,
     )
+    if starter_requested and not family_description:
+        family_description = STARTER_DEFAULT_DESCRIPTION
 
     family_slug_raw = _first_value(
         payload,
@@ -1736,7 +2396,7 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         _first_value(
             payload,
             ["domain", ("taxonomy", "domain"), ("classification", "domain")],
-            "",
+            "hochbau" if starter_requested else "",
         ),
         default="",
     )
@@ -1744,7 +2404,7 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         _first_value(
             payload,
             ["category", ("taxonomy", "category"), ("classification", "category")],
-            "",
+            "bloecke" if starter_requested else "",
         ),
         default="",
     )
@@ -1752,34 +2412,10 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         _first_value(
             payload,
             ["subcategory", ("taxonomy", "subcategory"), ("classification", "subcategory")],
-            "",
+            "basis" if starter_requested else "",
         ),
         default="",
     )
-
-    object_kind = _normalize_object_kind(
-        _first_value(
-            payload,
-            [
-                "object_kind",
-                "object_class",
-                ("family", "object_kind"),
-                ("family", "object_class"),
-                ("classification", "object_kind"),
-            ],
-            DEFAULT_OBJECT_KIND,
-        )
-    )
-    if object_kind not in ALLOWED_OBJECT_KINDS:
-        warnings.append(
-            _warning(
-                "unknown_object_kind_fallback",
-                f"Unbekannte Objektart wurde auf {DEFAULT_OBJECT_KIND} zurückgesetzt.",
-                field="object_kind",
-                details={"received": object_kind},
-            )
-        )
-        object_kind = DEFAULT_OBJECT_KIND
 
     taxonomy_reference, taxonomy_warnings = _build_taxonomy_reference(
         domain=domain,
@@ -1795,6 +2431,7 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
             payload,
             [
                 "primitive_shape",
+                "primitiveShape",
                 "shape",
                 ("geometry", "primitive_shape"),
                 ("geometry", "shape"),
@@ -1813,60 +2450,12 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         )
         primitive_shape = DEFAULT_PRIMITIVE_SHAPE
 
-    geometry_width = _safe_float(
-        _first_value(
-            payload,
-            [
-                "geometry_width",
-                "width",
-                ("geometry", "width"),
-                ("geometry", "dimensions", "width"),
-                ("dimensions", "width"),
-            ],
-            1.0,
-        ),
-        default=1.0,
-        minimum=0.0001,
-        maximum=1_000_000.0,
-    )
-    geometry_height = _safe_float(
-        _first_value(
-            payload,
-            [
-                "geometry_height",
-                "height",
-                ("geometry", "height"),
-                ("geometry", "dimensions", "height"),
-                ("dimensions", "height"),
-            ],
-            1.0,
-        ),
-        default=1.0,
-        minimum=0.0001,
-        maximum=1_000_000.0,
-    )
-    geometry_depth = _safe_float(
-        _first_value(
-            payload,
-            [
-                "geometry_depth",
-                "depth",
-                ("geometry", "depth"),
-                ("geometry", "dimensions", "depth"),
-                ("dimensions", "depth"),
-            ],
-            1.0,
-        ),
-        default=1.0,
-        minimum=0.0001,
-        maximum=1_000_000.0,
-    )
-
     geometry_unit = _normalize_unit(
         _first_value(
             payload,
             [
                 "geometry_unit",
+                "geometryUnit",
                 "unit",
                 ("geometry", "unit"),
                 ("geometry", "dimensions", "unit"),
@@ -1886,22 +2475,41 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         )
         geometry_unit = DEFAULT_UNIT
 
+    geometry_width = _geometry_axis_value(
+        payload,
+        "width",
+        unit=geometry_unit,
+        default_mm=STARTER_DIMENSIONS_MM["dimensions.width_mm"] if starter_requested else 1000,
+    )
+    geometry_height = _geometry_axis_value(
+        payload,
+        "height",
+        unit=geometry_unit,
+        default_mm=STARTER_DIMENSIONS_MM["dimensions.height_mm"] if starter_requested else 1000,
+    )
+    geometry_depth = _geometry_axis_value(
+        payload,
+        "depth",
+        unit=geometry_unit,
+        default_mm=STARTER_DIMENSIONS_MM["dimensions.depth_mm"] if starter_requested else 1000,
+    )
+
     block_count_locked = object_kind in {"cell_block", "adaptive_system"}
 
     editor_cells_x = _safe_int(
-        _first_value(payload, ["editor_cells_x", ("editor_block", "cells", "x")], 1),
+        _first_value(payload, ["editor_cells_x", "editorCellsX", ("editor_block", "cells", "x")], 1),
         default=1,
         minimum=1,
         maximum=1000,
     )
     editor_cells_y = _safe_int(
-        _first_value(payload, ["editor_cells_y", ("editor_block", "cells", "y")], 1),
+        _first_value(payload, ["editor_cells_y", "editorCellsY", ("editor_block", "cells", "y")], 1),
         default=1,
         minimum=1,
         maximum=1000,
     )
     editor_cells_z = _safe_int(
-        _first_value(payload, ["editor_cells_z", ("editor_block", "cells", "z")], 1),
+        _first_value(payload, ["editor_cells_z", "editorCellsZ", ("editor_block", "cells", "z")], 1),
         default=1,
         minimum=1,
         maximum=1000,
@@ -1913,20 +2521,32 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         editor_cells_z = 1
 
     editor_cell_size_x = _safe_float(
-        _first_value(payload, ["editor_cell_size_x", ("editor_block", "cell_size", "x")], 1.0),
-        default=1.0,
+        _first_value(
+            payload,
+            ["editor_cell_size_x", ("editor_block", "cell_size", "x")],
+            geometry_width / max(editor_cells_x, 1),
+        ),
+        default=geometry_width / max(editor_cells_x, 1),
         minimum=0.0001,
         maximum=10_000.0,
     )
     editor_cell_size_y = _safe_float(
-        _first_value(payload, ["editor_cell_size_y", ("editor_block", "cell_size", "y")], 1.0),
-        default=1.0,
+        _first_value(
+            payload,
+            ["editor_cell_size_y", ("editor_block", "cell_size", "y")],
+            geometry_height / max(editor_cells_y, 1),
+        ),
+        default=geometry_height / max(editor_cells_y, 1),
         minimum=0.0001,
         maximum=10_000.0,
     )
     editor_cell_size_z = _safe_float(
-        _first_value(payload, ["editor_cell_size_z", ("editor_block", "cell_size", "z")], 1.0),
-        default=1.0,
+        _first_value(
+            payload,
+            ["editor_cell_size_z", ("editor_block", "cell_size", "z")],
+            geometry_depth / max(editor_cells_z, 1),
+        ),
+        default=geometry_depth / max(editor_cells_z, 1),
         minimum=0.0001,
         maximum=10_000.0,
     )
@@ -1961,35 +2581,54 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
     variants, variant_warnings = _normalize_variants(payload)
     warnings.extend(variant_warnings)
 
-    default_variant_id = _clean_text(
+    explicit_default_variant_id = _clean_text(
         _first_value(
             payload,
             ["default_variant_id", "defaultVariantId", "default_variant", ("variants", "default_variant_id")],
-            "",
+            STARTER_DEFAULT_VARIANT_ID if starter_requested else "",
         ),
         max_length=160,
     )
-
-    if not default_variant_id:
-        default_variant_id = "default"
-        for variant in variants:
-            if variant.get("is_default"):
-                default_variant_id = str(variant.get("variant_id") or "default")
-                break
+    variants, default_variant_id = _materialize_variant_contract(
+        variants,
+        explicit_default_variant_id=explicit_default_variant_id,
+        family_profile_id=family_profile_id,
+        variant_profile_id=variant_profile_id,
+        object_kind=object_kind,
+        geometry_width=geometry_width,
+        geometry_height=geometry_height,
+        geometry_depth=geometry_depth,
+        geometry_unit=geometry_unit,
+        starter=starter_requested,
+    )
 
     variables, variable_warnings = _normalize_variables(payload)
     warnings.extend(variable_warnings)
 
     labels = _extract_taxonomy_labels(taxonomy_reference)
-    source_metadata = {
+    source_metadata: dict[str, Any] = {
         "mode": "create_form",
         "taxonomy_source": "backend_taxonomy_service",
         "vplib_uid_source": "payload_or_generated",
+        "family_profile_id": family_profile_id,
+        "variant_profile_id": variant_profile_id,
+        "starter_contract": {
+            "requested": starter_requested,
+            "object_kind": object_kind,
+            "family_profile_id": family_profile_id,
+            "variant_profile_id": variant_profile_id,
+            "default_variant_id": default_variant_id,
+            "documents_required": False if starter_requested else None,
+        },
     }
 
     definition_context = payload.get("definition_context")
     if isinstance(definition_context, Mapping):
         source_metadata["definition_context"] = _json_safe(dict(definition_context))
+
+    normalization_report = payload.get("_vplib_create_normalization")
+    if isinstance(normalization_report, Mapping):
+        source_metadata["payload_normalization"] = _json_safe(dict(normalization_report))
 
     return (
         NormalizedCreateDraft(
@@ -2001,6 +2640,8 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
             category=_reference_value(taxonomy_reference, "category", fallback=category),
             subcategory=_reference_value(taxonomy_reference, "subcategory", fallback=subcategory),
             object_kind=object_kind,
+            family_profile_id=family_profile_id,
+            variant_profile_id=variant_profile_id,
             taxonomy_version=_reference_attr(taxonomy_reference, "taxonomy_version", fallback=""),
             classification_path=_reference_attr(taxonomy_reference, "classification_path", fallback=f"{domain}/{category}/{subcategory}"),
             taxonomy_labels=labels,
@@ -2031,6 +2672,297 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         warnings,
     )
 
+
+def _normalize_create_payload_contract(
+    payload: Mapping[str, Any],
+    *,
+    warnings: list[CreateIssue],
+) -> dict[str, Any]:
+    """Apply the canonical route payload normalizer when available."""
+    base = _coerce_payload_mapping(payload)
+
+    try:
+        module = _load_variant_payload_service_module()
+    except Exception as exc:
+        warnings.append(
+            _warning(
+                "variant_payload_normalizer_unavailable",
+                "Create Variant Payload Service ist nicht verfügbar; lokaler Fallback wird verwendet.",
+                field="payload",
+                details={"type": type(exc).__name__, "message": str(exc)},
+            )
+        )
+        return base
+
+    normalizer = None
+    for function_name in (
+        "normalize_create_variant_payload",
+        "normalize_create_payload",
+        "normalize_payload",
+    ):
+        candidate = getattr(module, function_name, None)
+        if callable(candidate):
+            normalizer = candidate
+            break
+
+    if normalizer is None:
+        warnings.append(
+            _warning(
+                "variant_payload_normalizer_missing",
+                "Create Variant Payload Service stellt keine bekannte Normalisierungsfunktion bereit.",
+                field="payload",
+            )
+        )
+        return base
+
+    last_type_error: BaseException | None = None
+    for kwargs in (
+        {
+            "ensure_uid": True,
+            "overwrite_invalid_uid": False,
+            "include_report": True,
+            "strict": True,
+        },
+        {"ensure_uid": True, "overwrite_invalid_uid": False, "strict": True},
+        {"ensure_uid": True},
+        {},
+    ):
+        try:
+            normalized = normalizer(base, **kwargs)
+            if not isinstance(normalized, Mapping):
+                raise TypeError("Create payload normalizer returned a non-mapping value.")
+            return _normalize_form_mapping(dict(normalized))
+        except TypeError as exc:
+            last_type_error = exc
+            continue
+        except Exception as exc:
+            raise CreateDraftNormalizationError(
+                "Create-Payload konnte nicht kanonisch normalisiert werden.",
+                errors=[
+                    _exception_issue(
+                        "create_payload_normalization_failed",
+                        exc,
+                        field="payload",
+                    )
+                ],
+            ) from exc
+
+    if last_type_error is not None:
+        warnings.append(
+            _warning(
+                "variant_payload_normalizer_signature_mismatch",
+                "Create Variant Payload Service konnte wegen inkompatibler Signatur nicht verwendet werden.",
+                field="payload",
+                details={"message": str(last_type_error)},
+            )
+        )
+    return base
+
+
+def _normalize_profile_id(value: Any, *, versioned: bool) -> str:
+    cleaned = str(value or "").replace("\x00", "").strip().lower()
+    cleaned = cleaned.replace("-", "_").replace(" ", "")
+    cleaned = re.sub(r"[^a-z0-9._]+", "_", cleaned)
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+
+    if not cleaned:
+        return ""
+
+    if versioned and cleaned in {"simple_cell_block_v1", "simple_cell_block", "simple.cell.block.v1"}:
+        return STARTER_VARIANT_PROFILE_ID
+    if not versioned and cleaned in {"simple_cell_block_v1", "simple.cell.block", "simple_cell_block"}:
+        return STARTER_FAMILY_PROFILE_ID
+    return cleaned
+
+
+def _geometry_axis_value(
+    payload: Mapping[str, Any],
+    axis: str,
+    *,
+    unit: str,
+    default_mm: int,
+) -> float:
+    title = axis.title()
+    direct = _first_value(
+        payload,
+        [
+            f"geometry_{axis}",
+            f"geometry{title}",
+            axis,
+            ("geometry", axis),
+            ("geometry", "dimensions", axis),
+            ("dimensions", axis),
+        ],
+        None,
+    )
+    if direct not in (None, ""):
+        value = _safe_float(direct, default=0.0, minimum=0.0, maximum=1_000_000.0)
+        if value > 0:
+            return value
+
+    mm_value = _first_value(
+        payload,
+        [
+            f"{axis}_mm",
+            f"dimensions_{axis}_mm",
+            ("dimensions", f"{axis}_mm"),
+            ("geometry", "dimensions", f"{axis}_mm"),
+        ],
+        default_mm,
+    )
+    mm = _safe_float(mm_value, default=float(default_mm), minimum=0.0001, maximum=1_000_000_000.0)
+    return _millimetres_to_unit(mm, unit)
+
+
+def _millimetres_to_unit(value_mm: float, unit: str) -> float:
+    divisor = {"m": 1000.0, "cm": 10.0, "mm": 1.0}.get(unit, 1000.0)
+    return float(value_mm) / divisor
+
+
+def _unit_value_to_millimetres(value: float, unit: str) -> int:
+    factor = {"m": 1000.0, "cm": 10.0, "mm": 1.0}.get(unit, 1000.0)
+    return max(1, int(round(float(value) * factor)))
+
+
+def _materialize_variant_contract(
+    variants: Iterable[Mapping[str, Any]],
+    *,
+    explicit_default_variant_id: str,
+    family_profile_id: str,
+    variant_profile_id: str,
+    object_kind: str,
+    geometry_width: float,
+    geometry_height: float,
+    geometry_depth: float,
+    geometry_unit: str,
+    starter: bool,
+) -> tuple[list[dict[str, Any]], str]:
+    result: list[dict[str, Any]] = []
+    used_ids: set[str] = set()
+
+    dimensions_mm = {
+        "dimensions.width_mm": _unit_value_to_millimetres(geometry_width, geometry_unit),
+        "dimensions.height_mm": _unit_value_to_millimetres(geometry_height, geometry_unit),
+        "dimensions.depth_mm": _unit_value_to_millimetres(geometry_depth, geometry_unit),
+    }
+
+    for index, raw_variant in enumerate(list(variants or ())[:MAX_VARIANTS]):
+        item = dict(raw_variant) if isinstance(raw_variant, Mapping) else {}
+        variant_id = _safe_segment(
+            _slugify(
+                item.get("variant_id")
+                or item.get("variantId")
+                or (STARTER_DEFAULT_VARIANT_ID if index == 0 else f"variant_{index + 1}")
+            )
+        )
+        original_id = variant_id
+        suffix = 2
+        while variant_id in used_ids:
+            variant_id = f"{original_id}_{suffix}"
+            suffix += 1
+        used_ids.add(variant_id)
+
+        label = _clean_text(
+            item.get("label")
+            or item.get("name")
+            or (STARTER_DEFAULT_VARIANT_LABEL if index == 0 else f"Variante {index + 1}"),
+            max_length=160,
+        )
+        definition_values = item.get("definition_values") or item.get("definitionValues")
+        if not isinstance(definition_values, Mapping):
+            definition_values = item.get("overrides") if isinstance(item.get("overrides"), Mapping) else {}
+        definition_values = _json_safe(dict(definition_values))
+        if not isinstance(definition_values, Mapping):
+            definition_values = {}
+        definition_values = dict(definition_values)
+        definition_values["variant.variant_id"] = variant_id
+        definition_values["variant.label"] = label
+        if starter:
+            for key, value in dimensions_mm.items():
+                definition_values[key] = value
+            definition_values.setdefault("variant.description", "Standardvariante für einen einfachen Rasterblock.")
+            definition_values.setdefault("material.type", "generic")
+            definition_values.setdefault("material.subtype", "generic_block")
+
+        item.update(
+            {
+                "variant_id": variant_id,
+                "variantId": variant_id,
+                "variant_key": variant_id,
+                "variantKey": variant_id,
+                "label": label,
+                "name": label,
+                "family_profile_id": family_profile_id,
+                "familyProfileId": family_profile_id,
+                "variant_profile_id": variant_profile_id,
+                "variantProfileId": variant_profile_id,
+                "object_kind": object_kind,
+                "objectKind": object_kind,
+                "definition_values": definition_values,
+                "definitionValues": definition_values,
+                "overrides": definition_values,
+                "additional_field_keys": list(item.get("additional_field_keys") or item.get("additionalFieldKeys") or []),
+            }
+        )
+        result.append(item)
+
+    if not result:
+        definition_values = {
+            "variant.variant_id": STARTER_DEFAULT_VARIANT_ID,
+            "variant.label": STARTER_DEFAULT_VARIANT_LABEL,
+            **dimensions_mm,
+        }
+        result = [
+            {
+                "variant_id": STARTER_DEFAULT_VARIANT_ID,
+                "variantId": STARTER_DEFAULT_VARIANT_ID,
+                "variant_key": STARTER_DEFAULT_VARIANT_ID,
+                "variantKey": STARTER_DEFAULT_VARIANT_ID,
+                "label": STARTER_DEFAULT_VARIANT_LABEL,
+                "name": STARTER_DEFAULT_VARIANT_LABEL,
+                "description": "",
+                "kind": "standard",
+                "family_profile_id": family_profile_id,
+                "familyProfileId": family_profile_id,
+                "variant_profile_id": variant_profile_id,
+                "variantProfileId": variant_profile_id,
+                "object_kind": object_kind,
+                "objectKind": object_kind,
+                "definition_values": definition_values,
+                "definitionValues": definition_values,
+                "overrides": definition_values,
+                "additional_field_keys": [],
+                "source": "library_create_service.starter_default",
+            }
+        ]
+
+    requested_default = _slugify(explicit_default_variant_id) if explicit_default_variant_id else ""
+    default_index = next(
+        (
+            index
+            for index, item in enumerate(result)
+            if requested_default and item.get("variant_id") == requested_default
+        ),
+        -1,
+    )
+    if default_index < 0:
+        default_index = next(
+            (
+                index
+                for index, item in enumerate(result)
+                if _safe_bool(item.get("is_default", item.get("isDefault")), default=False)
+                or item.get("variant_id") == STARTER_DEFAULT_VARIANT_ID
+            ),
+            0,
+        )
+
+    for index, item in enumerate(result):
+        is_default = index == default_index
+        item["is_default"] = is_default
+        item["isDefault"] = is_default
+
+    default_variant_id = str(result[default_index].get("variant_id") or STARTER_DEFAULT_VARIANT_ID)
+    return result, default_variant_id
 
 def _maybe_apply_definition_context_defaults(
     payload: Mapping[str, Any],
@@ -2430,6 +3362,46 @@ def _get_definition_catalog_service_health() -> dict[str, Any]:
         }
 
 
+
+def _get_variant_payload_service_health() -> dict[str, Any]:
+    try:
+        module = _load_variant_payload_service_module()
+        payload: dict[str, Any] = {}
+        for function_name in ("get_service_health", "get_health", "health"):
+            function = getattr(module, function_name, None)
+            if callable(function):
+                payload = _service_result_payload(function())
+                break
+
+        return {
+            "available": True,
+            "ok": bool(payload.get("ok", payload.get("healthy", True))),
+            "healthy": bool(payload.get("healthy", payload.get("ok", True))),
+            "status": payload.get("status", "available"),
+            "component": getattr(
+                module,
+                "CREATE_VARIANT_PAYLOAD_SERVICE_COMPONENT",
+                "library-create-variant-payload-service",
+            ),
+            "schema_version": getattr(
+                module,
+                "CREATE_VARIANT_PAYLOAD_SERVICE_SCHEMA_VERSION",
+                "unknown",
+            ),
+            "payload": payload,
+        }
+    except Exception as exc:
+        return {
+            "available": False,
+            "ok": False,
+            "healthy": False,
+            "status": "unavailable",
+            "error": {
+                "type": type(exc).__name__,
+                "message": str(exc),
+            },
+        }
+
 def _get_definition_create_options_payload(*, user_id: Any = 1) -> dict[str, Any]:
     try:
         service = _get_definition_catalog_service()
@@ -2584,6 +3556,8 @@ def _ensure_normalized_draft(draft: NormalizedCreateDraft | Mapping[str, Any]) -
     raise TypeError("draft must be NormalizedCreateDraft or mapping")
 
 
+
+
 def _validate_normalized_draft(draft: NormalizedCreateDraft) -> list[CreateIssue]:
     errors: list[CreateIssue] = []
 
@@ -2597,41 +3571,22 @@ def _validate_normalized_draft(draft: NormalizedCreateDraft) -> list[CreateIssue
             )
         )
 
-    if not draft.family_name:
-        errors.append(_error("required", "Name ist erforderlich.", field="family_name"))
-
-    if not draft.family_description:
-        errors.append(_error("required", "Beschreibung ist erforderlich.", field="family_description"))
-
-    if not draft.family_slug:
-        errors.append(_error("required", "Slug konnte nicht erzeugt werden.", field="family_slug"))
-
-    if not draft.domain:
-        errors.append(_error("required", "Reiter / Domain ist erforderlich.", field="domain"))
-
-    if not draft.category:
-        errors.append(_error("required", "Kategorie ist erforderlich.", field="category"))
-
-    if not draft.subcategory:
-        errors.append(_error("required", "Subkategorie ist erforderlich.", field="subcategory"))
-
-    if not draft.classification_path:
-        errors.append(
-            _error(
-                "required",
-                "Classification Path konnte nicht erzeugt werden.",
-                field="classification_path",
-            )
-        )
-
-    if not draft.source_path:
-        errors.append(
-            _error(
-                "required",
-                "Source-Pfad konnte nicht erzeugt werden.",
-                field="source_path",
-            )
-        )
+    for field_name, value, message in (
+        ("family_name", draft.family_name, "Name ist erforderlich."),
+        ("family_description", draft.family_description, "Beschreibung ist erforderlich."),
+        ("family_slug", draft.family_slug, "Slug konnte nicht erzeugt werden."),
+        ("domain", draft.domain, "Reiter / Domain ist erforderlich."),
+        ("category", draft.category, "Kategorie ist erforderlich."),
+        ("subcategory", draft.subcategory, "Subkategorie ist erforderlich."),
+        ("classification_path", draft.classification_path, "Classification Path konnte nicht erzeugt werden."),
+        ("source_path", draft.source_path, "Source-Pfad konnte nicht erzeugt werden."),
+        ("family_id", draft.family_id, "Family-ID konnte nicht erzeugt werden."),
+        ("package_id", draft.package_id, "Package-ID konnte nicht erzeugt werden."),
+        ("family_profile_id", draft.family_profile_id, "Family Profile ID ist erforderlich."),
+        ("variant_profile_id", draft.variant_profile_id, "Variant Profile ID ist erforderlich."),
+    ):
+        if not value:
+            errors.append(_error("required", message, field=field_name))
 
     if len(draft.source_parts) < 4:
         errors.append(
@@ -2643,12 +3598,6 @@ def _validate_normalized_draft(draft: NormalizedCreateDraft) -> list[CreateIssue
             )
         )
 
-    if not draft.family_id:
-        errors.append(_error("required", "Family-ID konnte nicht erzeugt werden.", field="family_id"))
-
-    if not draft.package_id:
-        errors.append(_error("required", "Package-ID konnte nicht erzeugt werden.", field="package_id"))
-
     if draft.object_kind not in ALLOWED_OBJECT_KINDS:
         errors.append(_error("invalid_choice", "Ungültige Objektart.", field="object_kind"))
 
@@ -2658,26 +3607,99 @@ def _validate_normalized_draft(draft: NormalizedCreateDraft) -> list[CreateIssue
     if draft.geometry_unit not in ALLOWED_UNITS:
         errors.append(_error("invalid_choice", "Ungültige Einheit.", field="geometry_unit"))
 
-    for field_name, value in [
+    for field_name, value in (
         ("geometry_width", draft.geometry_width),
         ("geometry_height", draft.geometry_height),
         ("geometry_depth", draft.geometry_depth),
-    ]:
+        ("editor_cell_size_x", draft.editor_cell_size_x),
+        ("editor_cell_size_y", draft.editor_cell_size_y),
+        ("editor_cell_size_z", draft.editor_cell_size_z),
+    ):
         if value <= 0:
-            errors.append(_error("invalid_number", "Maß muss größer als 0 sein.", field=field_name))
+            errors.append(_error("invalid_number", "Wert muss größer als 0 sein.", field=field_name))
 
-    for field_name, value in [
+    for field_name, value in (
         ("editor_cells_x", draft.editor_cells_x),
         ("editor_cells_y", draft.editor_cells_y),
         ("editor_cells_z", draft.editor_cells_z),
-    ]:
+    ):
         if value < 1:
             errors.append(_error("invalid_integer", "Rasterbedarf muss mindestens 1 sein.", field=field_name))
 
+    if draft.object_kind == "cell_block" and (
+        draft.editor_cells_x != 1 or draft.editor_cells_y != 1 or draft.editor_cells_z != 1
+    ):
+        errors.append(
+            _error(
+                "cell_block_grid_invalid",
+                "Ein einfacher cell_block muss genau eine Rasterzelle belegen.",
+                field="editor_block.cells",
+                details={
+                    "x": draft.editor_cells_x,
+                    "y": draft.editor_cells_y,
+                    "z": draft.editor_cells_z,
+                },
+            )
+        )
+
     if not draft.variants:
         errors.append(_error("required", "Mindestens eine Variante ist erforderlich.", field="variants"))
+        return errors
 
-    if draft.default_variant_id not in {str(variant.get("variant_id")) for variant in draft.variants}:
+    variant_ids: list[str] = []
+    default_variants: list[Mapping[str, Any]] = []
+    for variant in draft.variants:
+        variant_id = str(variant.get("variant_id") or "").strip()
+        if not variant_id:
+            errors.append(_error("variant_id_missing", "Variante ohne variant_id.", field="variants"))
+            continue
+        try:
+            _safe_segment(variant_id)
+        except Exception as exc:
+            errors.append(
+                _exception_issue(
+                    "variant_id_invalid",
+                    exc,
+                    field="variants",
+                    details={"variant_id": variant_id},
+                )
+            )
+        if variant_id in variant_ids:
+            errors.append(
+                _error(
+                    "duplicate_variant_id",
+                    "Varianten-IDs müssen eindeutig sein.",
+                    field="variants",
+                    details={"variant_id": variant_id},
+                )
+            )
+        variant_ids.append(variant_id)
+
+        if _safe_bool(variant.get("is_default", variant.get("isDefault")), default=False):
+            default_variants.append(variant)
+
+        variant_family_profile = str(variant.get("family_profile_id") or "").strip()
+        variant_profile = str(variant.get("variant_profile_id") or "").strip()
+        if variant_family_profile and variant_family_profile != draft.family_profile_id:
+            errors.append(
+                _error(
+                    "variant_family_profile_mismatch",
+                    "Variant Family Profile stimmt nicht mit dem Draft überein.",
+                    field="variants.family_profile_id",
+                    details={"expected": draft.family_profile_id, "actual": variant_family_profile},
+                )
+            )
+        if variant_profile and variant_profile != draft.variant_profile_id:
+            errors.append(
+                _error(
+                    "variant_profile_mismatch",
+                    "Variant Profile stimmt nicht mit dem Draft überein.",
+                    field="variants.variant_profile_id",
+                    details={"expected": draft.variant_profile_id, "actual": variant_profile},
+                )
+            )
+
+    if draft.default_variant_id not in set(variant_ids):
         errors.append(
             _error(
                 "invalid_default_variant",
@@ -2686,7 +3708,79 @@ def _validate_normalized_draft(draft: NormalizedCreateDraft) -> list[CreateIssue
             )
         )
 
+    if len(default_variants) != 1:
+        errors.append(
+            _error(
+                "default_variant_count_invalid",
+                "Genau eine Variante muss als Default markiert sein.",
+                field="variants",
+                details={"default_count": len(default_variants)},
+            )
+        )
+    elif str(default_variants[0].get("variant_id") or "") != draft.default_variant_id:
+        errors.append(
+            _error(
+                "default_variant_mismatch",
+                "default_variant_id stimmt nicht mit der markierten Default-Variante überein.",
+                field="default_variant_id",
+            )
+        )
+
+    starter = (
+        draft.object_kind == DEFAULT_OBJECT_KIND
+        and draft.family_profile_id == STARTER_FAMILY_PROFILE_ID
+        and draft.variant_profile_id == STARTER_VARIANT_PROFILE_ID
+    )
+    if draft.object_kind == DEFAULT_OBJECT_KIND and not starter:
+        errors.append(
+            _error(
+                "starter_profile_mismatch",
+                "Der erste cell_block muss simple_cell_block / simple_cell_block.v1 verwenden.",
+                field="profiles",
+                details={
+                    "family_profile_id": draft.family_profile_id,
+                    "variant_profile_id": draft.variant_profile_id,
+                },
+            )
+        )
+
+    if starter and default_variants:
+        definition_values = default_variants[0].get("definition_values")
+        if not isinstance(definition_values, Mapping):
+            definition_values = default_variants[0].get("overrides")
+        if not isinstance(definition_values, Mapping):
+            definition_values = {}
+
+        for key in STARTER_REQUIRED_DEFINITION_VALUE_KEYS:
+            if key not in definition_values:
+                errors.append(
+                    _error(
+                        "starter_definition_value_missing",
+                        f"Starter-Defaultwert fehlt: {key}",
+                        field=key,
+                    )
+                )
+
+        expected_dimensions = {
+            "dimensions.width_mm": _unit_value_to_millimetres(draft.geometry_width, draft.geometry_unit),
+            "dimensions.height_mm": _unit_value_to_millimetres(draft.geometry_height, draft.geometry_unit),
+            "dimensions.depth_mm": _unit_value_to_millimetres(draft.geometry_depth, draft.geometry_unit),
+        }
+        for key, expected in expected_dimensions.items():
+            actual = _safe_int(definition_values.get(key), default=0)
+            if actual <= 0 or actual != expected:
+                errors.append(
+                    _error(
+                        "starter_dimension_mismatch",
+                        f"Starter-Dimension ist ungültig oder inkonsistent: {key}",
+                        field=key,
+                        details={"expected": expected, "actual": actual},
+                    )
+                )
+
     return errors
+
+
 
 
 def _validate_package_documents(documents: Mapping[str, Any]) -> list[CreateIssue]:
@@ -2697,11 +3791,21 @@ def _validate_package_documents(documents: Mapping[str, Any]) -> list[CreateIssu
         "vplib.modules.json",
         "family/identity.json",
         "family/classification.json",
+        "family/lifecycle.json",
+        "family/metadata.json",
         "variants/index.json",
         "variants/default.json",
         "editor/inventory.json",
         "editor/placement.json",
+        "editor/targeting.json",
+        "editor/anchors.json",
+        "render/render_variants.json",
+        "render/bounds.json",
+        "physical/base.json",
+        "physical/dimensions.json",
+        "physical/collision.json",
         "manufacturer/contract.json",
+        "definitions/profile.json",
     }
 
     for required_file in sorted(required):
@@ -2716,6 +3820,10 @@ def _validate_package_documents(documents: Mapping[str, Any]) -> list[CreateIssu
             )
 
     manifest = documents.get(MANIFEST_DOCUMENT_PATH)
+    modules = documents.get("vplib.modules.json")
+    profile_document = documents.get("definitions/profile.json")
+    default_variant = documents.get("variants/default.json")
+
     if not isinstance(manifest, Mapping):
         errors.append(
             _error(
@@ -2724,24 +3832,109 @@ def _validate_package_documents(documents: Mapping[str, Any]) -> list[CreateIssu
                 field=MANIFEST_DOCUMENT_PATH,
             )
         )
+        manifest = {}
+
+    raw_uid = manifest.get(VPLIB_UID_FIELD) if isinstance(manifest, Mapping) else None
+    normalized_uid = _normalize_vplib_uid_safe(raw_uid)
+    if not raw_uid:
+        errors.append(
+            _error(
+                "missing_vplib_uid",
+                "vplib.manifest.json enthält keine vplib_uid.",
+                field=f"{MANIFEST_DOCUMENT_PATH}.{VPLIB_UID_FIELD}",
+            )
+        )
+    elif not normalized_uid:
+        errors.append(
+            _error(
+                "invalid_vplib_uid",
+                "vplib.manifest.json enthält eine ungültige vplib_uid.",
+                field=f"{MANIFEST_DOCUMENT_PATH}.{VPLIB_UID_FIELD}",
+                details={"value": str(raw_uid)},
+            )
+        )
+
+    if not isinstance(modules, Mapping):
+        errors.append(
+            _error(
+                "modules_document_invalid",
+                "vplib.modules.json fehlt oder ist kein JSON-Objekt.",
+                field="vplib.modules.json",
+            )
+        )
     else:
-        raw_uid = manifest.get(VPLIB_UID_FIELD)
-        normalized_uid = _normalize_vplib_uid_safe(raw_uid)
-        if not raw_uid:
+        module_required = modules.get("required_documents")
+        if isinstance(module_required, list):
+            for path in module_required:
+                path_text = str(path or "")
+                if path_text and path_text not in documents:
+                    errors.append(
+                        _error(
+                            "module_required_document_missing",
+                            f"In vplib.modules.json referenziertes Dokument fehlt: {path_text}",
+                            field="vplib.modules.json.required_documents",
+                            details={"path": path_text},
+                        )
+                    )
+
+    manifest_family_profile = str(manifest.get("family_profile_id") or "") if isinstance(manifest, Mapping) else ""
+    manifest_variant_profile = str(manifest.get("variant_profile_id") or "") if isinstance(manifest, Mapping) else ""
+    if not manifest_family_profile:
+        errors.append(
+            _error(
+                "manifest_family_profile_missing",
+                "Manifest enthält keine family_profile_id.",
+                field="vplib.manifest.json.family_profile_id",
+            )
+        )
+    if not manifest_variant_profile:
+        errors.append(
+            _error(
+                "manifest_variant_profile_missing",
+                "Manifest enthält keine variant_profile_id.",
+                field="vplib.manifest.json.variant_profile_id",
+            )
+        )
+
+    if isinstance(profile_document, Mapping):
+        profile_family = str(profile_document.get("family_profile_id") or "")
+        profile_variant = str(profile_document.get("variant_profile_id") or "")
+        if manifest_family_profile and profile_family != manifest_family_profile:
             errors.append(
                 _error(
-                    "missing_vplib_uid",
-                    "vplib.manifest.json enthält keine vplib_uid.",
-                    field=f"{MANIFEST_DOCUMENT_PATH}.{VPLIB_UID_FIELD}",
+                    "family_profile_document_mismatch",
+                    "definitions/profile.json stimmt nicht mit dem Manifest überein.",
+                    field="definitions/profile.json.family_profile_id",
+                    details={"manifest": manifest_family_profile, "profile": profile_family},
                 )
             )
-        elif not normalized_uid:
+        if manifest_variant_profile and profile_variant != manifest_variant_profile:
             errors.append(
                 _error(
-                    "invalid_vplib_uid",
-                    "vplib.manifest.json enthält eine ungültige vplib_uid.",
-                    field=f"{MANIFEST_DOCUMENT_PATH}.{VPLIB_UID_FIELD}",
-                    details={"value": str(raw_uid)},
+                    "variant_profile_document_mismatch",
+                    "definitions/profile.json stimmt nicht mit dem Manifest überein.",
+                    field="definitions/profile.json.variant_profile_id",
+                    details={"manifest": manifest_variant_profile, "profile": profile_variant},
+                )
+            )
+
+    if isinstance(default_variant, Mapping):
+        default_family = str(default_variant.get("family_profile_id") or "")
+        default_profile = str(default_variant.get("variant_profile_id") or "")
+        if manifest_family_profile and default_family != manifest_family_profile:
+            errors.append(
+                _error(
+                    "default_variant_family_profile_mismatch",
+                    "Default-Variante verwendet ein anderes Family Profile.",
+                    field="variants/default.json.family_profile_id",
+                )
+            )
+        if manifest_variant_profile and default_profile != manifest_variant_profile:
+            errors.append(
+                _error(
+                    "default_variant_profile_mismatch",
+                    "Default-Variante verwendet ein anderes Variant Profile.",
+                    field="variants/default.json.variant_profile_id",
                 )
             )
 
@@ -2757,7 +3950,16 @@ def _validate_package_documents(documents: Mapping[str, Any]) -> list[CreateIssu
                         details={"path": relative_path},
                     )
                 )
-            _serialize_document(relative_path, content)
+            serialized = _serialize_document(relative_path, content)
+            if not serialized:
+                errors.append(
+                    _error(
+                        "empty_document",
+                        "Leere Package-Dokumente sind nicht erlaubt.",
+                        field="documents",
+                        details={"path": relative_path},
+                    )
+                )
         except Exception as exc:
             errors.append(
                 _exception_issue(
@@ -2775,20 +3977,46 @@ def _validate_package_documents(documents: Mapping[str, Any]) -> list[CreateIssu
 # Document builders
 # ---------------------------------------------------------------------------
 
+
+
 def _build_default_variant_document(draft: NormalizedCreateDraft) -> dict[str, Any]:
-    default_variant = {}
+    default_variant: Mapping[str, Any] = {}
     for variant in draft.variants:
         if variant.get("variant_id") == draft.default_variant_id:
             default_variant = variant
             break
 
+    return _build_variant_document(draft, default_variant, force_variant_id=draft.default_variant_id)
+
+
+def _build_variant_document(
+    draft: NormalizedCreateDraft,
+    variant: Mapping[str, Any],
+    *,
+    force_variant_id: str | None = None,
+) -> dict[str, Any]:
+    variant_id = str(force_variant_id or variant.get("variant_id") or STARTER_DEFAULT_VARIANT_ID)
+    definition_values = variant.get("definition_values")
+    if not isinstance(definition_values, Mapping):
+        definition_values = variant.get("overrides") if isinstance(variant.get("overrides"), Mapping) else {}
+    definition_values = _json_safe(dict(definition_values))
+
     return {
         "schema_version": DEFAULT_SCHEMA_VERSION,
-        "variant_id": draft.default_variant_id,
-        "label": str(default_variant.get("label") or "Standard"),
-        "description": str(default_variant.get("description") or ""),
-        "kind": str(default_variant.get("kind") or "standard"),
-        "overrides": _json_safe(default_variant.get("overrides") or {}),
+        "variant_id": variant_id,
+        "variant_key": variant_id,
+        "label": str(variant.get("label") or STARTER_DEFAULT_VARIANT_LABEL),
+        "description": str(variant.get("description") or ""),
+        "kind": str(variant.get("kind") or "standard"),
+        "is_default": variant_id == draft.default_variant_id,
+        "active": bool(variant.get("active", True)),
+        "visible": bool(variant.get("visible", True)),
+        "object_kind": draft.object_kind,
+        "family_profile_id": str(variant.get("family_profile_id") or draft.family_profile_id),
+        "variant_profile_id": str(variant.get("variant_profile_id") or draft.variant_profile_id),
+        "definition_values": definition_values,
+        "additional_field_keys": list(variant.get("additional_field_keys") or []),
+        "overrides": definition_values,
     }
 
 
@@ -4020,6 +5248,8 @@ def clear_library_create_service_caches() -> dict[str, Any]:
     for cached_func in (
         _load_taxonomy_module,
         _load_definition_catalog_service_module,
+        _load_variant_payload_service_module,
+        _created_at_for_vplib_uid,
     ):
         try:
             cached_func.cache_clear()
@@ -4056,6 +5286,11 @@ __all__ = [
     "MANIFEST_DOCUMENT_PATH",
     "NormalizedCreateDraft",
     "REQUIRED_TAXONOMY_FIELDS",
+    "STARTER_DEFAULT_VARIANT_ID",
+    "STARTER_DEFAULT_VARIANT_LABEL",
+    "STARTER_DIMENSIONS_MM",
+    "STARTER_FAMILY_PROFILE_ID",
+    "STARTER_VARIANT_PROFILE_ID",
     "VPLIB_UID_FIELD",
     "VPLIB_UID_KEYS",
     "build_draft",
@@ -4064,6 +5299,7 @@ __all__ = [
     "build_persistent_draft_payload",
     "build_publish_bundle_from_create_payload",
     "build_vplib_archive",
+    "validate_vplib_archive_bytes",
     "clear_library_create_service_caches",
     "create_draft",
     "get_create_context",

@@ -28,6 +28,8 @@ Primary routes:
     GET      /api/v1/vplib/create/health
     GET      /api/v1/vplib/create/routes
     GET      /api/v1/vplib/create/selftest
+    GET      /api/v1/vplib/create/readiness
+    GET      /api/v1/vplib/create/creator-readiness
     GET      /api/v1/vplib/create/options
     GET|POST /api/v1/vplib/create/create-context
     GET|POST /api/v1/vplib/create/context
@@ -51,22 +53,30 @@ Important:
 - /draft remains backward-compatible. Persistent draft creation is opt-in via:
   persist=true, save_draft=true, db=true, persistent=true
 - /drafts always means persistent draft intent.
+- /download performs server-side validate + package-plan preflight by default.
+- Generated downloads are accepted only when they are valid, bounded ZIP/VPLIB
+  archives with safe member paths.
 """
 
+import hashlib
 import importlib
 import io
 import json
+import os
+import re
 import traceback
+import uuid
+import zipfile
 from dataclasses import asdict, is_dataclass
 from enum import Enum
 from functools import lru_cache
 from types import ModuleType
 from typing import Any, Callable, Iterable, Mapping
 
-from flask import Blueprint, Response, jsonify, make_response, render_template, request, send_file
+from flask import Blueprint, Response, current_app, jsonify, make_response, render_template, request, send_file
 
 
-CREATE_BLUEPRINT_VERSION = "1.2.0"
+CREATE_BLUEPRINT_VERSION = "1.3.0"
 CREATE_BLUEPRINT_COMPONENT = "create-blueprint"
 
 CREATE_PAGE_ROUTE = "/create"
@@ -78,11 +88,65 @@ FALLBACK_TEMPLATE_TITLE = "VPLIB erstellen"
 DEFAULT_JSON_MIMETYPE = "application/json"
 DEFAULT_VPLIB_MIMETYPE = "application/octet-stream"
 
+DEFAULT_MAX_REQUEST_BYTES = 64 * 1024 * 1024
+DEFAULT_MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
+DEFAULT_MAX_ARCHIVE_ENTRIES = 4096
+DEFAULT_MAX_ARCHIVE_UNCOMPRESSED_BYTES = 512 * 1024 * 1024
+DEFAULT_MAX_COMPRESSION_RATIO = 250.0
+
+STARTER_OBJECT_KIND = "cell_block"
+STARTER_FAMILY_PROFILE_ID = "simple_cell_block"
+STARTER_VARIANT_PROFILE_ID = "simple_cell_block.v1"
+STARTER_DEFAULT_VARIANT_ID = "default"
+STARTER_DEFAULT_LABEL = "Standard"
+STARTER_DIMENSIONS_MM = {
+    "dimensions.width_mm": 1000,
+    "dimensions.height_mm": 1000,
+    "dimensions.depth_mm": 1000,
+}
+STARTER_GEOMETRY_METRES = {
+    "geometry_width": "1.00",
+    "geometry_height": "1.00",
+    "geometry_depth": "1.00",
+    "geometry_unit": "m",
+}
+ZIP_SIGNATURES = (
+    b"PK\x03\x04",
+    b"PK\x05\x06",
+    b"PK\x07\x08",
+)
+REQUEST_ID_PATTERN = re.compile(r"[^A-Za-z0-9._:-]+")
+
 create_bp = Blueprint("vplib_create", __name__)
 
 # Common aliases for central route registries.
 bp = create_bp
 blueprint = create_bp
+
+
+class CreateRouteError(RuntimeError):
+    """Base error for route-level create contract failures."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "create_route_error",
+        http_status: int = 500,
+        details: Mapping[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = str(code or "create_route_error")
+        self.http_status = _safe_http_status(http_status)
+        self.details = dict(details or {})
+
+
+class CreateRequestError(CreateRouteError):
+    """Raised for malformed or unsafe create requests."""
+
+
+class CreateArchiveError(CreateRouteError):
+    """Raised when a generated VPLIB archive is invalid or unsafe."""
 
 
 # ---------------------------------------------------------------------------
@@ -288,6 +352,7 @@ def create_selftest() -> Response:
         "api_prefix": CREATE_API_PREFIX,
         "page_route": CREATE_PAGE_ROUTE,
         "route_service": _safe_route_service_health(),
+        "creator_readiness": _starter_readiness_payload(request_id=_request_id()),
         "definition_catalog_service": _safe_definition_service_health(),
         "draft_service": _safe_draft_service_health(),
         "generator_diagnostics": _safe_generator_diagnostics_payload(
@@ -308,6 +373,19 @@ def create_selftest() -> Response:
         "_http_status": 200,
     }
     return _json_response(payload, 200)
+
+
+@create_bp.get(f"{CREATE_API_PREFIX}/creator-readiness")
+@create_bp.get(f"{CREATE_API_PREFIX}/readiness")
+def create_creator_readiness() -> Response:
+    """Report whether the minimal starter create flow can be resolved."""
+    request_id = _request_id()
+    payload = _starter_readiness_payload(request_id=request_id)
+    return _json_response(
+        payload,
+        _status_code_from_payload(payload),
+        request_id=request_id,
+    )
 
 
 @create_bp.get(f"{CREATE_API_PREFIX}/")
@@ -598,50 +676,95 @@ def create_persistent_draft_publish_prepare(draft_ref: str) -> Response:
 
 @create_bp.post(f"{CREATE_API_PREFIX}/validate")
 def create_validate() -> Response:
-    """Validate incoming form/JSON data through route service."""
+    """Validate a normalized create payload through the route service."""
+    request_id = _request_id()
+
     if not _is_route_service_available():
         payload = _route_service_unavailable_payload(route="validate")
-        return _json_response(payload, 503)
+        return _json_response(payload, 503, request_id=request_id)
 
     try:
-        payload = _request_payload()
+        payload = _prepare_create_payload(
+            _request_payload(),
+            route="validate",
+            request_id=request_id,
+        )
+        _validate_starter_payload(payload, route="validate")
+
         response = _route_service().validate_draft_response(payload)
-        return _json_route_response(response)
+        response_payload = _route_response_to_payload(response)
+        _attach_route_metadata(
+            response_payload,
+            route="validate",
+            request_id=request_id,
+            request_payload=payload,
+        )
+        return _json_response(
+            response_payload,
+            _status_code_from_payload(response_payload),
+            request_id=request_id,
+        )
+    except CreateRouteError as exc:
+        failure = _create_route_error_payload(exc, route="validate", request_id=request_id)
+        return _json_response(failure, exc.http_status, request_id=request_id)
     except Exception as exc:
-        payload = _failure_payload(
+        failure = _failure_payload(
             route="validate",
             code="validation_failed",
             message="Die Validierung konnte nicht ausgeführt werden.",
             exc=exc,
             http_status=422,
         )
-        return _json_response(payload, 422)
+        return _json_response(failure, 422, request_id=request_id)
 
 
 @create_bp.post(f"{CREATE_API_PREFIX}/package-plan")
 def create_package_plan() -> Response:
-    """Build package plan without writing files through route service."""
+    """Build a package plan from the same normalized payload used by download."""
+    request_id = _request_id()
+
     if not _is_route_service_available():
         payload = _route_service_unavailable_payload(route="package-plan")
-        return _json_response(payload, 503)
+        return _json_response(payload, 503, request_id=request_id)
 
     try:
-        payload = _request_payload()
-        include_documents = _request_bool("include_documents", default=True)
+        payload = _prepare_create_payload(
+            _request_payload(),
+            route="package-plan",
+            request_id=request_id,
+        )
+        _validate_starter_payload(payload, route="package-plan")
+        include_documents = _resolve_include_documents(payload)
+
         response = _route_service().build_package_plan_response(
             payload,
             include_documents=include_documents,
         )
-        return _json_route_response(response)
+        response_payload = _route_response_to_payload(response)
+        _attach_route_metadata(
+            response_payload,
+            route="package-plan",
+            request_id=request_id,
+            request_payload=payload,
+            extra={"include_documents": include_documents},
+        )
+        return _json_response(
+            response_payload,
+            _status_code_from_payload(response_payload),
+            request_id=request_id,
+        )
+    except CreateRouteError as exc:
+        failure = _create_route_error_payload(exc, route="package-plan", request_id=request_id)
+        return _json_response(failure, exc.http_status, request_id=request_id)
     except Exception as exc:
-        payload = _failure_payload(
+        failure = _failure_payload(
             route="package-plan",
             code="package_plan_failed",
             message="Der Package-Plan konnte nicht erzeugt werden.",
             exc=exc,
             http_status=500,
         )
-        return _json_response(payload, 500)
+        return _json_response(failure, 500, request_id=request_id)
 
 
 @create_bp.post(f"{CREATE_API_PREFIX}/publish-bundle")
@@ -694,42 +817,95 @@ def create_save() -> Response:
 
 @create_bp.post(f"{CREATE_API_PREFIX}/download")
 def create_download() -> Response:
-    """Return an in-memory .vplib archive as file download."""
+    """Validate, plan and return a verified in-memory ``.vplib`` ZIP archive."""
+    request_id = _request_id()
+
     if not _is_route_service_available():
         payload = _route_service_unavailable_payload(route="download")
-        return _json_response(payload, 503)
+        return _json_response(payload, 503, request_id=request_id)
 
     try:
-        payload = _request_payload()
+        payload = _prepare_create_payload(
+            _request_payload(),
+            route="download",
+            request_id=request_id,
+        )
+        _validate_starter_payload(payload, route="download")
+
+        preflight = _run_download_preflight(payload, request_id=request_id)
+        if not bool(preflight.get("ok", False)):
+            return _json_response(
+                preflight,
+                _status_code_from_payload(preflight),
+                request_id=request_id,
+            )
+
         binary_response = _route_service().build_download_response(payload)
 
-        if not bool(getattr(binary_response, "ok", False)):
+        if not bool(_extract_from_mapping_or_object(binary_response, "ok")):
             meta_payload = _binary_response_to_payload(binary_response)
-            return _json_response(meta_payload, _safe_http_status(getattr(binary_response, "http_status", 500)))
+            _attach_route_metadata(
+                meta_payload,
+                route="download",
+                request_id=request_id,
+                request_payload=payload,
+                extra={"preflight": preflight.get("data", {})},
+            )
+            return _json_response(
+                meta_payload,
+                _safe_http_status(
+                    _extract_from_mapping_or_object(binary_response, "http_status") or 500
+                ),
+                request_id=request_id,
+            )
 
-        filename = _safe_filename(getattr(binary_response, "filename", "package.vplib"))
-        content = getattr(binary_response, "content", b"") or b""
-        mimetype = getattr(binary_response, "mimetype", DEFAULT_VPLIB_MIMETYPE) or DEFAULT_VPLIB_MIMETYPE
-        status_code = _safe_http_status(getattr(binary_response, "http_status", 200))
+        filename = _safe_filename(
+            _extract_from_mapping_or_object(binary_response, "filename") or "package.vplib"
+        )
+        content = _coerce_archive_bytes(
+            _extract_from_mapping_or_object(binary_response, "content")
+        )
+        archive_info = _validate_vplib_archive(content)
+        mimetype = (
+            _extract_from_mapping_or_object(binary_response, "mimetype")
+            or DEFAULT_VPLIB_MIMETYPE
+        )
+        status_code = _safe_http_status(
+            _extract_from_mapping_or_object(binary_response, "http_status") or 200
+        )
 
         file_response = send_file(
             io.BytesIO(content),
-            mimetype=mimetype,
+            mimetype=str(mimetype),
             as_attachment=True,
             download_name=filename,
             max_age=0,
+            conditional=False,
         )
         file_response.status_code = status_code
-        file_response.headers["X-VECTOPLAN-Create-Status"] = str(getattr(binary_response, "status", "archive_ready"))
+        file_response.headers["X-VECTOPLAN-Create-Status"] = str(
+            _extract_from_mapping_or_object(binary_response, "status") or "archive_ready"
+        )
         file_response.headers["X-VECTOPLAN-Create-Route"] = "download"
         file_response.headers["X-VECTOPLAN-Create-Version"] = CREATE_BLUEPRINT_VERSION
-        file_response.headers["Cache-Control"] = "no-store"
+        file_response.headers["X-VECTOPLAN-Request-ID"] = request_id
+        file_response.headers["X-VECTOPLAN-Archive-SHA256"] = archive_info["sha256"]
+        file_response.headers["X-VECTOPLAN-Archive-Entries"] = str(
+            archive_info["entry_count"]
+        )
+        file_response.headers["X-Content-Type-Options"] = "nosniff"
+        file_response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        file_response.headers["Pragma"] = "no-cache"
+        file_response.headers["Expires"] = "0"
 
         vplib_uid = _extract_from_mapping_or_object(binary_response, "vplib_uid")
         if vplib_uid:
             file_response.headers["X-VECTOPLAN-VPLIB-UID"] = str(vplib_uid)
 
         return file_response
+    except CreateRouteError as exc:
+        failure = _create_route_error_payload(exc, route="download", request_id=request_id)
+        return _json_response(failure, exc.http_status, request_id=request_id)
     except Exception as exc:
         payload = _failure_payload(
             route="download",
@@ -738,7 +914,7 @@ def create_download() -> Response:
             exc=exc,
             http_status=500,
         )
-        return _json_response(payload, 500)
+        return _json_response(payload, 500, request_id=request_id)
 
 
 @create_bp.post(f"{CREATE_API_PREFIX}/cache/clear")
@@ -775,6 +951,1225 @@ def create_cache_clear() -> Response:
 
 
 # ---------------------------------------------------------------------------
+# Starter contract / request and archive guards
+# ---------------------------------------------------------------------------
+
+def _request_id() -> str:
+    """Return a bounded request/correlation identifier."""
+    candidates = (
+        request.headers.get("X-Request-ID"),
+        request.headers.get("X-Correlation-ID"),
+        request.headers.get("X-VECTOPLAN-Request-ID"),
+    )
+
+    for candidate in candidates:
+        text = REQUEST_ID_PATTERN.sub("-", str(candidate or "").strip()).strip("-._:")
+        if text:
+            return text[:96]
+
+    return uuid.uuid4().hex
+
+
+def _configured_int(name: str, default: int, *, minimum: int = 1) -> int:
+    value: Any = None
+
+    try:
+        value = current_app.config.get(name)
+    except Exception:
+        value = None
+
+    if value is None:
+        value = os.getenv(name)
+
+    try:
+        parsed = int(value)
+    except Exception:
+        parsed = int(default)
+
+    return max(int(minimum), parsed)
+
+
+def _ensure_request_size() -> None:
+    limit = _configured_int(
+        "VECTOPLAN_CREATE_MAX_REQUEST_BYTES",
+        DEFAULT_MAX_REQUEST_BYTES,
+        minimum=1024,
+    )
+
+    try:
+        content_length = request.content_length
+    except Exception:
+        content_length = None
+
+    if content_length is not None and int(content_length) > limit:
+        raise CreateRequestError(
+            f"Create request exceeds the configured limit of {limit} bytes.",
+            code="request_too_large",
+            http_status=413,
+            details={
+                "content_length": int(content_length),
+                "max_request_bytes": limit,
+            },
+        )
+
+
+def _normalize_identifier(value: Any, *, fallback: str = "") -> str:
+    text = str(value or "").replace("\x00", "").strip()
+    if not text:
+        return fallback
+
+    text = text.replace("-", "_").replace(" ", "_")
+    text = re.sub(r"[^A-Za-z0-9_.:/]+", "", text)
+    return text or fallback
+
+
+def _normalize_embedded_json_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    field_types: dict[str, type] = {
+        "definition_variants_json": list,
+        "definitionVariantsJson": list,
+        "geometry_model_uploads_json": dict,
+        "geometryModelUploadsJson": dict,
+        "technical_document_uploads_json": dict,
+        "technicalDocumentUploadsJson": dict,
+        "variant_document_uploads_json": dict,
+        "variantDocumentUploadsJson": dict,
+        "uploads_json": dict,
+        "uploadsJson": dict,
+    }
+
+    for field_name, expected_type in field_types.items():
+        value = payload.get(field_name)
+        if not isinstance(value, str) or not value.strip():
+            continue
+
+        try:
+            decoded = json.loads(value)
+        except Exception as exc:
+            raise CreateRequestError(
+                f"Field {field_name!r} does not contain valid JSON.",
+                code="invalid_embedded_json",
+                http_status=400,
+                details={"field": field_name},
+            ) from exc
+
+        if not isinstance(decoded, expected_type):
+            raise CreateRequestError(
+                f"Field {field_name!r} must contain a JSON {expected_type.__name__}.",
+                code="invalid_embedded_json_type",
+                http_status=400,
+                details={
+                    "field": field_name,
+                    "expected": expected_type.__name__,
+                    "actual": type(decoded).__name__,
+                },
+            )
+
+        payload[field_name] = decoded
+
+    return payload
+
+
+def _first_payload_value(payload: Mapping[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = payload.get(key)
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        return value
+    return None
+
+
+def _mirror_payload_alias(
+    payload: dict[str, Any],
+    snake_key: str,
+    camel_key: str,
+    *,
+    default: Any = None,
+) -> Any:
+    value = _first_payload_value(payload, snake_key, camel_key)
+    if value is None:
+        value = default
+
+    if value is not None:
+        payload[snake_key] = value
+        payload[camel_key] = value
+
+    return value
+
+
+def _json_mapping_from_any(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return _json_safe(dict(value))
+
+    if isinstance(value, str) and value.strip():
+        try:
+            decoded = json.loads(value)
+        except Exception:
+            return {}
+        if isinstance(decoded, Mapping):
+            return _json_safe(dict(decoded))
+
+    return {}
+
+
+def _json_list_from_payload(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return _json_safe(value)
+
+    if isinstance(value, tuple):
+        return _json_safe(list(value))
+
+    if isinstance(value, str) and value.strip():
+        try:
+            decoded = json.loads(value)
+        except Exception:
+            return []
+        if isinstance(decoded, list):
+            return _json_safe(decoded)
+
+    return []
+
+
+def _positive_number(value: Any, *, fallback: float | None = None) -> float | None:
+    try:
+        number = float(str(value).strip().replace(",", "."))
+    except Exception:
+        return fallback
+
+    if number <= 0:
+        return fallback
+
+    return number
+
+
+def _geometry_value_to_mm(value: Any, unit: Any) -> int | None:
+    number = _positive_number(value)
+    if number is None:
+        return None
+
+    unit_text = str(unit or "m").strip().lower()
+    factors = {
+        "mm": 1.0,
+        "millimeter": 1.0,
+        "millimetre": 1.0,
+        "cm": 10.0,
+        "m": 1000.0,
+        "meter": 1000.0,
+        "metre": 1000.0,
+    }
+    factor = factors.get(unit_text, 1000.0)
+    return max(1, int(round(number * factor)))
+
+
+def _empty_upload_contract(kind: str) -> dict[str, Any]:
+    return {
+        "kind": kind,
+        "count": 0,
+        "files": [],
+        "errors": [],
+        "ok": True,
+        "required": False,
+        "local_only": True,
+        "localOnly": True,
+        "backend_stored": False,
+        "backendStored": False,
+    }
+
+
+def _prepare_create_payload(
+    payload: Mapping[str, Any] | None,
+    *,
+    route: str,
+    request_id: str,
+) -> dict[str, Any]:
+    """Normalize aliases and materialize the minimal starter contract."""
+    data = _json_safe(dict(payload or {}))
+    if not isinstance(data, dict):
+        data = {}
+
+    _normalize_embedded_json_fields(data)
+
+    object_kind = _normalize_identifier(
+        _first_payload_value(data, "object_kind", "objectKind", "object_class"),
+        fallback=STARTER_OBJECT_KIND,
+    ).lower()
+    family_profile_id = _normalize_identifier(
+        _first_payload_value(data, "family_profile_id", "familyProfileId"),
+        fallback="",
+    )
+    variant_profile_id = _normalize_identifier(
+        _first_payload_value(data, "variant_profile_id", "variantProfileId"),
+        fallback="",
+    )
+
+    starter_requested = (
+        object_kind == STARTER_OBJECT_KIND
+        and family_profile_id in {"", STARTER_FAMILY_PROFILE_ID}
+        and variant_profile_id in {"", STARTER_VARIANT_PROFILE_ID}
+    )
+
+    if starter_requested:
+        family_profile_id = STARTER_FAMILY_PROFILE_ID
+        variant_profile_id = STARTER_VARIANT_PROFILE_ID
+
+    data["object_kind"] = object_kind
+    data["objectKind"] = object_kind
+    _mirror_payload_alias(
+        data,
+        "family_profile_id",
+        "familyProfileId",
+        default=family_profile_id,
+    )
+    _mirror_payload_alias(
+        data,
+        "variant_profile_id",
+        "variantProfileId",
+        default=variant_profile_id,
+    )
+
+    data["domain"] = _normalize_identifier(data.get("domain"), fallback="hochbau").lower()
+    data["category"] = _normalize_identifier(data.get("category"), fallback="bloecke").lower()
+    data["subcategory"] = _normalize_identifier(
+        data.get("subcategory"),
+        fallback="basis",
+    ).lower()
+    taxonomy_path = str(
+        _first_payload_value(data, "taxonomy_path", "taxonomyPath")
+        or f"{data['domain']}/{data['category']}/{data['subcategory']}"
+    ).strip().replace("\\", "/")
+    taxonomy_path = "/".join(
+        _normalize_identifier(part, fallback="").lower()
+        for part in taxonomy_path.split("/")
+        if _normalize_identifier(part, fallback="")
+    )
+    data["taxonomy_path"] = taxonomy_path
+    data["taxonomyPath"] = taxonomy_path
+
+    if starter_requested:
+        family_name_value = str(
+            _first_payload_value(data, "family_name", "familyName")
+            or "Simple Cell Block"
+        ).strip()
+        data["family_name"] = family_name_value
+        data["familyName"] = family_name_value
+
+        primitive_shape_value = str(
+            _first_payload_value(data, "primitive_shape", "primitiveShape")
+            or "block"
+        ).strip()
+        data["primitive_shape"] = primitive_shape_value
+        data["primitiveShape"] = primitive_shape_value
+
+        for snake_key, camel_key in (
+            ("editor_cells_x", "editorCellsX"),
+            ("editor_cells_y", "editorCellsY"),
+            ("editor_cells_z", "editorCellsZ"),
+        ):
+            raw_value = _first_payload_value(data, snake_key, camel_key)
+            normalized_value = _positive_number(raw_value, fallback=1.0) or 1.0
+            text_value = str(int(normalized_value))
+            data[snake_key] = text_value
+            data[camel_key] = text_value
+
+        for snake_key, camel_key, default_value in (
+            ("geometry_width", "geometryWidth", "1.00"),
+            ("geometry_height", "geometryHeight", "1.00"),
+            ("geometry_depth", "geometryDepth", "1.00"),
+            ("geometry_unit", "geometryUnit", "m"),
+        ):
+            value = str(
+                _first_payload_value(data, snake_key, camel_key)
+                or default_value
+            ).strip()
+            data[snake_key] = value
+            data[camel_key] = value
+
+        dimension_values = {
+            "dimensions.width_mm": _geometry_value_to_mm(
+                data.get("geometry_width"),
+                data.get("geometry_unit"),
+            )
+            or STARTER_DIMENSIONS_MM["dimensions.width_mm"],
+            "dimensions.height_mm": _geometry_value_to_mm(
+                data.get("geometry_height"),
+                data.get("geometry_unit"),
+            )
+            or STARTER_DIMENSIONS_MM["dimensions.height_mm"],
+            "dimensions.depth_mm": _geometry_value_to_mm(
+                data.get("geometry_depth"),
+                data.get("geometry_unit"),
+            )
+            or STARTER_DIMENSIONS_MM["dimensions.depth_mm"],
+        }
+
+        dimensions = _json_mapping_from_any(data.get("dimensions"))
+        dimensions.setdefault("width_mm", dimension_values["dimensions.width_mm"])
+        dimensions.setdefault("height_mm", dimension_values["dimensions.height_mm"])
+        dimensions.setdefault("depth_mm", dimension_values["dimensions.depth_mm"])
+        data["dimensions"] = dimensions
+
+        variants = _json_list_from_payload(
+            _first_payload_value(
+                data,
+                "definition_variants",
+                "definitionVariants",
+                "definition_variants_json",
+                "definitionVariantsJson",
+            )
+        )
+
+        normalized_variants: list[dict[str, Any]] = []
+        for index, raw_variant in enumerate(variants):
+            variant = _json_mapping_from_any(raw_variant)
+            if not variant:
+                continue
+
+            variant_id = _normalize_identifier(
+                _first_payload_value(variant, "variant_id", "variantId", "id"),
+                fallback=STARTER_DEFAULT_VARIANT_ID if index == 0 else f"variant_{index + 1}",
+            )
+            label = str(
+                _first_payload_value(variant, "label", "name", "title")
+                or (STARTER_DEFAULT_LABEL if index == 0 else f"Variante {index + 1}")
+            ).strip()
+            definition_values = _json_mapping_from_any(
+                _first_payload_value(
+                    variant,
+                    "definition_values",
+                    "definitionValues",
+                    "values",
+                    "definition_values_json",
+                    "definitionValuesJson",
+                )
+            )
+
+            definition_values.setdefault("variant.variant_id", variant_id)
+            definition_values.setdefault("variant.label", label)
+            for field_key, field_value in dimension_values.items():
+                definition_values.setdefault(field_key, field_value)
+
+            variant.update(
+                {
+                    "variant_id": variant_id,
+                    "variantId": variant_id,
+                    "label": label,
+                    "name": label,
+                    "family_profile_id": STARTER_FAMILY_PROFILE_ID,
+                    "familyProfileId": STARTER_FAMILY_PROFILE_ID,
+                    "variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+                    "variantProfileId": STARTER_VARIANT_PROFILE_ID,
+                    "object_kind": STARTER_OBJECT_KIND,
+                    "objectKind": STARTER_OBJECT_KIND,
+                    "definition_values": definition_values,
+                    "definitionValues": definition_values,
+                    "definition_values_json": json.dumps(
+                        definition_values,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                    "definitionValuesJson": json.dumps(
+                        definition_values,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                }
+            )
+            normalized_variants.append(variant)
+
+        if not normalized_variants:
+            definition_values = {
+                "variant.variant_id": STARTER_DEFAULT_VARIANT_ID,
+                "variant.label": STARTER_DEFAULT_LABEL,
+                **dimension_values,
+            }
+            normalized_variants = [
+                {
+                    "variant_id": STARTER_DEFAULT_VARIANT_ID,
+                    "variantId": STARTER_DEFAULT_VARIANT_ID,
+                    "label": STARTER_DEFAULT_LABEL,
+                    "name": STARTER_DEFAULT_LABEL,
+                    "description": "",
+                    "is_default": True,
+                    "isDefault": True,
+                    "family_profile_id": STARTER_FAMILY_PROFILE_ID,
+                    "familyProfileId": STARTER_FAMILY_PROFILE_ID,
+                    "variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+                    "variantProfileId": STARTER_VARIANT_PROFILE_ID,
+                    "object_kind": STARTER_OBJECT_KIND,
+                    "objectKind": STARTER_OBJECT_KIND,
+                    "definition_values": definition_values,
+                    "definitionValues": definition_values,
+                    "definition_values_json": json.dumps(
+                        definition_values,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                    "definitionValuesJson": json.dumps(
+                        definition_values,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                    "additional_field_keys": [],
+                    "additionalFieldKeys": [],
+                    "source": "routes.create.starter_default",
+                }
+            ]
+
+        default_index = next(
+            (
+                index
+                for index, variant in enumerate(normalized_variants)
+                if _safe_bool(
+                    _first_payload_value(variant, "is_default", "isDefault"),
+                    default=False,
+                )
+                or variant.get("variant_id") == STARTER_DEFAULT_VARIANT_ID
+            ),
+            0,
+        )
+        for index, variant in enumerate(normalized_variants):
+            is_default = index == default_index
+            variant["is_default"] = is_default
+            variant["isDefault"] = is_default
+
+        default_variant_id = str(
+            normalized_variants[default_index].get("variant_id")
+            or STARTER_DEFAULT_VARIANT_ID
+        )
+        data["definition_variants"] = normalized_variants
+        data["definitionVariants"] = normalized_variants
+        variants_json = json.dumps(
+            normalized_variants,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        data["definition_variants_json"] = variants_json
+        data["definitionVariantsJson"] = variants_json
+        data["default_variant_id"] = default_variant_id
+        data["defaultVariantId"] = default_variant_id
+
+        geometry_upload = _json_mapping_from_any(
+            _first_payload_value(
+                data,
+                "geometry_model_uploads",
+                "geometryModelUploads",
+                "geometry_model_uploads_json",
+                "geometryModelUploadsJson",
+            )
+        ) or _empty_upload_contract("geometry_model")
+        technical_upload = _json_mapping_from_any(
+            _first_payload_value(
+                data,
+                "technical_document_uploads",
+                "technicalDocumentUploads",
+                "technical_document_uploads_json",
+                "technicalDocumentUploadsJson",
+            )
+        ) or _empty_upload_contract("technical_documents")
+        variant_upload = _json_mapping_from_any(
+            _first_payload_value(
+                data,
+                "variant_document_uploads",
+                "variantDocumentUploads",
+                "variant_document_uploads_json",
+                "variantDocumentUploadsJson",
+            )
+        ) or _empty_upload_contract("variant_documents")
+
+        data["geometry_model_uploads"] = geometry_upload
+        data["geometryModelUploads"] = geometry_upload
+        data["technical_document_uploads"] = technical_upload
+        data["technicalDocumentUploads"] = technical_upload
+        data["variant_document_uploads"] = variant_upload
+        data["variantDocumentUploads"] = variant_upload
+        data["geometry_model_uploads_json"] = json.dumps(
+            geometry_upload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        data["geometryModelUploadsJson"] = data["geometry_model_uploads_json"]
+        data["technical_document_uploads_json"] = json.dumps(
+            technical_upload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        data["technicalDocumentUploadsJson"] = data[
+            "technical_document_uploads_json"
+        ]
+        data["variant_document_uploads_json"] = json.dumps(
+            variant_upload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        data["variantDocumentUploadsJson"] = data[
+            "variant_document_uploads_json"
+        ]
+        data.setdefault("documents", [])
+        data.setdefault("assets", [])
+        data.setdefault("include_documents", False)
+        data.setdefault("includeDocuments", data["include_documents"])
+
+    data["_request_id"] = request_id
+    data["_create_route"] = route
+    data["_create_blueprint_version"] = CREATE_BLUEPRINT_VERSION
+    data["_starter_contract"] = {
+        "requested": starter_requested,
+        "object_kind": object_kind,
+        "family_profile_id": family_profile_id,
+        "variant_profile_id": variant_profile_id,
+        "default_variant_id": data.get("default_variant_id"),
+        "dimensions_mm": (
+            {
+                "width": data.get("dimensions", {}).get("width_mm"),
+                "height": data.get("dimensions", {}).get("height_mm"),
+                "depth": data.get("dimensions", {}).get("depth_mm"),
+            }
+            if starter_requested
+            else {}
+        ),
+    }
+    return data
+
+
+def _validate_starter_payload(payload: Mapping[str, Any], *, route: str) -> None:
+    starter = _safe_mapping(payload.get("_starter_contract"))
+    if not _safe_bool(starter.get("requested"), default=False):
+        return
+
+    issues: list[dict[str, Any]] = []
+
+    if payload.get("object_kind") != STARTER_OBJECT_KIND:
+        issues.append(
+            {
+                "field": "object_kind",
+                "code": "starter_object_kind_invalid",
+                "expected": STARTER_OBJECT_KIND,
+                "actual": payload.get("object_kind"),
+            }
+        )
+
+    if payload.get("family_profile_id") != STARTER_FAMILY_PROFILE_ID:
+        issues.append(
+            {
+                "field": "family_profile_id",
+                "code": "starter_family_profile_invalid",
+                "expected": STARTER_FAMILY_PROFILE_ID,
+                "actual": payload.get("family_profile_id"),
+            }
+        )
+
+    if payload.get("variant_profile_id") != STARTER_VARIANT_PROFILE_ID:
+        issues.append(
+            {
+                "field": "variant_profile_id",
+                "code": "starter_variant_profile_invalid",
+                "expected": STARTER_VARIANT_PROFILE_ID,
+                "actual": payload.get("variant_profile_id"),
+            }
+        )
+
+    variants = _json_list_from_payload(
+        _first_payload_value(
+            payload,
+            "definition_variants",
+            "definitionVariants",
+            "definition_variants_json",
+            "definitionVariantsJson",
+        )
+    )
+    if not variants:
+        issues.append(
+            {
+                "field": "definition_variants",
+                "code": "starter_variant_missing",
+            }
+        )
+    else:
+        default_variant = next(
+            (
+                _json_mapping_from_any(variant)
+                for variant in variants
+                if _safe_bool(
+                    _first_payload_value(
+                        _json_mapping_from_any(variant),
+                        "is_default",
+                        "isDefault",
+                    ),
+                    default=False,
+                )
+            ),
+            _json_mapping_from_any(variants[0]),
+        )
+        values = _json_mapping_from_any(
+            _first_payload_value(
+                default_variant,
+                "definition_values",
+                "definitionValues",
+                "definition_values_json",
+                "definitionValuesJson",
+            )
+        )
+
+        for field_key in (
+            "variant.variant_id",
+            "variant.label",
+            *STARTER_DIMENSIONS_MM.keys(),
+        ):
+            if field_key not in values:
+                issues.append(
+                    {
+                        "field": field_key,
+                        "code": "starter_default_missing",
+                    }
+                )
+
+        for field_key in STARTER_DIMENSIONS_MM:
+            if _positive_number(values.get(field_key)) is None:
+                issues.append(
+                    {
+                        "field": field_key,
+                        "code": "starter_dimension_invalid",
+                        "actual": values.get(field_key),
+                    }
+                )
+
+    if issues:
+        raise CreateRequestError(
+            "The minimal cell_block starter payload is incomplete.",
+            code="starter_payload_invalid",
+            http_status=422,
+            details={
+                "route": route,
+                "issues": issues,
+            },
+        )
+
+
+def _resolve_include_documents(payload: Mapping[str, Any]) -> bool:
+    for key in ("include_documents", "includeDocuments"):
+        if key in payload:
+            return _safe_bool(payload.get(key), default=False)
+
+    starter = _safe_mapping(payload.get("_starter_contract"))
+    if _safe_bool(starter.get("requested"), default=False):
+        return False
+
+    return _request_bool("include_documents", default=True)
+
+
+def _payload_has_error_issues(payload: Mapping[str, Any]) -> bool:
+    errors = payload.get("errors")
+    if isinstance(errors, list):
+        return any(
+            not isinstance(issue, Mapping)
+            or str(issue.get("severity") or "error").lower() == "error"
+            for issue in errors
+        )
+    return bool(errors)
+
+
+def _route_payload_succeeded(
+    payload: Mapping[str, Any],
+    *,
+    require_valid: bool = False,
+) -> bool:
+    if not isinstance(payload, Mapping):
+        return False
+
+    if payload.get("ok") is False:
+        return False
+
+    status = str(payload.get("status") or "").strip().lower()
+    if status in {
+        "invalid",
+        "draft_invalid",
+        "validation_failed",
+        "failed",
+        "error",
+        "not_found",
+        "unavailable",
+    }:
+        return False
+
+    if _payload_has_error_issues(payload):
+        return False
+
+    if require_valid:
+        valid_candidates = (
+            payload.get("valid"),
+            payload.get("is_valid"),
+            payload.get("isValid"),
+            _nested_value(payload, "data.valid"),
+            _nested_value(payload, "data.is_valid"),
+            _nested_value(payload, "validation.valid"),
+        )
+        for candidate in valid_candidates:
+            if candidate is False:
+                return False
+
+    return bool(payload.get("ok", True))
+
+
+def _compact_service_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    data = dict(payload or {})
+    compact = {
+        "ok": bool(data.get("ok", False)),
+        "status": data.get("status"),
+        "route": data.get("route"),
+        "_http_status": data.get("_http_status"),
+        "errors": _json_safe(data.get("errors") or []),
+        "warnings": _json_safe(data.get("warnings") or []),
+    }
+
+    for key in ("valid", "is_valid", "isValid", "summary"):
+        if key in data:
+            compact[key] = _json_safe(data[key])
+
+    return compact
+
+
+def _run_download_preflight(
+    payload: Mapping[str, Any],
+    *,
+    request_id: str,
+) -> dict[str, Any]:
+    if not _safe_bool(payload.get("server_preflight"), default=True):
+        return {
+            "ok": True,
+            "status": "preflight_skipped",
+            "route": "download-preflight",
+            "data": {"skipped": True},
+            "_http_status": 200,
+        }
+
+    validation_response = _route_service().validate_draft_response(dict(payload))
+    validation_payload = _route_response_to_payload(validation_response)
+    if not _route_payload_succeeded(validation_payload, require_valid=True):
+        failure = {
+            "ok": False,
+            "status": "download_preflight_validation_failed",
+            "route": "download",
+            "component": CREATE_BLUEPRINT_COMPONENT,
+            "version": CREATE_BLUEPRINT_VERSION,
+            "errors": validation_payload.get("errors")
+            or [
+                {
+                    "severity": "error",
+                    "code": "download_preflight_validation_failed",
+                    "field": "validate",
+                    "message": "Server-side validation failed before archive generation.",
+                }
+            ],
+            "warnings": validation_payload.get("warnings") or [],
+            "data": {
+                "validation": _compact_service_payload(validation_payload),
+            },
+            "_http_status": _safe_http_status(
+                validation_payload.get("_http_status") or 422
+            ),
+        }
+        _attach_route_metadata(
+            failure,
+            route="download",
+            request_id=request_id,
+            request_payload=payload,
+        )
+        return failure
+
+    include_documents = _resolve_include_documents(payload)
+    package_response = _route_service().build_package_plan_response(
+        dict(payload),
+        include_documents=include_documents,
+    )
+    package_payload = _route_response_to_payload(package_response)
+    if not _route_payload_succeeded(package_payload):
+        failure = {
+            "ok": False,
+            "status": "download_preflight_package_plan_failed",
+            "route": "download",
+            "component": CREATE_BLUEPRINT_COMPONENT,
+            "version": CREATE_BLUEPRINT_VERSION,
+            "errors": package_payload.get("errors")
+            or [
+                {
+                    "severity": "error",
+                    "code": "download_preflight_package_plan_failed",
+                    "field": "package-plan",
+                    "message": "Package planning failed before archive generation.",
+                }
+            ],
+            "warnings": package_payload.get("warnings") or [],
+            "data": {
+                "validation": _compact_service_payload(validation_payload),
+                "package_plan": _compact_service_payload(package_payload),
+                "include_documents": include_documents,
+            },
+            "_http_status": _safe_http_status(
+                package_payload.get("_http_status") or 422
+            ),
+        }
+        _attach_route_metadata(
+            failure,
+            route="download",
+            request_id=request_id,
+            request_payload=payload,
+        )
+        return failure
+
+    return {
+        "ok": True,
+        "status": "preflight_ok",
+        "route": "download-preflight",
+        "component": CREATE_BLUEPRINT_COMPONENT,
+        "version": CREATE_BLUEPRINT_VERSION,
+        "data": {
+            "validation": _compact_service_payload(validation_payload),
+            "package_plan": _compact_service_payload(package_payload),
+            "include_documents": include_documents,
+        },
+        "_http_status": 200,
+    }
+
+
+def _coerce_archive_bytes(value: Any) -> bytes:
+    if value is None:
+        raise CreateArchiveError(
+            "Download service returned no archive content.",
+            code="archive_content_missing",
+            http_status=500,
+        )
+
+    if isinstance(value, bytes):
+        content = value
+    elif isinstance(value, bytearray):
+        content = bytes(value)
+    elif isinstance(value, memoryview):
+        content = value.tobytes()
+    elif hasattr(value, "read") and callable(value.read):
+        try:
+            content = value.read()
+        except Exception as exc:
+            raise CreateArchiveError(
+                "Archive stream could not be read.",
+                code="archive_stream_read_failed",
+                http_status=500,
+            ) from exc
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+        elif not isinstance(content, bytes):
+            content = bytes(content or b"")
+    else:
+        raise CreateArchiveError(
+            "Download service returned an unsupported archive content type.",
+            code="archive_content_type_invalid",
+            http_status=500,
+            details={"type": type(value).__name__},
+        )
+
+    max_bytes = _configured_int(
+        "VECTOPLAN_CREATE_MAX_ARCHIVE_BYTES",
+        DEFAULT_MAX_ARCHIVE_BYTES,
+        minimum=1024,
+    )
+    if not content:
+        raise CreateArchiveError(
+            "Generated VPLIB archive is empty.",
+            code="archive_empty",
+            http_status=500,
+        )
+    if len(content) > max_bytes:
+        raise CreateArchiveError(
+            "Generated VPLIB archive exceeds the configured size limit.",
+            code="archive_too_large",
+            http_status=500,
+            details={
+                "size_bytes": len(content),
+                "max_archive_bytes": max_bytes,
+            },
+        )
+
+    return content
+
+
+def _safe_archive_member_name(name: Any) -> str:
+    text = str(name or "").replace("\\", "/").replace("\x00", "")
+    if not text:
+        raise CreateArchiveError(
+            "Generated archive contains an empty member name.",
+            code="archive_member_name_invalid",
+            http_status=500,
+        )
+    if text.startswith("/") or re.match(r"^[A-Za-z]:/", text):
+        raise CreateArchiveError(
+            "Generated archive contains an absolute member path.",
+            code="archive_member_path_unsafe",
+            http_status=500,
+            details={"member": text},
+        )
+
+    parts = [part for part in text.split("/") if part not in {"", "."}]
+    if any(part == ".." for part in parts):
+        raise CreateArchiveError(
+            "Generated archive contains a path traversal member.",
+            code="archive_member_path_unsafe",
+            http_status=500,
+            details={"member": text},
+        )
+
+    return "/".join(parts)
+
+
+def _validate_vplib_archive(content: bytes) -> dict[str, Any]:
+    if not any(content.startswith(signature) for signature in ZIP_SIGNATURES):
+        raise CreateArchiveError(
+            "Generated VPLIB content does not have a ZIP signature.",
+            code="archive_signature_invalid",
+            http_status=500,
+        )
+
+    buffer = io.BytesIO(content)
+    if not zipfile.is_zipfile(buffer):
+        raise CreateArchiveError(
+            "Generated VPLIB content is not a valid ZIP archive.",
+            code="archive_zip_invalid",
+            http_status=500,
+        )
+
+    max_entries = _configured_int(
+        "VECTOPLAN_CREATE_MAX_ARCHIVE_ENTRIES",
+        DEFAULT_MAX_ARCHIVE_ENTRIES,
+        minimum=1,
+    )
+    max_uncompressed = _configured_int(
+        "VECTOPLAN_CREATE_MAX_ARCHIVE_UNCOMPRESSED_BYTES",
+        DEFAULT_MAX_ARCHIVE_UNCOMPRESSED_BYTES,
+        minimum=1024,
+    )
+
+    try:
+        max_ratio = float(
+            current_app.config.get(
+                "VECTOPLAN_CREATE_MAX_COMPRESSION_RATIO",
+                os.getenv(
+                    "VECTOPLAN_CREATE_MAX_COMPRESSION_RATIO",
+                    DEFAULT_MAX_COMPRESSION_RATIO,
+                ),
+            )
+        )
+    except Exception:
+        max_ratio = DEFAULT_MAX_COMPRESSION_RATIO
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(content), "r") as archive:
+            members = archive.infolist()
+            if not members:
+                raise CreateArchiveError(
+                    "Generated VPLIB archive contains no files.",
+                    code="archive_has_no_entries",
+                    http_status=500,
+                )
+            if len(members) > max_entries:
+                raise CreateArchiveError(
+                    "Generated VPLIB archive contains too many entries.",
+                    code="archive_entry_limit_exceeded",
+                    http_status=500,
+                    details={
+                        "entry_count": len(members),
+                        "max_entries": max_entries,
+                    },
+                )
+
+            total_uncompressed = 0
+            total_compressed = 0
+            names: list[str] = []
+
+            for member in members:
+                safe_name = _safe_archive_member_name(member.filename)
+                names.append(safe_name)
+                if member.flag_bits & 0x1:
+                    raise CreateArchiveError(
+                        "Generated VPLIB archive contains encrypted entries.",
+                        code="archive_encrypted_entry",
+                        http_status=500,
+                        details={"member": safe_name},
+                    )
+
+                total_uncompressed += int(member.file_size or 0)
+                total_compressed += int(member.compress_size or 0)
+
+                if total_uncompressed > max_uncompressed:
+                    raise CreateArchiveError(
+                        "Generated VPLIB archive exceeds the uncompressed size limit.",
+                        code="archive_uncompressed_limit_exceeded",
+                        http_status=500,
+                        details={
+                            "uncompressed_bytes": total_uncompressed,
+                            "max_uncompressed_bytes": max_uncompressed,
+                        },
+                    )
+
+                if member.file_size and member.compress_size == 0:
+                    raise CreateArchiveError(
+                        "Generated VPLIB archive contains an invalid compressed entry.",
+                        code="archive_compression_invalid",
+                        http_status=500,
+                        details={"member": safe_name},
+                    )
+
+                if member.file_size and member.compress_size:
+                    ratio = float(member.file_size) / float(member.compress_size)
+                    if ratio > max_ratio:
+                        raise CreateArchiveError(
+                            "Generated VPLIB archive contains a suspicious compression ratio.",
+                            code="archive_compression_ratio_exceeded",
+                            http_status=500,
+                            details={
+                                "member": safe_name,
+                                "ratio": ratio,
+                                "max_ratio": max_ratio,
+                            },
+                        )
+
+            corrupt_member = archive.testzip()
+            if corrupt_member:
+                raise CreateArchiveError(
+                    "Generated VPLIB archive failed CRC validation.",
+                    code="archive_crc_failed",
+                    http_status=500,
+                    details={"member": corrupt_member},
+                )
+    except CreateRouteError:
+        raise
+    except (OSError, zipfile.BadZipFile, zipfile.LargeZipFile) as exc:
+        raise CreateArchiveError(
+            "Generated VPLIB archive could not be inspected.",
+            code="archive_inspection_failed",
+            http_status=500,
+            details={"exception_type": type(exc).__name__},
+        ) from exc
+
+    return {
+        "ok": True,
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "size_bytes": len(content),
+        "entry_count": len(members),
+        "uncompressed_bytes": total_uncompressed,
+        "compressed_bytes": total_compressed,
+        "members": names[:32],
+    }
+
+
+def _attach_route_metadata(
+    payload: dict[str, Any],
+    *,
+    route: str,
+    request_id: str,
+    request_payload: Mapping[str, Any] | None = None,
+    extra: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload.setdefault("route", route)
+    payload.setdefault("component", CREATE_BLUEPRINT_COMPONENT)
+    payload.setdefault("version", CREATE_BLUEPRINT_VERSION)
+    payload["_request_id"] = request_id
+
+    data = payload.get("data")
+    if not isinstance(data, Mapping):
+        data = {}
+    data = dict(data)
+
+    if request_payload:
+        starter = _safe_mapping(request_payload.get("_starter_contract"))
+        if starter:
+            data.setdefault("starter_contract", starter)
+
+    if extra:
+        for key, value in extra.items():
+            data[key] = _json_safe(value)
+
+    payload["data"] = data
+    return payload
+
+
+def _create_route_error_payload(
+    exc: CreateRouteError,
+    *,
+    route: str,
+    request_id: str,
+) -> dict[str, Any]:
+    payload = _failure_payload(
+        route=route,
+        code=exc.code,
+        message=str(exc),
+        details=exc.details,
+        http_status=exc.http_status,
+    )
+    payload["_request_id"] = request_id
+    return payload
+
+
+def _starter_readiness_payload(*, request_id: str) -> dict[str, Any]:
+    route_service_available = _is_route_service_available()
+    definition_service_available = _is_definition_service_available()
+    profile_payload: dict[str, Any] = {}
+
+    if definition_service_available:
+        profile_payload = _safe_definition_call(
+            lambda service: service.get_variant_profile(
+                STARTER_VARIANT_PROFILE_ID,
+                user_id=1,
+                resolved=True,
+                required=True,
+            ),
+            route="creator-readiness-profile",
+        )
+
+    profile_ok = _route_payload_succeeded(profile_payload)
+    ready = route_service_available and definition_service_available and profile_ok
+    payload = {
+        "ok": ready,
+        "ready": ready,
+        "healthy": ready,
+        "status": "ready" if ready else "degraded",
+        "route": "creator-readiness",
+        "component": CREATE_BLUEPRINT_COMPONENT,
+        "version": CREATE_BLUEPRINT_VERSION,
+        "_request_id": request_id,
+        "data": {
+            "route_service_available": route_service_available,
+            "definition_service_available": definition_service_available,
+            "starter": {
+                "object_kind": STARTER_OBJECT_KIND,
+                "family_profile_id": STARTER_FAMILY_PROFILE_ID,
+                "variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+                "default_variant_id": STARTER_DEFAULT_VARIANT_ID,
+                "dimensions_mm": {
+                    "width": STARTER_DIMENSIONS_MM["dimensions.width_mm"],
+                    "height": STARTER_DIMENSIONS_MM["dimensions.height_mm"],
+                    "depth": STARTER_DIMENSIONS_MM["dimensions.depth_mm"],
+                },
+            },
+            "profile": _compact_service_payload(profile_payload),
+        },
+        "errors": [],
+        "warnings": [],
+        "_http_status": 200 if ready else 503,
+    }
+
+    if not ready:
+        payload["errors"] = [
+            {
+                "severity": "error",
+                "code": "creator_not_ready",
+                "field": "create",
+                "message": "The minimal cell_block create flow is not ready.",
+            }
+        ]
+
+    return payload
+
+
+# ---------------------------------------------------------------------------
 # Request helpers
 # ---------------------------------------------------------------------------
 
@@ -790,6 +2185,7 @@ def _request_payload() -> dict[str, Any]:
     Form values override JSON values because browser forms are the primary
     frontend path.
     """
+    _ensure_request_size()
     payload: dict[str, Any] = {}
 
     try:
@@ -797,13 +2193,54 @@ def _request_payload() -> dict[str, Any]:
     except Exception:
         pass
 
+    raw_data = b""
+    try:
+        raw_data = request.get_data(cache=True) or b""
+    except Exception:
+        raw_data = b""
+
+    max_request_bytes = _configured_int(
+        "VECTOPLAN_CREATE_MAX_REQUEST_BYTES",
+        DEFAULT_MAX_REQUEST_BYTES,
+        minimum=1024,
+    )
+    if len(raw_data) > max_request_bytes:
+        raise CreateRequestError(
+            f"Create request exceeds the configured limit of {max_request_bytes} bytes.",
+            code="request_too_large",
+            http_status=413,
+            details={
+                "content_length": len(raw_data),
+                "max_request_bytes": max_request_bytes,
+            },
+        )
+
     try:
         if request.is_json:
             json_body = request.get_json(silent=True)
+            if json_body is None and raw_data.strip():
+                raise CreateRequestError(
+                    "Request body is not valid JSON.",
+                    code="invalid_json_body",
+                    http_status=400,
+                )
             if isinstance(json_body, Mapping):
                 payload.update(_mapping_to_plain_dict(json_body))
-    except Exception:
-        pass
+            elif json_body is not None:
+                raise CreateRequestError(
+                    "Create JSON body must be an object.",
+                    code="invalid_json_body_type",
+                    http_status=400,
+                    details={"actual": type(json_body).__name__},
+                )
+    except CreateRouteError:
+        raise
+    except Exception as exc:
+        raise CreateRequestError(
+            "Request JSON body could not be parsed.",
+            code="invalid_json_body",
+            http_status=400,
+        ) from exc
 
     try:
         if request.form:
@@ -811,25 +2248,34 @@ def _request_payload() -> dict[str, Any]:
     except Exception:
         pass
 
-    try:
-        raw_data = request.get_data(cache=True, as_text=True)
-        if raw_data and not request.form and not request.is_json:
-            raw_text = raw_data.strip()
-            if raw_text.startswith("{") and raw_text.endswith("}"):
+    if raw_data and not request.form and not request.is_json:
+        raw_text = raw_data.decode("utf-8", errors="strict").strip()
+        if raw_text:
+            try:
                 decoded = json.loads(raw_text)
-                if isinstance(decoded, Mapping):
-                    payload.update(_mapping_to_plain_dict(decoded))
-    except Exception:
-        pass
+            except Exception as exc:
+                raise CreateRequestError(
+                    "Request body must be valid JSON or form data.",
+                    code="unsupported_request_body",
+                    http_status=400,
+                ) from exc
+            if not isinstance(decoded, Mapping):
+                raise CreateRequestError(
+                    "Create request body must decode to an object.",
+                    code="invalid_request_body_type",
+                    http_status=400,
+                    details={"actual": type(decoded).__name__},
+                )
+            payload.update(_mapping_to_plain_dict(decoded))
 
     try:
         if request.files:
-            upload_payload = _request_upload_metadata()
-            payload.update(upload_payload)
+            payload.update(_request_upload_metadata())
     except Exception:
         pass
 
-    return payload
+    payload["_request_id"] = _request_id()
+    return _normalize_embedded_json_fields(payload)
 
 
 def _request_upload_metadata() -> dict[str, Any]:
@@ -943,17 +2389,44 @@ def _request_int(name: str, *, default: int | None = None) -> int | None:
 # Response helpers
 # ---------------------------------------------------------------------------
 
-def _json_route_response(route_response: Any) -> Response:
+def _json_route_response(
+    route_response: Any,
+    *,
+    request_id: str | None = None,
+) -> Response:
     payload = _route_response_to_payload(route_response)
-    status_code = _safe_http_status(payload.get("_http_status", _status_code_from_payload(payload)))
-    return _json_response(payload, status_code)
+    status_code = _safe_http_status(
+        payload.get("_http_status", _status_code_from_payload(payload))
+    )
+    return _json_response(payload, status_code, request_id=request_id)
 
 
-def _json_response(payload: Mapping[str, Any], status_code: int = 200) -> Response:
-    response = jsonify(_json_safe(dict(payload)))
+def _json_response(
+    payload: Mapping[str, Any],
+    status_code: int = 200,
+    *,
+    request_id: str | None = None,
+) -> Response:
+    response_payload = _json_safe(dict(payload))
+    if not isinstance(response_payload, dict):
+        response_payload = {"result": response_payload}
+
+    resolved_request_id = (
+        str(request_id or response_payload.get("_request_id") or "").strip()
+        or _request_id()
+    )
+    response_payload["_request_id"] = resolved_request_id
+
+    response = jsonify(response_payload)
     response.status_code = _safe_http_status(status_code)
-    response.headers["Cache-Control"] = "no-store"
+    response.headers[
+        "Cache-Control"
+    ] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-VECTOPLAN-Create-Blueprint"] = CREATE_BLUEPRINT_VERSION
+    response.headers["X-VECTOPLAN-Request-ID"] = resolved_request_id
     return response
 
 
@@ -1031,30 +2504,63 @@ def _status_code_from_payload(payload: Mapping[str, Any]) -> int:
     status = str(payload.get("status") or "").strip().lower()
     error = payload.get("error")
 
-    code = ""
+    codes: list[str] = []
     if isinstance(error, Mapping):
-        code = str(error.get("code") or "").strip().lower()
+        codes.append(str(error.get("code") or "").strip().lower())
+
+    errors = payload.get("errors")
+    if isinstance(errors, list):
+        for issue in errors:
+            if isinstance(issue, Mapping):
+                code = str(issue.get("code") or "").strip().lower()
+                if code:
+                    codes.append(code)
 
     if status in {"invalid_request", "bad_request"}:
         return 400
 
-    if status in {"taxonomy_required_fields_missing", "invalid", "draft_invalid"}:
+    if status in {
+        "taxonomy_required_fields_missing",
+        "invalid",
+        "draft_invalid",
+        "starter_payload_invalid",
+        "download_preflight_validation_failed",
+        "download_preflight_package_plan_failed",
+    }:
         return 422
 
-    if status == "not_found" or code.endswith("not_found"):
+    if status == "not_found" or any(code.endswith("not_found") for code in codes):
         return 404
 
-    if status in {"unavailable", "route_service_unavailable", "service_unavailable"}:
+    if status in {
+        "unavailable",
+        "route_service_unavailable",
+        "service_unavailable",
+        "degraded",
+    }:
         return 503
 
     if status in {"not_implemented"}:
         return 501
 
+    if status in {"request_too_large"} or "request_too_large" in codes:
+        return 413
+
     if status in {"failed", "error"}:
         return 500
 
-    if code.startswith("invalid_"):
+    if any(code.startswith("invalid_") for code in codes):
         return 400
+
+    if any(
+        code in {
+            "starter_payload_invalid",
+            "download_preflight_validation_failed",
+            "download_preflight_package_plan_failed",
+        }
+        for code in codes
+    ):
+        return 422
 
     return 500
 
@@ -1987,6 +3493,18 @@ def _render_fallback_page(
 # Failure / utility helpers
 # ---------------------------------------------------------------------------
 
+def _include_debug_details() -> bool:
+    """Whether exception tracebacks may be exposed in API payloads."""
+    env_value = os.getenv("VECTOPLAN_INCLUDE_ERROR_TRACEBACKS")
+    if env_value is not None:
+        return _safe_bool(env_value, default=False)
+
+    try:
+        return bool(current_app.debug or current_app.testing)
+    except Exception:
+        return False
+
+
 def _route_service_unavailable_payload(*, route: str) -> dict[str, Any]:
     try:
         _route_service()
@@ -2002,14 +3520,15 @@ def _route_service_unavailable_payload(*, route: str) -> dict[str, Any]:
     if import_error is not None:
         details["exception_type"] = type(import_error).__name__
         details["exception"] = str(import_error)
-        try:
-            details["traceback"] = traceback.format_exception(
-                type(import_error),
-                import_error,
-                import_error.__traceback__,
-            )
-        except Exception:
-            pass
+        if _include_debug_details():
+            try:
+                details["traceback"] = traceback.format_exception(
+                    type(import_error),
+                    import_error,
+                    import_error.__traceback__,
+                )
+            except Exception:
+                pass
 
     return {
         "ok": False,
@@ -2051,10 +3570,15 @@ def _service_unavailable_payload(
         "exception": str(exc),
     }
 
-    try:
-        details["traceback"] = traceback.format_exception(type(exc), exc, exc.__traceback__)
-    except Exception:
-        pass
+    if _include_debug_details():
+        try:
+            details["traceback"] = traceback.format_exception(
+                type(exc),
+                exc,
+                exc.__traceback__,
+            )
+        except Exception:
+            pass
 
     return {
         "ok": False,
@@ -2095,10 +3619,11 @@ def _failure_payload(
     if exc is not None:
         issue_details["exception_type"] = type(exc).__name__
         issue_details["exception"] = str(exc)
-        try:
-            issue_details["traceback"] = traceback.format_exc()
-        except Exception:
-            pass
+        if _include_debug_details():
+            try:
+                issue_details["traceback"] = traceback.format_exc()
+            except Exception:
+                pass
 
     return {
         "ok": False,
@@ -2295,6 +3820,8 @@ def get_create_route_list() -> list[str]:
         "GET /api/v1/vplib/create/health",
         "GET /api/v1/vplib/create/routes",
         "GET /api/v1/vplib/create/selftest",
+        "GET /api/v1/vplib/create/readiness",
+        "GET /api/v1/vplib/create/creator-readiness",
         "GET /api/v1/vplib/create/options",
         "GET|POST /api/v1/vplib/create/create-context",
         "GET|POST /api/v1/vplib/create/context",
@@ -2325,6 +3852,8 @@ def get_create_route_groups() -> dict[str, list[str]]:
             "GET /api/v1/vplib/create/health",
             "GET /api/v1/vplib/create/routes",
             "GET /api/v1/vplib/create/selftest",
+            "GET /api/v1/vplib/create/readiness",
+            "GET /api/v1/vplib/create/creator-readiness",
             "POST /api/v1/vplib/create/cache/clear",
         ],
         "context": [
@@ -2381,12 +3910,15 @@ def get_create_routes_health() -> dict[str, Any]:
         }
     )
 
+    starter_readiness = _starter_readiness_payload(request_id=uuid.uuid4().hex)
     route_service_ok = bool(route_health.get("ok", False))
-    healthy = route_service_ok
+    starter_ready = bool(starter_readiness.get("ready", False))
+    healthy = route_service_ok and starter_ready
 
     return {
         "ok": healthy,
         "healthy": healthy,
+        "ready": healthy,
         "status": "healthy" if healthy else "degraded",
         "component": CREATE_BLUEPRINT_COMPONENT,
         "version": CREATE_BLUEPRINT_VERSION,
@@ -2395,6 +3927,7 @@ def get_create_routes_health() -> dict[str, Any]:
         "routes": get_create_route_list(),
         "route_count": len(get_create_route_list()),
         "route_service": route_health,
+        "creator_readiness": starter_readiness,
         "definition_catalog_service": definition_health,
         "draft_service": draft_health,
         "generator_diagnostics": diagnostics_payload,
@@ -2405,6 +3938,9 @@ def get_create_routes_health() -> dict[str, Any]:
         "supports_generator_diagnostics": _is_generator_diagnostics_service_available(),
         "supports_page": True,
         "supports_download": True,
+        "supports_verified_archive_download": True,
+        "supports_server_download_preflight": True,
+        "starter_profile_id": STARTER_VARIANT_PROFILE_ID,
         "_http_status": 200 if healthy else 503,
     }
 
@@ -2492,6 +4028,15 @@ __all__ = [
     "FALLBACK_TEMPLATE_TITLE",
     "DEFAULT_JSON_MIMETYPE",
     "DEFAULT_VPLIB_MIMETYPE",
+    "DEFAULT_MAX_REQUEST_BYTES",
+    "DEFAULT_MAX_ARCHIVE_BYTES",
+    "STARTER_OBJECT_KIND",
+    "STARTER_FAMILY_PROFILE_ID",
+    "STARTER_VARIANT_PROFILE_ID",
+    "STARTER_DEFAULT_VARIANT_ID",
+    "CreateRouteError",
+    "CreateRequestError",
+    "CreateArchiveError",
     "create_bp",
     "bp",
     "blueprint",
