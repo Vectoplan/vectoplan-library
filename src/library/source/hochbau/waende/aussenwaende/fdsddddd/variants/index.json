@@ -1,0 +1,229 @@
+{
+  "schema_version": "0.1.0",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "default_variant_id": "variant_id",
+  "variant_count": 20,
+  "variants": [
+    {
+      "variant_id": "variant_id",
+      "variant_key": "variant_id",
+      "label": "Variant Id",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": true,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "label",
+      "variant_key": "label",
+      "label": "Label",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "description",
+      "variant_key": "description",
+      "label": "Description",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "kind",
+      "variant_key": "kind",
+      "label": "Kind",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "is_default",
+      "variant_key": "is_default",
+      "label": "Is Default",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "overrides",
+      "variant_key": "overrides",
+      "label": "Overrides",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "variantid",
+      "variant_key": "variantid",
+      "label": "Variantid",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "variant_key",
+      "variant_key": "variant_key",
+      "label": "Variant Key",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "variantkey",
+      "variant_key": "variantkey",
+      "label": "Variantkey",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "name",
+      "variant_key": "name",
+      "label": "Name",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "family_profile_id",
+      "variant_key": "family_profile_id",
+      "label": "Family Profile Id",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "familyprofileid",
+      "variant_key": "familyprofileid",
+      "label": "Familyprofileid",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "variant_profile_id",
+      "variant_key": "variant_profile_id",
+      "label": "Variant Profile Id",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "variantprofileid",
+      "variant_key": "variantprofileid",
+      "label": "Variantprofileid",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "object_kind",
+      "variant_key": "object_kind",
+      "label": "Object Kind",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "objectkind",
+      "variant_key": "objectkind",
+      "label": "Objectkind",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "definition_values",
+      "variant_key": "definition_values",
+      "label": "Definition Values",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "definitionvalues",
+      "variant_key": "definitionvalues",
+      "label": "Definitionvalues",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "additional_field_keys",
+      "variant_key": "additional_field_keys",
+      "label": "Additional Field Keys",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "isdefault",
+      "variant_key": "isdefault",
+      "label": "Isdefault",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    }
+  ]
+}
