@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "1fc20c22-b023-4927-ad6a-1936f1daab66",
+  "family_id": "vp.hochbau.waende.aussenwaende.fdsddddd",
+  "slug": "fdsddddd",
+  "label": "fdsddddd",
+  "description": "sdddd",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

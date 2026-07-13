@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "ad648016-ab53-4a44-a700-01fb88a39a6e",
+  "family_id": "vp.hochbau.waende.aussenwaende.gdfdgffgd",
+  "default_variant_id": "variant_id",
+  "label": "gdfdgffgd",
+  "description": "fsdfdssfd",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "waende",
+  "subcategory": "aussenwaende",
+  "classification_path": "hochbau/waende/aussenwaende",
+  "source_path": "hochbau/waende/aussenwaende/gdfdgffgd",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Wände",
+    "subcategory": "Außenwände"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

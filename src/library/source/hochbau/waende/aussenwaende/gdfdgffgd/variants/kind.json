@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1.0",
+  "variant_id": "kind",
+  "variant_key": "kind",
+  "label": "Kind",
+  "description": "",
+  "kind": "other",
+  "is_default": false,
+  "active": true,
+  "visible": true,
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "definition_values": {
+    "dimensions.depth_mm": 1000,
+    "dimensions.height_mm": 1000,
+    "dimensions.width_mm": 1000,
+    "material.color_hint": "#9CA3AF",
+    "material.subtype": "generic_block",
+    "material.type": "generic",
+    "value": "standard",
+    "variant.description": "Standardvariante für einen einfachen Rasterblock.",
+    "variant.label": "Kind",
+    "variant.variant_id": "kind"
+  },
+  "additional_field_keys": [],
+  "overrides": {
+    "dimensions.depth_mm": 1000,
+    "dimensions.height_mm": 1000,
+    "dimensions.width_mm": 1000,
+    "material.color_hint": "#9CA3AF",
+    "material.subtype": "generic_block",
+    "material.type": "generic",
+    "value": "standard",
+    "variant.description": "Standardvariante für einen einfachen Rasterblock.",
+    "variant.label": "Kind",
+    "variant.variant_id": "kind"
+  }
+}
