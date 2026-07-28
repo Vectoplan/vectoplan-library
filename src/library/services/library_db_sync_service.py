@@ -2035,12 +2035,14 @@ def extract_asset_payloads(value: Any) -> list[dict[str, Any]]:
     documents = extract_documents_from_any(value)
     data = to_mapping(value)
     summary = extract_summary_payload(value)
+    manifest = extract_manifest_payload(value, documents)
     uid = extract_vplib_uid(value, documents)
     revision_hash = extract_revision_hash(value)
 
     raw_assets = first_non_empty(
         data.get("assets"),
         summary.get("assets"),
+        manifest.get("assets"),
         data.get("asset_refs"),
         summary.get("asset_refs"),
         {},

@@ -1252,17 +1252,17 @@
 
       return {
         domain: normalizeToken(getFieldValue(form, "domain"), "hochbau"),
-        category: normalizeToken(getFieldValue(form, "category"), "bloecke"),
-        subcategory: normalizeToken(getFieldValue(form, "subcategory"), "basis"),
+        category: normalizeToken(getFieldValue(form, "category"), "waende"),
+        subcategory: normalizeToken(getFieldValue(form, "subcategory"), "aussenwaende"),
         taxonomy_path: [
           normalizeToken(getFieldValue(form, "domain"), "hochbau"),
-          normalizeToken(getFieldValue(form, "category"), "bloecke"),
-          normalizeToken(getFieldValue(form, "subcategory"), "basis")
+          normalizeToken(getFieldValue(form, "category"), "waende"),
+          normalizeToken(getFieldValue(form, "subcategory"), "aussenwaende")
         ].join("/"),
         taxonomyPath: [
           normalizeToken(getFieldValue(form, "domain"), "hochbau"),
-          normalizeToken(getFieldValue(form, "category"), "bloecke"),
-          normalizeToken(getFieldValue(form, "subcategory"), "basis")
+          normalizeToken(getFieldValue(form, "category"), "waende"),
+          normalizeToken(getFieldValue(form, "subcategory"), "aussenwaende")
         ].join("/"),
         object_kind: normalizeToken(getFieldValue(form, "object_kind"), "cell_block"),
         objectKind: normalizeToken(getFieldValue(form, "object_kind"), "cell_block"),
@@ -1274,10 +1274,10 @@
     } catch (error) {
       return {
         domain: "hochbau",
-        category: "bloecke",
-        subcategory: "basis",
-        taxonomy_path: "hochbau/bloecke/basis",
-        taxonomyPath: "hochbau/bloecke/basis",
+        category: "waende",
+        subcategory: "aussenwaende",
+        taxonomy_path: "hochbau/waende/aussenwaende",
+        taxonomyPath: "hochbau/waende/aussenwaende",
         object_kind: "cell_block",
         objectKind: "cell_block",
         family_profile_id: "",

@@ -17,7 +17,7 @@
     step: "[data-vp-create-step]",
     stepSection: "[data-vp-create-section], [data-create-section], [data-vp-step-panel]",
     stepper: "[data-vp-create-stepper]",
-    stepperButton: "[data-vp-step-button], [data-vp-step-target], [data-step-target], [data-step]",
+    stepperButton: "[data-vp-step-button]",
     stepperItem: "[data-vp-step-item]",
     stepperProgressFill: "[data-vp-step-progress-fill]",
     stepperCurrentLabel: "[data-vp-current-step-label]",

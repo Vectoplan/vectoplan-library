@@ -26,7 +26,8 @@ Wichtig:
 - keine Pflicht-Templates oder Static-Dateien
 - API-/JSON-Service, kein UI-Service
 - kein Scan von src/library/source beim Startup
-- kein Schreiben ins Dateisystem
+- einzige Startup-Schreiboperation: fehlende leere Default-Creative-Library
+  und ihren Source-Ordner initialisieren
 - keine Datenbanklogik
 
 Diese Datei enthält bewusst:
@@ -36,7 +37,7 @@ Diese Datei enthält bewusst:
 - keine Business-Logik
 - keine Package-Erstellung
 - keine Datenbanklogik
-- keine automatische Creative-Library-Persistenz
+- keine automatische Datenbank-Persistenz
 """
 
 from __future__ import annotations
@@ -1684,6 +1685,67 @@ def _run_library_health_check(app: Flask) -> None:
 # Metadaten-Erfassung
 # -----------------------------------------------------------------------------
 
+def _initialize_default_creative_library(app: Flask) -> None:
+    """Initialisiert genau eine leere Default-Library, falls noch keine existiert."""
+    state = _ensure_startup_state(app)
+    module = None
+    import_errors: list[str] = []
+    for module_name in (
+        "library.services.library_archive_service",
+        "src.library.services.library_archive_service",
+        "vectoplan_library.library.services.library_archive_service",
+        "vectoplan_library.src.library.services.library_archive_service",
+    ):
+        try:
+            module = importlib.import_module(module_name)
+            break
+        except Exception as exc:
+            import_errors.append(f"{module_name}: {type(exc).__name__}: {exc}")
+    try:
+        if module is None:
+            raise ImportError(" | ".join(import_errors))
+        initializer = getattr(module, "initialize_default_library", None)
+        if not callable(initializer):
+            raise RuntimeError("library archive service exposes no initializer")
+        source_root = _safe_get_config(app, "VECTOPLAN_LIBRARY_SOURCE_ROOT", None)
+        if source_root is None:
+            source_root = _safe_get_config(app, "VPLIB_CREATE_SOURCE_ROOT", None)
+        creative_root = _safe_get_config(app, "VECTOPLAN_LIBRARY_CREATIVE_ROOT", None)
+        payload = initializer(source_root=source_root, creative_root=creative_root)
+        state["metadata"]["creative_library"] = _json_safe(payload)
+        result = StartupCheckResult(
+            name="default_creative_library",
+            check_type="library_archive",
+            status=str(payload.get("status") or "ok"),
+            required=True,
+            ok=bool(payload.get("ok", False)),
+            message="Default Creative Library wurde initialisiert oder bereits gefunden.",
+            details=_json_safe_mapping(payload),
+        ).normalized()
+        _append_check_result(app, "library_archive", result)
+        if not result.ok:
+            _maybe_raise_in_strict_mode(app, result.message, details=result.details)
+    except Exception as exc:
+        details = {
+            "type": type(exc).__name__,
+            "message": str(exc),
+            "import_errors": import_errors,
+        }
+        result = StartupCheckResult(
+            name="default_creative_library",
+            check_type="library_archive",
+            status="failed",
+            required=True,
+            ok=False,
+            message="Default Creative Library konnte nicht initialisiert werden.",
+            details=details,
+        ).normalized()
+        _append_check_result(app, "library_archive", result)
+        if _is_strict_startup_enabled(app):
+            raise
+        _append_warning(app, result.message, details=details)
+
+
 def _collect_startup_metadata(app: Flask) -> None:
     """Erfasst zentrale App- und Startup-Metadaten."""
     state = _ensure_startup_state(app)
@@ -1876,6 +1938,7 @@ def run_startup(app: Flask) -> Flask:
         "vplib_settings": [],
         "library_settings": [],
         "library_health": [],
+        "library_archive": [],
     }
 
     _safe_log_info(app, "Startup hooks for vectoplan-library are running.")
@@ -1886,6 +1949,7 @@ def run_startup(app: Flask) -> Flask:
         extensions_module = _initialize_extension_registry(app)
 
         _collect_startup_metadata(app)
+        _initialize_default_creative_library(app)
         _run_path_checks(app)
         _run_file_checks(app)
         _run_module_checks(app)

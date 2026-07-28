@@ -22,8 +22,8 @@
 
   Defensive Defaults:
   - domain: hochbau
-  - category: bloecke
-  - subcategory: basis
+  - category: waende
+  - subcategory: aussenwaende
 
   Bestehende Frontend-Hooks bleiben stabil:
   - data-create-taxonomy-select="domain"
@@ -133,7 +133,7 @@
 {% elif _taxonomy_draft is mapping and 'category' in _taxonomy_draft and _taxonomy_draft['category'] %}
   {% set _selected_category = _taxonomy_draft['category'] %}
 {% else %}
-  {% set _selected_category = 'bloecke' %}
+  {% set _selected_category = 'waende' %}
 {% endif %}
 
 {% if _taxonomy_values is mapping and 'subcategory' in _taxonomy_values and _taxonomy_values['subcategory'] %}
@@ -145,7 +145,7 @@
 {% elif _taxonomy_draft is mapping and 'subcategory' in _taxonomy_draft and _taxonomy_draft['subcategory'] %}
   {% set _selected_subcategory = _taxonomy_draft['subcategory'] %}
 {% else %}
-  {% set _selected_subcategory = 'basis' %}
+  {% set _selected_subcategory = 'aussenwaende' %}
 {% endif %}
 
 
@@ -585,8 +585,8 @@
       "ready": {{ _taxonomy_ready | tojson }},
       "fallback": {
         "domain": "hochbau",
-        "category": "bloecke",
-        "subcategory": "basis"
+        "category": "waende",
+        "subcategory": "aussenwaende"
       },
       "selected": {
         "domain": {{ _selected_domain | tojson }},
@@ -635,13 +635,13 @@
           ready: section.getAttribute("data-vp-taxonomy-ready") === "true",
           fallback: {
             domain: "hochbau",
-            category: "bloecke",
-            subcategory: "basis"
+            category: "waende",
+            subcategory: "aussenwaende"
           },
           selected: {
             domain: section.getAttribute("data-vp-taxonomy-current-domain") || "hochbau",
-            category: section.getAttribute("data-vp-taxonomy-current-category") || "bloecke",
-            subcategory: section.getAttribute("data-vp-taxonomy-current-subcategory") || "basis"
+            category: section.getAttribute("data-vp-taxonomy-current-category") || "waende",
+            subcategory: section.getAttribute("data-vp-taxonomy-current-subcategory") || "aussenwaende"
           },
           events: {
             ready: "vectoplan:create:taxonomy-ready",
@@ -926,7 +926,7 @@
               }
             });
 
-            ensureSelectValue(categorySelect, config.fallback.category || "bloecke");
+            ensureSelectValue(categorySelect, config.fallback.category || "waende");
           } catch (error) {
             warn("Category option filter failed.", error);
           }
@@ -961,7 +961,7 @@
               }
             });
 
-            ensureSelectValue(subcategorySelect, config.fallback.subcategory || "basis");
+            ensureSelectValue(subcategorySelect, config.fallback.subcategory || "aussenwaende");
           } catch (error) {
             warn("Subcategory option filter failed.", error);
           }
@@ -1026,8 +1026,8 @@
         function updatePathPreview(nextState) {
           try {
             var domainValue = nextState.domain || config.fallback.domain || "hochbau";
-            var categoryValue = nextState.category || config.fallback.category || "bloecke";
-            var subcategoryValue = nextState.subcategory || config.fallback.subcategory || "basis";
+            var categoryValue = nextState.category || config.fallback.category || "waende";
+            var subcategoryValue = nextState.subcategory || config.fallback.subcategory || "aussenwaende";
             var familySlug = nextState.familySlug || "family_slug";
 
             if (pathDomain) {
@@ -1055,10 +1055,10 @@
             var domainValue = ensureSelectValue(domainSelect, config.fallback.domain || "hochbau");
             filterCategoryOptions(domainValue);
 
-            var categoryValue = ensureSelectValue(categorySelect, config.fallback.category || "bloecke");
+            var categoryValue = ensureSelectValue(categorySelect, config.fallback.category || "waende");
             filterSubcategoryOptions(domainValue, categoryValue);
 
-            var subcategoryValue = ensureSelectValue(subcategorySelect, config.fallback.subcategory || "basis");
+            var subcategoryValue = ensureSelectValue(subcategorySelect, config.fallback.subcategory || "aussenwaende");
             var familySlug = readFamilySlug();
 
             var domainValid = Boolean(domainValue);

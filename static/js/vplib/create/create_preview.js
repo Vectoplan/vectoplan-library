@@ -1324,10 +1324,10 @@
         getNested(defaults, ["domain"], "hochbau");
 
       var category = getFieldValue(safeForm, "category") ||
-        getNested(defaults, ["category"], "bloecke");
+        getNested(defaults, ["category"], "waende");
 
       var subcategory = getFieldValue(safeForm, "subcategory") ||
-        getNested(defaults, ["subcategory"], "basis");
+        getNested(defaults, ["subcategory"], "aussenwaende");
 
       var objectKind = getFieldValue(safeForm, "object_kind") ||
         getNested(defaults, ["object_kind"], "cell_block");
@@ -1341,8 +1341,8 @@
         "";
 
       domain = normalizeToken(domain, "hochbau");
-      category = normalizeToken(category, "bloecke");
-      subcategory = normalizeToken(subcategory, "basis");
+      category = normalizeToken(category, "waende");
+      subcategory = normalizeToken(subcategory, "aussenwaende");
       objectKind = normalizeToken(objectKind, "cell_block");
 
       return {
@@ -1361,10 +1361,10 @@
     } catch (error) {
       return {
         domain: "hochbau",
-        category: "bloecke",
-        subcategory: "basis",
-        taxonomy_path: "hochbau/bloecke/basis",
-        taxonomyPath: "hochbau/bloecke/basis",
+        category: "waende",
+        subcategory: "aussenwaende",
+        taxonomy_path: "hochbau/waende/aussenwaende",
+        taxonomyPath: "hochbau/waende/aussenwaende",
         object_kind: "cell_block",
         objectKind: "cell_block",
         family_profile_id: "",

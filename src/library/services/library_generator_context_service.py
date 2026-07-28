@@ -23,7 +23,7 @@ Intentional boundaries:
 - no SQLAlchemy session usage
 - no direct repository calls
 - no migrations
-- no db.create_all()
+- no database schema creation
 - no source/package writes
 - no HTTP calls to local routes
 

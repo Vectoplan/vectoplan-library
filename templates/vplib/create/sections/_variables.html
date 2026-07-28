@@ -1,13 +1,13 @@
 {# services/vectoplan-library/templates/vplib/create/sections/_variables.html #}
 {# -----------------------------------------------------------------------------
-  VECTOPLAN Library · VPLIB Create Wizard · Step 3: Variables & Documents
+  VECTOPLAN Library · VPLIB Create Wizard · Step 3: Variables & Variants
 
   Zweck:
-  - Sichtbarer Step-3-Fokus: Variablen und Unterlagen.
+  - Sichtbarer Step-3-Fokus: Variablen und Varianten.
   - Objektart bleibt technischer Backend-/Runtime-Kontext, aber kein sichtbarer
     Hauptinhalt.
   - Definition-managed Varianten bleiben über _variant_workspace.html angebunden.
-  - Uploads erfassen nur lokale Metadaten; keine Dateiübertragung im Template.
+  - Varianten-Unterlagen werden ausschließlich im jeweiligen Variant-Drawer erfasst.
   - Bestehende object-variants Hooks bleiben für Legacy-/Runtime-Kompatibilität.
 
   Architekturregel:
@@ -182,16 +182,6 @@
   {% set _default_variant_id = 'default' %}
 {% endif %}
 
-{% if _variables_draft is mapping and _variables_draft.get('technical_document_uploads_json') %}
-  {% set _technical_document_uploads_json = _variables_draft.get('technical_document_uploads_json') %}
-{% elif _variables_draft is mapping and _variables_draft.get('documents_uploads_json') %}
-  {% set _technical_document_uploads_json = _variables_draft.get('documents_uploads_json') %}
-{% elif technical_document_uploads_json is defined and technical_document_uploads_json %}
-  {% set _technical_document_uploads_json = technical_document_uploads_json %}
-{% else %}
-  {% set _technical_document_uploads_json = '[]' %}
-{% endif %}
-
 {% if _selected_object_kind_normalized in ['cell_block', 'adaptive_system'] %}
   {% set _object_kind_locks_cells = true %}
 {% else %}
@@ -269,11 +259,11 @@
         id="vp-create-variables-title"
         class="vplib-create-step__title"
       >
-        Variablen und Unterlagen
+        Variablen und Varianten
       </h2>
 
       <p class="vplib-create-step__description">
-        Definiere die technischen Variantenwerte und hinterlege Hersteller- oder Produktunterlagen als lokale Metadaten.
+        Definiere Varianten direkt aus dem gewählten Profil. Jede Variante bleibt mit der Variablenliste verbunden.
       </p>
     </div>
 
@@ -354,22 +344,9 @@
           data-create-field="variant_profile_id"
         />
 
-        <input
-          type="hidden"
-          name="definition_variants_json"
-          value="{{ _definition_variants_json | e }}"
-          data-vp-definition-variants-json="true"
-          data-create-field="definition_variants_json"
-        />
 
-        <input
-          type="hidden"
-          name="default_variant_id"
-          value="{{ _default_variant_id }}"
-          data-vp-definition-variants-default-id="true"
-          data-vp-definition-variants-default-id-field="true"
-          data-create-field="default_variant_id"
-        />
+
+
 
         <aside
           data-create-object-kind-note="true"
@@ -386,83 +363,6 @@
           </span>
         </aside>
       </div>
-
-      <section
-        class="vp-create-variables-upload"
-        data-vp-upload-zone="true"
-        data-vp-upload-kind="technical_documents"
-        data-vp-upload-purpose="manufacturer_documents"
-        data-vp-upload-metadata-field="technical_document_uploads_json"
-        data-vp-upload-backend-enabled="false"
-        data-vp-upload-local-only="true"
-        aria-labelledby="vp-create-variables-upload-title"
-      >
-        <div class="vp-create-variables-upload__copy">
-          <h3
-            id="vp-create-variables-upload-title"
-            class="vp-create-variables-upload__title"
-          >
-            Unterlagen
-          </h3>
-
-          <p class="vp-create-variables-upload__description">
-            PDF, Tabellen, Bilder oder ZIPs werden hier nur als lokale Metadaten für den Payload erfasst.
-          </p>
-        </div>
-
-        <div class="vp-create-variables-upload__control">
-          <label
-            class="vp-create-upload-button"
-            for="create-technical-document-files"
-          >
-            Unterlagen auswählen
-          </label>
-
-          <input
-            id="create-technical-document-files"
-            class="vp-create-file-input"
-            type="file"
-            name="technical_document_files"
-            multiple
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp,.zip"
-            data-vp-upload-input="true"
-            data-vp-upload-kind="technical_documents"
-            data-vp-upload-purpose="manufacturer_documents"
-            data-vp-upload-local-only="true"
-          />
-
-          <input
-            type="hidden"
-            name="technical_document_uploads_json"
-            value="{{ _technical_document_uploads_json | e }}"
-            data-vp-upload-metadata="true"
-            data-vp-upload-metadata-kind="technical_documents"
-            data-vp-upload-metadata-field="true"
-            data-vp-upload-kind="technical_documents"
-            data-create-field="technical_document_uploads_json"
-          />
-        </div>
-
-        <div
-          class="vp-create-variables-upload__summary"
-          data-vp-upload-summary="true"
-        >
-          <strong data-vp-upload-count-label="true">
-            0 Dateien
-          </strong>
-
-          <span data-vp-upload-empty="true">
-            Noch keine Unterlagen ausgewählt.
-          </span>
-        </div>
-
-        <div
-          class="vp-create-variables-upload__files"
-          data-vp-upload-file-list="true"
-          aria-live="polite"
-        ></div>
-      </section>
-    </div>
 
     <div
       class="vp-create-object-variants__workspace vp-create-variables__workspace"
@@ -485,7 +385,7 @@
     {
       "component": "create.variables",
       "version": "0.7.0",
-      "visibleStepLabel": "Variablen und Unterlagen",
+      "visibleStepLabel": "Variablen und Varianten",
       "compatibility": {
         "section": "object-variants",
         "sectionAlias": "variables",
@@ -504,24 +404,8 @@
       "definitions": {
         "available": {{ _variables_definitions_available | tojson }}
       },
-      "uploads": {
-        "enabled": true,
-        "backendEnabled": false,
-        "backend_enabled": false,
-        "localOnly": true,
-        "local_only": true,
-        "field": "technical_document_files",
-        "metadataField": "technical_document_uploads_json",
-        "metadata_field": "technical_document_uploads_json",
-        "accept": ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp,.zip",
-        "multiple": true,
-        "kind": "technical_documents",
-        "purpose": "manufacturer_documents"
-      },
       "events": {
         "ready": "vectoplan:create:variables-ready",
-        "uploadChanged": "vectoplan:create:variables-upload-changed",
-        "genericUploadChanged": "vectoplan:create:upload-changed",
         "objectKindChanged": "vectoplan:create:object-kind-changed",
         "profileResolveRequested": "vectoplan:create:variant-profile-resolve-requested",
         "objectVariantsReady": "vectoplan:create:object-variants-ready",
@@ -779,15 +663,6 @@
 
           familyProfileField: section.querySelector('[data-vp-family-profile-id-field="true"]'),
           variantProfileField: section.querySelector('[data-vp-variant-profile-id-field="true"]'),
-
-          uploadZone: section.querySelector("[data-vp-upload-zone][data-vp-upload-kind='technical_documents']"),
-          uploadInput: section.querySelector("[data-vp-upload-input][data-vp-upload-kind='technical_documents']"),
-          uploadMetaField: section.querySelector("[data-vp-upload-metadata][data-vp-upload-metadata-kind='technical_documents']") ||
-            section.querySelector("[data-vp-upload-metadata-field='true'][data-vp-upload-kind='technical_documents']") ||
-            section.querySelector("[name='technical_document_uploads_json']"),
-          uploadFileList: section.querySelector("[data-vp-upload-file-list]"),
-          uploadEmpty: section.querySelector("[data-vp-upload-empty]"),
-          uploadCountLabel: section.querySelector("[data-vp-upload-count-label]"),
 
           workspaceSlot: section.querySelector('[data-vp-object-variants-workspace-slot="true"]') ||
             section.querySelector('[data-vp-variables-workspace-slot="true"]'),
@@ -1283,234 +1158,6 @@
       }
     }
 
-    function fileSizeLabel(bytes) {
-      try {
-        var value = parseInt(bytes, 10);
-
-        if (!isFinite(value) || value <= 0) {
-          return "0 B";
-        }
-
-        if (value < 1024) {
-          return value + " B";
-        }
-
-        if (value < 1024 * 1024) {
-          return (value / 1024).toFixed(1).replace(".0", "") + " KB";
-        }
-
-        return (value / (1024 * 1024)).toFixed(1).replace(".0", "") + " MB";
-      } catch (error) {
-        return "";
-      }
-    }
-
-    function readUploadFiles(cache) {
-      try {
-        if (!cache.uploadInput || !cache.uploadInput.files) {
-          return [];
-        }
-
-        return toArray(cache.uploadInput.files).map(function (file, index) {
-          return {
-            index: index,
-            name: file.name || "",
-            size: file.size || 0,
-            size_label: fileSizeLabel(file.size || 0),
-            sizeLabel: fileSizeLabel(file.size || 0),
-            type: file.type || "",
-            last_modified: file.lastModified || null,
-            lastModified: file.lastModified || null,
-            purpose: "manufacturer_documents",
-            kind: "technical_documents",
-            backend_stored: false,
-            backendStored: false,
-            local_only: true,
-            localOnly: true
-          };
-        });
-      } catch (error) {
-        warn("Upload file read failed.", error);
-        return [];
-      }
-    }
-
-    function renderUploadList(cache, files) {
-      try {
-        if (cache.uploadCountLabel) {
-          cache.uploadCountLabel.textContent = files.length === 1 ? "1 Datei" : files.length + " Dateien";
-        }
-
-        if (cache.uploadEmpty) {
-          cache.uploadEmpty.textContent = files.length
-            ? "Ausgewählte Unterlagen werden aktuell nur als lokale Metadaten erfasst."
-            : "Noch keine Unterlagen ausgewählt.";
-        }
-
-        if (!cache.uploadFileList) {
-          return;
-        }
-
-        cache.uploadFileList.innerHTML = "";
-
-        files.forEach(function (file) {
-          try {
-            var row = document.createElement("div");
-            row.className = "vp-create-upload__file";
-            row.setAttribute("data-vp-upload-file", "true");
-
-            var copy = document.createElement("div");
-            copy.className = "vp-create-upload__file-copy";
-
-            var name = document.createElement("strong");
-            name.className = "vp-create-upload__file-name";
-            name.setAttribute("data-vp-upload-file-name", "true");
-            name.textContent = file.name || "Unbenannte Datei";
-
-            var meta = document.createElement("span");
-            meta.className = "vp-create-upload__file-meta";
-            meta.setAttribute("data-vp-upload-file-meta", "true");
-            meta.textContent = [
-              file.size_label || file.sizeLabel || "",
-              file.type || "unbekannter Typ"
-            ].filter(Boolean).join(" · ");
-
-            copy.appendChild(name);
-            copy.appendChild(meta);
-            row.appendChild(copy);
-
-            cache.uploadFileList.appendChild(row);
-          } catch (rowError) {
-            warn("Upload row render skipped.", rowError);
-          }
-        });
-      } catch (error) {
-        warn("Upload list render failed.", error);
-      }
-    }
-
-    function syncUploadMetadata(cache, options) {
-      try {
-        var config = options || {};
-
-        if (
-          window.VectoplanCreateUploads &&
-          typeof window.VectoplanCreateUploads.syncZone === "function" &&
-          cache.uploadZone
-        ) {
-          window.VectoplanCreateUploads.syncZone(cache.uploadZone, {
-            source: config.source || "variables",
-            emitEvents: config.emitEvents === true,
-            silent: config.emitEvents !== true
-          });
-
-          return {
-            delegated: true,
-            count: cache.uploadZone.getAttribute("data-vp-upload-count") || "0"
-          };
-        }
-
-        var files = readUploadFiles(cache);
-        var now = new Date().toISOString();
-        var payload = {
-          version: COMPONENT_VERSION,
-          kind: "technical_documents",
-          purpose: "manufacturer_documents",
-          backend_enabled: false,
-          backendEnabled: false,
-          local_only: true,
-          localOnly: true,
-          count: files.length,
-          files: files,
-          updated_at: now,
-          updatedAt: now,
-          source: config.source || "upload"
-        };
-
-        if (cache.uploadMetaField) {
-          setFieldValue(cache.uploadMetaField, JSON.stringify(payload), {
-            silent: true,
-            source: "upload-metadata"
-          });
-        }
-
-        if (cache.uploadZone) {
-          cache.uploadZone.setAttribute("data-vp-upload-count", String(files.length));
-          cache.uploadZone.setAttribute("data-vp-upload-has-files", files.length > 0 ? "true" : "false");
-          cache.uploadZone.setAttribute("data-vp-upload-last-update", String(Date.now()));
-        }
-
-        cache.section.setAttribute("data-vp-technical-document-count", String(files.length));
-        cache.section.setAttribute("data-vp-technical-documents-selected", files.length > 0 ? "true" : "false");
-
-        renderUploadList(cache, files);
-
-        if (config.emitEvents === true) {
-          dispatch(cache.section, "vectoplan:create:variables-upload-changed", {
-            component: COMPONENT_NAME,
-            version: COMPONENT_VERSION,
-            kind: "technical_documents",
-            purpose: "manufacturer_documents",
-            count: files.length,
-            files: files,
-            payload: payload,
-            source: payload.source,
-            __vp_variables_upload_event: true
-          });
-
-          dispatch(document, "vectoplan:create:upload-changed", {
-            component: COMPONENT_NAME,
-            version: COMPONENT_VERSION,
-            kind: "technical_documents",
-            purpose: "manufacturer_documents",
-            count: files.length,
-            files: files,
-            payload: payload,
-            source: payload.source,
-            __vp_variables_upload_event: true
-          });
-        }
-
-        return payload;
-      } catch (error) {
-        warn("Upload metadata sync failed.", error);
-        return {
-          count: 0,
-          files: []
-        };
-      }
-    }
-
-    function bindUpload(cache) {
-      try {
-        if (!cache.uploadInput) {
-          syncUploadMetadata(cache, {
-            source: "upload-init",
-            emitEvents: false
-          });
-          return;
-        }
-
-        if (cache.uploadInput.getAttribute("data-vp-variables-upload-bound") !== "true") {
-          cache.uploadInput.addEventListener("change", function () {
-            syncUploadMetadata(cache, {
-              source: "upload-input-change",
-              emitEvents: true
-            });
-          });
-
-          cache.uploadInput.setAttribute("data-vp-variables-upload-bound", "true");
-        }
-
-        syncUploadMetadata(cache, {
-          source: "upload-init",
-          emitEvents: false
-        });
-      } catch (error) {
-        warn("Upload binding failed.", error);
-      }
-    }
-
     function handleExternalEditorEvent(cache, state, source) {
       try {
         setEditorState(cache, state, {
@@ -1602,8 +1249,6 @@
           });
         }
 
-        bindUpload(cache);
-
         document.addEventListener("vectoplan:create:variant-family-profile-resolved", function (event) {
           setProfileResolved(cache, event && event.detail ? event.detail : {});
         });
@@ -1669,10 +1314,6 @@
                 }
               );
               syncVariantCount(cache, {});
-              syncUploadMetadata(cache, {
-                source: "public-refresh",
-                emitEvents: false
-              });
               setEditorState(cache, readInitialEditorState(cache), {
                 source: "public_refresh",
                 silent: true
@@ -1721,32 +1362,32 @@
           getUploads: function () {
             try {
               if (window.VectoplanCreateUploads && typeof window.VectoplanCreateUploads.getPayloadsByKind === "function") {
-                var payloads = window.VectoplanCreateUploads.getPayloadsByKind("technical_documents");
-
-                if (payloads && payloads.length) {
-                  return payloads[0];
-                }
+                return window.VectoplanCreateUploads.getPayloadsByKind(
+                  "variant_documents",
+                  cache.section
+                ) || [];
               }
-
-              return cache.uploadMetaField && cache.uploadMetaField.value
-                ? JSON.parse(cache.uploadMetaField.value)
-                : {
-                  count: 0,
-                  files: []
-                };
             } catch (error) {
-              return {
-                count: 0,
-                files: []
-              };
+              warn("Variant document payload lookup failed.", error);
             }
+            return [];
           },
 
           syncUploads: function () {
-            return syncUploadMetadata(cache, {
-              source: "public-api",
-              emitEvents: true
-            });
+            try {
+              if (window.VectoplanCreateUploads && typeof window.VectoplanCreateUploads.syncAll === "function") {
+                return (window.VectoplanCreateUploads.syncAll(cache.section, {
+                  source: "variables-public-api",
+                  silent: false,
+                  emitEvents: true
+                }) || []).filter(function (payload) {
+                  return payload && payload.kind === "variant_documents";
+                });
+              }
+            } catch (error) {
+              warn("Variant document sync failed.", error);
+            }
+            return [];
           },
 
           getSnapshot: function () {
@@ -1765,8 +1406,6 @@
               definitionsAvailable: cache.section.getAttribute("data-vp-definitions-available") === "true",
               variant_count: cache.section.getAttribute("data-vp-variant-count") || "",
               variantCount: cache.section.getAttribute("data-vp-variant-count") || "",
-              technical_document_count: cache.section.getAttribute("data-vp-technical-document-count") || "0",
-              technicalDocumentCount: cache.section.getAttribute("data-vp-technical-document-count") || "0",
               editor_state: cache.section.getAttribute("data-vp-variant-editor-state") || "closed",
               editorState: cache.section.getAttribute("data-vp-variant-editor-state") || "closed",
               object_kind_area_hidden: cache.objectTop ? cache.objectTop.hidden : false,
@@ -1804,7 +1443,6 @@
           }
         );
         syncVariantCount(cache, {});
-        bindUpload(cache);
         setEditorState(cache, readInitialEditorState(cache), {
           source: "initialize",
           silent: true

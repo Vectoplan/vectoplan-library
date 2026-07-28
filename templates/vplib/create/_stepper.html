@@ -59,7 +59,7 @@
     "alias": "variables",
     "label": "Variablen",
     "short_label": "Variablen",
-    "description": "Variablen und Unterlagen",
+    "description": "Variablen und Varianten",
     "target": "object-variants"
   },
   {
@@ -237,13 +237,13 @@
         {% if step is mapping and 'description' in step and step['description'] %}
           {% set step_description = step['description'] %}
         {% elif step_key == 'object' %}
-          {% set step_description = 'Variablen und Unterlagen' %}
+          {% set step_description = 'Variablen und Varianten' %}
         {% else %}
           {% set step_description = '' %}
         {% endif %}
 
         {% if step_key == 'object' and step_description == 'Objektart und Varianten' %}
-          {% set step_description = 'Variablen und Unterlagen' %}
+          {% set step_description = 'Variablen und Varianten' %}
         {% endif %}
 
         {% if step is mapping and 'target' in step and step['target'] %}

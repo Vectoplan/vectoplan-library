@@ -161,8 +161,8 @@
     categorySelect: "[name='category'], [data-vp-taxonomy-category]",
     subcategorySelect: "[name='subcategory'], [data-vp-taxonomy-subcategory]",
     uploadZone: "[data-vp-upload-zone], [data-create-upload-zone], [data-vp-upload]",
-    uploadInput: "[data-vp-upload-input], input[type='file'][data-vp-upload-kind], input[type='file'][name='geometry_model_files'], input[type='file'][name='technical_document_files'], input[type='file'][name^='variant_document_files']",
-    uploadMetadata: "[data-vp-upload-metadata], [name='geometry_model_uploads_json'], [name='technical_document_uploads_json'], [name='variant_document_uploads_json'], [name^='variant_document_uploads[']"
+    uploadInput: "[data-vp-upload-input], input[type='file'][data-vp-upload-kind], input[type='file'][name='geometry_model_files'], input[type='file'][name='texture_files'], input[type='file'][name='technical_document_files'], input[type='file'][name^='variant_document_files']",
+    uploadMetadata: "[data-vp-upload-metadata], [name='geometry_model_uploads_json'], [name='texture_uploads_json'], [name='technical_document_uploads_json'], [name='variant_document_uploads_json'], [name^='variant_document_uploads[']"
   };
 
   var core = null;
@@ -1841,6 +1841,7 @@
 
       [
         ["geometry_model_uploads", "geometry_model_uploads_json", "geometryModelUploadsJson"],
+        ["texture_uploads", "texture_uploads_json", "textureUploadsJson"],
         ["technical_document_uploads", "technical_document_uploads_json", "technicalDocumentUploadsJson"],
         ["variant_document_uploads", "variant_document_uploads_json", "variantDocumentUploadsJson"]
       ].forEach(function (keys) {
@@ -2198,11 +2199,11 @@
       }
 
       if (!payload.category) {
-        payload.category = getFieldValue(safeForm, "category") || defaults.category || "bloecke";
+        payload.category = getFieldValue(safeForm, "category") || defaults.category || "waende";
       }
 
       if (!payload.subcategory) {
-        payload.subcategory = getFieldValue(safeForm, "subcategory") || defaults.subcategory || "basis";
+        payload.subcategory = getFieldValue(safeForm, "subcategory") || defaults.subcategory || "aussenwaende";
       }
 
       if (!payload.object_kind) {
@@ -2257,8 +2258,8 @@
       payload.materialClass = payload.materialClass || payload.material_class;
 
       payload.domain = normalizeToken(firstScalar(payload.domain), "hochbau");
-      payload.category = normalizeToken(firstScalar(payload.category), "bloecke");
-      payload.subcategory = normalizeToken(firstScalar(payload.subcategory), "basis");
+      payload.category = normalizeToken(firstScalar(payload.category), "waende");
+      payload.subcategory = normalizeToken(firstScalar(payload.subcategory), "aussenwaende");
       payload.object_kind = normalizeToken(firstScalar(payload.object_kind), "cell_block");
       payload.objectKind = payload.object_kind;
 
@@ -3464,8 +3465,8 @@
             ok: true,
             backend_enabled: getUploadBackendEnabled(),
             backendEnabled: getUploadBackendEnabled(),
-            local_only: true,
-            localOnly: true,
+            local_only: false,
+            localOnly: false,
             source: "file_input"
           }, kind, fieldKey);
         } catch (inputError) {
@@ -3500,8 +3501,8 @@
           ok: true,
           backend_enabled: getUploadBackendEnabled(),
           backendEnabled: getUploadBackendEnabled(),
-          local_only: true,
-          localOnly: true,
+          local_only: false,
+          localOnly: false,
           source: "hidden_array"
         }, fallbackKind, fieldKey);
       }
@@ -3905,12 +3906,12 @@
         category: getFieldValue(safeForm, FIELD_NAMES.category) ||
           profileContext.category ||
           defaults.category ||
-          "bloecke",
+          "waende",
 
         subcategory: getFieldValue(safeForm, FIELD_NAMES.subcategory) ||
           profileContext.subcategory ||
           defaults.subcategory ||
-          "basis",
+          "aussenwaende",
 
         object_kind: getFieldValue(safeForm, FIELD_NAMES.objectKind) ||
           profileContext.object_kind ||
@@ -3947,8 +3948,8 @@
       };
 
       context.domain = normalizeToken(context.domain, "hochbau");
-      context.category = normalizeToken(context.category, "bloecke");
-      context.subcategory = normalizeToken(context.subcategory, "basis");
+      context.category = normalizeToken(context.category, "waende");
+      context.subcategory = normalizeToken(context.subcategory, "aussenwaende");
       context.object_kind = normalizeToken(
         context.object_kind,
         DEFAULT_STARTER_OBJECT_KIND
@@ -3982,10 +3983,10 @@
 
       return {
         domain: "hochbau",
-        category: "bloecke",
-        subcategory: "basis",
-        taxonomy_path: "hochbau/bloecke/basis",
-        taxonomyPath: "hochbau/bloecke/basis",
+        category: "waende",
+        subcategory: "aussenwaende",
+        taxonomy_path: "hochbau/waende/aussenwaende",
+        taxonomyPath: "hochbau/waende/aussenwaende",
         object_kind: DEFAULT_STARTER_OBJECT_KIND,
         objectKind: DEFAULT_STARTER_OBJECT_KIND,
         family_profile_id: DEFAULT_STARTER_FAMILY_PROFILE_ID,
@@ -4407,8 +4408,8 @@
         fieldKey: "",
         backend_enabled: backendEnabled,
         backendEnabled: backendEnabled,
-        local_only: true,
-        localOnly: true,
+        local_only: false,
+        localOnly: false,
         count: 0,
         valid_count: 0,
         validCount: 0,
@@ -4446,8 +4447,8 @@
         lastModified: file.lastModified || null,
         backend_stored: false,
         backendStored: false,
-        local_only: true,
-        localOnly: true
+        local_only: false,
+        localOnly: false
       };
     } catch (error) {
       return {
@@ -4456,7 +4457,7 @@
         type: "",
         last_modified: null,
         backend_stored: false,
-        local_only: true
+        local_only: false
       };
     }
   }
@@ -4488,7 +4489,7 @@
         valid: true,
         errors: [],
         backend_stored: false,
-        local_only: true
+        local_only: false
       };
     }
   }

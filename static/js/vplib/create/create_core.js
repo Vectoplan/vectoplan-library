@@ -157,8 +157,8 @@
     editorCellsZ: "[data-create-field='editor_cells_z'], [name='editor_cells_z']",
 
     uploadZone: "[data-vp-upload-zone], [data-create-upload-zone], [data-vp-upload]",
-    uploadInput: "[data-vp-upload-input], input[type='file'][data-vp-upload-kind], input[type='file'][name='geometry_model_files'], input[type='file'][name='technical_document_files'], input[type='file'][name^='variant_document_files']",
-    uploadMetadata: "[data-vp-upload-metadata], [name='geometry_model_uploads_json'], [name='technical_document_uploads_json'], [name='variant_document_uploads_json'], [name^='variant_document_uploads[']",
+    uploadInput: "[data-vp-upload-input], input[type='file'][data-vp-upload-kind], input[type='file'][name='geometry_model_files'], input[type='file'][name='texture_files'], input[type='file'][name='technical_document_files'], input[type='file'][name^='variant_document_files']",
+    uploadMetadata: "[data-vp-upload-metadata], [name='geometry_model_uploads_json'], [name='texture_uploads_json'], [name='technical_document_uploads_json'], [name='variant_document_uploads_json'], [name^='variant_document_uploads[']",
     geometryUpload: "[data-vp-geometry-upload], [data-vp-upload-kind='geometry_model']",
     technicalUpload: "[data-vp-technical-upload], [data-vp-upload-kind='technical_documents']",
     variantDocumentUpload: "[data-vp-field-document-list-upload='true'], [data-vp-upload-kind='variant_documents']",

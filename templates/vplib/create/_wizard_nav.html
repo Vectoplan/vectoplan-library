@@ -75,8 +75,8 @@
       "alias": "variables",
       "label": "Variablen",
       "short_label": "Variablen",
-      "hint": "Technische Variablen und Unterlagen definieren.",
-      "description": "Variablen und Unterlagen",
+      "hint": "Variablen und Variantenwerte definieren.",
+      "description": "Variablen und Varianten",
       "target": "object-variants"
     },
     {
@@ -179,7 +179,7 @@
 {% endif %}
 
 {% if vp_current_step_key == 'object' and vp_current_step_hint in ['', 'Objektart und Varianten definieren.', 'Objektklasse festlegen und Varianten vorbereiten.'] %}
-  {% set vp_current_step_hint = 'Technische Variablen und Unterlagen definieren.' %}
+  {% set vp_current_step_hint = 'Variablen und Variantenwerte definieren.' %}
 {% endif %}
 
 <footer

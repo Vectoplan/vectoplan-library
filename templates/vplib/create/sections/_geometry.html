@@ -4,7 +4,7 @@
 
   Zweck:
   - Erfasst technische Objektart, primitive Form, sichtbare Maße, Editor-Raster
-    und optional lokale 3D-Modell-Dateien.
+    und optional eingebettete 3D-Modell- und Texturdateien.
   - Direkt lesbares HTML statt langer Macro-Aufrufe.
   - Kompakt für den Black-Fullscreen-Wizard.
   - Preview selbst liegt global rechts in _preview_placeholder.html.
@@ -513,7 +513,8 @@
         data-vp-geometry-upload
         data-vp-upload-kind="geometry_model"
         data-vp-upload-purpose="geometry_model"
-        data-vp-upload-backend-enabled="false"
+        data-vp-upload-backend-enabled="true"
+        data-vp-upload-local-only="false"
         data-vp-upload-metadata-field="geometry_model_uploads_json"
       >
         <div class="vp-create-upload__header" data-vp-upload-header>
@@ -523,7 +524,7 @@
             </strong>
 
             <p class="vp-create-upload__hint">
-              Optional lokal vormerken. Backend-Upload folgt später.
+              Optionales 3D-Modell auswählen. Die Datei wird direkt in das VPLIB eingebettet.
             </p>
           </div>
 
@@ -542,7 +543,7 @@
             type="file"
             name="geometry_model_files"
             multiple
-            accept=".glb,.gltf,.obj,.fbx,.stl,.zip"
+            accept=".glb,.gltf,.obj,.fbx,.stl,.bin,.mtl,.zip"
             data-vp-upload-input
             data-vp-geometry-model-upload-input="true"
             data-vp-upload-kind="geometry_model"
@@ -568,6 +569,55 @@
             data-vp-upload-file-list
             aria-live="polite"
           ></div>
+        </div>
+      </div>
+
+      <div
+        class="vplib-create-step__field vplib-create-step__field--full vp-create-upload vp-create-upload--textures"
+        data-vp-upload
+        data-vp-upload-zone
+        data-create-upload-zone
+        data-vp-upload-kind="textures"
+        data-vp-upload-purpose="textures"
+        data-vp-upload-backend-enabled="true"
+        data-vp-upload-local-only="false"
+        data-vp-upload-metadata-field="texture_uploads_json"
+      >
+        <div class="vp-create-upload__header" data-vp-upload-header>
+          <div>
+            <strong class="vp-create-upload__title">Texturen</strong>
+            <p class="vp-create-upload__hint">
+              PNG, JPG, WebP, TGA, BMP oder KTX2 auswählen. Die Dateien werden direkt eingebettet.
+            </p>
+          </div>
+          <span class="vp-create-status-pill vp-create-status-pill--muted" data-vp-upload-count-label aria-live="polite">
+            0 Dateien
+          </span>
+        </div>
+        <div class="vp-create-upload__controls" data-vp-upload-controls>
+          <input
+            id="create-texture-upload"
+            type="file"
+            name="texture_files"
+            multiple
+            accept=".png,.jpg,.jpeg,.webp,.tga,.bmp,.ktx,.ktx2"
+            data-vp-upload-input
+            data-vp-upload-kind="textures"
+            data-vp-upload-purpose="textures"
+          />
+          <input
+            id="create-texture-upload-json"
+            type="hidden"
+            name="texture_uploads_json"
+            value='{"count":0,"files":[]}'
+            data-vp-upload-metadata
+            data-vp-upload-metadata-kind="textures"
+            data-create-field="texture_uploads_json"
+          />
+          <p class="vp-create-upload__empty" data-vp-upload-empty>
+            Noch keine Textur ausgewählt.
+          </p>
+          <div class="vp-create-upload__file-list" data-vp-upload-file-list aria-live="polite"></div>
         </div>
       </div>
 
@@ -816,8 +866,8 @@
       },
       "uploads": {
         "enabled": true,
-        "backendEnabled": false,
-        "localOnly": true,
+        "backendEnabled": true,
+        "localOnly": false,
         "field": "geometry_model_files",
         "metadataField": "geometry_model_uploads_json",
         "kind": "geometry_model",
@@ -869,8 +919,8 @@
           },
           uploads: {
             enabled: true,
-            backendEnabled: false,
-            localOnly: true,
+            backendEnabled: true,
+            localOnly: false,
             field: "geometry_model_files",
             metadataField: "geometry_model_uploads_json",
             kind: "geometry_model",
@@ -1302,8 +1352,8 @@
                   purpose: "geometry_model",
                   backend_stored: false,
                   backendStored: false,
-                  local_only: true,
-                  localOnly: true
+                  local_only: false,
+                  localOnly: false
                 };
               } catch (fileError) {
                 return {
@@ -1320,8 +1370,8 @@
                   purpose: "geometry_model",
                   backend_stored: false,
                   backendStored: false,
-                  local_only: true,
-                  localOnly: true
+                  local_only: false,
+                  localOnly: false
                 };
               }
             });
@@ -1345,7 +1395,7 @@
 
             if (uploadEmpty) {
               uploadEmpty.textContent = files.length
-                ? "Ausgewählte Datei wird lokal als Metadaten vorgemerkt."
+                ? "Ausgewählte Datei wird beim Erzeugen direkt in das VPLIB eingebettet."
                 : "Noch kein 3D-Modell ausgewählt.";
             }
 
@@ -1399,10 +1449,10 @@
               version: COMPONENT_VERSION,
               kind: "geometry_model",
               purpose: "geometry_model",
-              backend_enabled: false,
-              backendEnabled: false,
-              local_only: true,
-              localOnly: true,
+              backend_enabled: true,
+              backendEnabled: true,
+              local_only: false,
+              localOnly: false,
               count: files.length,
               files: files,
               updated_at: updatedAt,

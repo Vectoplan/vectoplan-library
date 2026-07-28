@@ -4,7 +4,7 @@
 
   var GLOBAL_NAME = "VectoplanCreateUploads";
   var COMPONENT_NAME = "VECTOPLAN Create Uploads";
-  var COMPONENT_VERSION = "0.7.0";
+  var COMPONENT_VERSION = "0.8.0";
 
   var ROOT_READY_ATTR = "data-vp-create-uploads-runtime-ready";
   var ROOT_EVENTS_BOUND_ATTR = "data-vp-create-uploads-global-events-bound";
@@ -22,6 +22,7 @@
     "[data-vp-upload-input]",
     "input[type='file'][data-vp-upload-kind]",
     "input[type='file'][name='geometry_model_files']",
+    "input[type='file'][name='texture_files']",
     "input[type='file'][name='technical_document_files']",
     "input[type='file'][name^='variant_document_files']"
   ].join(",");
@@ -30,9 +31,10 @@
     maxFiles: 12,
     maxFileSizeBytes: 250 * 1024 * 1024,
     backendEnabled: true,
-    localOnly: true,
+    localOnly: false,
     allowedExtensions: {
-      geometry_model: ["glb", "gltf", "obj", "fbx", "stl", "zip"],
+      geometry_model: ["glb", "gltf", "obj", "fbx", "stl", "bin", "mtl", "zip"],
+      textures: ["png", "jpg", "jpeg", "webp", "tga", "bmp", "ktx", "ktx2"],
       technical_documents: ["pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "md", "png", "jpg", "jpeg", "webp", "zip"],
       variant_documents: ["pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "md", "png", "jpg", "jpeg", "webp", "zip"]
     }
@@ -360,6 +362,10 @@
         raw = "geometry_model";
       }
 
+      if (!raw && name === "texture_files") {
+        raw = "textures";
+      }
+
       if (!raw && name === "technical_document_files") {
         raw = "technical_documents";
       }
@@ -384,6 +390,10 @@
 
       if (!raw && zone) {
         raw = zone.getAttribute("data-vp-upload-purpose") || "";
+      }
+
+      if (!raw && kind === "textures") {
+        raw = "textures";
       }
 
       if (!raw && kind === "technical_documents") {
@@ -582,7 +592,7 @@
     }
   }
 
-  function buildFileMetadata(file, index, kind, purpose, fieldKey) {
+  function buildFileMetadata(file, index, kind, purpose, fieldKey, backendEnabled) {
     try {
       var extension = extensionFromName(file && file.name ? file.name : "");
       var size = file && file.size ? file.size : 0;
@@ -604,8 +614,8 @@
         purpose: purpose || kind || "upload",
         backend_stored: false,
         backendStored: false,
-        local_only: true,
-        localOnly: true,
+        local_only: !backendEnabled,
+        localOnly: !backendEnabled,
         source: "browser_file_input"
       };
     } catch (error) {
@@ -625,8 +635,8 @@
         purpose: purpose || kind || "upload",
         backend_stored: false,
         backendStored: false,
-        local_only: true,
-        localOnly: true,
+        local_only: !backendEnabled,
+        localOnly: !backendEnabled,
         source: "browser_file_input"
       };
     }
@@ -663,7 +673,7 @@
     }
   }
 
-  function readFiles(input, kind, purpose, fieldKey, allowedExtensions, maxFileSizeBytes) {
+  function readFiles(input, kind, purpose, fieldKey, allowedExtensions, maxFileSizeBytes, backendEnabled) {
     try {
       if (!input || !input.files) {
         return {
@@ -674,7 +684,7 @@
 
       var errors = [];
       var files = toArray(input.files).map(function (file, index) {
-        var meta = buildFileMetadata(file, index, kind, purpose, fieldKey);
+        var meta = buildFileMetadata(file, index, kind, purpose, fieldKey, backendEnabled);
         var fileErrors = validateFile(meta, allowedExtensions, maxFileSizeBytes);
 
         if (fileErrors.length) {
@@ -722,8 +732,8 @@
       metadataField: "",
       backend_enabled: backendEnabled,
       backendEnabled: backendEnabled,
-      local_only: true,
-      localOnly: true,
+      local_only: !backendEnabled,
+      localOnly: !backendEnabled,
       count: 0,
       valid_count: 0,
       validCount: 0,
@@ -754,7 +764,7 @@
       var maxFiles = readMaxFiles(zone, input);
       var maxFileSizeBytes = readMaxFileSize(zone, input);
       var backendEnabled = readBackendEnabled(zone, input);
-      var readResult = readFiles(input, kind, purpose, fieldKey, allowedExtensions, maxFileSizeBytes);
+      var readResult = readFiles(input, kind, purpose, fieldKey, allowedExtensions, maxFileSizeBytes, backendEnabled);
       var files = readResult.files || [];
       var errors = readResult.errors || [];
 
@@ -796,8 +806,8 @@
         metadataField: zone ? zone.getAttribute("data-vp-upload-metadata-field") || "" : "",
         backend_enabled: backendEnabled,
         backendEnabled: backendEnabled,
-        local_only: true,
-        localOnly: true,
+        local_only: !backendEnabled,
+        localOnly: !backendEnabled,
         count: files.length,
         valid_count: validCount,
         validCount: validCount,
@@ -941,10 +951,12 @@
       if (empty) {
         if (files.length) {
           empty.textContent = payload.backendEnabled
-            ? "Dateien ausgewählt. Upload-Metadaten werden an das Backend übergeben."
-            : "Dateien werden aktuell nur lokal als Metadaten erfasst.";
+            ? "Dateien ausgewählt. Sie werden beim Speichern oder Download direkt in das VPLIB eingebettet."
+            : "Für diesen Upload ist keine Backend-Speicherung aktiviert.";
         } else if (payload.kind === "geometry_model") {
           empty.textContent = "Noch kein 3D-Modell ausgewählt.";
+        } else if (payload.kind === "textures") {
+          empty.textContent = "Noch keine Textur ausgewählt.";
         } else if (payload.kind === "technical_documents") {
           empty.textContent = "Noch keine technischen Unterlagen ausgewählt.";
         } else if (payload.kind === "variant_documents") {
