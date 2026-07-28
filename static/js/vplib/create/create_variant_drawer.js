@@ -1019,8 +1019,7 @@
         U().setAttr(c.objectVariantsWorkspaceSlot, "data-vp-object-kind-area-hidden", isOpen ? "true" : "false");
       }
 
-      setManagedEditorHidden(c.objectVariantsTop, isOpen, source);
-      setManagedEditorHidden(c.objectKindArea, isOpen, source);
+      /* Keep the containing workspace visible. Table and drawer manage their own visibility. */
 
       return true;
     } catch (error) {

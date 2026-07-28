@@ -1522,12 +1522,6 @@
     grid-column: 1 / -1;
   }
 
-  [data-vp-create-section="object-variants"][data-vp-variant-editor-state="open"] [data-vp-object-variants-top],
-  [data-vp-create-section="object-variants"].is-variant-editor-open [data-vp-object-variants-top],
-  [data-vp-create-section="object-variants"][data-vp-object-variants-editor-state="open"] [data-vp-object-variants-top] {
-    display: none !important;
-  }
-
   .vp-create-object-variants__workspace,
   .vp-create-variables__workspace,
   [data-vp-object-variants-workspace-slot="true"] {
@@ -2494,10 +2488,6 @@
 
 @layer vp-create-variants {
   @supports selector(:has(*)) {
-    .vp-create-section--object-variants:has([data-vp-variant-drawer-root="true"]:not([hidden])) [data-vp-object-variants-top] {
-      display: none !important;
-    }
-
     .vp-create-variant-workspace:has([data-vp-variant-drawer-root="true"]:not([hidden])) [data-vp-variant-table-slot] {
       display: none !important;
     }
@@ -3045,5 +3035,287 @@
   .vp-create-dev-outline {
     outline: 1px dashed var(--vp-create-danger);
     outline-offset: -1px;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   20. Step 5 · exact per-variant technical/CAD data
+----------------------------------------------------------------------------- */
+
+@layer vp-create-technical-cad {
+  .vp-create-technical-cad__body {
+    display: grid;
+    gap: var(--vp-create-space-4);
+  }
+
+  .vp-create-technical-cad__separation {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--vp-create-space-3);
+    padding: var(--vp-create-space-3);
+    border: 1px solid rgba(96, 165, 250, 0.32);
+    border-radius: var(--vp-create-radius-lg);
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.13), rgba(15, 23, 42, 0.34));
+  }
+
+  .vp-create-technical-cad__separation > div {
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .vp-create-technical-cad__separation strong {
+    color: var(--vp-create-color-text);
+  }
+
+  .vp-create-technical-cad__separation span {
+    color: var(--vp-create-color-text-muted);
+    line-height: 1.45;
+  }
+
+  .vp-create-technical-cad__arrow {
+    color: #60a5fa !important;
+    font-size: 1.35rem;
+    font-weight: 800;
+  }
+
+  .vp-create-technical-cad__selection,
+  .vp-create-technical-cad__values {
+    display: grid;
+    gap: var(--vp-create-space-3);
+    min-width: 0;
+    padding: var(--vp-create-space-4);
+    border: 1px solid var(--vp-create-color-border);
+    border-radius: var(--vp-create-radius-lg);
+    background: rgba(7, 13, 28, 0.5);
+  }
+
+  .vp-create-technical-cad__section-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--vp-create-space-3);
+  }
+
+  .vp-create-technical-cad__section-heading > div {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .vp-create-technical-cad__section-heading h3,
+  .vp-create-technical-cad__section-heading p {
+    margin: 0;
+  }
+
+  .vp-create-technical-cad__section-heading h3 {
+    font-size: 1rem;
+    color: var(--vp-create-color-text);
+  }
+
+  .vp-create-technical-cad__section-heading p,
+  .vp-create-technical-cad__section-heading > span {
+    color: var(--vp-create-color-text-muted);
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
+
+  .vp-create-technical-cad__section-heading > span {
+    flex: 0 0 auto;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid var(--vp-create-color-border);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.72);
+  }
+
+  .vp-create-technical-cad__selection-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--vp-create-space-3);
+  }
+
+  .vp-create-technical-cad__add {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) auto;
+    align-items: end;
+    gap: var(--vp-create-space-3);
+    padding: var(--vp-create-space-3);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: var(--vp-create-radius-md);
+    background: rgba(15, 23, 42, 0.46);
+  }
+
+  .vp-create-technical-cad__table {
+    min-width: 0;
+    overflow-x: auto;
+    border: 1px solid var(--vp-create-color-border);
+    border-radius: var(--vp-create-radius-md);
+  }
+
+  .vp-create-technical-cad__table-head,
+  .vp-create-technical-cad__row {
+    display: grid;
+    grid-template-columns:
+      minmax(190px, 1.1fr)
+      minmax(150px, 0.85fr)
+      minmax(150px, 0.75fr)
+      minmax(260px, 1.45fr)
+      minmax(100px, auto);
+    gap: var(--vp-create-space-2);
+    align-items: center;
+    min-width: 980px;
+  }
+
+  .vp-create-technical-cad__table-head {
+    padding: 0.65rem 0.75rem;
+    background: rgba(30, 41, 59, 0.72);
+    color: #93c5fd;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .vp-create-technical-cad__row {
+    padding: 0.7rem 0.75rem;
+    border-top: 1px solid var(--vp-create-color-border);
+    background: rgba(8, 15, 30, 0.66);
+  }
+
+  .vp-create-technical-cad__row:first-child {
+    border-top: 0;
+  }
+
+  .vp-create-technical-cad__row .vp-create-input,
+  .vp-create-technical-cad__row .vp-create-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .vp-create-technical-cad__description {
+    max-height: 4.2rem;
+    overflow: auto;
+    color: var(--vp-create-color-text-muted);
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+
+  .vp-create-technical-cad__row button:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .vp-create-technical-cad__empty {
+    padding: var(--vp-create-space-4);
+    border: 1px dashed var(--vp-create-color-border);
+    border-radius: var(--vp-create-radius-md);
+    color: var(--vp-create-color-text-muted);
+    text-align: center;
+  }
+
+  .vp-create-technical-cad__documents-note {
+    display: flex;
+    gap: var(--vp-create-space-2);
+    align-items: baseline;
+    padding: var(--vp-create-space-3);
+    border-left: 3px solid #3b82f6;
+    border-radius: 0 var(--vp-create-radius-md) var(--vp-create-radius-md) 0;
+    background: rgba(37, 99, 235, 0.09);
+    color: var(--vp-create-color-text-muted);
+    line-height: 1.45;
+  }
+
+  .vp-create-technical-cad__documents-note strong {
+    flex: 0 0 auto;
+    color: var(--vp-create-color-text);
+  }
+
+  @media (max-width: 900px) {
+    .vp-create-technical-cad__separation,
+    .vp-create-technical-cad__selection-grid,
+    .vp-create-technical-cad__add {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .vp-create-technical-cad__arrow {
+      transform: rotate(90deg);
+      justify-self: center;
+    }
+
+    .vp-create-technical-cad__documents-note {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Editor-backed generator preview
+----------------------------------------------------------------------------- */
+
+@layer vp-create-preview {
+  [data-vp-create-preview][data-editor-preview-contract] {
+    border-color: rgba(96, 165, 250, 0.5);
+    background: #020617;
+    box-shadow:
+      inset 0 0 0 1px rgba(148, 163, 184, 0.08),
+      0 18px 48px rgba(2, 6, 23, 0.36);
+  }
+
+  [data-vp-create-preview][data-editor-preview-contract] [data-vp-preview-stage] {
+    display: block;
+    isolation: isolate;
+    background: #020617;
+  }
+
+  [data-vp-create-preview][data-editor-preview-contract] [data-vp-preview-stage]::before,
+  [data-vp-create-preview][data-editor-preview-contract] [data-vp-preview-stage]::after {
+    display: none;
+  }
+
+  .vp-create-editor-preview-frame {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #020617;
+  }
+
+  .vp-create-editor-preview-status {
+    position: absolute;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    z-index: 3;
+    max-width: calc(100% - 1.5rem);
+    padding: 0.4rem 0.6rem;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: var(--vp-create-radius-full);
+    background: rgba(2, 6, 23, 0.76);
+    color: #cbd5e1;
+    font-size: 0.68rem;
+    font-weight: var(--vp-create-weight-bold);
+    line-height: 1.2;
+    pointer-events: none;
+    backdrop-filter: blur(10px);
+    transition: opacity 180ms ease, border-color 180ms ease, color 180ms ease;
+  }
+
+  .vp-create-editor-preview-status[data-status="ready"] {
+    border-color: rgba(52, 211, 153, 0.35);
+    color: #a7f3d0;
+    opacity: 0;
+  }
+
+  .vp-create-editor-preview-status[data-status="error"] {
+    border-color: rgba(248, 113, 113, 0.48);
+    color: #fecaca;
+    opacity: 1;
+  }
+
+  [data-vp-create-preview][data-editor-preview-contract] [data-vp-preview-primitive] {
+    display: none !important;
   }
 }

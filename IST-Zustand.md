@@ -42,6 +42,21 @@ Der aktuelle Stand ist damit nicht mehr „Import-/Migration kaputt“, sondern 
 
 ---
 
+### 0.1 Editor-gestützte Generator-Vorschau (2026-07-28)
+
+Der rechte Platzhalter von `/create` ist jetzt eine produktive Editor-Vorschau:
+
+```text
+Library /create
+  -> iframe /editor/test-generator
+  -> postMessage vectoplan-generator-preview.v1
+  -> einzelnes Primitive oder Upload-Modell
+```
+
+Der Editor-Pfad bleibt von `vectoplan-chunk`, Inventory und Multiplayer getrennt. Maße, Form, Raster, Material, Family-Identität und ausgewählte Model-/Texturdateien werden live aus dem Generator übertragen.
+
+Browserseitig bestätigt sind: iframe-Start, WebGL-Block, Himmel, Sonne, Schatten sowie eine Live-Aktualisierung des Family-Namens. Die Services laufen dafür lokal auf `5101` (Library) und `5100` (Editor).
+
 ## 1. Gesamtbild des Projekts
 
 Das Projekt besteht aus mehreren Services, die zusammen die VECTOPLAN-Plattform bilden.

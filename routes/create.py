@@ -73,6 +73,7 @@ from functools import lru_cache
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Iterable, Mapping
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from flask import Blueprint, Response, current_app, jsonify, make_response, render_template, request, send_file
 
@@ -84,6 +85,9 @@ CREATE_PAGE_ROUTE = "/create"
 CREATE_API_PREFIX = "/api/v1/vplib/create"
 
 CREATE_TEMPLATE = "vplib/create.html"
+EDITOR_GENERATOR_PREVIEW_CONTRACT = "vectoplan-generator-preview.v1"
+EDITOR_GENERATOR_PREVIEW_ROUTE = "/editor/test-generator"
+
 FALLBACK_TEMPLATE_TITLE = "VPLIB erstellen"
 
 DEFAULT_JSON_MIMETYPE = "application/json"
@@ -532,6 +536,57 @@ def _operational_initial_draft(
     draft["default_variant_id"] = default_id
     draft["defaultVariantId"] = default_id
     return draft
+
+def _build_editor_generator_preview_context() -> dict[str, str]:
+    """Resolve the public, browser-facing editor preview URL for ``/create``."""
+    parent_origin = request.host_url.rstrip("/")
+    configured_url = str(
+        os.getenv("VECTOPLAN_EDITOR_GENERATOR_PREVIEW_URL")
+        or current_app.config.get("VECTOPLAN_EDITOR_GENERATOR_PREVIEW_URL")
+        or ""
+    ).strip()
+
+    if not configured_url:
+        parent_parts = urlsplit(parent_origin)
+        editor_port = str(
+            os.getenv("VECTOPLAN_EDITOR_PUBLIC_PORT")
+            or current_app.config.get("VECTOPLAN_EDITOR_PUBLIC_PORT")
+            or "5100"
+        ).strip()
+        hostname = parent_parts.hostname or "127.0.0.1"
+        formatted_hostname = f"[{hostname}]" if ":" in hostname else hostname
+        configured_url = (
+            f"{parent_parts.scheme or 'http'}://{formatted_hostname}:{editor_port}"
+            f"{EDITOR_GENERATOR_PREVIEW_ROUTE}"
+        )
+
+    parts = urlsplit(configured_url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query.update(
+        {
+            "embed": "1",
+            "parentOrigin": parent_origin,
+            "source": "vectoplan-library-create",
+        }
+    )
+    preview_url = urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            parts.path or EDITOR_GENERATOR_PREVIEW_ROUTE,
+            urlencode(query),
+            parts.fragment,
+        )
+    )
+    preview_origin = urlunsplit((parts.scheme, parts.netloc, "", "", "")).rstrip("/")
+
+    return {
+        "contract": EDITOR_GENERATOR_PREVIEW_CONTRACT,
+        "url": preview_url,
+        "origin": preview_origin,
+        "parentOrigin": parent_origin,
+        "route": parts.path or EDITOR_GENERATOR_PREVIEW_ROUTE,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -3583,6 +3638,7 @@ def _build_create_template_context(
         options_data.get("initialDraft"),
     )
     initial_draft = _operational_initial_draft(initial_draft)
+    editor_generator_preview = _build_editor_generator_preview_context()
 
     context = {
         # Jinja render guards. Several existing templates use JSON-style ``null``.
@@ -3601,6 +3657,8 @@ def _build_create_template_context(
         "taxonomy_api_prefix": "/api/v1/vplib/taxonomy",
         "files_api_prefix": "/api/v1/vplib/files",
         "create_page_route": CREATE_PAGE_ROUTE,
+        "editor_generator_preview": editor_generator_preview,
+        "editor_generator_preview_url": editor_generator_preview["url"],
 
         "create_options": template_options,
         "create_initial_draft": initial_draft,

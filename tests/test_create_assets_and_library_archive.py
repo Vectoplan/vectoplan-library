@@ -130,6 +130,47 @@ def test_vplib_archive_is_deterministic_with_binary_assets() -> None:
     assert first[1] == second[1]
 
 
+def test_vplib_archive_preserves_exact_cad_dimensions_per_variant() -> None:
+    payload = minimal_payload()
+    payload["definition_variants"] = [
+        {
+            "variant_id": "default",
+            "label": "Wand 365",
+            "is_default": True,
+            "definition_values": {
+                "dimensions.width_mm": 1000,
+                "dimensions.height_mm": 3000,
+                "dimensions.depth_mm": 365,
+                "dimensions.thickness_mm": 365,
+                "technical.units": {"dimensions.thickness_mm": "mm"},
+            },
+        },
+        {
+            "variant_id": "wand_240",
+            "label": "Wand 240",
+            "is_default": False,
+            "definition_values": {
+                "dimensions.width_mm": 1000,
+                "dimensions.height_mm": 3000,
+                "dimensions.depth_mm": 240,
+                "dimensions.thickness_mm": 240,
+                "technical.units": {"dimensions.thickness_mm": "mm"},
+            },
+        },
+    ]
+
+    _, archive_content, result = create_service().build_vplib_archive(payload)
+
+    assert result.ok, [issue.to_dict() for issue in result.errors]
+    with zipfile.ZipFile(io.BytesIO(archive_content), "r") as archive:
+        default_variant = json.loads(archive.read("variants/default.json"))
+        second_variant = json.loads(archive.read("variants/wand_240.json"))
+    assert default_variant["definition_values"]["dimensions.thickness_mm"] == 365
+    assert second_variant["definition_values"]["dimensions.thickness_mm"] == 240
+    assert default_variant["definition_values"]["technical.units"]["dimensions.thickness_mm"] == "mm"
+    assert second_variant["definition_values"]["technical.units"]["dimensions.thickness_mm"] == "mm"
+
+
 def test_save_package_writes_exact_binary_assets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     source_root = tmp_path / "source"
     monkeypatch.setenv("VECTOPLAN_LIBRARY_SOURCE_ROOT", str(source_root))
@@ -414,13 +455,16 @@ def test_create_ui_has_texture_upload_and_no_global_step3_documents() -> None:
     assert 'data.append("payload_json"' in actions
 
 def test_create_template_context_has_builtin_definitions_when_services_are_empty() -> None:
+    flask = flask_runtime()
     route = create_route_module()
-    context = route._build_create_template_context(
-        route_health={},
-        options_payload={},
-        context_payload={},
-        definitions_payload={},
-    )
+    app = flask.Flask(__name__)
+    with app.test_request_context("/create", base_url="http://127.0.0.1:5101"):
+        context = route._build_create_template_context(
+            route_health={},
+            options_payload={},
+            context_payload={},
+            definitions_payload={},
+        )
     catalogs = context["definition_catalogs"]
     assert len(catalogs["object_kinds"]) >= 4
     assert any(item["id"] == "simple_cell_block" for item in catalogs["family_profiles"])
@@ -453,21 +497,78 @@ def test_wizard_click_capture_does_not_treat_step_panels_as_buttons() -> None:
 def test_create_ui_exposes_full_width_variants_and_functional_technical_inputs() -> None:
     css = (SERVICE_ROOT / "static/css/vplib/create.css").read_text(encoding="utf-8")
     variables = (SERVICE_ROOT / "templates/vplib/create/sections/_variables.html").read_text(encoding="utf-8")
-    technical = (SERVICE_ROOT / "templates/vplib/create/sections/_technical.html").read_text(encoding="utf-8")
+    technical = (SERVICE_ROOT / "templates/vplib/create/sections/_technical_cad.html").read_text(encoding="utf-8")
+    technical_js = (SERVICE_ROOT / "static/js/vplib/create/create_technical.js").read_text(encoding="utf-8")
     geometry = (SERVICE_ROOT / "templates/vplib/create/sections/_geometry.html").read_text(encoding="utf-8")
     assert "grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr)" not in css
     assert "grid-template-columns: minmax(0, 1fr)" in css
-    assert "Jede Variante bleibt mit der Variablenliste verbunden." in variables
+    assert "alle verfügbaren Variablen" in variables
     assert "als lokale Metadaten" not in variables
-    assert 'name="technical_document_files"' in technical
-    assert 'data-vp-upload-backend-enabled="true"' in technical
-    assert 'data-vp-upload-local-only="false"' in technical
-    assert 'data-create-add-variable="true"' in technical
-    assert 'data-create-variable-row-template="true"' in technical
+    assert 'name="technical_document_files"' not in technical
+    assert 'data-vp-technical-variant-select' in technical
+    assert 'data-vp-technical-material-select' in technical
+    assert 'data-vp-technical-add-select' in technical
+    assert "Reale Bauteildaten für CAD" in technical
+    assert '"dimensions.thickness_mm"' in technical_js
+    assert '"variables[" + index + "][variant_id]"' not in technical_js
+    assert 'variant_id: variantId(variant)' in technical_js
     assert 'name="geometry_model_files"' in geometry
     assert 'name="texture_files"' in geometry
     assert "direkt in das VPLIB eingebettet" in geometry
 
+
+
+def test_variant_editor_keeps_workspace_visible_when_drawer_opens() -> None:
+    css = (SERVICE_ROOT / "static/css/vplib/create.css").read_text(encoding="utf-8")
+    variables = (SERVICE_ROOT / "templates/vplib/create/sections/_variables.html").read_text(
+        encoding="utf-8"
+    )
+    drawer_js = (SERVICE_ROOT / "static/js/vplib/create/create_variant_drawer.js").read_text(
+        encoding="utf-8"
+    )
+    assert 'setManagedHidden(cache.objectTop, state === "open"' not in variables
+    assert "setManagedEditorHidden(c.objectVariantsTop, isOpen" not in drawer_js
+    assert "setManagedEditorHidden(c.objectKindArea, isOpen" not in drawer_js
+    assert (
+        '[data-vp-variant-editor-state="open"] [data-vp-object-variants-top]'
+        not in css
+    )
+    assert (
+        ':has([data-vp-variant-drawer-root="true"]:not([hidden])) '
+        "[data-vp-object-variants-top]"
+        not in css
+    )
+
+
+def test_variant_scoped_calculation_variables_keep_variant_id() -> None:
+    service = importlib.import_module("src.library.services.library_create_service")
+    variables, warnings = service._normalize_variables(
+        {
+            "variables": [
+                {
+                    "key": "dimensions.thickness_mm",
+                    "value": "365",
+                    "unit": "mm",
+                    "description": "Reale Bauteildicke",
+                    "value_type": "number",
+                    "scope": "variant",
+                    "variant_id": "t90-365",
+                }
+            ]
+        }
+    )
+    assert warnings == []
+    assert variables == [
+        {
+            "key": "dimensions.thickness_mm",
+            "value": "365",
+            "unit": "mm",
+            "description": "Reale Bauteildicke",
+            "value_type": "number",
+            "scope": "variant",
+            "variant_id": "t90-365",
+        }
+    ]
 
 def test_download_route_embeds_technical_document_without_write_flag() -> None:
     flask = flask_runtime()
@@ -585,10 +686,10 @@ def _selected_value(html: str, name: str) -> str:
 def test_rendered_generator_uses_fresh_assets_and_one_operational_variant_state() -> None:
     app, html = _rendered_create_page()
     assert app
-    assert "/static/css/vplib/create.css?v=20260728.3" in html
-    assert "/static/js/vplib/create/create_uploads.js?v=20260728.3" in html
-    assert "/static/js/vplib/create/create_variant_drawer.js?v=20260728.3" in html
-    assert "/static/js/vplib/create/create_actions.js?v=20260728.3" in html
+    assert "/static/css/vplib/create.css?v=20260728.9" in html
+    assert "/static/js/vplib/create/create_uploads.js?v=20260728.9" in html
+    assert "/static/js/vplib/create/create_variant_drawer.js?v=20260728.9" in html
+    assert "/static/js/vplib/create/create_actions.js?v=20260728.9" in html
 
     for name in (
         "object_kind",
@@ -598,7 +699,6 @@ def test_rendered_generator_uses_fresh_assets_and_one_operational_variant_state(
         "default_variant_id",
         "geometry_model_files",
         "texture_files",
-        "technical_document_files",
     ):
         assert len(_named_form_tags(html, name)) == 1, name
 
@@ -614,6 +714,34 @@ def test_rendered_generator_uses_fresh_assets_and_one_operational_variant_state(
     assert variants[0]["definition_values"]["dimensions.depth_mm"] == 1000
     assert 'data-create-add-variant="true"' in html
     assert 'data-vp-edit-definition-variant="true"' in html
+
+
+def test_rendered_generator_embeds_isolated_editor_preview() -> None:
+    _, html = _rendered_create_page()
+
+    assert 'data-vp-preview-mode="editor-iframe"' in html
+    assert 'data-vp-editor-generator-preview-frame' in html
+    assert 'data-editor-preview-contract="vectoplan-generator-preview.v1"' in html
+    assert 'data-vp-preview-render-enabled="false"' in html
+    assert "http://127.0.0.1:5100/editor/test-generator" in html
+    assert "parentOrigin=http%3A%2F%2Flocalhost" in html
+    assert (
+        "/static/js/vplib/create/create_editor_preview_bridge.js?v=20260728.9"
+        in html
+    )
+    assert 'data-vp-preview-mode="dev-empty"' not in html
+
+
+def test_editor_preview_bridge_deduplicates_equivalent_updates() -> None:
+    bridge = (
+        SERVICE_ROOT / "static/js/vplib/create/create_editor_preview_bridge.js"
+    ).read_text(encoding="utf-8")
+
+    assert 'var lastFingerprint = "";' in bridge
+    assert 'fingerprint === lastFingerprint' in bridge
+    assert 'root.dataset.editorPreviewLastReason = "duplicate-skipped"' in bridge
+    assert "file.lastModified" in bridge
+    assert "/_uploads_json$/i.test(element.name)" in bridge
 
 
 def test_rendered_generator_lists_complete_dependent_taxonomy() -> None:

@@ -1,6 +1,6 @@
 {# services/vectoplan-library/templates/vplib/create.html #}
 {% set _create_template_version = '1.0.0' %}
-{% set _create_asset_version = '20260728.3' %}
+{% set _create_asset_version = '20260728.9' %}
 <!doctype html>
 <html
   lang="de"
@@ -1357,8 +1357,10 @@
   {{ vp_create_script('create_variant_validation.js', 'create_variant_validation') }}
   {{ vp_create_script('create_variant_drawer.js', 'create_variant_drawer') }}
   {{ vp_create_script('create_variant_table.js', 'create_variant_table') }}
+  {{ vp_create_script('create_technical.js', 'create_technical') }}
 
   {{ vp_create_script('create_payload.js', 'create_payload') }}
+  {{ vp_create_script('create_editor_preview_bridge.js', 'create_editor_preview_bridge') }}
   {{ vp_create_script('create_actions.js', 'create_actions') }}
   {{ vp_create_script('create.js', 'create') }}
 </body>

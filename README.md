@@ -748,6 +748,32 @@ Der Editor speichert die Library nicht selbst als Primärquelle.
 
 ---
 
+### Editor-Vorschau im VPLIB-Generator
+
+Die Create-Seite unter `/create` bettet im rechten Vorschau-Bereich die isolierte Editor-Route ein:
+
+```text
+http://127.0.0.1:5100/editor/test-generator
+```
+
+`routes/create.py` erzeugt die browserseitige URL inklusive vertrauenswürdigem `parentOrigin`. `create_editor_preview_bridge.js` überträgt den aktuellen Formularzustand und ausgewählte Modell-/Texturdateien über `postMessage`.
+
+Wichtige Trennung:
+
+```text
+/create besitzt Generator- und Uploaddaten
+/editor/test-generator rendert genau ein Objekt
+vectoplan-chunk wird in diesem Pfad nicht aufgerufen
+```
+
+Konfigurierbar ist die Browser-URL über:
+
+```text
+VECTOPLAN_EDITOR_GENERATOR_PREVIEW_URL
+```
+
+---
+
 ## Inventarzustand
 
 `vectoplan-library` soll perspektivisch eine Route liefern, die den Inventarzustand maschinenlesbar ausgibt.

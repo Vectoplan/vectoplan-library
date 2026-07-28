@@ -272,9 +272,12 @@
   class="vplib-create-preview vp-create-card vp-create-preview-card"
   data-vp-create-preview
   data-vp-preview-ready="false"
-  data-vp-preview-mode="dev-empty"
+  data-vp-preview-mode="editor-iframe"
+  data-vp-preview-render-enabled="false"
   data-vp-preview-template-root="vplib"
-  data-vp-preview-version="0.6.0"
+  data-vp-preview-version="1.0.0"
+  data-editor-preview-contract="{{ editor_generator_preview.contract }}"
+  data-editor-preview-target-origin="{{ editor_generator_preview.origin }}"
   data-create-preview-placeholder="true"
   data-create-preview-primitive-shape="{{ _preview_shape_normalized }}"
   data-create-preview-object-kind-value="{{ _preview_object_kind_normalized }}"
@@ -308,9 +311,28 @@
     class="vp-create-preview-stage"
     data-create-preview-stage="true"
     data-vp-preview-stage
-    role="img"
-    aria-label="VPLIB Entwicklungs-Vorschau"
+    aria-label="Interaktive VECTOPLAN Editor-Vorschau"
   >
+    <iframe
+      class="vp-create-editor-preview-frame"
+      data-vp-editor-generator-preview-frame
+      src="{{ editor_generator_preview.url }}"
+      title="Interaktive 3D-Vorschau im VECTOPLAN Editor"
+      allow="fullscreen"
+      loading="eager"
+      referrerpolicy="strict-origin-when-cross-origin"
+    ></iframe>
+
+    <div
+      class="vp-create-editor-preview-status"
+      data-vp-editor-generator-preview-status
+      data-status="loading"
+      role="status"
+      aria-live="polite"
+    >
+      Editor-Vorschau wird verbunden …
+    </div>
+
     <div
       class="vp-create-preview-cube vp-create-preview-cube--{{ _preview_shape_normalized }}"
       data-create-preview-cube="true"
