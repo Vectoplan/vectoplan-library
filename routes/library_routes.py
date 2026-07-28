@@ -28,6 +28,7 @@ Wesentliche Regeln:
 
 from __future__ import annotations
 
+import io
 import importlib
 import traceback
 from dataclasses import asdict, is_dataclass
@@ -45,13 +46,14 @@ from typing import Any, Callable, Final, Mapping
 _FLASK_IMPORT_ERROR: BaseException | None = None
 
 try:
-    from flask import Blueprint, Response, jsonify, request
+    from flask import Blueprint, Response, jsonify, request, send_file
 except Exception as import_exc:  # pragma: no cover - defensive fallback
     _FLASK_IMPORT_ERROR = import_exc
     Blueprint = None  # type: ignore[assignment]
     Response = Any  # type: ignore[assignment]
     jsonify = None  # type: ignore[assignment]
     request = None  # type: ignore[assignment]
+    send_file = None  # type: ignore[assignment]
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +86,7 @@ except Exception as import_exc:  # pragma: no cover - defensive fallback
 # Constants
 # ---------------------------------------------------------------------------
 
-LIBRARY_ROUTES_VERSION: Final[str] = "1.0.1"
+LIBRARY_ROUTES_VERSION: Final[str] = "1.1.0"
 LIBRARY_ROUTES_COMPONENT: Final[str] = "library-routes"
 
 DEFAULT_BLUEPRINT_NAME: Final[str] = "library_bp"
@@ -94,7 +96,7 @@ ROUTES_ROUTE: Final[str] = "/routes"
 SELFTEST_ROUTE: Final[str] = "/selftest"
 
 SCAN_ROUTE: Final[str] = "/scan"
-SYNC_ROUTE: Final[str] = "/sync"
+SYNC_ROUTE: Final[str] = \
 
 BLOCKS_ROUTE: Final[str] = "/blocks"
 TREE_ROUTE: Final[str] = "/tree"
@@ -241,6 +243,27 @@ def _load_db_sync_service_module() -> ModuleType:
     )
 
 
+@lru_cache(maxsize=1)
+def _load_library_archive_service_module() -> ModuleType:
+    errors: list[str] = []
+
+    for module_name in (
+        "library.services.library_archive_service",
+        "src.library.services.library_archive_service",
+        "vectoplan_library.library.services.library_archive_service",
+        "vectoplan_library.src.library.services.library_archive_service",
+    ):
+        try:
+            return importlib.import_module(module_name)
+        except Exception as exc:
+            errors.append(f"{module_name}: {type(exc).__name__}: {exc}")
+
+    raise ImportError(
+        "library archive service is unavailable. "
+        + " | ".join(errors)
+    )
+
+
 def _legacy_route_service() -> ModuleType:
     return _load_legacy_route_service_module()
 
@@ -285,6 +308,10 @@ def _create_db_sync_service() -> Any:
         return service_class()
 
     raise RuntimeError("LibraryDbSyncService is not available.")
+
+
+def _library_archive_service() -> ModuleType:
+    return _load_library_archive_service_module()
 
 
 # ---------------------------------------------------------------------------
@@ -897,7 +924,7 @@ def make_route_metadata() -> dict[str, Any]:
             "routes": f"{route_prefix}{ROUTES_ROUTE}",
             "selftest": f"{route_prefix}{SELFTEST_ROUTE}",
             "scan": f"{route_prefix}{SCAN_ROUTE}",
-            "sync": f"{route_prefix}{SYNC_ROUTE}",
+            \
             "blocks": f"{route_prefix}{BLOCKS_ROUTE}",
             "block_detail": f"{route_prefix}/blocks/<block_id>",
             "block_variants": f"{route_prefix}/blocks/<block_id>/variants",
@@ -1539,6 +1566,103 @@ def create_library_blueprint() -> Any:
             )
 
     # -----------------------------------------------------------------------
+    # Complete Creative Library exchange
+    # -----------------------------------------------------------------------
+
+    @blueprint_obj.get(EXPORT_ROUTE)
+    def library_export() -> Any:
+        """Export the complete editable source as a checked .vpcreative file."""
+        try:
+            library_id = safe_str(request.args.get("library_id"), default="default")
+            filename, content, metadata = _library_archive_service().export_library_archive(
+                library_id=library_id,
+            )
+            response = send_file(
+                io.BytesIO(content),
+                mimetype="application/vnd.vectoplan.creative-library+zip",
+                as_attachment=True,
+                download_name=filename,
+                max_age=0,
+                conditional=False,
+            )
+            response.headers["X-VECTOPLAN-Library-Format"] = str(metadata.get("format"))
+            response.headers["X-VECTOPLAN-Library-Version"] = str(metadata.get("format_version"))
+            response.headers["X-VECTOPLAN-Library-Files"] = str(metadata.get("package_file_count", 0))
+            response.headers["X-VECTOPLAN-Library-SHA256"] = str(metadata.get("sha256"))
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["Cache-Control"] = "no-store"
+            return response
+        except Exception as exc:
+            return make_exception_response(exc, message="library export route failed")
+
+    @blueprint_obj.post(IMPORT_ROUTE)
+    def library_import() -> Any:
+        """Validate and import a complete .vpcreative library archive."""
+        try:
+            upload = None
+            for field_name in ("file", "library", "archive", "upload"):
+                candidate = request.files.get(field_name)
+                if candidate is not None and getattr(candidate, "filename", None):
+                    upload = candidate
+                    break
+
+            content = upload.read() if upload is not None else request.get_data(cache=False)
+            if not content:
+                return make_json_response(
+                    {
+                        "ok": False,
+                        "status": "file_missing",
+                        "route": "import",
+                        "errors": ["Import requires a .vpcreative multipart file or raw archive body."],
+                        "_http_status": 400,
+                    }
+                )
+
+            body = get_form_payload()
+            query = get_query_args()
+            mode = first_non_empty(body.get("mode"), query.get("mode"), "merge")
+            overwrite = safe_bool(
+                first_non_empty(body.get("overwrite"), query.get("overwrite")),
+                default=False,
+            )
+            payload = _library_archive_service().import_library_archive(
+                content,
+                mode=str(mode),
+                overwrite=overwrite,
+            )
+            payload.setdefault("route", "import")
+            payload.setdefault("writes_source", True)
+
+            sync_requested = safe_bool(
+                first_non_empty(body.get("sync"), query.get("sync")),
+                default=False,
+            )
+            if sync_requested:
+                payload["sync"] = call_db_sync_service(
+                    lambda service: service.sync_library_source(
+                        force_refresh=True,
+                        triggered_by="api:/library/import",
+                        include_raw_documents=True,
+                    ),
+                    route="import_sync",
+                )
+                payload["sync_requested"] = True
+
+            return make_json_response(payload)
+        except Exception as exc:
+            http_status = safe_int(getattr(exc, "http_status", 422), default=422, minimum=400, maximum=599)
+            return make_json_response(
+                {
+                    "ok": False,
+                    "status": str(getattr(exc, "code", "library_import_failed")),
+                    "route": "import",
+                    "errors": [str(exc)],
+                    "error": exception_to_dict(exc),
+                    "_http_status": http_status,
+                }
+            )
+
+    # -----------------------------------------------------------------------
     # Compatibility blocks/tree routes
     # -----------------------------------------------------------------------
 
@@ -2151,6 +2275,7 @@ def clear_library_routes_caches() -> dict[str, Any]:
         _load_legacy_route_service_module,
         _load_creative_library_service_module,
         _load_db_sync_service_module,
+        _load_library_archive_service_module,
     ):
         try:
             cached_func.cache_clear()
@@ -2190,7 +2315,7 @@ __all__: Final[tuple[str, ...]] = (
     "ROUTES_ROUTE",
     "SELFTEST_ROUTE",
     "SCAN_ROUTE",
-    "SYNC_ROUTE",
+    \
     "BLOCKS_ROUTE",
     "TREE_ROUTE",
     "CACHE_CLEAR_ROUTE",
