@@ -881,7 +881,10 @@
       updateUploadSummaries(safeForm);
 
       if (placeholder) {
-        placeholder.setAttribute("data-vp-preview-mode", "empty-dev");
+        var previewMode = placeholder.hasAttribute("data-editor-preview-contract")
+          ? "editor-iframe"
+          : "empty-dev";
+        placeholder.setAttribute("data-vp-preview-mode", previewMode);
         placeholder.setAttribute("data-create-preview-primitive-shape", shape);
         placeholder.setAttribute("data-create-preview-object-kind-value", objectKind);
         placeholder.setAttribute("data-create-preview-unit-value", unit);
@@ -897,7 +900,7 @@
         placeholder.setAttribute("data-vp-preview-taxonomy-path", context.taxonomy_path || "");
         placeholder.setAttribute("data-vp-preview-family-profile-id", context.family_profile_id || "");
         placeholder.setAttribute("data-vp-preview-variant-profile-id", context.variant_profile_id || "");
-        placeholder.setAttribute("data-vp-preview-empty", "true");
+        placeholder.setAttribute("data-vp-preview-empty", previewMode === "empty-dev" ? "true" : "false");
 
         setPreviewCssVariables(placeholder, {
           width: width,
@@ -933,7 +936,9 @@
       localState.updateCount += 1;
       localState.lastContext = context;
       localState.lastPreview = {
-        mode: "empty-dev",
+        mode: placeholder && placeholder.hasAttribute("data-editor-preview-contract")
+          ? "editor-iframe"
+          : "empty-dev",
         objectKind: objectKind,
         shape: shape,
         dimensionsText: width + " × " + height + " × " + depth + " " + unit,

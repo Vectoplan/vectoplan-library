@@ -4691,6 +4691,10 @@ def _normalize_variables(payload: Mapping[str, Any]) -> tuple[list[dict[str, Any
         description = _clean_text(_first_value(raw_variable, ["description", "label"], ""), max_length=240)
         value_type = _normalize_slug_token(_first_value(raw_variable, ["value_type", "type"], "auto"))
         scope = _normalize_slug_token(_first_value(raw_variable, ["scope"], "family"))
+        variant_id = _clean_text(
+            _first_value(raw_variable, ["variant_id", "variantId", "scope_variant_id"], ""),
+            max_length=160,
+        )
 
         variables.append(
             {
@@ -4700,6 +4704,7 @@ def _normalize_variables(payload: Mapping[str, Any]) -> tuple[list[dict[str, Any
                 "description": description,
                 "value_type": value_type or "auto",
                 "scope": scope or "family",
+                "variant_id": variant_id,
             }
         )
 

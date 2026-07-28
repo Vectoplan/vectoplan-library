@@ -263,7 +263,7 @@
       </h2>
 
       <p class="vplib-create-step__description">
-        Definiere Varianten direkt aus dem gewählten Profil. Jede Variante bleibt mit der Variablenliste verbunden.
+        Lege Varianten an, bearbeite alle verfügbaren Variablen und ordne Unterlagen direkt der passenden Variante zu. Die exakten CAD-Werte werden in Schritt 5 gezielt gepflegt.
       </p>
     </div>
 
@@ -304,7 +304,7 @@
       data-vp-object-variants-top="true"
       data-vp-object-kind-area="true"
       data-vp-variables-top="true"
-      data-vp-editor-hidden-when-open="true"
+      data-vp-variant-workspace-container="persistent"
     >
       <div
         class="vp-create-sr-only"
@@ -973,8 +973,7 @@
         markEditorState(cache.table, state, source);
         markEditorState(cache.drawer, state, source);
 
-        setManagedHidden(cache.objectTop, state === "open", source);
-        setManagedHidden(cache.objectKindArea, state === "open", source);
+        /* Der Workspace bleibt offen; nur Tabellen- und Drawer-Slot wechseln. */
 
         if (cache.workspaceSlot) {
           cache.workspaceSlot.setAttribute(
