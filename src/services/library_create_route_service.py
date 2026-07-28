@@ -11,7 +11,7 @@ This module is deliberately route-adjacent, not a Flask route:
 - no direct database dependency
 - no direct repository calls
 - no migration logic
-- no db.create_all()
+- no database schema creation
 - no direct file-writing logic
 - no package-generation logic in this file
 
@@ -99,8 +99,8 @@ STARTER_DEFAULT_VARIANT_ID = "default"
 STARTER_DEFAULT_LABEL = "Standard"
 STARTER_TAXONOMY = {
     "domain": "hochbau",
-    "category": "bloecke",
-    "subcategory": "basis",
+    "category": "waende",
+    "subcategory": "aussenwaende",
 }
 STARTER_DIMENSIONS_MM = {
     "dimensions.width_mm": 1000,
@@ -814,6 +814,8 @@ def get_options_response(*, user_id: Any = 1) -> RouteResponse:
                     default_status="ok",
                     success_statuses={"ok", "ready", "partial"},
                 )
+                response = _enrich_options_response_with_taxonomy(response)
+                response = _enrich_options_response_with_definitions(response, user_id=user_id)
                 return _attach_vplib_uid_to_response(response, payload=result_payload)
 
             service = _generator_context_service()
@@ -835,6 +837,8 @@ def get_options_response(*, user_id: Any = 1) -> RouteResponse:
                     default_status="ok",
                     success_statuses={"ok", "ready", "partial"},
                 )
+                response = _enrich_options_response_with_taxonomy(response)
+                response = _enrich_options_response_with_definitions(response, user_id=user_id)
                 return _attach_vplib_uid_to_response(response, payload=result_payload)
 
         except Exception as exc:
@@ -1208,7 +1212,14 @@ def build_publish_bundle_response(payload: Any) -> RouteResponse:
     )
 
 
-def save_package_response(payload: Any, *, overwrite: bool | None = None) -> RouteResponse:
+def save_package_response(
+    payload: Any,
+    *,
+    overwrite: bool | None = None,
+    allow_source_write: bool | None = None,
+    save_source: bool | None = None,
+    dry_run: bool | None = None,
+) -> RouteResponse:
     """Delegate source package save through generator workflow or legacy create service."""
     route = "save"
 
@@ -1218,6 +1229,13 @@ def save_package_response(payload: Any, *, overwrite: bool | None = None) -> Rou
 
     normalized_payload = dict(normalized_or_error)
 
+    for key, value in (
+        ("allow_source_write", allow_source_write),
+        ("save_source", save_source),
+        ("dry_run", dry_run),
+    ):
+        if value is not None:
+            normalized_payload[key] = bool(value)
     if overwrite is None:
         overwrite = _extract_overwrite(normalized_payload)
 
@@ -2205,6 +2223,14 @@ def _run_workflow_payload(
     request_payload = {
         "action": normalized_action,
         "payload": payload_dict,
+        "save_source": _safe_bool(
+            payload_dict.get("save_source"),
+            default=normalized_action == "save",
+        ),
+        "sync_after_save": _safe_bool(
+            payload_dict.get("sync_after_save"),
+            default=normalized_action == "save",
+        ),
         "user_id": payload_dict.get("user_id", 1),
         "inventory_key": payload_dict.get("inventory_key", "default"),
         "domain": payload_dict.get("domain"),
@@ -3936,7 +3962,11 @@ def _normalize_create_action_payload(payload: Any, *, route: str) -> dict[str, A
     ensure a stable ``vplib_uid``.
     """
     try:
-        base_payload = normalize_payload(payload)
+        raw_payload = dict(payload) if isinstance(payload, Mapping) else {}
+        binary_assets = raw_payload.pop("_binary_assets", None)
+        base_payload = normalize_payload(raw_payload if raw_payload else payload)
+        if isinstance(binary_assets, list):
+            base_payload["_binary_assets"] = binary_assets
     except Exception as exc:
         return _failure(
             route=route,
@@ -3953,6 +3983,7 @@ def _normalize_create_action_payload(payload: Any, *, route: str) -> dict[str, A
     }
 
     try:
+        normalizer_payload = {key: value for key, value in base_payload.items() if key != "_binary_assets"}
         normalized_payload: Mapping[str, Any] = base_payload
 
         if _is_variant_payload_service_available():
@@ -3973,7 +4004,7 @@ def _normalize_create_action_payload(payload: Any, *, route: str) -> dict[str, A
             if normalizer is not None:
                 normalized_result = _call_normalizer_flex(
                     normalizer,
-                    base_payload,
+                    normalizer_payload,
                 )
                 unwrapped, report = _unwrap_normalizer_result(
                     normalized_result
@@ -3992,6 +4023,8 @@ def _normalize_create_action_payload(payload: Any, *, route: str) -> dict[str, A
             normalized_payload,
             route=route,
         )
+        if isinstance(binary_assets, list):
+            result["_binary_assets"] = binary_assets
         result["_payload_normalization"] = {
             **normalization_metadata,
             "route": route,
@@ -4409,6 +4442,14 @@ def _enrich_options_response_with_taxonomy(response: RouteResponse) -> RouteResp
             "subcategories_by_category_path",
             taxonomy_payload.get("subcategories_by_category", data.get("subcategories_by_category", {})),
         )
+        data["categories"] = _flatten_taxonomy_categories(
+            taxonomy_payload.get("categories", data.get("categories", [])),
+            data["categories_by_domain"],
+        )
+        data["subcategories"] = _flatten_taxonomy_subcategories(
+            taxonomy_payload.get("subcategories", data.get("subcategories", [])),
+            data["subcategories_by_category_path"],
+        )
 
         data.setdefault("constraints", {})
         if isinstance(data["constraints"], Mapping):
@@ -4521,6 +4562,103 @@ def _enrich_options_response_with_definitions(response: RouteResponse, *, user_i
     )
 
 
+def _flatten_taxonomy_categories(
+    categories: Any,
+    categories_by_domain: Any,
+) -> list[dict[str, Any]]:
+    """Return category options with the parent domain required by the UI."""
+    flattened: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    direct_items = _coerce_list(categories)
+    grouped = categories_by_domain if isinstance(categories_by_domain, Mapping) else {}
+    groups: list[tuple[str, list[Any]]] = [("", direct_items)] if direct_items else []
+    groups.extend((str(domain), _coerce_list(items)) for domain, items in grouped.items())
+
+    for domain, items in groups:
+        for item in items:
+            option = dict(item) if isinstance(item, Mapping) else {"id": str(item), "label": str(item)}
+            option_id = str(
+                option.get("id")
+                or option.get("value")
+                or option.get("slug")
+                or option.get("key")
+                or ""
+            ).strip()
+            parent_domain = str(
+                option.get("domain")
+                or option.get("domain_id")
+                or option.get("domain_slug")
+                or option.get("parent_domain")
+                or domain
+            ).strip()
+            if not option_id or (parent_domain, option_id) in seen:
+                continue
+            option.setdefault("domain", parent_domain)
+            option.setdefault("domain_id", parent_domain)
+            option.setdefault("parent_domain", parent_domain)
+            flattened.append(option)
+            seen.add((parent_domain, option_id))
+
+    return flattened
+
+
+def _flatten_taxonomy_subcategories(
+    subcategories: Any,
+    subcategories_by_category: Any,
+) -> list[dict[str, Any]]:
+    """Return subcategory options with parent domain and category metadata."""
+    flattened: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    direct_items = _coerce_list(subcategories)
+    grouped = subcategories_by_category if isinstance(subcategories_by_category, Mapping) else {}
+    groups: list[tuple[str, list[Any]]] = [("", direct_items)] if direct_items else []
+    groups.extend((str(path), _coerce_list(items)) for path, items in grouped.items())
+
+    for parent_path, items in groups:
+        path_parts = [part for part in parent_path.replace("\\", "/").split("/") if part]
+        grouped_domain = path_parts[-2] if len(path_parts) >= 2 else ""
+        grouped_category = path_parts[-1] if path_parts else ""
+
+        for item in items:
+            option = dict(item) if isinstance(item, Mapping) else {"id": str(item), "label": str(item)}
+            option_id = str(
+                option.get("id")
+                or option.get("value")
+                or option.get("slug")
+                or option.get("key")
+                or ""
+            ).strip()
+            parent_domain = str(
+                option.get("domain")
+                or option.get("domain_id")
+                or option.get("domain_slug")
+                or option.get("parent_domain")
+                or grouped_domain
+            ).strip()
+            parent_category = str(
+                option.get("category")
+                or option.get("category_id")
+                or option.get("category_slug")
+                or option.get("parent_category")
+                or grouped_category
+            ).strip()
+            identity = (parent_domain, parent_category, option_id)
+            if not option_id or identity in seen:
+                continue
+            option.setdefault("domain", parent_domain)
+            option.setdefault("domain_id", parent_domain)
+            option.setdefault("parent_domain", parent_domain)
+            option.setdefault("category", parent_category)
+            option.setdefault("category_id", parent_category)
+            option.setdefault("parent_category", parent_category)
+            flattened.append(option)
+            seen.add(identity)
+
+    return flattened
+
+
 def _get_taxonomy_create_options_payload() -> dict[str, Any]:
     service = _get_taxonomy_service()
 
@@ -4548,6 +4686,8 @@ def _get_taxonomy_create_options_payload() -> dict[str, Any]:
 
 
 def _get_definitions_options_payload(*, user_id: Any = 1) -> dict[str, Any]:
+    definition_catalog_error: Exception | None = None
+
     if _is_definition_catalog_available():
         try:
             service = _definition_catalog_service()
@@ -4565,7 +4705,7 @@ def _get_definitions_options_payload(*, user_id: Any = 1) -> dict[str, Any]:
                 payload = _service_result_payload(result)
                 inner_payload = payload.get("payload") if isinstance(payload.get("payload"), Mapping) else payload
 
-                return {
+                resolved = {
                     "available": True,
                     "source": "definition_catalog_service",
                     "method": method_name,
@@ -4576,11 +4716,9 @@ def _get_definitions_options_payload(*, user_id: Any = 1) -> dict[str, Any]:
                     "ok": bool(payload.get("ok", True)),
                     "status": payload.get("status", "ok"),
                 }
+                return _with_legacy_definition_dataset_fallbacks(resolved)
         except Exception as exc:
-            return _definitions_unavailable_payload(
-                reason="definition_catalog_failed",
-                exc=exc,
-            )
+            definition_catalog_error = exc
 
     if _is_legacy_definitions_available():
         try:
@@ -4616,10 +4754,115 @@ def _get_definitions_options_payload(*, user_id: Any = 1) -> dict[str, Any]:
                 exc=exc,
             )
 
+    if definition_catalog_error is not None:
+        return _definitions_unavailable_payload(
+            reason="definition_catalog_failed",
+            exc=definition_catalog_error,
+        )
+
     return _definitions_unavailable_payload(
         reason="import_failed",
         exc=None,
     )
+
+
+def _with_legacy_definition_dataset_fallbacks(
+    definitions_payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Fill incomplete database catalogs from the bundled canonical definitions."""
+    resolved = dict(definitions_payload)
+    definitions = (
+        dict(resolved.get("definitions", {}))
+        if isinstance(resolved.get("definitions"), Mapping)
+        else {}
+    )
+    options = (
+        dict(resolved.get("options", {}))
+        if isinstance(resolved.get("options"), Mapping)
+        else {}
+    )
+    datasets = (
+        "object_kinds",
+        "family_profiles",
+        "variant_profiles",
+        "variables",
+        "units",
+        "materials",
+        "document_types",
+        "profile_bindings",
+    )
+
+    missing = [
+        dataset
+        for dataset in datasets
+        if not _coerce_list(definitions.get(dataset))
+        or not _coerce_list(options.get(dataset))
+    ]
+    if not missing or not _is_legacy_definitions_available():
+        return resolved
+
+    try:
+        module = _load_legacy_definitions_module()
+        legacy_payload: dict[str, Any] | None = None
+        legacy_method = ""
+        for function_name in (
+            "get_create_definition_options",
+            "get_definition_options",
+            "get_definitions_payload",
+            "get_current_definitions",
+        ):
+            function = getattr(module, function_name, None)
+            if not callable(function):
+                continue
+            result = _call_function_flex(
+                function,
+                {"force_refresh": False, "force_reload": False},
+            )
+            legacy_payload = _service_result_payload(result)
+            legacy_method = function_name
+            break
+
+        if legacy_payload is None:
+            return resolved
+
+        legacy_definitions = _extract_definition_catalogs(legacy_payload)
+        legacy_options = _extract_definition_options(legacy_payload)
+        fallback_datasets: list[str] = []
+
+        for dataset in datasets:
+            definition_items = _coerce_list(definitions.get(dataset))
+            option_items = _coerce_list(options.get(dataset))
+            fallback_items = _coerce_list(
+                legacy_definitions.get(dataset) or legacy_options.get(dataset)
+            )
+
+            if not definition_items:
+                definition_items = option_items or fallback_items
+                if fallback_items:
+                    fallback_datasets.append(dataset)
+            if not option_items:
+                option_items = definition_items or fallback_items
+
+            definitions[dataset] = definition_items
+            options[dataset] = option_items
+
+        resolved["definitions"] = definitions
+        resolved["options"] = options
+        resolved["counts"] = {
+            dataset: len(_coerce_list(definitions.get(dataset)))
+            for dataset in datasets
+        }
+        if fallback_datasets:
+            resolved["fallback_source"] = "legacy_library_definitions"
+            resolved["fallback_method"] = legacy_method
+            resolved["fallback_datasets"] = sorted(set(fallback_datasets))
+        return resolved
+    except Exception as exc:
+        resolved["fallback_error"] = {
+            "type": exc.__class__.__name__,
+            "message": str(exc),
+        }
+        return resolved
 
 
 def _extract_definition_options(payload: Any) -> dict[str, Any]:
@@ -4635,6 +4878,7 @@ def _extract_definition_options(payload: Any) -> dict[str, Any]:
             "object_kinds": _coerce_list(records.get("object_kinds")),
             "family_profiles": _coerce_list(records.get("family_profiles")),
             "variant_profiles": _coerce_list(records.get("variant_profiles")),
+            "variables": _coerce_list(records.get("variables")),
             "materials": _coerce_list(records.get("materials")),
             "units": _coerce_list(records.get("units")),
             "document_types": _coerce_list(records.get("document_types")),
@@ -4645,6 +4889,7 @@ def _extract_definition_options(payload: Any) -> dict[str, Any]:
         "object_kinds": _coerce_list(data.get("object_kinds")),
         "family_profiles": _coerce_list(data.get("family_profiles")),
         "variant_profiles": _coerce_list(data.get("variant_profiles")),
+        "variables": _coerce_list(data.get("variables")),
         "materials": _coerce_list(data.get("materials") or data.get("material_classes")),
         "units": _coerce_list(data.get("units")),
         "document_types": _coerce_list(data.get("document_types")),
@@ -5689,31 +5934,37 @@ def _normalize_vplib_uid_safe(value: Any) -> str | None:
 # ---------------------------------------------------------------------------
 
 def _normalize_mapping_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize mappings without destroying intentional one-item arrays.
+
+    Only MultiDict-like request objects need scalar collapsing through
+    ``getlist``. Plain dictionaries already express the caller's intended
+    shape, so lists such as ``_binary_assets`` and ``definition_variants`` must
+    stay lists even when they contain exactly one item.
+    """
+
     normalized: dict[str, Any] = {}
+    getlist = getattr(payload, "getlist", None)
+    is_multidict = callable(getlist)
 
     for key, value in payload.items():
         key_text = str(key)
 
-        if isinstance(value, (list, tuple)):
-            if len(value) == 1:
-                normalized[key_text] = value[0]
-            else:
-                normalized[key_text] = list(value)
-        else:
-            getlist = getattr(payload, "getlist", None)
-            if callable(getlist):
-                try:
-                    values = getlist(key)
-                    if len(values) == 1:
-                        normalized[key_text] = values[0]
-                    elif len(values) > 1:
-                        normalized[key_text] = list(values)
-                    else:
-                        normalized[key_text] = value
-                    continue
-                except Exception:
-                    pass
+        if is_multidict:
+            try:
+                values = getlist(key)
+                if len(values) == 1:
+                    normalized[key_text] = values[0]
+                elif len(values) > 1:
+                    normalized[key_text] = list(values)
+                else:
+                    normalized[key_text] = value
+                continue
+            except Exception:
+                pass
 
+        if isinstance(value, (list, tuple)):
+            normalized[key_text] = list(value)
+        else:
             normalized[key_text] = value
 
     return normalized

@@ -1200,8 +1200,8 @@
 
       state.activeContext = {
         domain: normalizeToken(context.domain || source.domain || readValue(form, "domain") || getAttr(drawer, "data-vp-current-domain") || "hochbau", "hochbau"),
-        category: normalizeToken(context.category || source.category || readValue(form, "category") || getAttr(drawer, "data-vp-current-category") || "bloecke", "bloecke"),
-        subcategory: normalizeToken(context.subcategory || source.subcategory || readValue(form, "subcategory") || getAttr(drawer, "data-vp-current-subcategory") || "basis", "basis"),
+        category: normalizeToken(context.category || source.category || readValue(form, "category") || getAttr(drawer, "data-vp-current-category") || "waende", "waende"),
+        subcategory: normalizeToken(context.subcategory || source.subcategory || readValue(form, "subcategory") || getAttr(drawer, "data-vp-current-subcategory") || "aussenwaende", "aussenwaende"),
         object_kind: normalizeToken(context.object_kind || context.objectKind || source.object_kind || source.objectKind || readValue(form, "object_kind") || getAttr(drawer, "data-vp-current-object-kind") || "cell_block", "cell_block"),
         family_profile_id: String(context.family_profile_id || context.familyProfileId || source.family_profile_id || source.familyProfileId || readValue(form, "family_profile_id") || getAttr(drawer, "data-vp-current-family-profile-id") || "").trim(),
         variant_profile_id: String(context.variant_profile_id || context.variantProfileId || source.variant_profile_id || source.variantProfileId || source.profile_id || readValue(form, "variant_profile_id") || getAttr(drawer, "data-vp-current-variant-profile-id") || "").trim()
@@ -1216,9 +1216,9 @@
 
       state.activeContext = {
         domain: "hochbau",
-        category: "bloecke",
-        subcategory: "basis",
-        taxonomy_path: "hochbau/bloecke/basis",
+        category: "waende",
+        subcategory: "aussenwaende",
+        taxonomy_path: "hochbau/waende/aussenwaende",
         object_kind: "cell_block",
         family_profile_id: "",
         variant_profile_id: ""

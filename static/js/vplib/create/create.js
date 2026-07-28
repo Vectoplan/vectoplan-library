@@ -1241,7 +1241,7 @@
                 extension: extensionFromName(value.name || ""),
                 last_modified: value.lastModified || null,
                 backend_stored: false,
-                local_only: true
+                local_only: false
               });
             }
 
@@ -1279,11 +1279,11 @@
       }
 
       if (!payload.category) {
-        payload.category = "bloecke";
+        payload.category = "waende";
       }
 
       if (!payload.subcategory) {
-        payload.subcategory = "basis";
+        payload.subcategory = "aussenwaende";
       }
 
       if (!payload.taxonomy_path) {
@@ -1350,8 +1350,8 @@
         kind: kind || "generic_upload",
         backend_enabled: true,
         backendEnabled: true,
-        local_only: true,
-        localOnly: true,
+        local_only: false,
+        localOnly: false,
         count: 0,
         files: [],
         errors: [],

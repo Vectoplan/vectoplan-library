@@ -1,6 +1,6 @@
 {# services/vectoplan-library/templates/vplib/create.html #}
 {% set _create_template_version = '1.0.0' %}
-{% set _create_asset_version = '20260710.3' %}
+{% set _create_asset_version = '20260728.3' %}
 <!doctype html>
 <html
   lang="de"
@@ -96,7 +96,7 @@
 
   <link
     rel="stylesheet"
-    href="{{ url_for('static', filename='css/vplib/create.css') }}"
+    href="{{ url_for('static', filename='css/vplib/create.css', v=_create_asset_version) }}"
     data-vp-create-stylesheet="vplib/create.css"
     data-vp-create-css-mode="single-file"
   />
@@ -913,8 +913,8 @@
     "aliases": ["object", "object-variants", "variables"],
     "label": "Variablen",
     "short_label": "Variablen",
-    "description": "Variablen, Varianten und Unterlagen",
-    "hint": "Technische Variablen, Variantenwerte und optionale Herstellerunterlagen definieren.",
+    "description": "Variablen und Varianten",
+    "hint": "Variablen und ihre Variantenwerte einfach definieren.",
     "target": "object-variants"
   },
   {
@@ -1121,7 +1121,7 @@
                 data-vp-step-target="object-variants"
                 data-vp-step-label="Variablen"
                 data-vp-create-section-alias="variables"
-                aria-label="Schritt 3: Variablen und Unterlagen"
+                aria-label="Schritt 3: Variablen und Varianten"
                 {% if create_initial_step != 3 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
               >
                 {% include [

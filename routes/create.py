@@ -13,7 +13,7 @@ This route module intentionally stays thin:
 - does not validate package semantics directly
 - does not write package files directly
 - does not query SQLAlchemy directly
-- does not call db.create_all()
+- does not create database schemas
 - does not run migrations
 - delegates HTTP-near work to:
     services.library_create_route_service
@@ -70,13 +70,14 @@ import zipfile
 from dataclasses import asdict, is_dataclass
 from enum import Enum
 from functools import lru_cache
+from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Iterable, Mapping
 
 from flask import Blueprint, Response, current_app, jsonify, make_response, render_template, request, send_file
 
 
-CREATE_BLUEPRINT_VERSION = "1.3.0"
+CREATE_BLUEPRINT_VERSION = "1.4.0"
 CREATE_BLUEPRINT_COMPONENT = "create-blueprint"
 
 CREATE_PAGE_ROUTE = "/create"
@@ -93,12 +94,47 @@ DEFAULT_MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
 DEFAULT_MAX_ARCHIVE_ENTRIES = 4096
 DEFAULT_MAX_ARCHIVE_UNCOMPRESSED_BYTES = 512 * 1024 * 1024
 DEFAULT_MAX_COMPRESSION_RATIO = 250.0
+DEFAULT_MAX_UPLOAD_FILES = 64
+
+MODEL_UPLOAD_EXTENSIONS = frozenset(
+    {".glb", ".gltf", ".obj", ".fbx", ".stl", ".bin", ".mtl", ".zip"}
+)
+TEXTURE_UPLOAD_EXTENSIONS = frozenset(
+    {".png", ".jpg", ".jpeg", ".webp", ".tga", ".bmp", ".ktx", ".ktx2"}
+)
+DOCUMENT_UPLOAD_EXTENSIONS = frozenset(
+    {
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".csv",
+        ".txt",
+        ".md",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".zip",
+    }
+)
+UPLOAD_FIELD_RULES = {
+    "geometry_model_files": ("geometry_model", "assets/models", MODEL_UPLOAD_EXTENSIONS),
+    "texture_files": ("textures", "assets/textures", TEXTURE_UPLOAD_EXTENSIONS),
+    "technical_document_files": ("technical_documents", "assets/documents/technical", DOCUMENT_UPLOAD_EXTENSIONS),
+}
 
 STARTER_OBJECT_KIND = "cell_block"
 STARTER_FAMILY_PROFILE_ID = "simple_cell_block"
 STARTER_VARIANT_PROFILE_ID = "simple_cell_block.v1"
 STARTER_DEFAULT_VARIANT_ID = "default"
 STARTER_DEFAULT_LABEL = "Standard"
+STARTER_TAXONOMY = {
+    "domain": "hochbau",
+    "category": "waende",
+    "subcategory": "aussenwaende",
+}
 STARTER_DIMENSIONS_MM = {
     "dimensions.width_mm": 1000,
     "dimensions.height_mm": 1000,
@@ -110,6 +146,23 @@ STARTER_GEOMETRY_METRES = {
     "geometry_depth": "1.00",
     "geometry_unit": "m",
 }
+BUILTIN_DEFINITION_DATASETS = (
+    "object_kinds",
+    "family_profiles",
+    "variant_profiles",
+    "variables",
+    "units",
+    "materials",
+    "document_types",
+    "profile_bindings",
+)
+BUILTIN_PRIMITIVE_SHAPES = (
+    {"id": "block", "label": "Block / Quader"},
+    {"id": "cube", "label": "Würfel"},
+    {"id": "slab", "label": "Platte"},
+    {"id": "cylinder", "label": "Zylinder"},
+    {"id": "custom", "label": "Freies 3D-Modell"},
+)
 ZIP_SIGNATURES = (
     b"PK\x03\x04",
     b"PK\x05\x06",
@@ -122,6 +175,23 @@ create_bp = Blueprint("vplib_create", __name__)
 # Common aliases for central route registries.
 bp = create_bp
 blueprint = create_bp
+
+
+@create_bp.after_app_request
+def _disable_create_asset_caching(response: Response) -> Response:
+    """Keep the actively developed generator from mixing old and new assets."""
+    path = str(request.path or "")
+    if (
+        path == CREATE_PAGE_ROUTE
+        or path == "/static/css/vplib/create.css"
+        or path.startswith("/static/js/vplib/create/")
+    ):
+        response.headers["Cache-Control"] = (
+            "no-store, no-cache, must-revalidate, max-age=0"
+        )
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 class CreateRouteError(RuntimeError):
@@ -273,6 +343,195 @@ def _create_draft_service() -> Any:
         raise RuntimeError("CreativeLibraryDraftService is not available.")
 
     return service_class()
+
+
+def _operational_initial_draft(
+    value: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return a browser-ready draft that is valid before async definition calls."""
+    draft = _json_safe(dict(value or {}))
+    if not isinstance(draft, dict):
+        draft = {}
+
+    object_kind = _normalize_identifier(
+        _first_payload_value(draft, "object_kind", "objectKind", "object_class"),
+        fallback=STARTER_OBJECT_KIND,
+    ).lower()
+    draft["object_kind"] = object_kind
+    draft["objectKind"] = object_kind
+
+    if object_kind != STARTER_OBJECT_KIND:
+        return draft
+
+    draft.setdefault("family_profile_id", STARTER_FAMILY_PROFILE_ID)
+    draft.setdefault("familyProfileId", draft["family_profile_id"])
+    draft.setdefault("variant_profile_id", STARTER_VARIANT_PROFILE_ID)
+    draft.setdefault("variantProfileId", draft["variant_profile_id"])
+    draft.setdefault("default_variant_id", STARTER_DEFAULT_VARIANT_ID)
+    draft.setdefault("defaultVariantId", draft["default_variant_id"])
+    draft.setdefault("primitive_shape", "block")
+    for taxonomy_key, taxonomy_value in STARTER_TAXONOMY.items():
+        draft.setdefault(taxonomy_key, taxonomy_value)
+    draft.setdefault(
+        "taxonomy_path",
+        "/".join(draft[key] for key in ("domain", "category", "subcategory")),
+    )
+    draft.setdefault("primitiveShape", draft["primitive_shape"])
+
+    for key, default in STARTER_GEOMETRY_METRES.items():
+        draft.setdefault(key, default)
+
+    unit = str(draft.get("geometry_unit") or "m")
+    dimension_values = {
+        "dimensions.width_mm": _geometry_value_to_mm(
+            draft.get("geometry_width"), unit
+        )
+        or STARTER_DIMENSIONS_MM["dimensions.width_mm"],
+        "dimensions.height_mm": _geometry_value_to_mm(
+            draft.get("geometry_height"), unit
+        )
+        or STARTER_DIMENSIONS_MM["dimensions.height_mm"],
+        "dimensions.depth_mm": _geometry_value_to_mm(
+            draft.get("geometry_depth"), unit
+        )
+        or STARTER_DIMENSIONS_MM["dimensions.depth_mm"],
+    }
+
+    variants_raw = _first_payload_value(
+        draft,
+        "definition_variants",
+        "definitionVariants",
+        "definition_variants_json",
+        "definitionVariantsJson",
+        "variants",
+    )
+    variants = _json_list_from_any(variants_raw)
+    normalized_variants: list[dict[str, Any]] = []
+
+    for index, raw_variant in enumerate(variants):
+        variant = _json_mapping_from_any(raw_variant)
+        if not variant:
+            continue
+        variant_id = _normalize_identifier(
+            _first_payload_value(variant, "variant_id", "variantId", "id", "slug"),
+            fallback=STARTER_DEFAULT_VARIANT_ID if index == 0 else f"variant_{index + 1}",
+        )
+        label = str(
+            _first_payload_value(variant, "label", "name", "title")
+            or (STARTER_DEFAULT_LABEL if index == 0 else f"Variante {index + 1}")
+        ).strip()
+        values = _json_mapping_from_any(
+            _first_payload_value(
+                variant,
+                "definition_values",
+                "definitionValues",
+                "definition_values_json",
+                "definitionValuesJson",
+                "values",
+            )
+        )
+        values.setdefault("variant.variant_id", variant_id)
+        values.setdefault("variant.label", label)
+        for field_key, field_value in dimension_values.items():
+            values.setdefault(field_key, field_value)
+
+        values_json = json.dumps(
+            values,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        variant.update(
+            {
+                "variant_id": variant_id,
+                "variantId": variant_id,
+                "label": label,
+                "name": label,
+                "is_default": index == 0,
+                "isDefault": index == 0,
+                "family_profile_id": STARTER_FAMILY_PROFILE_ID,
+                "familyProfileId": STARTER_FAMILY_PROFILE_ID,
+                "variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+                "variantProfileId": STARTER_VARIANT_PROFILE_ID,
+                "object_kind": STARTER_OBJECT_KIND,
+                "objectKind": STARTER_OBJECT_KIND,
+                "definition_values": values,
+                "definitionValues": values,
+                "definition_values_json": values_json,
+                "definitionValuesJson": values_json,
+                "definition_managed": True,
+                "definitionManaged": True,
+            }
+        )
+        normalized_variants.append(variant)
+
+    if not normalized_variants:
+        values = {
+            "variant.variant_id": STARTER_DEFAULT_VARIANT_ID,
+            "variant.label": STARTER_DEFAULT_LABEL,
+            **dimension_values,
+        }
+        values_json = json.dumps(
+            values,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        normalized_variants = [
+            {
+                "variant_id": STARTER_DEFAULT_VARIANT_ID,
+                "variantId": STARTER_DEFAULT_VARIANT_ID,
+                "label": STARTER_DEFAULT_LABEL,
+                "name": STARTER_DEFAULT_LABEL,
+                "description": "",
+                "is_default": True,
+                "isDefault": True,
+                "family_profile_id": STARTER_FAMILY_PROFILE_ID,
+                "familyProfileId": STARTER_FAMILY_PROFILE_ID,
+                "variant_profile_id": STARTER_VARIANT_PROFILE_ID,
+                "variantProfileId": STARTER_VARIANT_PROFILE_ID,
+                "object_kind": STARTER_OBJECT_KIND,
+                "objectKind": STARTER_OBJECT_KIND,
+                "definition_values": values,
+                "definitionValues": values,
+                "definition_values_json": values_json,
+                "definitionValuesJson": values_json,
+                "additional_field_keys": [],
+                "additionalFieldKeys": [],
+                "definition_managed": True,
+                "definitionManaged": True,
+                "source": "routes.create.initial_starter",
+            }
+        ]
+
+    default_index = next(
+        (
+            index
+            for index, variant in enumerate(normalized_variants)
+            if _safe_bool(
+                _first_payload_value(variant, "is_default", "isDefault"),
+                default=False,
+            )
+            or variant.get("variant_id") == draft["default_variant_id"]
+        ),
+        0,
+    )
+    for index, variant in enumerate(normalized_variants):
+        variant["is_default"] = index == default_index
+        variant["isDefault"] = index == default_index
+
+    default_id = str(normalized_variants[default_index]["variant_id"])
+    variants_json = json.dumps(
+        normalized_variants,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    draft["variants"] = normalized_variants
+    draft["definition_variants"] = normalized_variants
+    draft["definitionVariants"] = normalized_variants
+    draft["definition_variants_json"] = variants_json
+    draft["definitionVariantsJson"] = variants_json
+    draft["default_variant_id"] = default_id
+    draft["defaultVariantId"] = default_id
+    return draft
 
 
 # ---------------------------------------------------------------------------
@@ -798,7 +1057,13 @@ def create_save() -> Response:
 
     try:
         payload = _request_payload()
+        payload.setdefault("save_source", True)
+        payload.setdefault("allow_source_write", True)
+        payload.setdefault("sync_after_save", True)
+        payload.setdefault("allow_publish_write", True)
         overwrite = _request_optional_bool("overwrite")
+        if overwrite is None:
+            overwrite = _safe_bool(payload.get("overwrite"), default=True)
         response = _route_service().save_package_response(
             payload,
             overwrite=overwrite,
@@ -1029,6 +1294,9 @@ def _normalize_embedded_json_fields(payload: dict[str, Any]) -> dict[str, Any]:
         "definitionVariantsJson": list,
         "geometry_model_uploads_json": dict,
         "geometryModelUploadsJson": dict,
+        "texture_uploads_json": dict,
+        "textureUploadsJson": dict,
+        "payload_json": dict,
         "technical_document_uploads_json": dict,
         "technicalDocumentUploadsJson": dict,
         "variant_document_uploads_json": dict,
@@ -1184,9 +1452,13 @@ def _prepare_create_payload(
     request_id: str,
 ) -> dict[str, Any]:
     """Normalize aliases and materialize the minimal starter contract."""
-    data = _json_safe(dict(payload or {}))
+    raw_payload = dict(payload or {})
+    binary_assets = raw_payload.pop("_binary_assets", None)
+    data = _json_safe(raw_payload)
     if not isinstance(data, dict):
         data = {}
+    if isinstance(binary_assets, list):
+        data["_binary_assets"] = binary_assets
 
     _normalize_embedded_json_fields(data)
 
@@ -1228,11 +1500,15 @@ def _prepare_create_payload(
         default=variant_profile_id,
     )
 
-    data["domain"] = _normalize_identifier(data.get("domain"), fallback="hochbau").lower()
-    data["category"] = _normalize_identifier(data.get("category"), fallback="bloecke").lower()
+    data["domain"] = _normalize_identifier(
+        data.get("domain"), fallback=STARTER_TAXONOMY["domain"]
+    ).lower()
+    data["category"] = _normalize_identifier(
+        data.get("category"), fallback=STARTER_TAXONOMY["category"]
+    ).lower()
     data["subcategory"] = _normalize_identifier(
         data.get("subcategory"),
-        fallback="basis",
+        fallback=STARTER_TAXONOMY["subcategory"],
     ).lower()
     taxonomy_path = str(
         _first_payload_value(data, "taxonomy_path", "taxonomyPath")
@@ -2242,11 +2518,37 @@ def _request_payload() -> dict[str, Any]:
             http_status=400,
         ) from exc
 
+    form_payload: dict[str, Any] = {}
     try:
         if request.form:
-            payload.update(_mapping_to_plain_dict(request.form))
-    except Exception:
-        pass
+            form_payload = _mapping_to_plain_dict(request.form)
+    except Exception as exc:
+        raise CreateRequestError(
+            "Create form body could not be parsed.",
+            code="invalid_form_body",
+            http_status=400,
+        ) from exc
+
+    embedded_payload = form_payload.pop("payload_json", None)
+    if isinstance(embedded_payload, str) and embedded_payload.strip():
+        try:
+            decoded_payload = json.loads(embedded_payload)
+        except Exception as exc:
+            raise CreateRequestError(
+                "Field 'payload_json' does not contain valid JSON.",
+                code="invalid_embedded_json",
+                http_status=400,
+                details={"field": "payload_json"},
+            ) from exc
+        if not isinstance(decoded_payload, Mapping):
+            raise CreateRequestError(
+                "Field 'payload_json' must contain a JSON object.",
+                code="invalid_embedded_json_type",
+                http_status=400,
+                details={"field": "payload_json", "expected": "dict"},
+            )
+        payload.update(_mapping_to_plain_dict(decoded_payload))
+    payload.update(form_payload)
 
     if raw_data and not request.form and not request.is_json:
         raw_text = raw_data.decode("utf-8", errors="strict").strip()
@@ -2271,8 +2573,15 @@ def _request_payload() -> dict[str, Any]:
     try:
         if request.files:
             payload.update(_request_upload_metadata())
-    except Exception:
-        pass
+    except CreateRouteError:
+        raise
+    except Exception as exc:
+        raise CreateRequestError(
+            "Uploaded files could not be processed.",
+            code="upload_processing_failed",
+            http_status=422,
+            details={"type": type(exc).__name__},
+        ) from exc
 
     payload["_request_id"] = _request_id()
     return _normalize_embedded_json_fields(payload)
@@ -2283,46 +2592,150 @@ def _request_upload_metadata() -> dict[str, Any]:
         "uploaded_file_count": 0,
         "uploaded_file_fields": [],
         "uploads": {},
+        "_binary_assets": [],
     }
 
-    try:
-        files = request.files
-    except Exception:
-        return result
-
-    try:
-        result["uploaded_file_count"] = len(files)
-        result["uploaded_file_fields"] = list(files.keys())
-    except Exception:
-        pass
-
+    files = request.files
     uploads: dict[str, Any] = {}
+    binary_assets: list[dict[str, Any]] = []
+    used_paths: set[str] = set()
+    uploaded_fields: list[str] = []
 
-    try:
-        for field_name in files.keys():
-            values = files.getlist(field_name) if callable(getattr(files, "getlist", None)) else [files.get(field_name)]
-            normalized_values = []
+    for raw_field_name in files.keys():
+        field_name = str(raw_field_name)
+        rule = _upload_rule_for_field(field_name)
+        if rule is None:
+            raise CreateRequestError(
+                f"Upload field is not supported: {field_name}",
+                code="upload_field_unsupported",
+                http_status=422,
+                details={"field": field_name},
+            )
 
-            for item in values:
-                if item is None:
-                    continue
+        kind, target_prefix, allowed_extensions = rule
+        values = (
+            files.getlist(raw_field_name)
+            if callable(getattr(files, "getlist", None))
+            else [files.get(raw_field_name)]
+        )
+        normalized_values: list[dict[str, Any]] = []
 
-                normalized_values.append(
-                    {
-                        "field": str(field_name),
-                        "filename": _safe_upload_filename(getattr(item, "filename", "")),
-                        "mimetype": str(getattr(item, "mimetype", "") or getattr(item, "content_type", "") or ""),
-                        "content_type": str(getattr(item, "content_type", "") or getattr(item, "mimetype", "") or ""),
-                    }
+        for item in values:
+            if item is None or not str(getattr(item, "filename", "") or "").strip():
+                continue
+            if len(binary_assets) >= DEFAULT_MAX_UPLOAD_FILES:
+                raise CreateRequestError(
+                    f"A maximum of {DEFAULT_MAX_UPLOAD_FILES} files may be uploaded.",
+                    code="upload_file_count_exceeded",
+                    http_status=413,
+                    details={"maximum": DEFAULT_MAX_UPLOAD_FILES},
                 )
 
-            if normalized_values:
-                uploads[str(field_name)] = normalized_values[0] if len(normalized_values) == 1 else normalized_values
-    except Exception:
-        pass
+            filename = _safe_upload_filename(getattr(item, "filename", ""))
+            suffix = Path(filename).suffix.lower()
+            if suffix not in allowed_extensions:
+                raise CreateRequestError(
+                    f"File type is not supported for {field_name}: {suffix or '(none)'}",
+                    code="upload_file_type_unsupported",
+                    http_status=422,
+                    details={
+                        "field": field_name,
+                        "filename": filename,
+                        "allowed_extensions": sorted(allowed_extensions),
+                    },
+                )
 
+            relative_path = _unique_upload_path(
+                target_prefix,
+                filename,
+                used_paths=used_paths,
+            )
+            try:
+                content = item.read()
+            except Exception as exc:
+                raise CreateRequestError(
+                    f"Uploaded file could not be read: {filename}",
+                    code="upload_read_failed",
+                    http_status=422,
+                    details={"field": field_name, "filename": filename},
+                ) from exc
+            if not isinstance(content, bytes):
+                content = bytes(content or b"")
+            if not content:
+                raise CreateRequestError(
+                    f"Uploaded file is empty: {filename}",
+                    code="upload_empty",
+                    http_status=422,
+                    details={"field": field_name, "filename": filename},
+                )
+
+            content_type = str(
+                getattr(item, "content_type", "")
+                or getattr(item, "mimetype", "")
+                or "application/octet-stream"
+            )
+            metadata = {
+                "field": field_name,
+                "filename": filename,
+                "mimetype": content_type,
+                "content_type": content_type,
+                "kind": kind,
+                "purpose": kind,
+                "relative_path": relative_path,
+                "path": relative_path,
+                "size_bytes": len(content),
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "embedded": True,
+            }
+            normalized_values.append(dict(metadata))
+            binary_assets.append({**metadata, "content": content})
+            used_paths.add(relative_path)
+
+        if normalized_values:
+            uploaded_fields.append(field_name)
+            uploads[field_name] = (
+                normalized_values[0]
+                if len(normalized_values) == 1
+                else normalized_values
+            )
+
+    result["uploaded_file_count"] = len(binary_assets)
+    result["uploaded_file_fields"] = uploaded_fields
     result["uploads"] = uploads
+    result["_binary_assets"] = binary_assets
     return result
+
+
+def _upload_rule_for_field(
+    field_name: str,
+) -> tuple[str, str, frozenset[str]] | None:
+    direct = UPLOAD_FIELD_RULES.get(field_name)
+    if direct is not None:
+        return direct
+    if field_name.startswith("variant_document_files"):
+        return (
+            "variant_documents",
+            "assets/documents/variants",
+            DOCUMENT_UPLOAD_EXTENSIONS,
+        )
+    return None
+
+
+def _unique_upload_path(
+    target_prefix: str,
+    filename: str,
+    *,
+    used_paths: set[str],
+) -> str:
+    safe_prefix = str(target_prefix).strip().strip("/")
+    stem = Path(filename).stem
+    suffix = Path(filename).suffix
+    candidate = f"{safe_prefix}/{filename}"
+    counter = 2
+    while candidate in used_paths:
+        candidate = f"{safe_prefix}/{stem}_{counter}{suffix}"
+        counter += 1
+    return candidate
 
 
 def _mapping_to_plain_dict(mapping: Mapping[str, Any]) -> dict[str, Any]:
@@ -2854,6 +3267,61 @@ def _safe_generator_diagnostics_payload(request_payload: Mapping[str, Any] | Non
 # Template context helpers
 # ---------------------------------------------------------------------------
 
+@lru_cache(maxsize=1)
+def _builtin_definition_catalogs() -> dict[str, list[Any]]:
+    """Load the repository-owned definition catalogs used by the Create UI.
+
+    The generator must remain usable when the optional database/repository
+    layer is empty or unavailable. These JSON files are the canonical bundled
+    definitions and therefore a safe read-only startup fallback.
+    """
+
+    data_root = (
+        Path(__file__).resolve().parent.parent
+        / "src"
+        / "library"
+        / "definitions"
+        / "data"
+    )
+    catalogs: dict[str, list[Any]] = {}
+
+    for dataset in BUILTIN_DEFINITION_DATASETS:
+        items: list[Any] = []
+        path = data_root / f"{dataset}.v1.json"
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            raw_items = payload.get("items", []) if isinstance(payload, Mapping) else []
+            if isinstance(raw_items, list):
+                items = _json_safe(raw_items)
+        except Exception:
+            items = []
+        catalogs[dataset] = items
+
+    return catalogs
+
+
+def _definition_catalog_items(value: Any) -> list[Any]:
+    if isinstance(value, Mapping) and isinstance(value.get("items"), list):
+        return _json_safe(value.get("items"))
+    return _as_list(value)
+
+
+def _with_builtin_definition_fallbacks(
+    records: Mapping[str, Any] | None,
+) -> dict[str, list[Any]]:
+    provided = dict(records or {})
+    builtin = _builtin_definition_catalogs()
+    merged: dict[str, list[Any]] = {}
+
+    for dataset in BUILTIN_DEFINITION_DATASETS:
+        merged[dataset] = (
+            _definition_catalog_items(provided.get(dataset))
+            or _json_safe(builtin.get(dataset, []))
+        )
+
+    return merged
+
+
 def _build_create_template_context(
     *,
     route_health: Mapping[str, Any],
@@ -2916,14 +3384,24 @@ def _build_create_template_context(
         definition_context.get("records"),
         definition_context.get("definitions"),
         definition_context.get("catalogs"),
+        definition_context.get("datasets"),
         definition_context.get("definition_catalogs"),
         definition_context.get("definitionCatalogs"),
         definitions_data.get("records"),
         definitions_data.get("catalogs"),
+        definitions_data.get("datasets"),
         definitions_data.get("definition_catalogs"),
+        _nested_mapping(definitions_data, "definitions.records"),
+        _nested_mapping(definitions_data, "definitions.catalogs"),
+        _nested_mapping(definitions_data, "definitions.datasets"),
+        _nested_mapping(definitions_data, "generator_context.data.definitions.records"),
+        _nested_mapping(definitions_data, "generator_context.data.definitions.catalogs"),
+        _nested_mapping(definitions_data, "generator_context.data.definitions.datasets"),
         options_data.get("definition_catalogs"),
-        options_data.get("definitions"),
+        _nested_mapping(options_data, "definitions.definitions"),
+        _nested_mapping(options_data, "definitions.datasets"),
     )
+    definition_records = _with_builtin_definition_fallbacks(definition_records)
 
     definitions_options = _first_mapping(
         options_data.get("definitions_options"),
@@ -2932,6 +3410,10 @@ def _build_create_template_context(
         definitions_data.get("options"),
         _nested_mapping(definitions_data, "definitions.options"),
     )
+    definitions_options = dict(definitions_options)
+    for _dataset_name, _dataset_items in definition_records.items():
+        if not _definition_catalog_items(definitions_options.get(_dataset_name)):
+            definitions_options[_dataset_name] = _dataset_items
 
     taxonomy_context = _first_mapping(
         context_data.get("taxonomy_context"),
@@ -3007,6 +3489,7 @@ def _build_create_template_context(
         options_data.get("primitiveShapes"),
         definitions_options.get("primitive_shapes"),
         definitions_options.get("primitiveShapes"),
+        BUILTIN_PRIMITIVE_SHAPES,
     )
     units = _first_list(
         options_data.get("units"),
@@ -3067,6 +3550,40 @@ def _build_create_template_context(
         or "unknown"
     )
 
+    template_definitions = dict(definition_context)
+    template_definitions.update(
+        {
+            "ok": True,
+            "ready": True,
+            "options": definitions_options,
+            "records": definition_records,
+            "catalogs": definition_records,
+            "definitions": definition_records,
+        }
+    )
+    template_options = dict(options_data)
+    template_options.update(
+        {
+            "definitions_options": definitions_options,
+            "definition_catalogs": definition_records,
+            "primitive_shapes": primitive_shapes,
+            "units": units,
+            "material_classes": materials,
+            "definitions": template_definitions,
+        }
+    )
+
+    initial_draft = _first_mapping(
+        context_data.get("initial_draft"),
+        context_data.get("initialDraft"),
+        context_data.get("draft"),
+        generator_data.get("initial_draft"),
+        generator_data.get("initialDraft"),
+        options_data.get("initial_draft"),
+        options_data.get("initialDraft"),
+    )
+    initial_draft = _operational_initial_draft(initial_draft)
+
     context = {
         # Jinja render guards. Several existing templates use JSON-style ``null``.
         # Defining it here prevents a Jinja Undefined object from reaching tojson.
@@ -3085,14 +3602,16 @@ def _build_create_template_context(
         "files_api_prefix": "/api/v1/vplib/files",
         "create_page_route": CREATE_PAGE_ROUTE,
 
-        "create_options": options_data,
+        "create_options": template_options,
+        "create_initial_draft": initial_draft,
+        "_initial_draft": initial_draft,
         "create_context": context_data,
-        "create_definition_options": definitions_data,
+        "create_definition_options": template_definitions,
         "create_health": safe_route_health,
         "create_routes": get_create_route_map_response(),
 
         "generator_context": generator_context,
-        "definitions": definition_context,
+        "definitions": template_definitions,
         "definitions_options": definitions_options,
         "definition_catalogs": definition_records,
 
@@ -3100,7 +3619,7 @@ def _build_create_template_context(
         "_definitions_api_prefix": "/api/v1/vplib/definitions",
         "_taxonomy_api_prefix": "/api/v1/vplib/taxonomy",
         "_files_api_prefix": "/api/v1/vplib/files",
-        "_options": options_data,
+        "_options": template_options,
         "_health": safe_route_health,
         "_write_enabled": _safe_bool(options_data.get("write_enabled") or generator_data.get("write_enabled"), default=False),
         "_health_ok": _safe_bool(safe_route_health.get("ok") or safe_route_health.get("healthy"), default=False),
@@ -3130,7 +3649,7 @@ def _build_create_template_context(
         # Explicit payload blocks consumed by _context_json.html.
         "_context_generator_raw": generator_context,
         "_context_generator_data": generator_data,
-        "_context_definition_block": definition_context,
+        "_context_definition_block": template_definitions,
         "_context_definition_records": definition_records,
         "_context_definitions_options": definitions_options,
         "_context_taxonomy": taxonomy_context,

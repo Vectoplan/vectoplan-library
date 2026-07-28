@@ -33,7 +33,7 @@ import time
 import uuid
 from collections.abc import Mapping as MappingABC
 from collections.abc import Sequence as SequenceABC
-from dataclasses import dataclass, field, fields, is_dataclass
+from dataclasses import dataclass, field as dataclass_field, fields, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple
@@ -593,9 +593,9 @@ class GeneratorContextIssue(GeneratorSerializableMixin):
     field: Optional[str] = None
     path: Optional[str] = None
     source: GeneratorContextSource = GeneratorContextSource.UNKNOWN
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: Dict[str, Any] = dataclass_field(default_factory=dict)
     active: bool = True
-    created_at: str = field(default_factory=utc_now_iso)
+    created_at: str = dataclass_field(default_factory=utc_now_iso)
 
     @classmethod
     def from_mapping(cls, value: Any) -> "GeneratorContextIssue":
@@ -665,11 +665,11 @@ class GeneratorContextIssue(GeneratorSerializableMixin):
 class GeneratorContextDiagnostics(GeneratorSerializableMixin):
     status: GeneratorContextStatus = GeneratorContextStatus.UNKNOWN
     healthy: bool = False
-    issues: List[GeneratorContextIssue] = field(default_factory=list)
-    checked_at: str = field(default_factory=utc_now_iso)
+    issues: List[GeneratorContextIssue] = dataclass_field(default_factory=list)
+    checked_at: str = dataclass_field(default_factory=utc_now_iso)
     duration_ms: Optional[int] = None
-    timings_ms: Dict[str, int] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    timings_ms: Dict[str, int] = dataclass_field(default_factory=dict)
+    metadata: Dict[str, Any] = dataclass_field(default_factory=dict)
 
     @classmethod
     def from_mapping(cls, value: Any) -> "GeneratorContextDiagnostics":
@@ -790,7 +790,7 @@ class GeneratorRouteRef(GeneratorSerializableMixin):
     required: bool = False
     available: bool = True
     source: GeneratorContextSource = GeneratorContextSource.DEFAULT
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = dataclass_field(default_factory=dict)
 
     @classmethod
     def from_mapping(cls, key: str, value: Any) -> "GeneratorRouteRef":
@@ -814,9 +814,9 @@ class GeneratorRouteRef(GeneratorSerializableMixin):
 class GeneratorRouteContext(GeneratorSerializableMixin):
     status: GeneratorContextStatus = GeneratorContextStatus.READY
     source: GeneratorContextSource = GeneratorContextSource.DEFAULT
-    routes: Dict[str, GeneratorRouteRef] = field(default_factory=dict)
-    diagnostics: GeneratorContextDiagnostics = field(default_factory=GeneratorContextDiagnostics)
-    loaded_at: str = field(default_factory=utc_now_iso)
+    routes: Dict[str, GeneratorRouteRef] = dataclass_field(default_factory=dict)
+    diagnostics: GeneratorContextDiagnostics = dataclass_field(default_factory=GeneratorContextDiagnostics)
+    loaded_at: str = dataclass_field(default_factory=utc_now_iso)
 
     @classmethod
     def default(cls) -> "GeneratorRouteContext":
@@ -878,19 +878,19 @@ class GeneratorDefinitionContext(GeneratorSerializableMixin):
     source: GeneratorContextSource = GeneratorContextSource.UNKNOWN
     schema_version: str = ""
     definitions_version: str = ""
-    datasets: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    variables: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    units: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    materials: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    document_types: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    object_kinds: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    family_profiles: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    variant_profiles: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    profile_bindings: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    overrides: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    raw_payload: Dict[str, Any] = field(default_factory=dict)
-    diagnostics: GeneratorContextDiagnostics = field(default_factory=GeneratorContextDiagnostics)
-    loaded_at: str = field(default_factory=utc_now_iso)
+    datasets: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    variables: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    units: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    materials: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    document_types: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    object_kinds: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    family_profiles: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    variant_profiles: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    profile_bindings: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    overrides: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    raw_payload: Dict[str, Any] = dataclass_field(default_factory=dict)
+    diagnostics: GeneratorContextDiagnostics = dataclass_field(default_factory=GeneratorContextDiagnostics)
+    loaded_at: str = dataclass_field(default_factory=utc_now_iso)
 
     @classmethod
     def from_mapping(cls, value: Any) -> "GeneratorDefinitionContext":
@@ -1017,12 +1017,12 @@ class GeneratorTaxonomyContext(GeneratorSerializableMixin):
     category: str = ""
     subcategory: str = ""
     taxonomy_path: str = ""
-    nodes: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    tree: Dict[str, Any] = field(default_factory=dict)
-    create_options: Dict[str, Any] = field(default_factory=dict)
-    resolved_payload: Dict[str, Any] = field(default_factory=dict)
-    diagnostics: GeneratorContextDiagnostics = field(default_factory=GeneratorContextDiagnostics)
-    loaded_at: str = field(default_factory=utc_now_iso)
+    nodes: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    tree: Dict[str, Any] = dataclass_field(default_factory=dict)
+    create_options: Dict[str, Any] = dataclass_field(default_factory=dict)
+    resolved_payload: Dict[str, Any] = dataclass_field(default_factory=dict)
+    diagnostics: GeneratorContextDiagnostics = dataclass_field(default_factory=GeneratorContextDiagnostics)
+    loaded_at: str = dataclass_field(default_factory=utc_now_iso)
 
     @classmethod
     def from_mapping(cls, value: Any) -> "GeneratorTaxonomyContext":
@@ -1087,17 +1087,17 @@ class GeneratorTaxonomyContext(GeneratorSerializableMixin):
 class GeneratorUploadContext(GeneratorSerializableMixin):
     status: GeneratorContextStatus = GeneratorContextStatus.UNKNOWN
     source: GeneratorContextSource = GeneratorContextSource.UNKNOWN
-    constraints: Dict[str, Any] = field(default_factory=dict)
-    allowed_extensions: List[str] = field(default_factory=list)
-    blocked_extensions: List[str] = field(default_factory=list)
-    allowed_mime_types: List[str] = field(default_factory=list)
-    blocked_mime_types: List[str] = field(default_factory=list)
+    constraints: Dict[str, Any] = dataclass_field(default_factory=dict)
+    allowed_extensions: List[str] = dataclass_field(default_factory=list)
+    blocked_extensions: List[str] = dataclass_field(default_factory=list)
+    allowed_mime_types: List[str] = dataclass_field(default_factory=list)
+    blocked_mime_types: List[str] = dataclass_field(default_factory=list)
     max_size_mb: Optional[float] = None
-    storage_backends: List[str] = field(default_factory=list)
-    document_types: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    upload_groups: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    diagnostics: GeneratorContextDiagnostics = field(default_factory=GeneratorContextDiagnostics)
-    loaded_at: str = field(default_factory=utc_now_iso)
+    storage_backends: List[str] = dataclass_field(default_factory=list)
+    document_types: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    upload_groups: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    diagnostics: GeneratorContextDiagnostics = dataclass_field(default_factory=GeneratorContextDiagnostics)
+    loaded_at: str = dataclass_field(default_factory=utc_now_iso)
 
     @classmethod
     def from_mapping(cls, value: Any) -> "GeneratorUploadContext":
@@ -1173,10 +1173,10 @@ class GeneratorUserContext(GeneratorSerializableMixin):
     active_collection_uid: str = ""
     active_collection_key: str = ""
     active_slot_index: Optional[int] = None
-    roles: List[str] = field(default_factory=list)
-    permissions: List[str] = field(default_factory=list)
-    payload: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    roles: List[str] = dataclass_field(default_factory=list)
+    permissions: List[str] = dataclass_field(default_factory=list)
+    payload: Dict[str, Any] = dataclass_field(default_factory=dict)
+    metadata: Dict[str, Any] = dataclass_field(default_factory=dict)
 
     @classmethod
     def default(cls) -> "GeneratorUserContext":
@@ -1216,14 +1216,14 @@ class GeneratorDraftContext(GeneratorSerializableMixin):
     target_item_ref: str = ""
     base_revision_ref: str = ""
     published_revision_ref: str = ""
-    payload: Dict[str, Any] = field(default_factory=dict)
-    variants: List[Dict[str, Any]] = field(default_factory=list)
-    assets: List[Dict[str, Any]] = field(default_factory=list)
-    documents: List[Dict[str, Any]] = field(default_factory=list)
-    validation_issues: List[Dict[str, Any]] = field(default_factory=list)
-    context_snapshot: Dict[str, Any] = field(default_factory=dict)
-    diagnostics: GeneratorContextDiagnostics = field(default_factory=GeneratorContextDiagnostics)
-    loaded_at: str = field(default_factory=utc_now_iso)
+    payload: Dict[str, Any] = dataclass_field(default_factory=dict)
+    variants: List[Dict[str, Any]] = dataclass_field(default_factory=list)
+    assets: List[Dict[str, Any]] = dataclass_field(default_factory=list)
+    documents: List[Dict[str, Any]] = dataclass_field(default_factory=list)
+    validation_issues: List[Dict[str, Any]] = dataclass_field(default_factory=list)
+    context_snapshot: Dict[str, Any] = dataclass_field(default_factory=dict)
+    diagnostics: GeneratorContextDiagnostics = dataclass_field(default_factory=GeneratorContextDiagnostics)
+    loaded_at: str = dataclass_field(default_factory=utc_now_iso)
 
     @classmethod
     def empty(cls) -> "GeneratorDraftContext":
@@ -1280,12 +1280,12 @@ class GeneratorPublishedContext(GeneratorSerializableMixin):
     package_id: str = ""
     revision_hash: str = ""
     current_revision_ref: str = ""
-    item_payload: Dict[str, Any] = field(default_factory=dict)
-    variants: List[Dict[str, Any]] = field(default_factory=list)
-    assets: List[Dict[str, Any]] = field(default_factory=list)
-    documents: List[Dict[str, Any]] = field(default_factory=list)
-    diagnostics: GeneratorContextDiagnostics = field(default_factory=GeneratorContextDiagnostics)
-    loaded_at: str = field(default_factory=utc_now_iso)
+    item_payload: Dict[str, Any] = dataclass_field(default_factory=dict)
+    variants: List[Dict[str, Any]] = dataclass_field(default_factory=list)
+    assets: List[Dict[str, Any]] = dataclass_field(default_factory=list)
+    documents: List[Dict[str, Any]] = dataclass_field(default_factory=list)
+    diagnostics: GeneratorContextDiagnostics = dataclass_field(default_factory=GeneratorContextDiagnostics)
+    loaded_at: str = dataclass_field(default_factory=utc_now_iso)
 
     @classmethod
     def empty(cls) -> "GeneratorPublishedContext":
@@ -1329,12 +1329,12 @@ class GeneratorPublishedContext(GeneratorSerializableMixin):
 class GeneratorFileContext(GeneratorSerializableMixin):
     status: GeneratorContextStatus = GeneratorContextStatus.UNKNOWN
     source: GeneratorContextSource = GeneratorContextSource.UNKNOWN
-    files: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    versions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    links: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    context_files: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
-    diagnostics: GeneratorContextDiagnostics = field(default_factory=GeneratorContextDiagnostics)
-    loaded_at: str = field(default_factory=utc_now_iso)
+    files: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    versions: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    links: Dict[str, Dict[str, Any]] = dataclass_field(default_factory=dict)
+    context_files: Dict[str, List[Dict[str, Any]]] = dataclass_field(default_factory=dict)
+    diagnostics: GeneratorContextDiagnostics = dataclass_field(default_factory=GeneratorContextDiagnostics)
+    loaded_at: str = dataclass_field(default_factory=utc_now_iso)
 
     @classmethod
     def from_mapping(cls, value: Any) -> "GeneratorFileContext":
@@ -1386,10 +1386,10 @@ class GeneratorCapabilities(GeneratorSerializableMixin):
     supports_create_preview: bool = False
     payload_schema_version: str = "create_payload.v1"
     api_version: str = "v1"
-    supported_actions: List[str] = field(default_factory=lambda: [item.value for item in GeneratorContextAction])
-    supported_object_kinds: List[str] = field(default_factory=list)
-    supported_modules: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    supported_actions: List[str] = dataclass_field(default_factory=lambda: [item.value for item in GeneratorContextAction])
+    supported_object_kinds: List[str] = dataclass_field(default_factory=list)
+    supported_modules: List[str] = dataclass_field(default_factory=list)
+    metadata: Dict[str, Any] = dataclass_field(default_factory=dict)
 
     @classmethod
     def from_mapping(cls, value: Any) -> "GeneratorCapabilities":
@@ -1446,24 +1446,24 @@ class GeneratorCapabilities(GeneratorSerializableMixin):
 @dataclass
 class GeneratorContext(GeneratorSerializableMixin):
     schema_version: str = GENERATOR_CONTEXT_SCHEMA_VERSION
-    context_uid: str = field(default_factory=new_context_uid)
+    context_uid: str = dataclass_field(default_factory=new_context_uid)
     status: GeneratorContextStatus = GeneratorContextStatus.UNKNOWN
     source: GeneratorContextSource = GeneratorContextSource.MIXED
-    created_at: str = field(default_factory=utc_now_iso)
-    loaded_at: str = field(default_factory=utc_now_iso)
-    routes: GeneratorRouteContext = field(default_factory=GeneratorRouteContext.default)
-    user: GeneratorUserContext = field(default_factory=GeneratorUserContext.default)
-    definitions: GeneratorDefinitionContext = field(default_factory=GeneratorDefinitionContext)
-    taxonomy: GeneratorTaxonomyContext = field(default_factory=GeneratorTaxonomyContext)
-    uploads: GeneratorUploadContext = field(default_factory=GeneratorUploadContext)
-    files: GeneratorFileContext = field(default_factory=GeneratorFileContext)
-    draft: GeneratorDraftContext = field(default_factory=GeneratorDraftContext.empty)
-    published: GeneratorPublishedContext = field(default_factory=GeneratorPublishedContext.empty)
-    capabilities: GeneratorCapabilities = field(default_factory=GeneratorCapabilities)
-    diagnostics: GeneratorContextDiagnostics = field(default_factory=GeneratorContextDiagnostics)
-    request_payload: Dict[str, Any] = field(default_factory=dict)
-    generator_payload: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    created_at: str = dataclass_field(default_factory=utc_now_iso)
+    loaded_at: str = dataclass_field(default_factory=utc_now_iso)
+    routes: GeneratorRouteContext = dataclass_field(default_factory=GeneratorRouteContext.default)
+    user: GeneratorUserContext = dataclass_field(default_factory=GeneratorUserContext.default)
+    definitions: GeneratorDefinitionContext = dataclass_field(default_factory=GeneratorDefinitionContext)
+    taxonomy: GeneratorTaxonomyContext = dataclass_field(default_factory=GeneratorTaxonomyContext)
+    uploads: GeneratorUploadContext = dataclass_field(default_factory=GeneratorUploadContext)
+    files: GeneratorFileContext = dataclass_field(default_factory=GeneratorFileContext)
+    draft: GeneratorDraftContext = dataclass_field(default_factory=GeneratorDraftContext.empty)
+    published: GeneratorPublishedContext = dataclass_field(default_factory=GeneratorPublishedContext.empty)
+    capabilities: GeneratorCapabilities = dataclass_field(default_factory=GeneratorCapabilities)
+    diagnostics: GeneratorContextDiagnostics = dataclass_field(default_factory=GeneratorContextDiagnostics)
+    request_payload: Dict[str, Any] = dataclass_field(default_factory=dict)
+    generator_payload: Dict[str, Any] = dataclass_field(default_factory=dict)
+    metadata: Dict[str, Any] = dataclass_field(default_factory=dict)
 
     @classmethod
     def empty(cls) -> "GeneratorContext":
@@ -1645,8 +1645,8 @@ class GeneratorContextCacheEntry(GeneratorSerializableMixin):
     value: Any
     created_monotonic: float
     ttl_seconds: int = DEFAULT_CONTEXT_TTL_SECONDS
-    created_at: str = field(default_factory=utc_now_iso)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    created_at: str = dataclass_field(default_factory=utc_now_iso)
+    metadata: Dict[str, Any] = dataclass_field(default_factory=dict)
 
     @property
     def age_seconds(self) -> float:
@@ -1666,7 +1666,7 @@ class GeneratorContextCacheResult(GeneratorSerializableMixin):
     hit: bool = False
     stale: bool = False
     error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = dataclass_field(default_factory=dict)
 
     @property
     def ok(self) -> bool:

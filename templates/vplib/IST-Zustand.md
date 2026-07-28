@@ -243,7 +243,10 @@ Sichtbar:
 
 - Variablen
 - Variablen-Varianten
-- Unterlagen / technische Hinweise nur wenn sinnvoll
+- Unterlagen ausschließlich innerhalb der jeweiligen Variablen-Variante
+
+Der frühere globale Unterlagen-Block in Step 3 ist entfernt. Damit gibt es dort
+keine losgelöste Dateiauswahl ohne Variantenbezug mehr.
 
 Technisch bleibt erhalten:
 
@@ -281,6 +284,8 @@ Felder:
 - `editor_cells_z`
 - optional `geometry_model_files`
 - `geometry_model_uploads_json`
+- optional `texture_files`
+- `texture_uploads_json`
 
 Aktueller Layout-Stand:
 
@@ -307,7 +312,8 @@ Wichtig:
 - Die sichtbare Typ-Auswahl schreibt nicht direkt `name="object_kind"`, damit kein doppeltes FormData entsteht.
 - Das JS synchronisiert den Wert in das bestehende hidden field `object_kind`.
 - Bei Typänderung wird Profilauflösung erneut angefragt.
-- 3D-Dateien werden aktuell nur lokal als Metadaten vorbereitet.
+- 3D-Dateien und Texturen werden als echte Binärdaten übertragen und unter
+  `assets/models/` beziehungsweise `assets/textures/` in `.vplib` eingebettet.
 
 ### `create/sections/_technical.html`
 
@@ -747,7 +753,7 @@ technical_document_uploads_json
 ## 10. Aktuelle offene Punkte
 
 1. `create.py` bleibt HTTP-Adapter; Package-Erzeugung, Download und Source-Save werden an Route-/Create-Services delegiert.
-2. Der Upload-Metadatenvertrag ist vorhanden; die vollständige Zuordnung echter `request.files` zu Package-Assets und Dokumenten ist weiterhin End-to-End zu verifizieren.
+2. Echte `request.files` werden validiert, gehasht und den Package-Assets beziehungsweise Varianten-Dokumenten zugeordnet.
 3. Der aktuelle Create-Endpunkt rendert `vplib/create.html`; alte `library_admin/create.html`-Referenzen gelten nur noch als Legacy-/Migrationshinweis.
 4. Die folgenden Variant-Runtimes werden inzwischen explizit geladen und müssen als zusammenhängender Runtime-Vertrag gepflegt werden:
    - Summary
@@ -758,10 +764,10 @@ technical_document_uploads_json
    - Table
    - Definitions Runtime
 5. Preview bleibt bis zur echten 3D-Integration bewusst roter Dev-Platzhalter.
-6. Upload-UI für technische Dokumente und `document_list`-Variablen ist konzeptionell vorbereitet, aber backendseitig offen.
-7. Step 4 besitzt einen optionalen 3D-Modell-Strip. `geometry_model_files` und `geometry_model_uploads_json` sind deshalb als stabiler Vertrag zu behandeln.
-8. `POST /api/v1/vplib/create/save` schreibt erfolgreich in den Source-Bereich, führt aber noch keinen automatischen `POST /api/v1/vplib/library/sync` aus.
-9. Die Published-Liste `/api/v1/vplib/library/items` bleibt nach einem reinen Source-Save leer, bis der DB-Sync erfolgreich ausgeführt wurde.
+6. Varianten-Unterlagen werden im Variant-Drawer erfasst und als echte Dateien im Package gespeichert; der globale Unterlagen-Block in Step 3 existiert nicht mehr.
+7. Step 4 besitzt getrennte Uploads für 3D-Modelle und Texturen. Die Feldnamen und Asset-Zielpfade sind ein stabiler Vertrag.
+8. `POST /api/v1/vplib/create/save` schreibt standardmäßig in den Source-Bereich und fordert anschließend automatisch den Library-Sync an.
+9. Der Save-Response enthält das Sync-Ergebnis; bei erfolgreichem DB-Sync steht das neue oder aktualisierte Package unmittelbar im veröffentlichten Read-Model bereit.
 10. Die drei Action-Bindungsebenen sind absichtlich redundant; Änderungen müssen den gemeinsamen Event-Marker respektieren, damit keine Aktion doppelt läuft.
 
 ---
@@ -775,7 +781,7 @@ Bei Änderungen an Templates:
 - Sichtbare Sprache in Step 3 bleibt „Variablen“.
 - Technische Objektlogik darf existieren, soll aber nicht sichtbar als „Objekt“ dominieren.
 - Backend-Feldnamen nicht ohne Backend-Abgleich ändern.
-- Uploads nicht als echte Dateiübertragung ausgeben, solange Backend-Dateiverarbeitung fehlt.
+- Upload-Feldnamen, erlaubte Endungen und Package-Zielpfade immer gemeinsam in UI, Route und Create-Service pflegen.
 - Scroll-Fixes bevorzugt zentral in `static/css/vplib/create.css` lösen.
 - JS-Runtimes defensiv schreiben und Reentrancy vermeiden.
 - Event-Namen stabil halten.

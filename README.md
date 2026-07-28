@@ -167,7 +167,41 @@ ziegelwand.vplib
 Das bedeutet:
 
 * im Service und in Git wird mit Ordnerpaketen gearbeitet
-* später kann daraus ein eigenes Austausch-/Importformat werden
+* `.vplib`-Archive enthalten dieselbe Paketstruktur einschließlich eingebetteter Assets
+
+### Assets im VPLIB-Generator
+
+`/create` überträgt ausgewählte Dateien als `multipart/form-data` und legt die echten
+Binärdaten im Paket ab:
+
+* 3D-Modelle unter `assets/models/` (`.glb`, `.gltf`, `.obj`, `.fbx`, `.stl`, `.bin`, `.mtl`, `.zip`)
+* Texturen unter `assets/textures/` (`.png`, `.jpg`, `.jpeg`, `.webp`, `.tga`, `.bmp`, `.ktx`, `.ktx2`)
+* Varianten-Unterlagen unter `documents/variants/`
+
+`assets/index.json` und das Manifest enthalten Größe, SHA-256-Prüfsumme und
+Paketpfad jedes Assets. `POST /api/v1/vplib/create/save` speichert das Paket
+standardmäßig direkt in der Source-Library, erlaubt Updates und fordert danach
+automatisch den Library-Sync an.
+
+### Gesamte Creative Library austauschen
+
+Für vollständige Bibliotheken gibt es das ZIP-kompatible Format `.vpcreative`.
+Es enthält `creative-library.manifest.json`, alle Paketdateien unter `packages/`
+und eine SHA-256-Prüfsumme pro Datei.
+
+* `GET /api/v1/vplib/library/export` exportiert die vollständige Source-Library.
+* `POST /api/v1/vplib/library/import` importiert eine Multipart-Datei im Feld
+  `file` oder einen rohen Request-Body.
+* `mode=merge` ergänzt die bestehende Library; Konflikte benötigen
+  `overwrite=true`.
+* `mode=replace` ersetzt die Source-Library atomar.
+* `sync=true` synchronisiert einen erfolgreichen Import anschließend in das
+  veröffentlichte Read-Model.
+
+Beim Start wird eine leere `creative_library/default.vpcreative` angelegt, falls
+noch kein Creative-Library-Archiv existiert. Die Root-Verzeichnisse können über
+`VECTOPLAN_LIBRARY_SOURCE_ROOT` und `VECTOPLAN_LIBRARY_CREATIVE_ROOT`
+konfiguriert werden.
 
 ---
 

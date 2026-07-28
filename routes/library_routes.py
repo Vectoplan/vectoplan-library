@@ -96,7 +96,9 @@ ROUTES_ROUTE: Final[str] = "/routes"
 SELFTEST_ROUTE: Final[str] = "/selftest"
 
 SCAN_ROUTE: Final[str] = "/scan"
-SYNC_ROUTE: Final[str] = \
+SYNC_ROUTE: Final[str] = "/sync"
+EXPORT_ROUTE: Final[str] = "/export"
+IMPORT_ROUTE: Final[str] = "/import"
 
 BLOCKS_ROUTE: Final[str] = "/blocks"
 TREE_ROUTE: Final[str] = "/tree"
@@ -924,7 +926,9 @@ def make_route_metadata() -> dict[str, Any]:
             "routes": f"{route_prefix}{ROUTES_ROUTE}",
             "selftest": f"{route_prefix}{SELFTEST_ROUTE}",
             "scan": f"{route_prefix}{SCAN_ROUTE}",
-            \
+            "sync": f"{route_prefix}{SYNC_ROUTE}",
+            "export": f"{route_prefix}{EXPORT_ROUTE}",
+            "import": f"{route_prefix}{IMPORT_ROUTE}",
             "blocks": f"{route_prefix}{BLOCKS_ROUTE}",
             "block_detail": f"{route_prefix}/blocks/<block_id>",
             "block_variants": f"{route_prefix}/blocks/<block_id>/variants",
@@ -2315,7 +2319,9 @@ __all__: Final[tuple[str, ...]] = (
     "ROUTES_ROUTE",
     "SELFTEST_ROUTE",
     "SCAN_ROUTE",
-    \
+    "SYNC_ROUTE",
+    "EXPORT_ROUTE",
+    "IMPORT_ROUTE",
     "BLOCKS_ROUTE",
     "TREE_ROUTE",
     "CACHE_CLEAR_ROUTE",

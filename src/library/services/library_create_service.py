@@ -1013,7 +1013,8 @@ def build_package_plan(payload: Any, *, include_documents: bool = True) -> Creat
 
         draft_data = validation.data.get("draft", {})
         draft, normalize_warnings = _normalize_draft(draft_data)
-        documents = build_package_documents(draft)
+        binary_assets = _normalize_binary_assets(payload)
+        documents = _attach_assets_to_documents(build_package_documents(draft), binary_assets)
 
         package_relative_path = draft.source_path
         source_root = get_source_root()
@@ -1037,6 +1038,22 @@ def build_package_plan(payload: Any, *, include_documents: bool = True) -> Creat
                 }
             )
 
+        for asset in binary_assets:
+            relative_path = asset["relative_path"]
+            directory = str(Path(relative_path).parent).replace("\\", "/")
+            if directory != ".":
+                directory_set.add(directory)
+            file_entries.append(
+                {
+                    "path": relative_path,
+                    "directory": "" if directory == "." else directory,
+                    "size_bytes": asset["size_bytes"],
+                    "sha256": asset["sha256"],
+                    "kind": asset["kind"],
+                    "binary": True,
+                }
+            )
+
         data: dict[str, Any] = {
             "vplib_uid": draft.vplib_uid,
             "package_path": package_relative_path,
@@ -1052,6 +1069,8 @@ def build_package_plan(payload: Any, *, include_documents: bool = True) -> Creat
             "files": sorted(file_entries, key=lambda item: item["path"]),
             "file_count": len(file_entries),
             "directory_count": len(directory_set),
+            "assets": [_asset_metadata(asset) for asset in binary_assets],
+            "asset_count": len(binary_assets),
         }
 
         if include_documents:
@@ -1099,6 +1118,7 @@ def build_vplib_archive(payload: Any) -> tuple[str, bytes, CreateResult]:
 
         draft = plan.data.get("draft") or {}
         documents = plan.data.get("documents") or {}
+        binary_assets = _normalize_binary_assets(payload)
         if not isinstance(documents, Mapping) or not documents:
             return (
                 "invalid.vplib",
@@ -1152,6 +1172,12 @@ def build_vplib_archive(payload: Any) -> tuple[str, bytes, CreateResult]:
                     raise ValueError(f"Blocked executable path in archive: {relative_path}")
                 serialized = _serialize_document(relative_path, documents[relative_path])
                 _write_deterministic_zip_entry(archive, relative_path, serialized.encode("utf-8"))
+            for asset in sorted(binary_assets, key=lambda item: item["relative_path"]):
+                relative_path = asset["relative_path"]
+                _assert_safe_relative_file(relative_path)
+                if _is_blocked_executable_path(relative_path):
+                    raise ValueError(f"Blocked executable path in archive: {relative_path}")
+                _write_deterministic_zip_entry(archive, relative_path, asset["content"])
 
         archive_bytes = archive_buffer.getvalue()
         archive_validation = validate_vplib_archive_bytes(
@@ -1526,6 +1552,7 @@ def save_package(payload: Any, *, overwrite: bool | None = None) -> CreateResult
 
         draft = plan.data.get("draft") or {}
         documents = plan.data.get("documents") or {}
+        binary_assets = _normalize_binary_assets(payload)
         source_parts = draft.get("source_parts") or []
         uid = _extract_vplib_uid_from_any(plan.data) or _extract_vplib_uid_from_any(draft)
 
@@ -1617,6 +1644,23 @@ def save_package(payload: Any, *, overwrite: bool | None = None) -> CreateResult
                     "absolute_path": str(target_file),
                     "size_bytes": len(serialized.encode("utf-8")),
                     "sha256": hashlib.sha256(serialized.encode("utf-8")).hexdigest(),
+                }
+            )
+
+        for asset in sorted(binary_assets, key=lambda item: item["relative_path"]):
+            relative_path = asset["relative_path"]
+            _assert_safe_relative_file(relative_path)
+            target_file = _safe_join(target_dir, relative_path)
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            _write_bytes_atomic(target_file, asset["content"])
+            written_files.append(
+                {
+                    "path": relative_path,
+                    "absolute_path": str(target_file),
+                    "size_bytes": asset["size_bytes"],
+                    "sha256": asset["sha256"],
+                    "kind": asset["kind"],
+                    "binary": True,
                 }
             )
 
@@ -1731,7 +1775,7 @@ def build_publish_bundle_from_create_payload(payload: Any) -> CreateResult:
             "generator_payload": draft_service_payload.get("generator_payload") or {},
             "variants": variants,
             "documents": documents,
-            "assets": [],
+            "assets": [_asset_metadata(asset) for asset in _normalize_binary_assets(payload)],
             "document_bundle": {
                 "manifest": manifest,
                 "family": family,
@@ -1739,7 +1783,7 @@ def build_publish_bundle_from_create_payload(payload: Any) -> CreateResult:
                 "modules": modules,
                 "variants": variants,
                 "documents": documents,
-                "assets": [],
+                "assets": [_asset_metadata(asset) for asset in _normalize_binary_assets(payload)],
             },
         }
 
@@ -2680,6 +2724,7 @@ def _normalize_create_payload_contract(
 ) -> dict[str, Any]:
     """Apply the canonical route payload normalizer when available."""
     base = _coerce_payload_mapping(payload)
+    binary_assets = base.pop("_binary_assets", None)
 
     try:
         module = _load_variant_payload_service_module()
@@ -2692,6 +2737,8 @@ def _normalize_create_payload_contract(
                 details={"type": type(exc).__name__, "message": str(exc)},
             )
         )
+        if isinstance(binary_assets, list):
+            base["_binary_assets"] = binary_assets
         return base
 
     normalizer = None
@@ -2713,6 +2760,8 @@ def _normalize_create_payload_contract(
                 field="payload",
             )
         )
+        if isinstance(binary_assets, list):
+            base["_binary_assets"] = binary_assets
         return base
 
     last_type_error: BaseException | None = None
@@ -2731,7 +2780,10 @@ def _normalize_create_payload_contract(
             normalized = normalizer(base, **kwargs)
             if not isinstance(normalized, Mapping):
                 raise TypeError("Create payload normalizer returned a non-mapping value.")
-            return _normalize_form_mapping(dict(normalized))
+            normalized_mapping = _normalize_form_mapping(dict(normalized))
+            if isinstance(binary_assets, list):
+                normalized_mapping["_binary_assets"] = binary_assets
+            return normalized_mapping
         except TypeError as exc:
             last_type_error = exc
             continue
@@ -2756,6 +2808,8 @@ def _normalize_create_payload_contract(
                 details={"message": str(last_type_error)},
             )
         )
+    if isinstance(binary_assets, list):
+        base["_binary_assets"] = binary_assets
     return base
 
 
@@ -4204,15 +4258,32 @@ def _normalize_form_mapping(payload: dict[str, Any]) -> dict[str, Any]:
         {"classification[domain]": "hochbau"} -> {"classification": {"domain": "hochbau"}}
     """
     normalized: dict[str, Any] = {}
+    collection_fields = {
+        "_binary_assets",
+        "definition_variants",
+        "definitionVariants",
+        "variants",
+        "variables",
+        "material_classes",
+        "assets",
+        "documents",
+        "host_rules",
+        "validation_issues",
+    }
 
     for key, value in payload.items():
+        key_text = str(key)
         if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-            if len(value) == 1:
-                normalized[str(key)] = value[0]
+            values = list(value)
+            contains_objects = any(isinstance(item, Mapping) for item in values)
+            if key_text in collection_fields or contains_objects:
+                normalized[key_text] = values
+            elif len(values) == 1:
+                normalized[key_text] = values[0]
             else:
-                normalized[str(key)] = list(value)
+                normalized[key_text] = values
         else:
-            normalized[str(key)] = value
+            normalized[key_text] = value
 
     indexed_prefixes = {
         "variants",
@@ -4887,6 +4958,113 @@ def _is_blocked_executable_path(path: str | Path) -> bool:
     return suffix in EXECUTABLE_EXTENSIONS_BLOCKLIST
 
 
+def _normalize_binary_assets(payload: Any) -> list[dict[str, Any]]:
+    mapping = _coerce_payload_mapping(payload)
+    raw_assets = mapping.get("_binary_assets")
+    if raw_assets is None:
+        return []
+    if not isinstance(raw_assets, list):
+        raise ValueError("_binary_assets must be a list.")
+
+    normalized: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
+    for index, raw_asset in enumerate(raw_assets):
+        if not isinstance(raw_asset, Mapping):
+            raise ValueError(f"Binary asset at index {index} must be an object.")
+        content = raw_asset.get("content")
+        if isinstance(content, bytearray):
+            content = bytes(content)
+        elif isinstance(content, memoryview):
+            content = content.tobytes()
+        if not isinstance(content, bytes) or not content:
+            raise ValueError(f"Binary asset at index {index} has no content.")
+
+        relative_path = str(
+            raw_asset.get("relative_path")
+            or raw_asset.get("path")
+            or ""
+        ).replace("\\", "/").strip()
+        _assert_safe_relative_file(relative_path)
+        if relative_path in seen_paths:
+            raise ValueError(f"Duplicate binary asset path: {relative_path}")
+        if _is_blocked_executable_path(relative_path):
+            raise ValueError(f"Blocked executable binary asset: {relative_path}")
+
+        kind = str(raw_asset.get("kind") or "asset").strip().lower()
+        allowed_by_kind = {
+            "geometry_model": {".glb", ".gltf", ".obj", ".fbx", ".stl", ".bin", ".mtl", ".zip"},
+            "textures": {".png", ".jpg", ".jpeg", ".webp", ".tga", ".bmp", ".ktx", ".ktx2"},
+            "technical_documents": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt", ".md", ".png", ".jpg", ".jpeg", ".webp", ".zip"},
+            "variant_documents": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt", ".md", ".png", ".jpg", ".jpeg", ".webp", ".zip"},
+        }
+        allowed_extensions = allowed_by_kind.get(kind)
+        suffix = Path(relative_path).suffix.lower()
+        if allowed_extensions is None or suffix not in allowed_extensions:
+            raise ValueError(f"Unsupported binary asset type for {kind}: {suffix or '(none)'}")
+
+        actual_sha256 = hashlib.sha256(content).hexdigest()
+        normalized.append(
+            {
+                "field": str(raw_asset.get("field") or ""),
+                "filename": Path(relative_path).name,
+                "kind": kind,
+                "purpose": str(raw_asset.get("purpose") or kind),
+                "content_type": str(raw_asset.get("content_type") or raw_asset.get("mimetype") or "application/octet-stream"),
+                "relative_path": relative_path,
+                "path": relative_path,
+                "size_bytes": len(content),
+                "sha256": actual_sha256,
+                "embedded": True,
+                "content": content,
+            }
+        )
+        seen_paths.add(relative_path)
+    return normalized
+
+
+def _asset_metadata(asset: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "field": str(asset.get("field") or ""),
+        "filename": str(asset.get("filename") or ""),
+        "kind": str(asset.get("kind") or "asset"),
+        "purpose": str(asset.get("purpose") or asset.get("kind") or "asset"),
+        "content_type": str(asset.get("content_type") or "application/octet-stream"),
+        "relative_path": str(asset.get("relative_path") or asset.get("path") or ""),
+        "path": str(asset.get("relative_path") or asset.get("path") or ""),
+        "size_bytes": int(asset.get("size_bytes") or 0),
+        "sha256": str(asset.get("sha256") or ""),
+        "embedded": True,
+    }
+
+
+def _attach_assets_to_documents(
+    documents: Mapping[str, Any],
+    binary_assets: list[dict[str, Any]],
+) -> dict[str, Any]:
+    result = {str(path): _json_safe(content) for path, content in documents.items()}
+    asset_entries = [_asset_metadata(asset) for asset in binary_assets]
+    manifest = result.get(MANIFEST_DOCUMENT_PATH)
+    if isinstance(manifest, Mapping):
+        manifest_payload = dict(manifest)
+        manifest_payload["assets"] = asset_entries
+        manifest_payload["asset_count"] = len(asset_entries)
+        result[MANIFEST_DOCUMENT_PATH] = manifest_payload
+    result["assets/index.json"] = {
+        "schema_version": DEFAULT_SCHEMA_VERSION,
+        "embedded": True,
+        "asset_count": len(asset_entries),
+        "assets": asset_entries,
+    }
+    render_variants = result.get("render/render_variants.json")
+    if isinstance(render_variants, Mapping):
+        render_payload = dict(render_variants)
+        render_payload["assets"] = [
+            asset for asset in asset_entries if asset["kind"] in {"geometry_model", "textures"}
+        ]
+        result["render/render_variants.json"] = render_payload
+    return result
+
+
 def _serialize_document(relative_path: str, content: Any) -> str:
     if relative_path.endswith(".json"):
         try:
@@ -4907,6 +5085,20 @@ def _write_text_atomic(target_file: Path, content: str) -> None:
     temp_file = target_file.with_name(f".{target_file.name}.tmp")
     try:
         temp_file.write_text(content, encoding="utf-8")
+        temp_file.replace(target_file)
+    except Exception:
+        try:
+            if temp_file.exists():
+                temp_file.unlink()
+        except Exception:
+            pass
+        raise
+
+
+def _write_bytes_atomic(target_file: Path, content: bytes) -> None:
+    temp_file = target_file.with_name(f".{target_file.name}.tmp")
+    try:
+        temp_file.write_bytes(content)
         temp_file.replace(target_file)
     except Exception:
         try:

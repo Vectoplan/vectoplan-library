@@ -1439,7 +1439,7 @@
   [data-vp-object-variants-top="true"],
   [data-vp-object-kind-area="true"] {
     display: grid;
-    grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--vp-create-space-3);
     min-width: 0;
   }

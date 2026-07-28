@@ -4,7 +4,7 @@
 
   var GLOBAL_NAME = "VectoplanCreateActions";
   var MODULE_NAME = "actions";
-  var ACTIONS_VERSION = "0.9.0";
+  var ACTIONS_VERSION = "1.0.0";
   var CORE_NAME = "VectoplanCreateCore";
   var PAYLOAD_NAME = "VectoplanCreatePayload";
   var BOOT_RETRY_MS = 40;
@@ -92,7 +92,7 @@
     resultErrorCount: "[data-create-result-error-count], [data-vp-result-error-count]",
     resultWarningCount: "[data-create-result-warning-count], [data-vp-result-warning-count]",
     actionStatus: "[data-create-action-status='true'], [data-vp-action-status]",
-    uploadInput: "[data-vp-upload-input], input[type='file'][data-vp-upload-kind], input[type='file'][name='geometry_model_files'], input[type='file'][name='technical_document_files'], input[type='file'][name^='variant_document_files']"
+    uploadInput: "[data-vp-upload-input], input[type='file'][data-vp-upload-kind], input[type='file'][name='geometry_model_files'], input[type='file'][name='texture_files'], input[type='file'][name='technical_document_files'], input[type='file'][name^='variant_document_files']"
   };
 
   var DEFAULT_CLASSES = {
@@ -1568,9 +1568,9 @@
         } else if (normalizedAction === "package-plan") {
           result = await postJson("package-plan", payload);
         } else if (normalizedAction === "save") {
-          result = await confirmAndSave(payload);
+          result = await confirmAndSave(payload, safeForm);
         } else if (normalizedAction === "download") {
-          result = await runDownloadWorkflow(payload);
+          result = await runDownloadWorkflow(payload, safeForm);
         } else if (normalizedAction === "persist-draft") {
           result = await postJson("persist-draft", enrichPayloadForAction(payload, "persist-draft"));
           localState.persistDraftCount += 1;
@@ -1667,7 +1667,7 @@
     }
   }
 
-  async function runDownloadWorkflow(payload) {
+  async function runDownloadWorkflow(payload, form) {
     var preflight = {
       validate: null,
       packagePlan: null,
@@ -1711,6 +1711,7 @@
 
     setStatus("VPLIB wird erzeugt und heruntergeladen …", "loading");
     return downloadVplib(payload, {
+      form: form,
       preflight: preflight,
       timeoutMs: DEFAULT_DOWNLOAD_TIMEOUT_MS
     });
@@ -1751,15 +1752,15 @@
     setStatus(message || actionLabel(action) + " fehlgeschlagen.", "error");
   }
 
-  async function postJson(action, payload) {
+  async function postJson(action, payload, options) {
     var normalizedAction = normalizeAction(action);
     var response = await fetchJson(
       normalizedAction,
       enrichPayloadForAction(payload, normalizedAction),
-      {
+      Object.assign({
         timeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
         purpose: normalizedAction
-      }
+      }, options || {})
     );
 
     localState.lastResult = response;
@@ -1786,7 +1787,7 @@
     return response;
   }
 
-  async function confirmAndSave(payload) {
+  async function confirmAndSave(payload, form) {
     try {
       var writeEnabled = isWriteEnabled();
 
@@ -1834,10 +1835,10 @@
       }
 
       if (uploadFileCount) {
-        message += "\n\nHinweis: " + uploadFileCount + " lokale Upload-Datei(en) sind im Payload als Metadaten enthalten. Datei-Bytes werden vom Backend-Uploadpfad separat verarbeitet.";
+        message += "\n\n" + uploadFileCount + " Datei(en) werden direkt in das VPLIB-Package eingebettet.";
       }
 
-      message += "\n\nDas Backend blockiert den Vorgang weiterhin, falls der Schreibmodus nicht aktiv ist oder der Zielordner existiert.";
+      message += "\n\nNach dem Speichern wird die Creative Library automatisch synchronisiert.";
 
       if (!window.confirm(message)) {
         var cancelled = {
@@ -1869,7 +1870,9 @@
         return cancelled;
       }
 
-      return postJson("save", enrichPayloadForAction(payload, "save"));
+      return postJson("save", enrichPayloadForAction(payload, "save"), {
+        form: form
+      });
     } catch (error) {
       throw error;
     }
@@ -1884,10 +1887,12 @@
     localState.lastRoute = url;
     localState.lastRequestId = requestId;
 
+    var multipartBody = buildMultipartFormData(enrichedPayload, config.form);
+
     var response = await fetchWithTimeout(url, {
       method: "POST",
-      headers: buildJsonHeaders("application/vnd.vectoplan.vplib, application/zip, application/octet-stream, application/json", requestId),
-      body: JSON.stringify(enrichedPayload || {}),
+      headers: buildMultipartHeaders("application/vnd.vectoplan.vplib, application/zip, application/octet-stream, application/json", requestId),
+      body: multipartBody,
       credentials: "same-origin",
       cache: "no-store"
     }, config.timeoutMs || DEFAULT_DOWNLOAD_TIMEOUT_MS, {
@@ -2071,10 +2076,15 @@
     localState.lastRoute = url;
     localState.lastRequestId = requestId;
 
+    var useMultipart = !!config.form;
+    var requestBody = useMultipart
+      ? buildMultipartFormData(enrichPayloadForAction(payload || {}, normalizedAction), config.form)
+      : JSON.stringify(enrichPayloadForAction(payload || {}, normalizedAction));
+
     var response = await fetchWithTimeout(url, {
       method: "POST",
-      headers: buildJsonHeaders("application/json", requestId),
-      body: JSON.stringify(enrichPayloadForAction(payload || {}, normalizedAction)),
+      headers: useMultipart ? buildMultipartHeaders("application/json", requestId) : buildJsonHeaders("application/json", requestId),
+      body: requestBody,
       credentials: "same-origin",
       cache: "no-store"
     }, config.timeoutMs || DEFAULT_REQUEST_TIMEOUT_MS, {
@@ -2277,11 +2287,11 @@
       }
 
       if (!payload.category) {
-        payload.category = getFieldValue(safeForm, "category") || "bloecke";
+        payload.category = getFieldValue(safeForm, "category") || "waende";
       }
 
       if (!payload.subcategory) {
-        payload.subcategory = getFieldValue(safeForm, "subcategory") || "basis";
+        payload.subcategory = getFieldValue(safeForm, "subcategory") || "aussenwaende";
       }
 
       if (!payload.taxonomy_path) {
@@ -2570,8 +2580,8 @@
         ok: true,
         backend_enabled: true,
         backendEnabled: true,
-        local_only: true,
-        localOnly: true,
+        local_only: false,
+        localOnly: false,
         source: "actions_fallback"
       }, kind);
     } catch (error) {
@@ -3742,6 +3752,43 @@
     }
   }
 
+  function buildMultipartHeaders(accept, requestId) {
+    var headers = buildJsonHeaders(accept, requestId);
+    try {
+      delete headers["Content-Type"];
+    } catch (error) {
+      headers = {
+        "Accept": accept || "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-Vectoplan-Request-Id": requestId || nextRequestId("headers")
+      };
+    }
+    return headers;
+  }
+
+  function buildMultipartFormData(payload, form) {
+    var data = new FormData();
+    data.append("payload_json", JSON.stringify(payload || {}));
+
+    var safeForm = resolveForm(form);
+    if (!safeForm) {
+      return data;
+    }
+
+    qsa(selectorFor("uploadInput"), safeForm).forEach(function (input) {
+      if (!input || !input.files || !input.name) {
+        return;
+      }
+      toArray(input.files).forEach(function (file) {
+        if (file && file.name) {
+          data.append(input.name, file, file.name);
+        }
+      });
+    });
+
+    return data;
+  }
+
   function getCsrfToken() {
     try {
       var meta = qs("meta[name='csrf-token'], meta[name='csrf_token']");
@@ -4119,8 +4166,8 @@
       ok: true,
       backend_enabled: true,
       backendEnabled: true,
-      local_only: true,
-      localOnly: true,
+      local_only: false,
+      localOnly: false,
       updated_at: timestamp(),
       updatedAt: timestamp()
     };
@@ -4143,8 +4190,8 @@
         ok: source.ok !== false && errors.length === 0,
         backend_enabled: source.backend_enabled !== undefined ? toBoolean(source.backend_enabled, true) : toBoolean(source.backendEnabled, true),
         backendEnabled: source.backendEnabled !== undefined ? toBoolean(source.backendEnabled, true) : toBoolean(source.backend_enabled, true),
-        local_only: true,
-        localOnly: true,
+        local_only: false,
+        localOnly: false,
         updated_at: source.updated_at || source.updatedAt || timestamp(),
         updatedAt: source.updatedAt || source.updated_at || timestamp(),
         source: source.source || "actions"
@@ -4167,8 +4214,8 @@
         lastModified: file.lastModified || null,
         backend_stored: false,
         backendStored: false,
-        local_only: true,
-        localOnly: true
+        local_only: false,
+        localOnly: false
       };
     } catch (error) {
       return {
@@ -4176,7 +4223,7 @@
         size: 0,
         type: "",
         backend_stored: false,
-        local_only: true
+        local_only: false
       };
     }
   }

@@ -1,0 +1,684 @@
+"""Regression coverage for binary VPLIB assets and full-library exchange."""
+
+from __future__ import annotations
+
+import hashlib
+import html as html_lib
+import importlib
+import io
+import json
+import re
+import sys
+import zipfile
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+
+SERVICE_ROOT = Path(__file__).resolve().parent.parent
+SRC_ROOT = SERVICE_ROOT / "src"
+for candidate in (SERVICE_ROOT, SRC_ROOT):
+    if str(candidate) not in sys.path:
+        sys.path.insert(0, str(candidate))
+
+
+def create_service() -> Any:
+    return importlib.import_module("library.services.library_create_service")
+
+
+def archive_service() -> Any:
+    return importlib.import_module("library.services.library_archive_service")
+
+
+def minimal_payload() -> dict[str, Any]:
+    return {
+        "vplib_uid": "11111111-1111-4111-8111-111111111111",
+        "family_name": "Asset Regression",
+        "family_description": "VPLIB generator binary asset regression.",
+        "object_kind": "cell_block",
+        "domain": "hochbau",
+        "category": "waende",
+        "subcategory": "aussenwaende",
+        "family_profile_id": "simple_cell_block",
+        "variant_profile_id": "simple_cell_block.v1",
+        "default_variant_id": "default",
+        "geometry_width": "1",
+        "geometry_height": "1",
+        "geometry_depth": "1",
+        "geometry_unit": "m",
+        "definition_variants": [
+            {
+                "variant_id": "default",
+                "label": "Standard",
+                "is_default": True,
+                "definition_values": {},
+            }
+        ],
+    }
+
+
+def binary_assets() -> list[dict[str, Any]]:
+    return [
+        {
+            "field": "geometry_model_files",
+            "filename": "cube.obj",
+            "kind": "geometry_model",
+            "purpose": "geometry_model",
+            "relative_path": "assets/models/cube.obj",
+            "content_type": "text/plain",
+            "content": b"o cube\nv 0 0 0\n",
+        },
+        {
+            "field": "texture_files",
+            "filename": "stone.png",
+            "kind": "textures",
+            "purpose": "textures",
+            "relative_path": "assets/textures/stone.png",
+            "content_type": "image/png",
+            "content": b"\x89PNG\r\n\x1a\nvplib-test-texture",
+        },
+    ]
+
+
+def payload_with_assets() -> dict[str, Any]:
+    return {**minimal_payload(), "_binary_assets": binary_assets()}
+
+
+def rewrite_zip(content: bytes, replacements: dict[str, bytes]) -> bytes:
+    output = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(content), "r") as source:
+        with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as target:
+            for info in source.infolist():
+                target.writestr(info.filename, replacements.get(info.filename, source.read(info.filename)))
+    return output.getvalue()
+
+
+def test_package_plan_exposes_binary_asset_metadata_without_bytes() -> None:
+    result = create_service().build_package_plan(payload_with_assets())
+    assert result.ok, [issue.to_dict() for issue in result.errors]
+    assert result.data["asset_count"] == 2
+    assert {item["kind"] for item in result.data["assets"]} == {"geometry_model", "textures"}
+    assert all("content" not in item for item in result.data["assets"])
+    assert all(item["binary"] for item in result.data["files"] if item.get("kind"))
+    manifest = result.data["documents"]["vplib.manifest.json"]
+    assert manifest["asset_count"] == 2
+    assert manifest["assets"][0]["embedded"] is True
+
+
+def test_vplib_archive_embeds_model_texture_and_asset_index() -> None:
+    filename, content, result = create_service().build_vplib_archive(payload_with_assets())
+    assert result.ok, [issue.to_dict() for issue in result.errors]
+    assert filename.endswith(".vplib")
+    with zipfile.ZipFile(io.BytesIO(content), "r") as archive:
+        names = set(archive.namelist())
+        assert "assets/index.json" in names
+        assert "assets/models/cube.obj" in names
+        assert "assets/textures/stone.png" in names
+        assert archive.read("assets/models/cube.obj") == binary_assets()[0]["content"]
+        assert archive.read("assets/textures/stone.png") == binary_assets()[1]["content"]
+        index = json.loads(archive.read("assets/index.json"))
+        assert index["asset_count"] == 2
+        assert {asset["kind"] for asset in index["assets"]} == {"geometry_model", "textures"}
+
+
+def test_vplib_archive_is_deterministic_with_binary_assets() -> None:
+    first = create_service().build_vplib_archive(payload_with_assets())
+    second = create_service().build_vplib_archive(payload_with_assets())
+    assert first[2].ok and second[2].ok
+    assert first[0] == second[0]
+    assert first[1] == second[1]
+
+
+def test_save_package_writes_exact_binary_assets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    source_root = tmp_path / "source"
+    monkeypatch.setenv("VECTOPLAN_LIBRARY_SOURCE_ROOT", str(source_root))
+    monkeypatch.setenv("VPLIB_CREATE_WRITE_ENABLED", "true")
+    result = create_service().save_package(payload_with_assets(), overwrite=True)
+    assert result.ok, [issue.to_dict() for issue in result.errors]
+    target = Path(result.data["target_dir"])
+    assert (target / "assets/models/cube.obj").read_bytes() == binary_assets()[0]["content"]
+    assert (target / "assets/textures/stone.png").read_bytes() == binary_assets()[1]["content"]
+    assert result.data["written_file_count"] == len(result.data["written_files"])
+
+
+@pytest.mark.parametrize(
+    ("path", "kind"),
+    [
+        ("../escape.obj", "geometry_model"),
+        ("assets/models/run.exe", "geometry_model"),
+        ("assets/textures/file.obj", "textures"),
+        ("assets/models/duplicate.obj", "unknown"),
+    ],
+)
+def test_unsafe_or_mismatched_binary_assets_fail_structurally(path: str, kind: str) -> None:
+    payload = minimal_payload()
+    payload["_binary_assets"] = [
+        {
+            "relative_path": path,
+            "kind": kind,
+            "content": b"payload",
+        }
+    ]
+    result = create_service().build_package_plan(payload)
+    assert result.ok is False
+    assert result.errors
+
+
+def test_default_creative_library_is_empty_and_idempotent(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    creative = tmp_path / "creative"
+    first = archive_service().initialize_default_library(
+        source_root=source,
+        creative_root=creative,
+    )
+    second = archive_service().initialize_default_library(
+        source_root=source,
+        creative_root=creative,
+    )
+    assert first["status"] == "initialized_empty"
+    assert first["package_file_count"] == 0
+    assert second["status"] == "existing"
+    default_archive = creative / "default.vpcreative"
+    assert default_archive.is_file()
+    assert archive_service().validate_library_archive(default_archive.read_bytes())["package_file_count"] == 0
+
+
+def test_creative_library_export_import_roundtrip(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    (source / "hochbau/example/assets/models").mkdir(parents=True)
+    (source / "hochbau/example/vplib.manifest.json").write_text('{"ok": true}\n', encoding="utf-8")
+    model_bytes = b"o exported\n"
+    (source / "hochbau/example/assets/models/exported.obj").write_bytes(model_bytes)
+
+    filename, content, metadata = archive_service().export_library_archive(
+        source_root=source,
+        library_id="regression",
+    )
+    assert filename == "regression.vpcreative"
+    assert metadata["package_file_count"] == 2
+    validation = archive_service().validate_library_archive(content)
+    assert validation["package_file_count"] == 2
+
+    imported_root = tmp_path / "imported"
+    imported = archive_service().import_library_archive(content, source_root=imported_root)
+    assert imported["ok"] is True
+    assert imported["imported_file_count"] == 2
+    assert (imported_root / "hochbau/example/assets/models/exported.obj").read_bytes() == model_bytes
+
+
+def test_creative_library_merge_conflict_requires_overwrite(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "same.json").write_text('{"source": true}', encoding="utf-8")
+    _, content, _ = archive_service().export_library_archive(source_root=source)
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / "same.json").write_text('{"target": true}', encoding="utf-8")
+
+    with pytest.raises(archive_service().LibraryArchiveError) as exc_info:
+        archive_service().import_library_archive(content, source_root=target)
+    assert exc_info.value.code == "import_conflict"
+    imported = archive_service().import_library_archive(
+        content,
+        source_root=target,
+        overwrite=True,
+    )
+    assert imported["ok"]
+    assert (target / "same.json").read_text(encoding="utf-8") == '{"source": true}'
+
+
+def test_creative_library_replace_removes_stale_files(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "fresh.json").write_text('{"fresh": true}', encoding="utf-8")
+    _, content, _ = archive_service().export_library_archive(source_root=source)
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / "stale.json").write_text("stale", encoding="utf-8")
+    result = archive_service().import_library_archive(content, source_root=target, mode="replace")
+    assert result["ok"]
+    assert not (target / "stale.json").exists()
+    assert (target / "fresh.json").is_file()
+
+
+def test_creative_library_rejects_checksum_tampering(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "entry.json").write_text('{"safe": true}', encoding="utf-8")
+    _, content, _ = archive_service().export_library_archive(source_root=source)
+    tampered = rewrite_zip(content, {"packages/entry.json": b'{"safe": false}'})
+    with pytest.raises(archive_service().LibraryArchiveError) as exc_info:
+        archive_service().validate_library_archive(tampered)
+    assert exc_info.value.code in {"archive_entry_size_mismatch", "archive_entry_checksum_mismatch"}
+
+
+def test_creative_library_rejects_path_traversal() -> None:
+    output = io.BytesIO()
+    manifest = {
+        "format": "vectoplan.creative-library",
+        "format_version": "1.0.0",
+        "library_id": "unsafe",
+        "package_file_count": 1,
+        "entries": [
+            {
+                "path": "packages/../escape.json",
+                "size_bytes": 2,
+                "sha256": hashlib.sha256(b"{}").hexdigest(),
+            }
+        ],
+    }
+    with zipfile.ZipFile(output, "w") as archive:
+        archive.writestr("creative-library.manifest.json", json.dumps(manifest))
+        archive.writestr("packages/../escape.json", b"{}")
+    with pytest.raises(archive_service().LibraryArchiveError) as exc_info:
+        archive_service().validate_library_archive(output.getvalue())
+    assert exc_info.value.code == "archive_path_unsafe"
+
+
+def flask_runtime() -> Any:
+    return pytest.importorskip("flask")
+
+
+def create_route_module() -> Any:
+    flask_runtime()
+    return importlib.import_module("routes.create")
+
+
+def test_request_payload_reads_real_multipart_model_and_texture() -> None:
+    flask = flask_runtime()
+    route = create_route_module()
+    app = flask.Flask(__name__)
+    with app.test_request_context(
+        "/api/v1/vplib/create/download",
+        method="POST",
+        data={
+            "payload_json": json.dumps(minimal_payload()),
+            "geometry_model_files": (io.BytesIO(b"o route\n"), "route.obj"),
+            "texture_files": (io.BytesIO(b"\x89PNG\r\n\x1a\nroute"), "route.png"),
+        },
+        content_type="multipart/form-data",
+    ):
+        payload = route._request_payload()
+    assert payload["uploaded_file_count"] == 2
+    assert [asset["kind"] for asset in payload["_binary_assets"]] == ["geometry_model", "textures"]
+    assert payload["_binary_assets"][0]["content"] == b"o route\n"
+    assert payload["_binary_assets"][1]["relative_path"] == "assets/textures/route.png"
+
+
+def test_request_payload_rejects_unsupported_upload_type() -> None:
+    flask = flask_runtime()
+    route = create_route_module()
+    app = flask.Flask(__name__)
+    with app.test_request_context(
+        "/api/v1/vplib/create/download",
+        method="POST",
+        data={
+            "payload_json": json.dumps(minimal_payload()),
+            "geometry_model_files": (io.BytesIO(b"not executable"), "unsafe.exe"),
+        },
+        content_type="multipart/form-data",
+    ):
+        with pytest.raises(route.CreateRequestError) as exc_info:
+            route._request_payload()
+    assert exc_info.value.code == "upload_file_type_unsupported"
+    assert exc_info.value.http_status == 422
+
+
+def test_download_route_returns_vplib_with_real_uploaded_assets() -> None:
+    flask = flask_runtime()
+    route = create_route_module()
+    app = flask.Flask(__name__)
+    app.register_blueprint(route.create_bp)
+    response = app.test_client().post(
+        "/api/v1/vplib/create/download",
+        data={
+            "payload_json": json.dumps(minimal_payload()),
+            "geometry_model_files": (io.BytesIO(b"o endpoint\n"), "endpoint.obj"),
+            "texture_files": (io.BytesIO(b"\x89PNG\r\n\x1a\nendpoint"), "endpoint.png"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200, response.get_data(as_text=True)
+    assert response.data.startswith(b"PK")
+    with zipfile.ZipFile(io.BytesIO(response.data), "r") as archive:
+        assert archive.read("assets/models/endpoint.obj") == b"o endpoint\n"
+        assert archive.read("assets/textures/endpoint.png") == b"\x89PNG\r\n\x1a\nendpoint"
+
+
+def test_save_route_defaults_to_source_write_sync_and_update(monkeypatch: pytest.MonkeyPatch) -> None:
+    flask = flask_runtime()
+    route = create_route_module()
+    captured: dict[str, Any] = {}
+
+    class FakeRouteService:
+        def save_package_response(self, payload: Any, *, overwrite: bool | None = None) -> dict[str, Any]:
+            captured["payload"] = payload
+            captured["overwrite"] = overwrite
+            return {"ok": True, "status": "saved", "route": "save", "data": {}}
+
+    monkeypatch.setattr(route, "_is_route_service_available", lambda: True)
+    monkeypatch.setattr(route, "_route_service", lambda: FakeRouteService())
+    app = flask.Flask(__name__)
+    app.register_blueprint(route.create_bp)
+    response = app.test_client().post(
+        "/api/v1/vplib/create/save",
+        json=minimal_payload(),
+    )
+    assert response.status_code == 200
+    assert captured["payload"]["allow_source_write"] is True
+    assert captured["payload"]["sync_after_save"] is True
+    assert captured["payload"]["save_source"] is True
+    assert captured["overwrite"] is True
+
+
+def test_library_export_import_routes_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    flask = flask_runtime()
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "package.json").write_text('{"route": true}', encoding="utf-8")
+    monkeypatch.setenv("VECTOPLAN_LIBRARY_SOURCE_ROOT", str(source))
+    routes = importlib.import_module("routes.library_routes")
+    app = flask.Flask(__name__)
+    app.register_blueprint(routes.get_library_blueprint())
+    exported = app.test_client().get("/api/v1/vplib/library/export?library_id=route-test")
+    assert exported.status_code == 200
+    assert exported.data.startswith(b"PK")
+    assert exported.headers["Content-Disposition"].endswith("route-test.vpcreative")
+
+    imported_root = tmp_path / "imported"
+    monkeypatch.setenv("VECTOPLAN_LIBRARY_SOURCE_ROOT", str(imported_root))
+    imported = app.test_client().post(
+        "/api/v1/vplib/library/import",
+        data={"file": (io.BytesIO(exported.data), "route-test.vpcreative")},
+        content_type="multipart/form-data",
+    )
+    assert imported.status_code == 200, imported.get_data(as_text=True)
+    assert imported.get_json()["ok"] is True
+    assert (imported_root / "package.json").is_file()
+
+
+def test_create_ui_has_texture_upload_and_no_global_step3_documents() -> None:
+    geometry = (SERVICE_ROOT / "templates/vplib/create/sections/_geometry.html").read_text(encoding="utf-8")
+    variables = (SERVICE_ROOT / "templates/vplib/create/sections/_variables.html").read_text(encoding="utf-8")
+    drawer = (SERVICE_ROOT / "templates/vplib/create/variants/_variant_drawer_shell.html").read_text(encoding="utf-8")
+    actions = (SERVICE_ROOT / "static/js/vplib/create/create_actions.js").read_text(encoding="utf-8")
+    assert 'name="texture_files"' in geometry
+    assert 'name="geometry_model_files"' in geometry
+    assert "Backend-Upload folgt später" not in geometry
+    assert 'name="technical_document_files"' not in variables
+    assert "PDF, Tabellen, Bilder oder ZIPs werden hier nur als lokale Metadaten" not in variables
+    assert 'data-vp-upload-kind="variant_documents"' in drawer
+    assert 'data-vp-upload-backend-enabled="true"' in drawer
+    assert "buildMultipartFormData" in actions
+    assert 'data.append("payload_json"' in actions
+
+def test_create_template_context_has_builtin_definitions_when_services_are_empty() -> None:
+    route = create_route_module()
+    context = route._build_create_template_context(
+        route_health={},
+        options_payload={},
+        context_payload={},
+        definitions_payload={},
+    )
+    catalogs = context["definition_catalogs"]
+    assert len(catalogs["object_kinds"]) >= 4
+    assert any(item["id"] == "simple_cell_block" for item in catalogs["family_profiles"])
+    assert any(item["id"] == "simple_cell_block.v1" for item in catalogs["variant_profiles"])
+    assert any(item["key"] == "variant.variant_id" for item in catalogs["variables"])
+    assert context["definitions"]["ready"] is True
+    assert context["create_options"]["definitions"]["definitions"] == catalogs
+    assert {item["id"] for item in context["_primitive_shapes"]} >= {"block", "custom"}
+    assert any(item["id"] == "m" for item in context["_units"])
+
+
+def test_wizard_click_capture_does_not_treat_step_panels_as_buttons() -> None:
+    wizard = (SERVICE_ROOT / "static/js/vplib/create/create_wizard.js").read_text(
+        encoding="utf-8"
+    )
+    create_template = (SERVICE_ROOT / "templates/vplib/create.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'stepperButton: "[data-vp-step-button]"' in wizard
+    assert (
+        'stepperButton: "[data-vp-step-button], [data-vp-step-target]' not in wizard
+    )
+    assert "if (!nextButton && !prevButton && !stepButton)" in wizard
+    assert "data-vp-create-step" in create_template
+    assert 'data-vp-step-target="identity"' in create_template
+
+
+
+def test_create_ui_exposes_full_width_variants_and_functional_technical_inputs() -> None:
+    css = (SERVICE_ROOT / "static/css/vplib/create.css").read_text(encoding="utf-8")
+    variables = (SERVICE_ROOT / "templates/vplib/create/sections/_variables.html").read_text(encoding="utf-8")
+    technical = (SERVICE_ROOT / "templates/vplib/create/sections/_technical.html").read_text(encoding="utf-8")
+    geometry = (SERVICE_ROOT / "templates/vplib/create/sections/_geometry.html").read_text(encoding="utf-8")
+    assert "grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr)" not in css
+    assert "grid-template-columns: minmax(0, 1fr)" in css
+    assert "Jede Variante bleibt mit der Variablenliste verbunden." in variables
+    assert "als lokale Metadaten" not in variables
+    assert 'name="technical_document_files"' in technical
+    assert 'data-vp-upload-backend-enabled="true"' in technical
+    assert 'data-vp-upload-local-only="false"' in technical
+    assert 'data-create-add-variable="true"' in technical
+    assert 'data-create-variable-row-template="true"' in technical
+    assert 'name="geometry_model_files"' in geometry
+    assert 'name="texture_files"' in geometry
+    assert "direkt in das VPLIB eingebettet" in geometry
+
+
+def test_download_route_embeds_technical_document_without_write_flag() -> None:
+    flask = flask_runtime()
+    route = create_route_module()
+    app = flask.Flask(__name__)
+    app.register_blueprint(route.create_bp)
+    response = app.test_client().post(
+        "/api/v1/vplib/create/download",
+        data={
+            "payload_json": json.dumps(minimal_payload()),
+            "technical_document_files": (
+                io.BytesIO(b"%PDF-1.4\ntechnical regression\n"),
+                "datasheet.pdf",
+            ),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200, response.get_data(as_text=True)
+    assert response.headers["Content-Disposition"].endswith(".vplib")
+    with zipfile.ZipFile(io.BytesIO(response.data), "r") as archive:
+        assert (
+            archive.read("assets/documents/technical/datasheet.pdf")
+            == b"%PDF-1.4\ntechnical regression\n"
+        )
+
+def test_generator_options_expose_complete_taxonomy_and_definition_catalogs() -> None:
+    service = importlib.import_module("src.services.library_create_route_service")
+    response = service.get_options_response()
+    data = response.data
+
+    assert response.ok is True
+    assert len(data["domains"]) == 3
+    assert len(data["categories"]) >= 35
+    assert len(data["subcategories"]) >= 200
+    assert len(data["object_kinds"]) >= 4
+    assert len(data["family_profiles"]) >= 19
+    assert len(data["variant_profiles"]) >= 8
+    assert len(data["variables"]) >= 68
+    assert len(data["units"]) >= 24
+    assert len(data["materials"]) >= 19
+
+    wall = next(item for item in data["categories"] if item["id"] == "waende")
+    exterior_wall = next(
+        item for item in data["subcategories"] if item["id"] == "aussenwaende"
+    )
+    assert wall["parent_domain"] == "hochbau"
+    assert exterior_wall["parent_domain"] == "hochbau"
+    assert exterior_wall["parent_category"] == "waende"
+    assert {"variables", "units", "materials"} <= set(
+        data["definitions"].get("fallback_datasets", [])
+    )
+
+
+def test_create_page_renders_operational_starter_definitions() -> None:
+    flask = flask_runtime()
+    route = create_route_module()
+    app = flask.Flask(
+        __name__,
+        template_folder=str(SERVICE_ROOT / "templates"),
+        static_folder=str(SERVICE_ROOT / "static"),
+    )
+    app.register_blueprint(route.create_bp)
+    response = app.test_client().get("/create")
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert 'data-vp-create-definitions-available="true"' in html
+    assert 'data-vp-definitions-available="true"' in html
+    assert 'data-vp-action-disabled-reason="definitions_unavailable"' not in html
+    assert '"simple_cell_block.v1"' in html
+    assert '"variant.variant_id"' in html
+    assert 'name="primitive_shape"' in html
+    assert 'name="geometry_unit"' in html
+
+def _rendered_create_page() -> tuple[Any, str]:
+    flask = flask_runtime()
+    route = create_route_module()
+    app = flask.Flask(
+        __name__,
+        template_folder=str(SERVICE_ROOT / "templates"),
+        static_folder=str(SERVICE_ROOT / "static"),
+    )
+    app.register_blueprint(route.create_bp)
+    response = app.test_client().get("/create")
+    return app, response.get_data(as_text=True)
+
+
+def _named_form_tags(html: str, name: str) -> list[str]:
+    tags = re.findall(r"<(?:input|select|textarea)\b[^>]*>", html, flags=re.IGNORECASE)
+    pattern = re.compile(rf'\bname="{re.escape(name)}"', flags=re.IGNORECASE)
+    return [tag for tag in tags if pattern.search(tag)]
+
+
+def _tag_value(tag: str) -> str:
+    match = re.search(r'\bvalue="([^"]*)"', tag, flags=re.IGNORECASE)
+    return html_lib.unescape(match.group(1)) if match else ""
+
+
+def _selected_value(html: str, name: str) -> str:
+    select_match = re.search(
+        rf'<select\b(?=[^>]*\bname="{re.escape(name)}")[^>]*>(.*?)</select>',
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    assert select_match, name
+    for option in re.findall(
+        r"<option\b[^>]*>",
+        select_match.group(1),
+        flags=re.IGNORECASE,
+    ):
+        if re.search(r"\bselected\b", option, flags=re.IGNORECASE):
+            return _tag_value(option)
+    return ""
+
+
+def test_rendered_generator_uses_fresh_assets_and_one_operational_variant_state() -> None:
+    app, html = _rendered_create_page()
+    assert app
+    assert "/static/css/vplib/create.css?v=20260728.3" in html
+    assert "/static/js/vplib/create/create_uploads.js?v=20260728.3" in html
+    assert "/static/js/vplib/create/create_variant_drawer.js?v=20260728.3" in html
+    assert "/static/js/vplib/create/create_actions.js?v=20260728.3" in html
+
+    for name in (
+        "object_kind",
+        "family_profile_id",
+        "variant_profile_id",
+        "definition_variants_json",
+        "default_variant_id",
+        "geometry_model_files",
+        "texture_files",
+        "technical_document_files",
+    ):
+        assert len(_named_form_tags(html, name)) == 1, name
+
+    family_profile = _tag_value(_named_form_tags(html, "family_profile_id")[0])
+    variant_profile = _tag_value(_named_form_tags(html, "variant_profile_id")[0])
+    variants = json.loads(_tag_value(_named_form_tags(html, "definition_variants_json")[0]))
+    assert family_profile == "simple_cell_block"
+    assert variant_profile == "simple_cell_block.v1"
+    assert variants[0]["variant_id"] == "default"
+    assert variants[0]["is_default"] is True
+    assert variants[0]["definition_values"]["dimensions.width_mm"] == 1000
+    assert variants[0]["definition_values"]["dimensions.height_mm"] == 1000
+    assert variants[0]["definition_values"]["dimensions.depth_mm"] == 1000
+    assert 'data-create-add-variant="true"' in html
+    assert 'data-vp-edit-definition-variant="true"' in html
+
+
+def test_rendered_generator_lists_complete_dependent_taxonomy() -> None:
+    _, html = _rendered_create_page()
+    domain_count = re.search(r'data-create-domain-count="(\d+)"', html)
+    category_count = re.search(r'data-create-category-count="(\d+)"', html)
+    subcategory_count = re.search(r'data-create-subcategory-count="(\d+)"', html)
+
+    assert domain_count and int(domain_count.group(1)) == 3
+    assert category_count and int(category_count.group(1)) >= 35
+    assert subcategory_count and int(subcategory_count.group(1)) >= 200
+    assert 'data-vp-parent-domain="hochbau"' in html
+    assert 'data-vp-parent-category="waende"' in html
+    assert '"category": "waende"' in html
+    assert '"subcategory": "aussenwaende"' in html
+
+    definitions_script = re.search(
+        r'<script[^>]*id="vp-create-definitions-json"[^>]*>(.*?)</script>',
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    assert definitions_script
+    definitions = json.loads(definitions_script.group(1))
+    assert len(definitions["variables"]) >= 68
+    assert len(definitions["units"]) >= 24
+    assert len(definitions["materials"]) >= 19
+
+
+def test_rendered_generator_defaults_download_with_all_three_upload_types() -> None:
+    app, html = _rendered_create_page()
+    variants_json = _tag_value(_named_form_tags(html, "definition_variants_json")[0])
+    payload = {
+        "vplib_uid": "22222222-2222-4222-8222-222222222222",
+        "family_name": "Rendered Generator Regression",
+        "family_description": "Rendered form contract download.",
+        "object_kind": _tag_value(_named_form_tags(html, "object_kind")[0]),
+        "domain": _selected_value(html, "domain"),
+        "category": _selected_value(html, "category"),
+        "subcategory": _selected_value(html, "subcategory"),
+        "family_profile_id": _tag_value(_named_form_tags(html, "family_profile_id")[0]),
+        "variant_profile_id": _tag_value(_named_form_tags(html, "variant_profile_id")[0]),
+        "default_variant_id": _tag_value(_named_form_tags(html, "default_variant_id")[0]),
+        "definition_variants_json": variants_json,
+        "geometry_width": "2.50",
+        "geometry_height": "3.00",
+        "geometry_depth": "0.40",
+        "geometry_unit": "m",
+    }
+    response = app.test_client().post(
+        "/api/v1/vplib/create/download",
+        data={
+            "payload_json": json.dumps(payload),
+            "geometry_model_files": (io.BytesIO(b"o rendered-generator\n"), "house.obj"),
+            "texture_files": (io.BytesIO(b"\x89PNG\r\n\x1a\nrendered"), "wall.png"),
+            "technical_document_files": (io.BytesIO(b"%PDF-1.4\nrendered\n"), "datasheet.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200, response.get_data(as_text=True)
+    assert response.data.startswith(b"PK")
+    with zipfile.ZipFile(io.BytesIO(response.data), "r") as archive:
+        assert archive.read("assets/models/house.obj") == b"o rendered-generator\n"
+        assert archive.read("assets/textures/wall.png") == b"\x89PNG\r\n\x1a\nrendered"
+        assert (
+            archive.read("assets/documents/technical/datasheet.pdf")
+            == b"%PDF-1.4\nrendered\n"
+        )
+
