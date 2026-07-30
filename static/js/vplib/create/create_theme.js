@@ -60,8 +60,8 @@
     version: THEME_VERSION,
     initialized: false,
     bindingDone: false,
-    theme: "dark",
-    effectiveTheme: "dark",
+    theme: "light",
+    effectiveTheme: "light",
     storageKey: "vectoplan.create.theme",
     source: "initial",
     changeCount: 0,
@@ -411,9 +411,9 @@
       var fromUiState = getNested(uiState, ["theme"], "") ||
         getNested(uiState, ["appearance"], "");
 
-      return normalizeTheme(fromStorage || fromUiState || fromContext || fromHtml || THEMES.dark);
+      return normalizeTheme(fromStorage || fromUiState || fromContext || fromHtml || THEMES.light);
     } catch (error) {
-      return THEMES.dark;
+      return THEMES.light;
     }
   }
 
@@ -514,7 +514,7 @@
       var storageKey = resolveStorageKey();
       safeLocalStorageRemove(storageKey);
 
-      return setTheme(THEMES.dark, {
+      return setTheme(THEMES.light, {
         persist: false,
         source: options && options.source ? options.source : "reset",
         forceApply: true,
@@ -554,7 +554,7 @@
       root.setAttribute("data-vp-create-theme-mode", normalized);
       root.setAttribute("data-vp-create-theme-effective", effective);
       root.setAttribute("data-vp-create-color-scheme", effective);
-      root.setAttribute("data-vp-create-style", effective === THEMES.dark ? "black" : "light");
+      root.setAttribute("data-vp-create-style", effective === THEMES.dark ? "black" : "cad-light");
 
       root.style.colorScheme = effective === THEMES.dark ? "dark" : "light";
 
@@ -713,7 +713,7 @@
     try {
       return normalizeTheme(localState.theme || (core && core.state ? core.state.theme : "") || THEMES.dark);
     } catch (error) {
-      return THEMES.dark;
+      return THEMES.light;
     }
   }
 
@@ -721,7 +721,7 @@
     try {
       return resolveEffectiveTheme(getTheme());
     } catch (error) {
-      return THEMES.dark;
+      return THEMES.light;
     }
   }
 
@@ -741,9 +741,9 @@
         return THEMES.light;
       }
 
-      return THEMES.dark;
+      return THEMES.light;
     } catch (error) {
-      return THEMES.dark;
+      return THEMES.light;
     }
   }
 
@@ -775,9 +775,9 @@
         return text;
       }
 
-      return THEMES.dark;
+      return THEMES.light;
     } catch (error) {
-      return THEMES.dark;
+      return THEMES.light;
     }
   }
 
@@ -1047,7 +1047,7 @@
       return {
         selectors: DEFAULT_SELECTORS,
         state: {
-          theme: "dark",
+          theme: "light",
           themeStorageKey: "vectoplan.create.theme",
           context: {},
           uiState: {}

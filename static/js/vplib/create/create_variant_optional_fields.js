@@ -4,7 +4,7 @@
 
   var GLOBAL_NAME = "VectoplanCreateVariantOptionalFields";
   var COMPONENT_NAME = "VPLIB Create Variant Optional Fields";
-  var VERSION = "0.7.0";
+  var VERSION = "1.1.1";
   var READY_ATTR = "data-vp-create-variant-optional-fields";
 
   var SELECTORS = {
@@ -151,10 +151,7 @@
 
     valueControl: [
       "[data-vp-variant-optional-control]",
-      "[data-vp-definition-value-key][data-vp-variable-key]",
-      ".vp-create-variant-optional-fields__row-control input",
-      ".vp-create-variant-optional-fields__row-control select",
-      ".vp-create-variant-optional-fields__row-control textarea"
+      "[data-vp-definition-value-key][data-vp-variable-key]"
     ].join(","),
 
     valuesJson: [
@@ -267,6 +264,8 @@
     statusNode: null,
     availableCountNode: null,
     selectedCountNode: null,
+    searchInput: null,
+    groupSelect: null,
 
     valuesJsonField: null,
     additionalKeysJsonField: null,
@@ -280,6 +279,9 @@
     profileFieldKeys: [],
     additionalFieldKeys: [],
     definitionValues: {},
+    activeFieldKey: "",
+    documentUploadStorage: null,
+    documentUploadControls: {},
 
     searchText: "",
     groupFilter: "",
@@ -350,6 +352,7 @@
       document.addEventListener("click", onDocumentClick, true);
       document.addEventListener("input", onDocumentInput, true);
       document.addEventListener("change", onDocumentChange, true);
+      document.addEventListener("vectoplan:create:upload-changed", onUploadChanged, true);
 
       document.addEventListener("vectoplan:create:variant-drawer-session-started", function (event) {
         var detail = event && event.detail ? event.detail : {};
@@ -520,6 +523,15 @@
         state.searchText = "";
         state.groupFilter = "";
 
+        if (state.searchInput) {
+          state.searchInput.value = "";
+        }
+
+        if (state.groupSelect) {
+          state.groupSelect.value = "";
+        }
+
+        renderFilterControls();
         renderAvailableVariables();
       }
     } catch (error) {
@@ -537,7 +549,7 @@
       }
 
       if (target.matches(SELECTORS.searchInput) && containsRoot(target)) {
-        state.searchText = "";
+        state.searchText = String(target.value || "");
         renderAvailableVariables();
         return;
       }
@@ -546,6 +558,8 @@
         syncToDrawerValues({
           reason: "optional-field-input"
         });
+        renderAvailableVariables();
+        updateCountsAndStatus();
       }
     } catch (error) {
       state.lastError = normalizeError(error);
@@ -562,7 +576,7 @@
       }
 
       if (target.matches(SELECTORS.groupSelect) && containsRoot(target)) {
-        state.groupFilter = "";
+        state.groupFilter = String(target.value || "");
         renderAvailableVariables();
         return;
       }
@@ -571,10 +585,57 @@
         syncToDrawerValues({
           reason: "optional-field-change"
         });
+        renderAvailableVariables();
+        updateCountsAndStatus();
       }
     } catch (error) {
       state.lastError = normalizeError(error);
       warn("onDocumentChange failed", error);
+    }
+  }
+
+  function onUploadChanged(event) {
+    try {
+      var zone = event && event.target ? event.target : null;
+      if (!zone || !zone.matches || !zone.matches("[data-vp-optional-document-upload='true']") || !containsRoot(zone)) {
+        return;
+      }
+      var detail = event && event.detail ? event.detail : {};
+      var payload = detail.payload || {};
+      if (String(payload.kind || detail.kind || "") !== "variant_documents") {
+        return;
+      }
+      var key = String(payload.fieldKey || payload.field_key || detail.fieldKey || zone.getAttribute("data-vp-field-key") || "").trim();
+      if (!key) {
+        return;
+      }
+      var files = (payload.files || detail.files || []).filter(function (file) {
+        return file && file.valid !== false;
+      }).map(function (file) {
+        var name = String(file.name || file.filename || "");
+        return {
+          name: name,
+          filename: name,
+          size_bytes: Number(file.size || file.size_bytes || 0),
+          content_type: String(file.type || file.content_type || ""),
+          extension: String(file.extension || ""),
+          field_key: key,
+          kind: "variant_documents",
+          embedded: true,
+          source: "browser_file_input"
+        };
+      });
+      var valueField = query("[data-vp-document-list-value='true']", zone);
+      if (valueField) {
+        valueField.value = stringifyJson(files);
+      }
+      state.definitionValues[key] = files;
+      syncToDrawerValues({ reason: "document-list-upload" });
+      renderAvailableVariables();
+      updateCountsAndStatus();
+    } catch (error) {
+      state.lastError = normalizeError(error);
+      warn("onUploadChanged failed", error);
     }
   }
 
@@ -600,6 +661,7 @@
       readDrawerValues(safeOptions.detail || {});
       readAdditionalKeys(safeOptions.detail || {});
       inferAdditionalKeysFromValues();
+      ensureActiveFieldKey();
 
       render();
 
@@ -660,6 +722,7 @@
 
       state.additionalFieldKeys = filterAdditionalKeys(state.additionalFieldKeys);
       inferAdditionalKeysFromValues();
+      ensureActiveFieldKey();
 
       render();
 
@@ -779,20 +842,11 @@
       root.setAttribute("data-vp-variant-optional-fields", "true");
       root.setAttribute("data-vp-variant-optional-fields-root", "true");
       root.setAttribute("data-vp-variant-optional-fields-version", VERSION);
-      root.setAttribute("data-vp-optional-ui-mode", "list-no-search");
-      root.setAttribute("data-vp-optional-available-layout", "table-list");
-      root.setAttribute("aria-label", root.getAttribute("aria-label") || "Weitere technische Angaben");
+      root.setAttribute("data-vp-optional-ui-mode", "list-detail");
+      root.setAttribute("data-vp-optional-available-layout", "list-detail");
+      root.setAttribute("aria-label", "Variablen auswaehlen und bearbeiten");
 
-      queryAll(SELECTORS.legacyTools, root).forEach(function (node) {
-        try {
-          node.hidden = true;
-          node.setAttribute("aria-hidden", "true");
-          node.setAttribute("data-vp-legacy-control-hidden", "true");
-        } catch (error) {
-          /* no-op */
-        }
-      });
-
+      ensureFilterTools(root);
       ensureChildStructure(root);
     } catch (error) {
       warn("normalizeRootDom failed", error);
@@ -815,9 +869,7 @@
           '  <span data-vp-variant-optional-fields-available-count="true">Wird geladen.</span>',
           '</div>',
           '<div class="' + CLASS_NAMES.availableColumns + '" data-vp-variant-optional-fields-available-columns="true" aria-hidden="true">',
-          '  <span>Bezeichnung</span>',
-          '  <span>Beschreibung</span>',
-          '  <span>Art</span>',
+          '  <span>Variablenbezeichnung</span>',
           '</div>',
           '<div class="' + CLASS_NAMES.availableList + '" data-vp-variant-optional-fields-available-list="true" role="listbox" aria-label="Verfügbare Backend-Variablen"></div>'
         ].join("");
@@ -874,6 +926,12 @@
     }
   }
 
+  function ensureFilterTools() {
+    state.searchInput = null;
+    state.groupSelect = null;
+    return null;
+  }
+
   function ensureAvailableColumns(availableRoot) {
     try {
       if (!availableRoot) {
@@ -891,7 +949,7 @@
       columns.setAttribute("data-vp-variant-optional-fields-available-columns", "true");
       columns.setAttribute("aria-hidden", "true");
 
-      ["Bezeichnung", "Beschreibung", "Art"].forEach(function (label) {
+      ["Variablenbezeichnung"].forEach(function (label) {
         var span = document.createElement("span");
         span.textContent = label;
         columns.appendChild(span);
@@ -920,31 +978,18 @@
     root.setAttribute("data-vp-variant-optional-fields-root", "true");
     root.setAttribute("data-vp-variant-drawer-optional-fields", "true");
     root.setAttribute("data-vp-variant-optional-fields-version", VERSION);
-    root.setAttribute("data-vp-optional-ui-mode", "list-no-search");
-    root.setAttribute("data-vp-optional-available-layout", "table-list");
-    root.setAttribute("aria-label", "Weitere technische Angaben");
+    root.setAttribute("data-vp-optional-ui-mode", "list-detail");
+    root.setAttribute("data-vp-optional-available-layout", "list-detail");
+    root.setAttribute("aria-label", "Variablen auswaehlen und bearbeiten");
 
     root.innerHTML = [
-      '<header class="' + CLASS_NAMES.header + '">',
-      '  <div>',
-      '    <h4 class="' + CLASS_NAMES.title + '">Weitere technische Angaben</h4>',
-      '    <p class="' + CLASS_NAMES.subtitle + '">',
-      '      Zusätzliche Variablen aus dem Backend-Katalog auswählen, z. B. U-Wert, Brandschutz oder Rohdichte.',
-      '    </p>',
-      '  </div>',
-      '  <span class="' + CLASS_NAMES.status + '" data-vp-variant-optional-fields-status="true" data-vp-variant-optional-fields-count-label="true" aria-live="polite">',
-      '    Keine Zusatzfelder aktiv.',
-      '  </span>',
-      '</header>',
       '<div class="' + CLASS_NAMES.available + '" data-vp-variant-optional-fields-available="true" data-vp-variant-optional-fields-catalog="true">',
       '  <div class="' + CLASS_NAMES.availableHeader + '" data-vp-variant-optional-fields-available-header="true">',
       '    <strong data-vp-variant-optional-fields-available-title="true">Verfügbare Variablen</strong>',
       '    <span data-vp-variant-optional-fields-available-count="true">Wird geladen.</span>',
       '  </div>',
       '  <div class="' + CLASS_NAMES.availableColumns + '" data-vp-variant-optional-fields-available-columns="true" aria-hidden="true">',
-      '    <span>Bezeichnung</span>',
-      '    <span>Beschreibung</span>',
-      '    <span>Art</span>',
+      '    <span>Variablenbezeichnung</span>',
       '  </div>',
       '  <div class="' + CLASS_NAMES.availableList + '" data-vp-variant-optional-fields-available-list="true" role="listbox" aria-label="Verfügbare Backend-Variablen"></div>',
       '</div>',
@@ -1371,12 +1416,14 @@
 
         ensureVariableForKey(key);
 
-        if (!containsString(state.additionalFieldKeys, key) && !!state.variablesByKey[key]) {
+        if (hasMeaningfulValue(state.definitionValues[key]) && !containsString(state.additionalFieldKeys, key) && !!state.variablesByKey[key]) {
           state.additionalFieldKeys.push(key);
         }
       });
 
-      state.additionalFieldKeys = filterAdditionalKeys(state.additionalFieldKeys);
+      state.additionalFieldKeys = filterAdditionalKeys(state.additionalFieldKeys).filter(function (key) {
+        return hasMeaningfulValue(state.definitionValues[key]);
+      });
 
       return state.additionalFieldKeys;
     } catch (error) {
@@ -1409,6 +1456,7 @@
     try {
       ensureDom();
 
+      renderFilterControls();
       renderAvailableVariables();
       renderSelectedFields();
       updateCountsAndStatus();
@@ -1433,10 +1481,11 @@
         return;
       }
 
-      var variables = getAvailableVariables({
+      var variables = getAvailableVariables();
+      var totalVariables = getAvailableVariables({
         ignoreSearch: true,
         ignoreGroup: true
-      });
+      }).length;
 
       state.availableList.innerHTML = "";
       state.availableList.setAttribute("role", "listbox");
@@ -1444,7 +1493,7 @@
 
       if (state.availableRoot) {
         state.availableRoot.setAttribute("data-vp-available-variable-count", String(variables.length));
-        state.availableRoot.setAttribute("data-vp-available-layout", "table-list");
+        state.availableRoot.setAttribute("data-vp-available-layout", "list-detail");
         ensureAvailableColumns(state.availableRoot);
       }
 
@@ -1465,8 +1514,11 @@
         state.availableList.appendChild(fragment);
       }
 
-      setNodeText(state.availableCountNode, "Verfügbare Variablen: " + String(variables.length));
-      updateText(SELECTORS.availableCountNode, "Verfügbare Variablen: " + String(variables.length), state.root);
+      var countLabel = variables.length === totalVariables
+        ? String(totalVariables) + " Variablen"
+        : String(variables.length) + " von " + String(totalVariables);
+      setNodeText(state.availableCountNode, countLabel);
+      updateText(SELECTORS.availableCountNode, countLabel, state.root);
 
       if (state.root) {
         state.root.classList.toggle(CLASS_NAMES.rootHasResults, variables.length > 0);
@@ -1477,6 +1529,58 @@
     }
   }
 
+  function renderFilterControls() {
+    try {
+      ensureFilterTools(state.root);
+
+      if (state.searchInput && state.searchInput.value !== state.searchText) {
+        state.searchInput.value = state.searchText;
+      }
+
+      if (!state.groupSelect) {
+        return;
+      }
+
+      var groups = [];
+      getAvailableVariables({
+        ignoreSearch: true,
+        ignoreGroup: true
+      }).forEach(function (variable) {
+        var group = getVariableGroup(variable);
+
+        if (group && groups.indexOf(group) === -1) {
+          groups.push(group);
+        }
+      });
+
+      groups.sort(function (a, b) {
+        return groupLabel(a).localeCompare(groupLabel(b), "de");
+      });
+
+      state.groupSelect.innerHTML = "";
+
+      var allOption = document.createElement("option");
+      allOption.value = "";
+      allOption.textContent = "Alle Kategorien";
+      state.groupSelect.appendChild(allOption);
+
+      groups.forEach(function (group) {
+        var option = document.createElement("option");
+        option.value = group;
+        option.textContent = groupLabel(group);
+        state.groupSelect.appendChild(option);
+      });
+
+      if (groups.indexOf(state.groupFilter) === -1) {
+        state.groupFilter = "";
+      }
+
+      state.groupSelect.value = state.groupFilter;
+    } catch (error) {
+      warn("renderFilterControls failed", error);
+    }
+  }
+
   function createVariableResultButton(variable) {
     var key = getVariableKey(variable);
     var label = getVariableLabel(variable);
@@ -1484,14 +1588,15 @@
     var description = getVariableDescription(variable);
     var typeLabel = getVariableTypeLabel(variable);
     var unitLabel = getVariableUnitLabel(variable);
-    var readableGroup = groupLabel(group);
-
+    var configured = containsString(state.additionalFieldKeys, key) && hasMeaningfulValue(getValueForKey(key));
+    var active = state.activeFieldKey === key;
     var button = document.createElement("button");
     button.type = "button";
-    button.className = [
-      CLASS_NAMES.resultButton,
-      CLASS_NAMES.availableRow
-    ].join(" ");
+    button.className = [CLASS_NAMES.resultButton, CLASS_NAMES.availableRow].join(" ");
+    if (configured) { button.classList.add("is-configured"); }
+    if (active) { button.classList.add("is-active"); }
+    button.setAttribute("data-vp-variable-configured", configured ? "true" : "false");
+    button.setAttribute("data-vp-variable-active", active ? "true" : "false");
     button.setAttribute("data-vp-variant-optional-add", key);
     button.setAttribute("data-vp-add-additional-field", key);
     button.setAttribute("data-vp-variable-key", key);
@@ -1499,63 +1604,40 @@
     button.setAttribute("data-vp-variable-type", typeLabel);
     button.setAttribute("data-vp-variable-unit", unitLabel);
     button.setAttribute("role", "option");
-    button.setAttribute("aria-label", "Variable hinzufügen: " + label + ". " + description + ". Art: " + typeLabel + ".");
-    button.title = label + " · " + key;
-
+    button.setAttribute("aria-selected", active ? "true" : "false");
+    button.setAttribute("aria-label", "Variable bearbeiten: " + label + ". " + description + ". Art: " + typeLabel + ".");
+    button.title = [label, description, typeLabel, unitLabel].filter(Boolean).join(" · ");
     var nameCell = document.createElement("span");
-    nameCell.className = [
-      CLASS_NAMES.resultTitle,
-      CLASS_NAMES.availableName
-    ].join(" ");
+    nameCell.className = [CLASS_NAMES.resultTitle, CLASS_NAMES.availableName].join(" ");
     nameCell.setAttribute("data-vp-optional-available-name", "true");
     nameCell.textContent = label;
-
-    var descriptionCell = document.createElement("span");
-    descriptionCell.className = CLASS_NAMES.availableDescription;
-    descriptionCell.setAttribute("data-vp-optional-available-description", "true");
-    descriptionCell.textContent = description || [key, readableGroup, unitLabel].filter(Boolean).join(" · ");
-
-    var typeCell = document.createElement("span");
-    typeCell.className = CLASS_NAMES.availableType;
-    typeCell.setAttribute("data-vp-optional-available-type", "true");
-    typeCell.textContent = typeLabel || "string";
-
-    var keyMeta = document.createElement("small");
-    keyMeta.className = [
-      CLASS_NAMES.resultMeta,
-      CLASS_NAMES.availableKey
-    ].join(" ");
-    keyMeta.setAttribute("data-vp-optional-available-key", "true");
-    keyMeta.textContent = [key, readableGroup, unitLabel].filter(Boolean).join(" · ");
-
-    nameCell.appendChild(keyMeta);
-
     button.appendChild(nameCell);
-    button.appendChild(descriptionCell);
-    button.appendChild(typeCell);
-
     return button;
   }
-
   function renderSelectedFields() {
     try {
       if (!state.selectedRows) {
         return;
       }
 
+      parkDocumentUploadControls();
       state.selectedRows.innerHTML = "";
+      ensureActiveFieldKey();
 
-      state.additionalFieldKeys.forEach(function (key) {
-        ensureVariableForKey(key);
+      if (state.activeFieldKey) {
+        ensureVariableForKey(state.activeFieldKey);
 
-        var variable = state.variablesByKey[key];
+        var variable = state.variablesByKey[state.activeFieldKey];
 
-        if (!variable) {
-          return;
+        if (variable) {
+          state.selectedRows.appendChild(createSelectedFieldNode(variable));
         }
+      }
 
-        state.selectedRows.appendChild(createSelectedFieldNode(variable));
-      });
+      var detailTitle = query("[data-vp-variant-detail-title='true']", state.selectedRoot);
+      setNodeText(detailTitle, state.activeFieldKey && state.variablesByKey[state.activeFieldKey]
+        ? getVariableLabel(state.variablesByKey[state.activeFieldKey])
+        : "Variable bearbeiten");
 
       updateCountsAndStatus();
 
@@ -1566,6 +1648,20 @@
     } catch (error) {
       state.lastError = normalizeError(error);
       warn("renderSelectedFields failed", error);
+    }
+  }
+
+  function ensureActiveFieldKey() {
+    try {
+      if (state.activeFieldKey && state.variablesByKey[state.activeFieldKey]) {
+        return state.activeFieldKey;
+      }
+
+      state.activeFieldKey = state.additionalFieldKeys.length ? state.additionalFieldKeys[0] : "";
+      return state.activeFieldKey;
+    } catch (error) {
+      state.activeFieldKey = "";
+      return "";
     }
   }
 
@@ -1615,6 +1711,14 @@
     variableCell.appendChild(label);
     variableCell.appendChild(meta);
 
+    if (description && description !== key) {
+      var helper = document.createElement("p");
+      helper.className = "vp-create-variant-optional-fields__row-description";
+      helper.setAttribute("data-vp-optional-row-description", "true");
+      helper.textContent = description;
+      variableCell.appendChild(helper);
+    }
+
     var controlCell = document.createElement("div");
     controlCell.className = CLASS_NAMES.rowControl;
     controlCell.setAttribute("data-vp-optional-row-control", "true");
@@ -1651,6 +1755,10 @@
     var options = getVariableOptions(variable);
     var control;
 
+    if (widget === "document_list" || getVariableType(variable) === "document_list") {
+      return createDocumentUploadControl(variable, value);
+    }
+
     if (options.length) {
       control = document.createElement("select");
 
@@ -1672,9 +1780,9 @@
 
         control.appendChild(node);
       });
-    } else if (widget === "textarea" || widget === "document_list") {
+    } else if (widget === "textarea") {
       control = document.createElement("textarea");
-      control.rows = widget === "document_list" ? 3 : 2;
+      control.rows = 2;
       control.value = value === null || typeof value === "undefined" ? "" : valueToControlString(value);
     } else if (widget === "checkbox" || getVariableType(variable) === "boolean" || getVariableType(variable) === "bool") {
       control = document.createElement("input");
@@ -1711,6 +1819,141 @@
     applyValidationAttributes(control, variable);
 
     return control;
+  }
+
+  function ensureDocumentUploadStorage() {
+    try {
+      if (state.documentUploadStorage && state.root && state.root.contains(state.documentUploadStorage)) {
+        return state.documentUploadStorage;
+      }
+      if (!state.root) { return null; }
+      var storage = document.createElement("div");
+      storage.hidden = true;
+      storage.setAttribute("aria-hidden", "true");
+      storage.setAttribute("data-vp-variant-document-upload-storage", "true");
+      state.root.appendChild(storage);
+      state.documentUploadStorage = storage;
+      return storage;
+    } catch (error) {
+      warn("ensureDocumentUploadStorage failed", error);
+      return null;
+    }
+  }
+
+  function parkDocumentUploadControls() {
+    try {
+      var storage = ensureDocumentUploadStorage();
+      if (!storage || !state.selectedRows) { return; }
+      queryAll("[data-vp-optional-document-upload='true']", state.selectedRows).forEach(function (zone) {
+        storage.appendChild(zone);
+      });
+    } catch (error) {
+      warn("parkDocumentUploadControls failed", error);
+    }
+  }
+
+  function createDocumentUploadControl(variable, value) {
+    var key = getVariableKey(variable);
+    var cached = state.documentUploadControls[key];
+    if (cached) {
+      var cachedInput = query("input[type='file']", cached);
+      var cachedValue = query("[data-vp-document-list-value='true']", cached);
+      if (cachedValue && (!cachedInput || !cachedInput.files || cachedInput.files.length === 0)) {
+        cachedValue.value = stringifyJson(Array.isArray(value) ? value : []);
+      }
+      return cached;
+    }
+    var metadataName = "variant_document_uploads[" + key + "]";
+    var label = getVariableLabel(variable);
+    var zone = document.createElement("div");
+    zone.className = "vp-create-upload vp-create-upload--documents vp-create-variant-document-upload vp-create-variant-optional-fields__document-upload";
+    [["data-vp-upload", ""], ["data-vp-upload-zone", ""], ["data-create-upload-zone", ""], ["data-vp-optional-document-upload", "true"], ["data-vp-field-document-upload", "true"], ["data-vp-field-document-list-upload", "true"], ["data-vp-field-key", key], ["data-vp-field-value-type", "document_list"], ["data-vp-upload-kind", "variant_documents"], ["data-vp-upload-purpose", "variant_document_list"], ["data-vp-upload-backend-enabled", "true"], ["data-vp-upload-local-only", "false"], ["data-vp-upload-metadata-field", metadataName], ["data-vp-upload-accumulate", "true"], ["data-vp-upload-max-files", "12"]].forEach(function (entry) {
+      zone.setAttribute(entry[0], entry[1]);
+    });
+    var header = document.createElement("div");
+    header.className = "vp-create-upload__header";
+    header.setAttribute("data-vp-upload-header", "");
+    var heading = document.createElement("div");
+    var title = document.createElement("strong");
+    title.className = "vp-create-upload__title";
+    title.setAttribute("data-vp-upload-title", "");
+    title.textContent = label + " hochladen";
+    var hint = document.createElement("p");
+    hint.className = "vp-create-upload__hint";
+    hint.setAttribute("data-vp-upload-hint", "");
+    hint.textContent = "Bis zu 12 Dateien auswählen – gleichzeitig oder nacheinander. PDF, Tabellen, Bilder und ZIP werden direkt in das VPLIB eingebettet.";
+    heading.appendChild(title);
+    heading.appendChild(hint);
+    var count = document.createElement("span");
+    count.className = "vp-create-status-pill vp-create-status-pill--muted";
+    count.setAttribute("data-vp-upload-count-label", "");
+    count.setAttribute("aria-live", "polite");
+    count.textContent = "0 Dateien";
+    header.appendChild(heading);
+    header.appendChild(count);
+    var controls = document.createElement("div");
+    controls.className = "vp-create-upload__controls";
+    controls.setAttribute("data-vp-upload-controls", "");
+    var fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.name = "variant_document_files[" + key + "][]";
+    fileInput.multiple = true;
+    fileInput.accept = ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp,.zip";
+    [["data-vp-upload-input", ""], ["data-vp-variant-document-upload-input", "true"], ["data-vp-field-key", key], ["data-vp-upload-kind", "variant_documents"], ["data-vp-upload-purpose", "variant_document_list"], ["data-vp-upload-local-only", "false"], ["data-vp-upload-accumulate", "true"], ["data-vp-upload-max-files", "12"], ["aria-label", label + " auswählen"]].forEach(function (entry) {
+      fileInput.setAttribute(entry[0], entry[1]);
+    });
+    var metadata = document.createElement("input");
+    metadata.type = "hidden";
+    metadata.name = metadataName;
+    metadata.value = "[]";
+    [["data-vp-upload-metadata", ""], ["data-vp-variant-document-upload-metadata", "true"], ["data-vp-field-key", key], ["data-vp-upload-metadata-kind", "variant_documents"]].forEach(function (entry) {
+      metadata.setAttribute(entry[0], entry[1]);
+    });
+    var empty = document.createElement("p");
+    empty.className = "vp-create-upload__empty";
+    empty.setAttribute("data-vp-upload-empty", "");
+    empty.textContent = "Noch keine Dokumente ausgewählt.";
+    var fileList = document.createElement("div");
+    fileList.className = "vp-create-upload__file-list";
+    fileList.setAttribute("data-vp-upload-file-list", "");
+    fileList.setAttribute("aria-live", "polite");
+    var definitionValue = document.createElement("input");
+    definitionValue.type = "hidden";
+    definitionValue.name = "definition_values[" + key + "]";
+    definitionValue.value = stringifyJson(Array.isArray(value) ? value : []);
+    [["data-vp-document-list-value", "true"], ["data-vp-variant-optional-control", "true"], ["data-vp-definition-value-key", key], ["data-vp-variable-key", key], ["data-vp-field-key", key], ["data-vp-field-value-type", "document_list"], ["data-vp-field-widget", "document_list"]].forEach(function (entry) {
+      definitionValue.setAttribute(entry[0], entry[1]);
+    });
+    controls.appendChild(fileInput);
+    controls.appendChild(metadata);
+    controls.appendChild(empty);
+    controls.appendChild(fileList);
+    controls.appendChild(definitionValue);
+    zone.appendChild(header);
+    zone.appendChild(controls);
+    state.documentUploadControls[key] = zone;
+    window.setTimeout(function () {
+      try {
+        if (window.VectoplanCreateUploads && typeof window.VectoplanCreateUploads.initialize === "function") {
+          window.VectoplanCreateUploads.initialize(zone);
+        } else {
+          dispatchDocument("vectoplan:create:uploads-refresh-requested", { source: COMPONENT_NAME, root: zone });
+        }
+      } catch (error) {
+        warn("Document upload initialization failed", error);
+      }
+    }, 0);
+    return zone;
+  }
+
+  function removeDocumentUploadControl(key) {
+    try {
+      var zone = state.documentUploadControls[key];
+      if (zone && zone.parentNode) { zone.parentNode.removeChild(zone); }
+      delete state.documentUploadControls[key];
+    } catch (error) {
+      warn("removeDocumentUploadControl failed", error);
+    }
   }
 
   function valueToControlString(value) {
@@ -1840,15 +2083,16 @@
         return false;
       }
 
-      if (!containsString(state.additionalFieldKeys, normalizedKey)) {
+      state.activeFieldKey = normalizedKey;
+      if (!Object.prototype.hasOwnProperty.call(state.definitionValues, normalizedKey)) {
+        state.definitionValues[normalizedKey] = emptyValueForVariable(state.variablesByKey[normalizedKey]);
+      }
+      if (hasMeaningfulValue(state.definitionValues[normalizedKey]) && !containsString(state.additionalFieldKeys, normalizedKey)) {
         state.additionalFieldKeys.push(normalizedKey);
       }
-
-      if (!Object.prototype.hasOwnProperty.call(state.definitionValues, normalizedKey)) {
-        state.definitionValues[normalizedKey] = defaultValueForVariable(state.variablesByKey[normalizedKey]);
-      }
-
-      state.additionalFieldKeys = filterAdditionalKeys(state.additionalFieldKeys);
+      state.additionalFieldKeys = filterAdditionalKeys(state.additionalFieldKeys).filter(function (fieldKey) {
+        return hasMeaningfulValue(state.definitionValues[fieldKey]);
+      });
       state.pendingScrollKey = safeOptions.scrollIntoView === false ? "" : normalizedKey;
 
       renderAvailableVariables();
@@ -1858,7 +2102,7 @@
         reason: safeOptions.reason || "add-field"
       });
 
-      setStatus("Variable hinzugefügt: " + getVariableLabel(state.variablesByKey[normalizedKey]), "ok");
+      setStatus("Variable ausgewählt: " + getVariableLabel(state.variablesByKey[normalizedKey]), "info");
 
       dispatchDocument("vectoplan:create:variant-optional-field-added", {
         component: COMPONENT_NAME,
@@ -1885,10 +2129,14 @@
       state.additionalFieldKeys = state.additionalFieldKeys.filter(function (item) {
         return item !== normalizedKey;
       });
+      if (state.activeFieldKey === normalizedKey) {
+        state.activeFieldKey = state.additionalFieldKeys.length ? state.additionalFieldKeys[0] : "";
+      }
 
       if (state.definitionValues && Object.prototype.hasOwnProperty.call(state.definitionValues, normalizedKey)) {
         delete state.definitionValues[normalizedKey];
       }
+      removeDocumentUploadControl(normalizedKey);
 
       renderAvailableVariables();
       renderSelectedFields();
@@ -1969,6 +2217,15 @@
 
       currentValues = mergeObjects(currentValues, state.definitionValues || {});
       currentValues = mergeObjects(currentValues, optionalValues);
+
+      var configuredKeys = [];
+      uniqueStrings(state.additionalFieldKeys.concat(Object.keys(state.definitionValues || {})).concat(Object.keys(optionalValues || {}))).forEach(function (key) {
+        if (!key || isCoreValueKey(key) || isSystemKey(key) || containsString(state.profileFieldKeys, key)) { return; }
+        ensureVariableForKey(key);
+        if (!state.variablesByKey[key]) { return; }
+        if (hasMeaningfulValue(currentValues[key])) { configuredKeys.push(key); } else { delete currentValues[key]; }
+      });
+      state.additionalFieldKeys = filterAdditionalKeys(configuredKeys);
 
       if (safeOptions.removeMissingValues) {
         Object.keys(currentValues).forEach(function (key) {
@@ -2073,10 +2330,6 @@
           return false;
         }
 
-        if (containsString(state.additionalFieldKeys, key)) {
-          return false;
-        }
-
         if (!isCompatibleVariable(variable)) {
           return false;
         }
@@ -2175,17 +2428,14 @@
 
   function updateCountsAndStatus() {
     try {
-      var availableCount = getAvailableVariables({
-        ignoreSearch: true,
-        ignoreGroup: true
+      var selectedCount = state.additionalFieldKeys.filter(function (key) {
+        return hasMeaningfulValue(state.definitionValues[key]);
       }).length;
-      var selectedCount = state.additionalFieldKeys.length;
 
-      setNodeText(state.availableCountNode, "Verfügbare Variablen: " + String(availableCount));
-      setNodeText(state.selectedCountNode, String(selectedCount));
+      setNodeText(state.selectedCountNode, String(selectedCount) + " ausgefüllt");
 
       if (state.selectedEmpty) {
-        state.selectedEmpty.hidden = selectedCount > 0;
+        state.selectedEmpty.hidden = !!state.activeFieldKey;
       }
 
       if (state.root) {
@@ -2194,8 +2444,8 @@
       }
 
       setStatus(selectedCount
-        ? selectedCount + " Zusatzfeld" + (selectedCount === 1 ? "" : "er") + " aktiv."
-        : "Keine Zusatzfelder aktiv.",
+        ? selectedCount + " Variable" + (selectedCount === 1 ? "" : "n") + " ausgefüllt."
+        : "Noch keine Variable ausgefüllt.",
       selectedCount ? "ok" : "info");
     } catch (error) {
       warn("updateCountsAndStatus failed", error);
@@ -2258,7 +2508,7 @@
 
       state.additionalFieldKeys.forEach(function (key) {
         if (!Object.prototype.hasOwnProperty.call(state.definitionValues, key)) {
-          state.definitionValues[key] = defaultValueForVariable(state.variablesByKey[key]);
+          state.definitionValues[key] = emptyValueForVariable(state.variablesByKey[key]);
         }
       });
 
@@ -2288,6 +2538,9 @@
       state.profileFieldKeys = [];
       state.additionalFieldKeys = [];
       state.definitionValues = {};
+      state.activeFieldKey = "";
+      if (state.documentUploadStorage) { state.documentUploadStorage.innerHTML = ""; }
+      state.documentUploadControls = {};
       state.searchText = "";
       state.groupFilter = "";
       state.pendingScrollKey = "";
@@ -2327,10 +2580,11 @@
       additionalFieldKeys: state.additionalFieldKeys.slice(),
       additional_field_keys: state.additionalFieldKeys.slice(),
       definitionValues: cloneObject(state.definitionValues),
-      searchText: "",
-      groupFilter: "",
-      uiMode: "list-no-search",
-      availableLayout: "table-list",
+      activeFieldKey: state.activeFieldKey,
+      searchText: state.searchText,
+      groupFilter: state.groupFilter,
+      uiMode: "list-detail",
+      availableLayout: "list-detail",
       lastRefreshReason: state.lastRefreshReason,
       lastError: state.lastError,
       renderCount: state.renderCount,
@@ -2622,6 +2876,38 @@
     }
   }
 
+  function hasMeaningfulValue(value) {
+    try {
+      if (value === null || typeof value === "undefined" || value === false) { return false; }
+      if (typeof value === "string") {
+        var normalized = value.trim();
+        return !!normalized && normalized !== "[]" && normalized !== "{}" && normalized !== "null";
+      }
+      if (Array.isArray(value)) {
+        return value.some(function (item) { return hasMeaningfulValue(item); });
+      }
+      if (typeof value === "object") {
+        return Object.keys(value).some(function (key) { return hasMeaningfulValue(value[key]); });
+      }
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function emptyValueForVariable(variable) {
+    try {
+      var type = getVariableType(variable);
+      var widget = getVariableWidget(variable);
+      if (type === "boolean" || type === "bool" || widget === "checkbox") { return false; }
+      if (type === "array" || type === "document_list" || widget === "document_list") { return []; }
+      if (type === "object") { return {}; }
+      return "";
+    } catch (error) {
+      return "";
+    }
+  }
+
   function defaultValueForVariable(variable) {
     try {
       if (!variable) {
@@ -2902,7 +3188,6 @@
       return "string";
     }
   }
-
   function getVariableWidget(variable) {
     try {
       var ui = variable.ui || {};

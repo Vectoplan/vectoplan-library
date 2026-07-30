@@ -4,7 +4,7 @@
 
   var GLOBAL_NAME = "VectoplanCreateVariantTable";
   var COMPONENT_NAME = "VECTOPLAN Create Variant Table";
-  var COMPONENT_VERSION = "0.7.0";
+  var COMPONENT_VERSION = "0.8.0";
   var READY_ATTR = "data-vp-create-variant-table-controller-ready";
 
   var TABLE_SELECTOR = "[data-vp-variant-table-root='true'], [data-vp-variant-table='true'], [data-create-variant-table='true']";
@@ -1461,11 +1461,15 @@
       var titleWrap = U().createElement("div", {
         class: "vp-create-variant-row__title-wrap"
       }, [
-        U().createElement("strong", {
-          class: "vp-create-variant-row__title",
+        U().createElement("button", {
+          class: "vp-create-variant-row__name-button",
+          type: "button",
           text: getVariantDisplayName(variant),
           attrs: {
-            "data-vp-variant-row-display-name": "true"
+            "data-vp-variant-row-display-name": "true",
+            "data-vp-edit-definition-variant": "true",
+            "aria-label": "Variantenname bearbeiten: " + getVariantDisplayName(variant),
+            title: "Variantenname bearbeiten"
           }
         })
       ]);
@@ -1488,64 +1492,25 @@
     }
   }
 
-  function createProfileCell(variant) {
-    try {
-      var children = [
-        U().createElement("span", {
-          class: "vp-create-definition-profile-pill",
-          text: variant.variant_profile_id ? getProfileLabel(variant.variant_profile_id) : "auto",
-          attrs: {
-            "data-vp-row-profile-pill": "true",
-            "data-vp-row-profile-id": variant.variant_profile_id || ""
-          }
-        })
-      ];
-
-      if (variant.definition_managed || variant.variant_profile_id) {
-        children.push(U().createElement("span", {
-          class: "vp-create-variant-managed-pill",
-          text: "Definitionsprofil",
-          attrs: {
-            "data-vp-row-managed-pill": "true"
-          }
-        }));
-      }
-
-      return createCell("vp-create-variant-row__cell--profile", children);
-    } catch (error) {
-      return createCell("vp-create-variant-row__cell--profile", []);
-    }
-  }
-
   function createSummaryCell(variant) {
     try {
       var additionalKeys = normalizeAdditionalFieldKeys(variant.additional_field_keys || variant.additionalFieldKeys || []);
-      var children = [
-        U().createElement("div", {
-          class: "vp-create-definition-summary",
-          text: getSummary(variant),
-          attrs: {
-            "data-vp-row-definition-summary": "true"
-          }
-        })
-      ];
-
-      if (additionalKeys.length) {
-        children.push(U().createElement("span", {
+      var countText = additionalKeys.length === 1
+        ? "1 Zusatzfeld"
+        : String(additionalKeys.length) + " Zusatzfelder";
+      return createCell("vp-create-variant-row__cell--summary", [
+        U().createElement("span", {
           class: "vp-create-definition-summary__additional-count",
-          text: additionalKeys.length === 1 ? "1 Zusatzfeld" : String(additionalKeys.length) + " Zusatzfelder",
+          text: countText,
           attrs: {
             "data-vp-row-additional-field-count": String(additionalKeys.length)
           }
-        }));
-      }
-
-      return createCell("vp-create-variant-row__cell--summary", children);
+        })
+      ]);
     } catch (error) {
       return createCell("vp-create-variant-row__cell--summary", []);
     }
   }
-
   function createActionsCell(variant) {
     try {
       var actions = U().createElement("div", {
@@ -1643,7 +1608,7 @@
 
       row.appendChild(createDefaultCell(normalized));
       row.appendChild(createVariantCell(normalized));
-      row.appendChild(createProfileCell(normalized));
+
       row.appendChild(createSummaryCell(normalized));
       row.appendChild(createActionsCell(normalized));
       row.appendChild(createHiddenFields(normalized, index));

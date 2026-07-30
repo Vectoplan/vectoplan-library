@@ -3319,3 +3319,989 @@
     display: none !important;
   }
 }
+
+
+/* VECTOPLAN CAD light workspace */
+html[data-vp-create-document="true"],
+html[data-create-document="true"] {
+  color-scheme: light;
+  --vp-create-bg: #e9eef5;
+  --vp-create-bg-page: #edf2f7;
+  --vp-create-bg-shell: #f8fafc;
+  --vp-create-bg-panel: #ffffff;
+  --vp-create-bg-panel-2: #f8fafc;
+  --vp-create-bg-panel-3: #eef3f8;
+  --vp-create-bg-input: #ffffff;
+  --vp-create-bg-elevated: #ffffff;
+  --vp-create-bg-muted: #e8eef5;
+  --vp-create-bg-overlay: rgba(241, 245, 249, 0.96);
+  --vp-create-text: #243247;
+  --vp-create-text-strong: #0f1f33;
+  --vp-create-text-muted: #52657a;
+  --vp-create-text-soft: #718096;
+  --vp-create-text-inverse: #ffffff;
+  --vp-create-border: #c9d4e2;
+  --vp-create-border-soft: #dde5ee;
+  --vp-create-border-strong: #9eafc2;
+  --vp-create-primary: #1666d8;
+  --vp-create-primary-2: #0f56bc;
+  --vp-create-primary-3: #0b4599;
+  --vp-create-primary-soft: rgba(22, 102, 216, 0.10);
+  --vp-create-primary-border: rgba(22, 102, 216, 0.42);
+  --vp-create-success: #16845b;
+  --vp-create-success-soft: rgba(22, 132, 91, 0.09);
+  --vp-create-success-border: rgba(22, 132, 91, 0.34);
+  --vp-create-warning: #b86b00;
+  --vp-create-warning-soft: rgba(184, 107, 0, 0.10);
+  --vp-create-warning-border: rgba(184, 107, 0, 0.34);
+  --vp-create-danger: #c43d3d;
+  --vp-create-danger-soft: rgba(196, 61, 61, 0.09);
+  --vp-create-danger-border: rgba(196, 61, 61, 0.34);
+  --vp-create-info: #087ca7;
+  --vp-create-info-soft: rgba(8, 124, 167, 0.09);
+  --vp-create-info-border: rgba(8, 124, 167, 0.32);
+  --vp-create-shadow-soft: 0 18px 44px rgba(46, 64, 87, 0.11);
+  --vp-create-shadow-card: 0 8px 24px rgba(46, 64, 87, 0.09);
+  --vp-create-shadow-focus: 0 0 0 3px rgba(22, 102, 216, 0.18);
+  --vp-create-shell-max: 1920px;
+  --vp-create-preview-width: clamp(660px, 44vw, 840px);
+}
+
+body.vp-create-page,
+body[data-create-page="true"],
+body[data-vp-create-page="true"] {
+  background:
+    linear-gradient(rgba(126, 149, 176, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(126, 149, 176, 0.08) 1px, transparent 1px),
+    radial-gradient(circle at 12% 0%, rgba(37, 116, 214, 0.10), transparent 34rem),
+    #edf2f7;
+  background-size: 32px 32px, 32px 32px, auto, auto;
+  color: var(--vp-create-text);
+}
+
+.vplib-create-stepper,
+[data-vp-create-stepper],
+.vplib-create-wizard-nav,
+[data-vp-wizard-nav],
+.vplib-create-step__panel,
+.vp-create-section,
+.vp-create-card,
+[data-vp-create-section] {
+  border-color: var(--vp-create-border-soft);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--vp-create-text);
+  box-shadow: var(--vp-create-shadow-card);
+}
+
+.vplib-create-stepper__button {
+  border-color: transparent;
+  background: #f5f8fb;
+  color: var(--vp-create-text-muted);
+}
+
+.vplib-create-stepper__button:hover:not(:disabled) {
+  border-color: var(--vp-create-primary-border);
+  background: #eef5ff;
+}
+
+.vplib-create-stepper__item.is-current .vplib-create-stepper__button,
+.vplib-create-stepper__button[aria-current="step"] {
+  border-color: var(--vp-create-primary-border);
+  background: #eaf2ff;
+  color: #143d75;
+}
+
+.vplib-create-stepper__item.is-complete .vplib-create-stepper__button,
+.vplib-create-stepper__button[data-step-complete="true"] {
+  border-color: var(--vp-create-success-border);
+  background: #edf8f3;
+  color: #185e47;
+}
+
+.vplib-create-step__header,
+.vp-create-variant-drawer__header,
+.vp-create-variant-drawer__section-header,
+.vp-create-object-variants__header,
+.vp-create-variant-table__head,
+.vp-create-technical-card__header {
+  border-color: var(--vp-create-border-soft);
+  background: #f7f9fc;
+}
+
+.vp-create-page input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.vp-create-page select,
+.vp-create-page textarea,
+.vp-create-input,
+.vp-create-select,
+.vp-create-textarea,
+.vp-create-variant-optional-fields__input {
+  border-color: #bccadb;
+  background: #ffffff;
+  color: #17263a;
+  box-shadow: inset 0 1px 2px rgba(41, 57, 78, 0.04);
+}
+
+.vp-create-page input::placeholder,
+.vp-create-page textarea::placeholder {
+  color: #7b8ca1;
+}
+
+.vp-create-page input:hover:not(:disabled),
+.vp-create-page select:hover:not(:disabled),
+.vp-create-page textarea:hover:not(:disabled) {
+  border-color: #8298b1;
+}
+
+.vp-create-page input:focus,
+.vp-create-page select:focus,
+.vp-create-page textarea:focus {
+  border-color: var(--vp-create-primary);
+  box-shadow: var(--vp-create-shadow-focus);
+}
+
+.vp-create-button:not(.vp-create-button--primary),
+.vplib-create-wizard-nav__button--secondary,
+.vplib-create-wizard-nav__button--ghost,
+.vp-create-row-action,
+.vp-create-action-button:not(.vp-create-action-button--primary) {
+  border-color: #b9c7d8;
+  background: #f8fafc;
+  color: #25374d;
+}
+
+.vp-create-button:not(.vp-create-button--primary):hover:not(:disabled),
+.vplib-create-wizard-nav__button--secondary:hover:not(:disabled),
+.vplib-create-wizard-nav__button--ghost:hover:not(:disabled),
+.vp-create-row-action:hover:not(:disabled) {
+  border-color: var(--vp-create-primary-border);
+  background: #eaf2ff;
+  color: #123e78;
+}
+
+.vp-create-object-variants,
+.vp-create-variant-table,
+.vp-create-variant-row,
+.vp-create-upload,
+.vp-create-technical-card,
+.vp-create-technical-table,
+.vp-create-variant-drawer__section,
+.vp-create-variant-optional-fields,
+[data-vp-variant-optional-fields="true"] {
+  border-color: var(--vp-create-border-soft);
+  background: #ffffff;
+  color: var(--vp-create-text);
+}
+
+.vp-create-variant-row:hover {
+  background: #f4f8fc;
+}
+
+.vp-create-variant-drawer__panel {
+  display: grid;
+  min-height: 0;
+  border-color: #c7d3e1;
+  background: #ffffff;
+  color: var(--vp-create-text);
+  box-shadow: 0 18px 48px rgba(41, 57, 78, 0.14);
+}
+
+.vp-create-variant-drawer__body {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vp-create-variant-drawer__content-grid,
+[data-vp-variant-drawer-content-grid="true"] {
+  width: 100%;
+  height: 100%;
+  grid-template-columns: minmax(320px, 1.15fr) minmax(300px, 0.85fr);
+  overflow: hidden;
+}
+
+.vp-create-variant-drawer__sections,
+[data-vp-variant-drawer-sections="true"],
+.vp-create-variant-optional-fields__available-list,
+[data-vp-variant-optional-available-list="true"] {
+  scrollbar-color: #a8b8ca transparent;
+}
+
+.vp-create-variant-optional-fields__available,
+.vp-create-variant-optional-fields__selected,
+.vp-create-variant-optional-fields__available-list,
+.vp-create-variant-optional-fields__selected-rows {
+  border-color: var(--vp-create-border-soft);
+  background: #f8fafc;
+  color: var(--vp-create-text);
+}
+
+.vp-create-variant-optional-fields__available-row,
+[data-vp-variant-optional-add] {
+  border-color: #d8e1eb;
+  background: #ffffff;
+  color: #1e3047;
+}
+
+.vp-create-variant-optional-fields__available-row:hover,
+[data-vp-variant-optional-add]:hover {
+  border-color: var(--vp-create-primary-border);
+  background: #edf5ff;
+}
+
+.vp-create-variant-drawer__validation {
+  color: #805000;
+}
+
+.vplib-create-app__aside,
+[data-vp-create-aside] {
+  min-width: 0;
+}
+
+.vplib-create-preview,
+.vp-create-preview-card,
+[data-vp-create-preview],
+[data-create-preview-placeholder="true"] {
+  border-color: #7891ad;
+  background: #dfe7f0;
+  box-shadow: 0 12px 34px rgba(41, 57, 78, 0.16);
+}
+
+.vp-create-page * {
+  scrollbar-color: #a8b8ca transparent;
+}
+
+.vp-create-page *::-webkit-scrollbar-thumb {
+  background: #a8b8ca;
+}
+
+@media (max-width: 1500px) and (min-width: 1025px) {
+  html[data-vp-create-document="true"],
+  html[data-create-document="true"] {
+    --vp-create-preview-width: clamp(500px, 42vw, 640px);
+  }
+
+  .vp-create-variant-drawer__content-grid,
+  [data-vp-variant-drawer-content-grid="true"] {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+
+  .vp-create-variant-drawer__sections,
+  [data-vp-variant-drawer-sections="true"] {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+
+/* VECTOPLAN CAD light variable editor refinements */
+.vp-create-variant-workspace,
+[data-vp-variant-workspace-root="true"] {
+  border-color: var(--vp-create-border-soft);
+  background: #ffffff;
+}
+
+.vp-create-variant-workspace__header {
+  background: #f1f5f9;
+}
+
+.vp-create-variant-drawer__footer,
+[data-vp-variant-drawer-footer="true"] {
+  border-color: var(--vp-create-border-soft);
+  background: #f7f9fc;
+  color: var(--vp-create-text);
+}
+
+.vp-create-variant-drawer__footer-status,
+[data-vp-variant-drawer-dirty-state] {
+  color: var(--vp-create-text-muted);
+}
+
+.vp-create-status-pill[data-vp-status="ready"],
+.vp-create-variant-workspace__status-pill--ready {
+  border-color: var(--vp-create-success-border);
+  background: var(--vp-create-success-soft);
+  color: #176347;
+}
+
+.vp-create-status-pill,
+.vp-create-variant-workspace__status-pill,
+.vp-create-variant-workspace__count {
+  border-color: var(--vp-create-border);
+  background: #edf2f7;
+  color: #43566c;
+}
+
+@supports selector(:has(*)) {
+  .vp-create-section--object-variants:has([data-vp-variant-drawer-root="true"]:not([hidden]))
+    > .vplib-create-step__header {
+    min-height: 0;
+    padding-block: 0.65rem;
+  }
+
+  .vp-create-section--object-variants:has([data-vp-variant-drawer-root="true"]:not([hidden]))
+    > .vplib-create-step__header .vplib-create-step__description {
+    display: none;
+  }
+
+  .vp-create-variant-workspace:has([data-vp-variant-drawer-root="true"]:not([hidden]))
+    > .vp-create-variant-workspace__header {
+    display: none;
+  }
+}
+
+@media (max-width: 1500px) and (min-width: 1025px) {
+  .vp-create-variant-drawer__content-grid,
+  [data-vp-variant-drawer-content-grid="true"] {
+    grid-template-rows: auto auto;
+    align-content: start;
+  }
+
+  .vp-create-variant-drawer__profile-column,
+  [data-vp-variant-drawer-profile-column="true"],
+  .vp-create-variant-drawer__additional-fields,
+  [data-vp-variant-drawer-optional-column="true"],
+  [data-vp-variant-optional-fields-root="true"] {
+    overflow: visible;
+  }
+}
+
+
+/* VECTOPLAN compact variable editor scrolling */
+@media (max-width: 1500px) and (min-width: 1025px) {
+  .vp-create-variant-drawer__content-grid,
+  [data-vp-variant-drawer-content-grid="true"] {
+    display: block;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .vp-create-variant-drawer__profile-column,
+  [data-vp-variant-drawer-profile-column="true"] {
+    margin-bottom: var(--vp-create-space-3);
+  }
+
+  .vp-create-variant-drawer__profile-column,
+  [data-vp-variant-drawer-profile-column="true"],
+  .vp-create-variant-drawer__additional-fields,
+  [data-vp-variant-drawer-optional-column="true"],
+  [data-vp-variant-optional-fields-root="true"] {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+}
+
+
+/* VECTOPLAN CAD light layout corrections and compact variable picker */
+html[data-vp-create-document="true"],
+html[data-create-document="true"] {
+  --vp-create-color-text: var(--vp-create-text);
+  --vp-create-color-text-muted: var(--vp-create-text-muted);
+  --vp-create-color-border: var(--vp-create-border);
+  --vp-create-color-surface: var(--vp-create-bg-panel);
+}
+
+.vp-create-subsection,
+.vp-create-derived-note,
+.vp-create-inline-warning,
+.vp-create-upload,
+[data-vp-upload],
+[data-vp-upload-zone],
+[data-create-upload-zone] {
+  border-color: var(--vp-create-border-soft);
+  background: #f8fafc;
+  color: var(--vp-create-text);
+}
+
+.vp-create-upload:hover,
+[data-vp-upload-zone]:hover,
+[data-create-upload-zone]:hover {
+  border-color: var(--vp-create-primary-border);
+  background: #f1f7ff;
+}
+
+.vp-create-page input[type="file"]::file-selector-button {
+  border-color: var(--vp-create-primary-border);
+  background: #eaf2ff;
+  color: #123e78;
+}
+
+.vplib-create-wizard-nav__progress,
+.vplib-create-stepper__counter {
+  color: #174a86;
+}
+
+.vp-create-variant-drawer__content-grid,
+[data-vp-variant-drawer-content-grid="true"] {
+  grid-template-columns: minmax(340px, 0.9fr) minmax(410px, 1.1fr);
+}
+
+.vp-create-variant-optional-fields,
+[data-vp-variant-optional-fields-root="true"] {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 0;
+}
+
+.vp-create-variant-optional-fields__header {
+  padding: 0.7rem 0.8rem;
+  border-color: var(--vp-create-border-soft);
+  background: #f7f9fc;
+}
+
+.vp-create-variant-optional-fields__header p {
+  max-width: 54ch;
+}
+
+.vp-create-variant-optional-fields__tools {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(130px, 0.56fr) auto;
+  gap: 0.55rem;
+  align-items: end;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--vp-create-border-soft);
+  background: #ffffff;
+}
+
+.vp-create-variant-optional-fields__tool {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  color: var(--vp-create-text-muted);
+  font-size: var(--vp-create-text-2xs);
+  font-weight: var(--vp-create-weight-bold);
+}
+
+.vp-create-variant-optional-fields__tool .vp-create-input,
+.vp-create-variant-optional-fields__tool .vp-create-select,
+.vp-create-variant-optional-fields__clear {
+  min-height: 2.35rem;
+}
+
+.vp-create-variant-optional-fields__clear {
+  padding-inline: 0.7rem;
+}
+
+.vp-create-variant-optional-fields__available {
+  order: 3;
+  min-height: 0;
+  border: 0;
+  background: #ffffff;
+}
+
+.vp-create-variant-optional-fields__selected {
+  order: 2;
+  border: 0;
+  border-bottom: 1px solid var(--vp-create-border-soft);
+  background: #f8fafc;
+}
+
+.vp-create-variant-optional-fields.is-empty .vp-create-variant-optional-fields__selected {
+  display: none;
+}
+
+.vp-create-variant-optional-fields__available-header,
+.vp-create-variant-optional-fields__selected-header {
+  padding: 0.5rem 0.75rem;
+  background: #f1f5f9;
+}
+
+.vp-create-variant-optional-fields__available-columns {
+  grid-template-columns: minmax(130px, 0.95fr) minmax(150px, 1.25fr) minmax(64px, 0.45fr);
+  padding: 0.42rem 0.75rem;
+  background: #e9eff6;
+  color: #53677e;
+}
+
+.vp-create-variant-optional-fields__available-list {
+  max-height: min(26dvh, 270px);
+  padding: 0.5rem;
+  background: #ffffff;
+}
+
+.vp-create-variant-optional-fields__available-row,
+.vp-create-variant-optional-fields__variable {
+  grid-template-columns: minmax(130px, 0.95fr) minmax(150px, 1.25fr) minmax(64px, 0.45fr);
+  min-height: 2.55rem;
+  padding: 0.45rem 0.55rem;
+}
+
+.vp-create-variant-optional-fields__available-type {
+  background: #eaf2ff;
+  color: #245b9c;
+}
+
+.vp-create-variant-optional-fields__selected-rows {
+  max-height: min(20dvh, 190px);
+  padding: 0.55rem;
+  background: #ffffff;
+}
+
+.vp-create-variant-optional-fields__row {
+  background: #ffffff;
+}
+
+.vp-create-technical-cad__separation {
+  border-color: #b8d0ee;
+  background: linear-gradient(135deg, #eef5ff, #f8fafc);
+}
+
+.vp-create-technical-cad__selection,
+.vp-create-technical-cad__values {
+  border-color: var(--vp-create-border);
+  background: #ffffff;
+}
+
+.vp-create-technical-cad__section-heading > span {
+  border-color: var(--vp-create-border);
+  background: #edf2f7;
+  color: #42566e;
+}
+
+.vp-create-technical-cad__add {
+  border-color: var(--vp-create-border-soft);
+  background: #f5f8fb;
+}
+
+.vp-create-technical-cad__table {
+  border-color: var(--vp-create-border);
+  background: #ffffff;
+}
+
+.vp-create-technical-cad__table-head {
+  background: #e8eef5;
+  color: #345779;
+}
+
+.vp-create-technical-cad__row {
+  border-color: var(--vp-create-border-soft);
+  background: #ffffff;
+}
+
+.vp-create-technical-cad__row:nth-child(even) {
+  background: #f8fafc;
+}
+
+.vp-create-technical-cad__empty {
+  border-color: var(--vp-create-border);
+  background: #f8fafc;
+}
+
+.vp-create-technical-cad__documents-note {
+  background: #eef5ff;
+}
+
+@media (max-width: 1500px) and (min-width: 1025px) {
+  .vp-create-variant-drawer__content-grid,
+  [data-vp-variant-drawer-content-grid="true"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .vp-create-variant-optional-fields__tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vp-create-variant-optional-fields__available-columns {
+    display: none;
+  }
+
+  .vp-create-variant-optional-fields__available-row,
+  .vp-create-variant-optional-fields__variable {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .vp-create-variant-optional-fields__available-description {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+
+/* VECTOPLAN compact variant actions and clean create step */
+.vp-create-variant-drawer__header {
+  align-items: center;
+}
+
+.vp-create-variant-drawer__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.vp-create-variant-drawer__header-action {
+  min-height: 2.35rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.vp-create-variant-optional-fields,
+[data-vp-variant-optional-fields-root="true"] {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.vp-create-variant-optional-fields__selected {
+  order: 0;
+}
+
+.vp-create-variant-optional-fields__available {
+  order: 1;
+}
+
+.vp-create-actions-layout {
+  align-content: start;
+}
+
+@media (max-width: 760px) {
+  .vp-create-variant-drawer__header {
+    align-items: stretch;
+  }
+
+  .vp-create-variant-drawer__header-actions {
+    justify-content: flex-start;
+  }
+
+  .vp-create-variant-drawer__header-action {
+    flex: 1 1 calc(50% - 0.45rem);
+  }
+}
+
+/* VECTOPLAN variable list and focused detail editor */
+.vp-create-section--object-variants > .vplib-create-step__header {
+  padding-block: 0.65rem;
+}
+
+.vp-create-variables__header-main,
+.vp-create-variant-drawer__header-main {
+  gap: 0.12rem;
+}
+
+.vp-create-variables__header-main .vplib-create-step__description,
+.vp-create-variant-drawer__subtitle {
+  margin: 0;
+  line-height: 1.25;
+}
+
+.vp-create-variant-drawer__form {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.vp-create-variant-drawer__header {
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.vp-create-variant-drawer__title {
+  line-height: 1.1;
+}
+
+.vp-create-variant-drawer__content-grid,
+[data-vp-variant-drawer-content-grid="true"] {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 0.65rem 0.75rem 0.75rem;
+}
+
+.vp-create-variant-drawer__profile-column[hidden],
+[data-vp-variant-drawer-profile-column="true"][hidden],
+[data-vp-profile-fields-storage="true"] {
+  display: none !important;
+}
+
+.vp-create-variant-optional-fields,
+[data-vp-variant-optional-fields-root="true"] {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.92fr) minmax(340px, 1.08fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0.75rem;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.vp-create-variant-optional-fields__available,
+.vp-create-variant-optional-fields__selected {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--vp-create-border-soft);
+  border-radius: var(--vp-create-radius-lg);
+  background: #ffffff;
+}
+
+.vp-create-variant-optional-fields__available {
+  order: 0;
+}
+
+.vp-create-variant-optional-fields__selected,
+.vp-create-variant-optional-fields.is-empty .vp-create-variant-optional-fields__selected {
+  order: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.vp-create-variant-optional-fields__available-header,
+.vp-create-variant-optional-fields__selected-header {
+  min-height: 2.4rem;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--vp-create-border-soft);
+  background: #f4f7fb;
+}
+
+.vp-create-variant-optional-fields__available-columns {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.4rem 0.65rem;
+}
+
+.vp-create-variant-optional-fields__available-columns span:nth-child(2) {
+  display: none;
+}
+
+.vp-create-variant-optional-fields__available-list {
+  max-height: none;
+  height: 100%;
+  padding: 0.45rem;
+  overflow: auto;
+  background: #f7f9fc;
+}
+
+.vp-create-variant-optional-fields__available-row,
+.vp-create-variant-optional-fields__variable {
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 2.7rem;
+  padding: 0.5rem 0.6rem;
+  border-color: #d6e0eb;
+  background: #ffffff;
+}
+
+.vp-create-variant-optional-fields__available-description {
+  display: none;
+}
+
+.vp-create-variant-optional-fields__available-row.is-configured,
+.vp-create-variant-optional-fields__variable.is-configured,
+[data-vp-variable-configured="true"] {
+  border-color: #91cdb5;
+  background: #edf8f3;
+  color: #174f3e;
+}
+
+.vp-create-variant-optional-fields__available-row.is-active,
+.vp-create-variant-optional-fields__variable.is-active,
+[data-vp-variable-active="true"] {
+  border-color: #4e8fe8;
+  box-shadow: 0 0 0 2px rgba(37, 116, 214, 0.16);
+}
+
+.vp-create-variant-optional-fields__selected-empty {
+  display: grid;
+  place-content: center;
+  gap: 0.35rem;
+  min-height: 0;
+  padding: 1.25rem;
+  color: var(--vp-create-text-muted);
+  text-align: center;
+}
+
+.vp-create-variant-optional-fields__selected-empty strong {
+  color: var(--vp-create-text-strong);
+  font-size: var(--vp-create-text-md);
+}
+
+.vp-create-variant-optional-fields__selected-rows {
+  max-height: none;
+  height: 100%;
+  padding: 0.75rem;
+  overflow: auto;
+  background: #ffffff;
+}
+
+.vp-create-variant-optional-fields__row {
+  align-content: start;
+  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.8rem;
+  min-height: 100%;
+  padding: 0.9rem;
+  border-color: #c9d7e6;
+  background: #f8fafc;
+}
+
+.vp-create-variant-optional-fields__row-variable {
+  gap: 0.3rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--vp-create-border-soft);
+}
+
+.vp-create-variant-optional-fields__row-control {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.vp-create-variant-optional-fields__row-remove {
+  justify-self: end;
+}
+
+@media (max-width: 760px) {
+  .vp-create-variant-optional-fields,
+  [data-vp-variant-optional-fields-root="true"] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(240px, 0.9fr) minmax(260px, 1.1fr);
+    overflow: auto;
+  }
+}
+
+.vp-create-variant-optional-fields__row-description {
+  margin: 0;
+  color: var(--vp-create-text-muted);
+  font-size: var(--vp-create-text-xs);
+  line-height: 1.4;
+  white-space: normal;
+}
+
+/* VECTOPLAN concise variable catalog and document upload */
+.vp-create-variant-optional-fields__available-columns,
+.vp-create-variant-optional-fields__available-row,
+.vp-create-variant-optional-fields__variable {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.vp-create-variant-optional-fields__available-columns span:not(:first-child),
+.vp-create-variant-optional-fields__available-description,
+.vp-create-variant-optional-fields__available-type,
+.vp-create-variant-optional-fields__available-key,
+.vp-create-variant-optional-fields__variable-meta {
+  display: none;
+}
+
+.vp-create-variant-optional-fields__available-name,
+.vp-create-variant-optional-fields__variable-title {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-create-variant-optional-fields__document-upload {
+  width: 100%;
+  min-width: 0;
+  padding: 0.8rem;
+}
+
+.vp-create-variant-optional-fields__document-upload .vp-create-upload__controls {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.vp-create-variant-optional-fields__document-upload input[type="file"] {
+  width: 100%;
+  min-width: 0;
+}
+
+[data-vp-variant-document-upload-storage="true"] {
+  display: none !important;
+}
+/* VECTOPLAN concise variant table and dimension-only CAD step */
+.vp-create-variant-table__head,
+.vp-create-variant-row {
+  grid-template-columns: minmax(76px, 0.42fr) minmax(230px, 1.65fr) minmax(120px, 0.7fr) auto;
+}
+
+.vp-create-variant-table__head > span:nth-child(3),
+.vp-create-variant-row__cell--profile {
+  display: none !important;
+}
+
+.vp-create-variant-row__name-button {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--vp-create-text-strong);
+  font: inherit;
+  font-weight: var(--vp-create-weight-black);
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vp-create-variant-row__name-button:hover,
+.vp-create-variant-row__name-button:focus-visible {
+  color: var(--vp-create-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.vp-create-definition-summary[data-vp-row-definition-summary="true"] {
+  display: none !important;
+}
+
+.vp-create-technical-cad__variant-field {
+  max-width: 38rem;
+}
+
+.vp-create-technical-cad__dimension-table .vp-create-technical-cad__table-head,
+.vp-create-technical-cad__dimension-table .vp-create-technical-cad__row {
+  grid-template-columns: minmax(180px, 0.9fr) minmax(150px, 0.7fr) minmax(150px, 0.65fr) minmax(260px, 1.35fr);
+  min-width: 780px;
+}
+
+.vp-create-technical-cad__dimension-label {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.vp-create-technical-cad__dimension-label strong {
+  color: var(--vp-create-text-strong);
+}
+
+.vp-create-technical-cad__dimension-label small {
+  overflow: hidden;
+  color: var(--vp-create-text-muted);
+  font-size: var(--vp-create-text-2xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .vp-create-variant-table__head,
+  .vp-create-variant-row {
+    grid-template-columns: minmax(68px, auto) minmax(0, 1fr) auto;
+  }
+
+  .vp-create-variant-table__head > span:nth-child(4),
+  .vp-create-variant-row__cell--summary {
+    display: none;
+  }
+}
+
+/* VECTOPLAN inline variant-name editor */
+.vp-create-variant-drawer__name-editor {
+  display: grid;
+  grid-template-columns: max-content minmax(10rem, 18rem);
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+  color: var(--vp-create-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.vp-create-variant-drawer__name-input {
+  min-height: 2.15rem;
+  padding: 0.4rem 0.65rem;
+}
+
+@media (max-width: 760px) {
+  .vp-create-variant-drawer__name-editor {
+    grid-template-columns: 1fr;
+  }
+}

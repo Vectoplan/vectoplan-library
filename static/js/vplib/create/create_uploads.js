@@ -4,7 +4,7 @@
 
   var GLOBAL_NAME = "VectoplanCreateUploads";
   var COMPONENT_NAME = "VECTOPLAN Create Uploads";
-  var COMPONENT_VERSION = "0.8.0";
+  var COMPONENT_VERSION = "0.9.0";
 
   var ROOT_READY_ATTR = "data-vp-create-uploads-runtime-ready";
   var ROOT_EVENTS_BOUND_ATTR = "data-vp-create-uploads-global-events-bound";
@@ -716,6 +716,51 @@
     }
   }
 
+  function mergeAccumulatedFiles(zone, input) {
+    try {
+      if (
+        !zone ||
+        !input ||
+        !input.multiple ||
+        input.getAttribute("data-vp-upload-accumulate") !== "true"
+      ) {
+        return;
+      }
+
+      var previousFiles = Array.isArray(zone.__vpAccumulatedFiles)
+        ? zone.__vpAccumulatedFiles
+        : [];
+      var incomingFiles = input.files ? toArray(input.files) : [];
+      var seen = Object.create(null);
+      var mergedFiles = [];
+
+      previousFiles.concat(incomingFiles).forEach(function (file) {
+        var signature = [
+          file && file.name ? file.name : "",
+          file && Number.isFinite(file.size) ? file.size : 0,
+          file && Number.isFinite(file.lastModified) ? file.lastModified : 0,
+          file && file.type ? file.type : ""
+        ].join("|");
+
+        if (!seen[signature]) {
+          seen[signature] = true;
+          mergedFiles.push(file);
+        }
+      });
+
+      zone.__vpAccumulatedFiles = mergedFiles;
+
+      if (typeof DataTransfer === "function") {
+        var transfer = new DataTransfer();
+        mergedFiles.forEach(function (file) {
+          transfer.items.add(file);
+        });
+        input.files = transfer.files;
+      }
+    } catch (error) {
+      warn("Accumulated file selection could not be merged.", error);
+    }
+  }
   function emptyUploadPayload(kind) {
     var safeKind = normalizeToken(kind, "generic_upload");
     var now = timestamp();
@@ -1211,6 +1256,7 @@
       if (input) {
         try {
           input.value = "";
+          zone.__vpAccumulatedFiles = [];
         } catch (inputError) {
           warn("Input clear skipped.", inputError);
         }
@@ -1257,6 +1303,7 @@
 
       if (input && input.getAttribute(INPUT_BOUND_ATTR) !== "true") {
         input.addEventListener("change", function () {
+          mergeAccumulatedFiles(zone, input);
           syncZone(zone, {
             source: "input-change",
             silent: false,

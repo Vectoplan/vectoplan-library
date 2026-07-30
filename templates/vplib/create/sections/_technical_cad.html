@@ -1,11 +1,11 @@
-{# VPLIB Create · Step 5: exact, variant-specific technical/CAD data. #}
+{# VPLIB Create · Step 5: exact, variant-specific CAD dimensions. #}
 <div
   class="vplib-create-step__panel vp-create-card vp-create-section vp-create-section--technical vp-create-technical-cad"
   data-create-section="technical"
   data-vp-create-section="technical"
   data-vp-step-panel="technical"
   data-vp-technical-root="true"
-  data-vp-technical-controller="catalog"
+  data-vp-technical-controller="dimensions"
   data-vp-technical-ready="false"
   aria-labelledby="vp-create-technical-title"
 >
@@ -13,16 +13,16 @@
     <div class="vplib-create-step__header-main">
       <p class="vplib-create-step__eyebrow">Step 5 · Technik</p>
       <h2 id="vp-create-technical-title" class="vplib-create-step__title">
-        Reale Bauteildaten für CAD
+        Reale Maße für CAD
       </h2>
       <p class="vplib-create-step__description">
-        Erfasse die tatsächlichen Maße und technischen Eigenschaften je Variante.
-        Diese Werte sind die verlässliche Übersetzung für CAD, Mengen und Auswertungen.
+        Hinterlege je Variante ausschließlich die tatsächlichen Außen- und Bauteilmaße.
+        Diese Werte übersetzen die vereinfachte Editor-Geometrie zuverlässig in CAD und Mengen.
       </p>
     </div>
     <div class="vplib-create-step__header-aside">
       <span class="vp-create-status-pill" data-vp-technical-status="loading" aria-live="polite">
-        Katalog wird geladen
+        Maße werden vorbereitet
       </span>
     </div>
   </header>
@@ -30,105 +30,65 @@
   <div class="vplib-create-step__body vp-create-technical-cad__body">
     <div class="vp-create-technical-cad__separation" role="note">
       <div>
-        <strong>Geometrie (Schritt 4)</strong>
-        <span>Vereinfachte Größe und Rasterform im 3D-Editor.</span>
+        <strong>Geometrie · Schritt 4</strong>
+        <span>Vereinfachte Größe, Rasterbelegung und Vorschau im 3D-Editor.</span>
       </div>
       <span class="vp-create-technical-cad__arrow" aria-hidden="true">→</span>
       <div>
-        <strong>Technik (dieser Schritt)</strong>
-        <span>Exakte reale Werte der gewählten Variante für das CAD-System.</span>
+        <strong>Reale Maße · Schritt 5</strong>
+        <span>Exakte Außen- und Bauteilmaße der Variante für das CAD-System.</span>
       </div>
     </div>
 
     <section class="vp-create-technical-cad__selection" aria-labelledby="vp-technical-selection-title">
       <div class="vp-create-technical-cad__section-heading">
         <div>
-          <h3 id="vp-technical-selection-title">Variante und Material</h3>
-          <p>Die Eingaben werden direkt mit der ausgewählten Variante aus Schritt 3 gespeichert.</p>
+          <h3 id="vp-technical-selection-title">Variante auswählen</h3>
+          <p>Jede Variante besitzt einen eigenen Satz realer CAD-Maße.</p>
         </div>
         <span data-vp-technical-variant-summary aria-live="polite">1 Variante</span>
       </div>
 
-      <div class="vp-create-technical-cad__selection-grid">
-        <label class="vp-create-field">
-          <span class="vp-create-field__label">Variante</span>
-          <select
-            class="vp-create-select"
-            data-vp-technical-variant-select
-            aria-describedby="vp-technical-variant-help"
-          ></select>
-          <small id="vp-technical-variant-help" class="vp-create-field__hint">
-            Jede Variante besitzt eigene reale Maße und Kennwerte.
-          </small>
-        </label>
-
-        <label class="vp-create-field">
-          <span class="vp-create-field__label">Material</span>
-          <select
-            class="vp-create-select"
-            name="material_class"
-            data-vp-technical-material-select
-          >
-            <option value="">Material auswählen</option>
-          </select>
-          <small class="vp-create-field__hint" data-vp-technical-material-description>
-            Material aus dem zentralen Katalog auswählen.
-          </small>
-        </label>
-      </div>
+      <label class="vp-create-field vp-create-technical-cad__variant-field">
+        <span class="vp-create-field__label">Variante</span>
+        <select
+          class="vp-create-select"
+          data-vp-technical-variant-select
+          aria-describedby="vp-technical-variant-help"
+        ></select>
+        <small id="vp-technical-variant-help" class="vp-create-field__hint">
+          Die erste Variante bleibt die Default-Variante; ihr Name darf trotzdem geändert werden.
+        </small>
+      </label>
     </section>
 
     <section class="vp-create-technical-cad__values" aria-labelledby="vp-technical-values-title">
       <div class="vp-create-technical-cad__section-heading">
         <div>
-          <h3 id="vp-technical-values-title">Reale Maße und Kennwerte</h3>
+          <h3 id="vp-technical-values-title">Tatsächliche Maße</h3>
           <p>
-            Kennwert und Einheit kommen aus dem Definitionskatalog. Der konkrete Wert
-            wird als Zahl, Auswahl, Ja/Nein oder Text erfasst.
+            Breite, Höhe und Tiefe beschreiben die reale CAD-Hülle. Dicke und Länge
+            werden nur ausgefüllt, wenn sie für das Bauteil fachlich benötigt werden.
           </p>
         </div>
-        <span data-vp-technical-value-count aria-live="polite">0 Kennwerte</span>
+        <span data-vp-technical-dimension-count aria-live="polite">5 Maßangaben</span>
       </div>
 
-      <div class="vp-create-technical-cad__add">
-        <label class="vp-create-field">
-          <span class="vp-create-field__label">Weiteren Kennwert auswählen</span>
-          <select class="vp-create-select" data-vp-technical-add-select>
-            <option value="">Kennwert auswählen</option>
-          </select>
-        </label>
-        <button
-          class="vp-create-button vp-create-button--secondary"
-          type="button"
-          data-vp-technical-add-button
-        >
-          Kennwert hinzufügen
-        </button>
-      </div>
-
-      <div class="vp-create-technical-cad__table" role="table" aria-label="Technische Kennwerte">
+      <div
+        class="vp-create-technical-cad__table vp-create-technical-cad__dimension-table"
+        data-vp-technical-dimension-table="true"
+        role="table"
+        aria-label="Reale CAD-Maße der ausgewählten Variante"
+      >
         <div class="vp-create-technical-cad__table-head" role="row">
-          <span role="columnheader">Kennwert</span>
+          <span role="columnheader">Maß</span>
           <span role="columnheader">Tatsächlicher Wert</span>
           <span role="columnheader">Einheit</span>
-          <span role="columnheader">Beschreibung</span>
-          <span role="columnheader">Aktion</span>
+          <span role="columnheader">Verwendung</span>
         </div>
         <div data-vp-technical-rows></div>
       </div>
-
-      <div class="vp-create-technical-cad__empty" data-vp-technical-empty hidden>
-        Für diese Variante sind noch keine technischen Kennwerte angelegt.
-      </div>
     </section>
-
-    <aside class="vp-create-technical-cad__documents-note">
-      <strong>Unterlagen gehören zur Variante.</strong>
-      <span>
-        Datenblätter, Zertifikate, Zeichnungen und andere Dateien werden in Schritt 3
-        an der jeweiligen Variante hinterlegt – nicht in den Technikdaten.
-      </span>
-    </aside>
 
     <div data-vp-technical-payload-fields hidden></div>
   </div>

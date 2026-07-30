@@ -1,17 +1,17 @@
 {# services/vectoplan-library/templates/vplib/create.html #}
 {% set _create_template_version = '1.0.0' %}
-{% set _create_asset_version = '20260728.9' %}
+{% set _create_asset_version = '20260729.6' %}
 <!doctype html>
 <html
   lang="de"
   data-create-document="true"
   data-vp-create-document="true"
-  data-theme="dark"
-  data-vp-create-theme="dark"
-  data-create-default-theme="dark"
-  data-vp-create-default-theme="dark"
-  data-vp-create-color-scheme="dark"
-  data-vp-create-style="black"
+  data-theme="light"
+  data-vp-create-theme="light"
+  data-create-default-theme="light"
+  data-vp-create-default-theme="light"
+  data-vp-create-color-scheme="light"
+  data-vp-create-style="cad-light"
   data-vp-create-template-root="vplib"
   data-vp-create-template-version="{{ _create_template_version }}"
   data-vp-create-css-mode="single-file"
@@ -20,7 +20,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="dark" />
+  <meta name="color-scheme" content="light" />
 
   <title>VPLIB erstellen · VECTOPLAN Library</title>
 
@@ -30,7 +30,7 @@
 
       try {
         var root = document.documentElement;
-        var defaultTheme = "dark";
+        var defaultTheme = "light";
         var themeStorageKey = "vectoplan.create.wizard.theme";
         var legacyThemeStorageKey = "vectoplan.create.theme";
 
@@ -38,8 +38,8 @@
         root.setAttribute("data-vp-create-shell", "wizard");
         root.setAttribute("data-create-default-theme", defaultTheme);
         root.setAttribute("data-vp-create-default-theme", defaultTheme);
-        root.setAttribute("data-vp-create-color-scheme", "dark");
-        root.setAttribute("data-vp-create-style", "black");
+        root.setAttribute("data-vp-create-color-scheme", "light");
+        root.setAttribute("data-vp-create-style", "cad-light");
         root.setAttribute("data-vp-create-template-root", "vplib");
         root.setAttribute("data-vp-create-template-version", {{ _create_template_version | tojson }});
         root.setAttribute("data-vp-create-css-mode", "single-file");
@@ -69,16 +69,16 @@
 
         root.setAttribute("data-theme", defaultTheme);
         root.setAttribute("data-vp-create-theme", defaultTheme);
-        root.style.colorScheme = "dark";
+        root.style.colorScheme = "light";
       } catch (error) {
         try {
-          document.documentElement.setAttribute("data-theme", "dark");
-          document.documentElement.setAttribute("data-vp-create-theme", "dark");
+          document.documentElement.setAttribute("data-theme", "light");
+          document.documentElement.setAttribute("data-vp-create-theme", "light");
           document.documentElement.setAttribute("data-vp-create-shell", "wizard");
-          document.documentElement.setAttribute("data-vp-create-style", "black");
+          document.documentElement.setAttribute("data-vp-create-style", "cad-light");
           document.documentElement.setAttribute("data-vp-create-template-root", "vplib");
           document.documentElement.setAttribute("data-vp-create-variant-runtime", "definition-managed");
-          document.documentElement.style.colorScheme = "dark";
+          document.documentElement.style.colorScheme = "light";
         } catch (fallbackError) {
           /* no-op */
         }
@@ -865,7 +865,7 @@
   {% set _payload_contract_ready = false %}
 {% endif %}
 
-{% set _create_default_theme = 'dark' %}
+{% set _create_default_theme = 'light' %}
 {% set _create_theme_storage_key = 'vectoplan.create.wizard.theme' %}
 {% set _create_legacy_theme_storage_key = 'vectoplan.create.theme' %}
 
@@ -931,8 +931,8 @@
     "key": "technical",
     "label": "Technik",
     "short_label": "Technik",
-    "description": "Material und Kennwerte",
-    "hint": "Materialklasse und optionale technische Kennwerte ergänzen.",
+    "description": "Tatsächliche CAD-Maße",
+    "hint": "Reale Maße je Variante für die CAD-Übersetzung festlegen.",
     "target": "technical"
   },
   {
@@ -975,7 +975,7 @@
   data-create-page="true"
   data-vp-create-page="true"
   data-vp-create-mode="wizard"
-  data-vp-create-style="black"
+  data-vp-create-style="cad-light"
   data-vp-create-template-root="vplib"
   data-vp-create-template-version="{{ _create_template_version }}"
   data-vp-create-css-mode="single-file"
@@ -1000,7 +1000,7 @@
     class="vplib-create-app"
     data-vp-create-app
     data-vp-create-shell="wizard"
-    data-vp-create-style="black"
+    data-vp-create-style="cad-light"
     data-vp-create-template-root="vplib"
     data-vp-create-template-version="{{ _create_template_version }}"
     data-vp-create-css-mode="single-file"
@@ -1207,15 +1207,15 @@
         }
 
         if (!root.getAttribute("data-vp-create-theme")) {
-          root.setAttribute("data-vp-create-theme", root.getAttribute("data-theme") || "dark");
+          root.setAttribute("data-vp-create-theme", root.getAttribute("data-theme") || "light");
         }
 
         root.setAttribute("data-vp-create-shell-ready", "true");
-        root.setAttribute("data-vp-create-style", "black");
+        root.setAttribute("data-vp-create-style", "cad-light");
         root.setAttribute("data-vp-create-template-root", "vplib");
         root.setAttribute("data-vp-create-template-version", {{ _create_template_version | tojson }});
         root.setAttribute("data-vp-create-css-mode", "single-file");
-        root.style.colorScheme = "dark";
+        root.style.colorScheme = "light";
       } catch (error) {
         try {
           if (window.console && typeof window.console.warn === "function") {
