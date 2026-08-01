@@ -2216,6 +2216,24 @@
           detail: payload
         })
       );
+      if (window.parent && window.parent !== window) {
+        var targetOrigin = "*";
+
+        try {
+          if (document.referrer) {
+            targetOrigin = new URL(document.referrer).origin;
+          }
+        } catch (originError) {
+          targetOrigin = "*";
+        }
+
+        window.parent.postMessage({
+          type: "vectoplan:user-inventory-" + type,
+          source: "vectoplan-library-user-inventory",
+          version: MODULE_VERSION,
+          detail: payload
+        }, targetOrigin);
+      }
     } catch (err) {
       // non-critical
     }

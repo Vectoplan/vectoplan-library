@@ -32,6 +32,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Final, Iterable, Mapping
 
+from sqlalchemy.orm import lazyload
+
 
 USER_INVENTORY_REPOSITORY_VERSION: Final[str] = "vectoplan_library.user_inventory.repository.v1"
 
@@ -78,6 +80,9 @@ def _load_models() -> Any:
     errors: list[str] = []
 
     for import_path in (
+        "models.user_inventory",
+        "src.models.user_inventory",
+        "vectoplan_library.models.user_inventory",
         "models",
         "src.models",
         "vectoplan_library.models",
@@ -352,6 +357,7 @@ class UserInventoryRepository:
 
         return (
             self.session.query(UserInventoryState)
+            .options(lazyload("*"))
             .filter(
                 UserInventoryState.user_id == normalized_user_id,
                 UserInventoryState.inventory_key == normalized_inventory_key,
@@ -379,6 +385,7 @@ class UserInventoryRepository:
 
         return (
             self.session.query(UserInventorySlot)
+            .options(lazyload("*"))
             .filter(
                 UserInventorySlot.user_id == normalized_user_id,
                 UserInventorySlot.inventory_key == normalized_inventory_key,
@@ -405,6 +412,7 @@ class UserInventoryRepository:
 
         slots = (
             self.session.query(UserInventorySlot)
+            .options(lazyload("*"))
             .filter(
                 UserInventorySlot.user_id == normalized_user_id,
                 UserInventorySlot.inventory_key == normalized_inventory_key,

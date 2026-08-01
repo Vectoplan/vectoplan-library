@@ -121,6 +121,12 @@ html {
   background: transparent;
 }
 
+html.vp-user-inventory-embed,
+html.vp-user-inventory-embed body {
+  background: transparent !important;
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -252,6 +258,10 @@ body {
    ========================================================================== */
 
 .vp-user-inventar-overlay-page {
+  --vp-slot-size: 70px;
+  --vp-slot-gap: 8px;
+  --vp-overlay-bottom-offset: 8px;
+  --vp-overlay-side-offset: 12px;
   width: 100vw;
   height: 100vh;
   min-height: 100vh;
@@ -293,7 +303,7 @@ body {
   left: 50%;
   bottom: var(--vp-overlay-bottom-offset);
   z-index: 20;
-  width: auto;
+  width: max-content;
   max-width: calc(100vw - (var(--vp-overlay-side-offset) * 2));
   min-width: 0;
   min-height: 0;
@@ -310,13 +320,109 @@ body {
 
 .vp-user-hotbar--overlay .vp-user-hotbar__slots {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, var(--vp-slot-size)));
+  grid-template-columns: repeat(9, var(--vp-slot-size));
   justify-content: center;
   gap: var(--vp-slot-gap);
   min-width: 0;
   max-width: 100%;
   padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
   overflow: visible;
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot {
+  border: 2px solid rgba(123, 151, 173, 0.42);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 26%, rgba(68, 100, 126, 0.28), transparent 58%),
+    linear-gradient(180deg, rgba(24, 40, 55, 0.98), rgba(6, 14, 23, 0.99));
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -5px 10px rgba(0, 0, 0, 0.32),
+    0 4px 10px rgba(0, 0, 0, 0.28);
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  z-index: 1;
+  border: 1px solid rgba(178, 204, 221, 0.08);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot--active,
+.vp-user-inventar-overlay-page .vp-user-slot--selected,
+.vp-user-inventar-overlay-page .vp-user-slot[data-slot-selected="true"],
+.vp-user-inventar-overlay-page .vp-user-slot[aria-selected="true"] {
+  border-color: rgba(110, 213, 255, 0.92);
+  background:
+    radial-gradient(circle at 50% 25%, rgba(78, 181, 226, 0.34), transparent 62%),
+    linear-gradient(180deg, rgba(23, 54, 74, 0.99), rgba(7, 20, 31, 0.99));
+  box-shadow:
+    inset 0 2px 0 rgba(226, 248, 255, 0.18),
+    inset 0 -5px 10px rgba(0, 0, 0, 0.30),
+    0 0 0 2px rgba(50, 139, 188, 0.32),
+    0 0 24px rgba(64, 183, 237, 0.42),
+    0 9px 18px rgba(0, 0, 0, 0.38);
+  transform: translateY(-5px) scale(1.04);
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot__index {
+  top: 5px;
+  left: 6px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-color: rgba(157, 188, 209, 0.32);
+  background: rgba(2, 8, 14, 0.72);
+  font-size: 0.66rem;
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot__content {
+  position: relative;
+  z-index: 2;
+  padding: 17px 5px 4px;
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot--filled .vp-user-slot__content,
+.vp-user-inventar-overlay-page .vp-user-slot--empty .vp-user-slot__content {
+  gap: 2px;
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot__icon {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(111, 229, 168, 0.48);
+  border-radius: 10px;
+  background:
+    linear-gradient(145deg, rgba(65, 166, 112, 0.30), rgba(18, 73, 50, 0.34));
+  box-shadow: inset 0 1px 0 rgba(229, 255, 241, 0.16);
+  font-size: 0.82rem;
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot__label,
+.vp-user-inventar-overlay-page .vp-user-slot__placeholder {
+  font-size: 0.66rem;
+  font-weight: 780;
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot--empty .vp-user-slot__content::before {
+  width: 31px;
+  height: 31px;
+  margin-bottom: 1px;
+  border-radius: 9px;
+  opacity: 0.72;
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot__quantity {
+  display: none !important;
 }
 
 .vp-user-inventory-status {

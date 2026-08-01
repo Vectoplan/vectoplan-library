@@ -50,6 +50,40 @@ DEFAULT_SLOT_COUNT: Final[int] = 9
 MIN_SLOT_INDEX: Final[int] = 1
 MAX_SLOT_INDEX: Final[int] = 9
 
+TERRAIN_TEST_ITEM: Final[Mapping[str, Any]] = {
+    "vplib_uid": "system-terrain",
+    "family_id": "system_terrain",
+    "package_id": "vectoplan.system.terrain",
+    "variant_id": "generic",
+    "label": "Terrain",
+    "description": "Generischer Terrain-Systemblock zum Testen von Platzieren und Abbauen.",
+    "object_kind": "block",
+    "domain": "earth",
+    "category": "terrain",
+    "subcategory": "generic",
+    "quantity": 64,
+    "source": "system",
+    "scope": "editor",
+    "mode": "creative",
+    "icon": {
+        "kind": "color",
+        "color": "#7a5a3a",
+        "label": "Terrain",
+    },
+    "placement": {
+        "kind": "SetBlock",
+        "runtimeBlockTypeId": "system_terrain",
+        "blockTypeId": "system_terrain",
+        "placeable": True,
+    },
+    "metadata": {
+        "systemBlock": True,
+        "adminBlockKind": "terrain",
+        "terrainFamily": "terrain",
+        "terrainSubtype": "generic",
+        "testItem": True,
+    },
+}
 STATUS_OK: Final[str] = "ok"
 STATUS_READY: Final[str] = "ready"
 STATUS_SELECTED: Final[str] = "slot_selected"
@@ -143,6 +177,55 @@ class UserInventoryServiceValidationError(UserInventoryServiceError):
     """Wird ausgelöst, wenn Service-Eingaben ungültig sind."""
 
 
+def _ensure_terrain_test_item(
+    snapshot: Any,
+    *,
+    user_id: int,
+    inventory_key: str,
+) -> Any:
+    """Seed the generic terrain block into the first free inventory slot."""
+
+    slots = tuple(getattr(snapshot, "slots", ()) or ())
+    for slot in slots:
+        placement = getattr(slot, "placement", {}) or {}
+        payload = getattr(slot, "payload", {}) or {}
+        runtime_id = (
+            placement.get("runtimeBlockTypeId")
+            if isinstance(placement, Mapping)
+            else None
+        )
+        if runtime_id is None and isinstance(payload, Mapping):
+            payload_placement = payload.get("placement", {})
+            if isinstance(payload_placement, Mapping):
+                runtime_id = payload_placement.get("runtimeBlockTypeId")
+        if runtime_id == "system_terrain" or (
+            getattr(slot, "family_id", None) == "system_terrain"
+        ):
+            return snapshot
+
+    target = next(
+        (slot for slot in slots if bool(getattr(slot, "empty", False))),
+        None,
+    )
+    if target is None:
+        return snapshot
+
+    active_slot_index = int(
+        getattr(snapshot, "active_slot_index", DEFAULT_SLOT_COUNT)
+        or DEFAULT_SLOT_COUNT
+    )
+    return _repository().set_slot_item(
+        user_id=user_id,
+        inventory_key=inventory_key,
+        slot_index=int(getattr(target, "slot_index", 1) or 1),
+        item_payload=TERRAIN_TEST_ITEM,
+        select_after_set=(
+            int(getattr(target, "slot_index", 1) or 1)
+            == active_slot_index
+        ),
+        commit=True,
+    )
+
 # ---------------------------------------------------------------------------
 # Public service API
 # ---------------------------------------------------------------------------
@@ -169,6 +252,11 @@ def get_inventory_response(payload: Mapping[str, Any] | None = None) -> dict[str
             inventory_key=inventory_key,
             ensure=True,
             commit=True,
+        )
+        snapshot = _ensure_terrain_test_item(
+            snapshot,
+            user_id=user_id,
+            inventory_key=inventory_key,
         )
 
         return success_response(
