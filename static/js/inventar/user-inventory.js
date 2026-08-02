@@ -555,10 +555,6 @@
   }
 
   function bindKeyboardEvents() {
-    if (!state.keyboardNavigationEnabled) {
-      return;
-    }
-
     try {
       document.addEventListener("keydown", function (event) {
         try {
@@ -574,6 +570,48 @@
   }
 
   function bindExternalEvents() {
+  try {
+    window.addEventListener("message", function (event) {
+      try {
+        if (!window.parent || event.source !== window.parent) {
+          return;
+        }
+
+        var expectedOrigin = "";
+        try {
+          if (document.referrer) {
+            expectedOrigin = new URL(document.referrer).origin;
+          }
+        } catch (originError) {
+          expectedOrigin = "";
+        }
+        if (expectedOrigin && event.origin !== expectedOrigin) {
+          return;
+        }
+
+        var message = event && event.data ? event.data : {};
+        if (
+          message.type !== EVENTS.selectSlot ||
+          message.source !== "vectoplan-editor"
+        ) {
+          return;
+        }
+
+        var detail = message.detail || {};
+        selectSlot(detail.slot_index || detail.slotIndex, {
+          source: detail.source || "editor-host",
+          persist: detail.persist !== false,
+          focus: detail.focus === true,
+          immediate: detail.immediate === true
+        });
+      } catch (err) {
+        error("Editor host select-slot message failed.", err);
+      }
+    });
+  } catch (err) {
+    // Cross-origin host integration is optional.
+  }
+
     try {
       document.addEventListener(EVENTS.selectSlot, function (event) {
         try {
@@ -766,7 +804,65 @@
     }
   }
 
+  function postCreativeInventoryHostMessage(type) {
+    if (!window.parent || window.parent === window) {
+      return;
+    }
+
+    var targetOrigin = "*";
+
+    try {
+      if (document.referrer) {
+        targetOrigin = new URL(document.referrer).origin;
+      }
+    } catch (originError) {
+      targetOrigin = "*";
+    }
+
+    window.parent.postMessage({
+      type: type,
+      source: "vectoplan-library-inventory",
+      version: MODULE_VERSION
+    }, targetOrigin);
+  }
+
   function handleKeydown(event) {
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+
+
+    var key = event.key;
+    var normalizedKey = cleanString(key).toLowerCase();
+    var isCreativePage = document.body.classList.contains("vp-creative-inventar-page");
+    var eventTarget = event.target;
+    var targetTagName = eventTarget && eventTarget.tagName
+      ? cleanString(eventTarget.tagName).toUpperCase()
+      : "";
+    if ((eventTarget && eventTarget.isContentEditable) || ["INPUT", "TEXTAREA", "SELECT"].indexOf(targetTagName) >= 0) {
+      return;
+    }
+
+    if ((normalizedKey === "tab" || event.code === "Tab") && !event.repeat) {
+      tryPreventDefault(event);
+      postCreativeInventoryHostMessage(
+        isCreativePage
+          ? "vectoplan:creative-inventory-close"
+          : "vectoplan:creative-inventory-toggle"
+      );
+      return;
+    }
+
+    if (normalizedKey === "escape" && isCreativePage) {
+      tryPreventDefault(event);
+      postCreativeInventoryHostMessage("vectoplan:creative-inventory-close");
+      return;
+    }
+
+
+    if (shouldIgnoreInputEvent(event)) {
+      return;
+    }
     if (!state.initialized || !state.keyboardNavigationEnabled) {
       return;
     }
@@ -774,16 +870,6 @@
     if (state.suspendDuringCreateEmbed && isCreateEmbedActive()) {
       return;
     }
-
-    if (event.ctrlKey || event.metaKey || event.altKey) {
-      return;
-    }
-
-    if (shouldIgnoreInputEvent(event)) {
-      return;
-    }
-
-    var key = event.key;
 
     if (/^[1-9]$/.test(key)) {
       tryPreventDefault(event);

@@ -1,6 +1,6 @@
 <!-- templates/inventar/creative-inventar.html -->
 <!doctype html>
-<html lang="de">
+<html lang="de" class="vp-creative-inventory-embed">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -314,36 +314,68 @@
 
     <aside class="vp-creative-tools" aria-label="Creative Mode Tools">
       <section class="vp-creative-tools__panel">
-        <h2 class="vp-creative-tools__title">
-          Creative Mode
-        </h2>
+        <header class="vp-creative-tools__header">
+          <span class="vp-creative-tools__gear" aria-hidden="true">&#9881;</span>
+          <div>
+            <h2 class="vp-creative-tools__title">Creative Mode</h2>
+            <p class="vp-creative-tools__subtitle">Schnelleinstellungen</p>
+          </div>
+          <kbd class="vp-creative-tools__key">&#8649;</kbd>
+        </header>
 
-        <div class="vp-tool-group">
-          <h3 class="vp-tool-group__title">
-            Paint Brush Tool
-          </h3>
-        </div>
+        <section class="vp-tool-group">
+          <h3 class="vp-tool-group__title">Bewegung &amp; Flug</h3>
+          <div class="vp-tool-setting vp-tool-setting--value">
+            <span>Flugmodus</span>
+            <kbd>Leertaste &times; 2</kbd>
+          </div>
+          <label class="vp-tool-setting">
+            <span>Keine Kollision</span>
+            <input type="checkbox" aria-label="Keine Kollision">
+          </label>
+          <label class="vp-tool-range">
+            <span>Flug-Tr&auml;gheit</span>
+            <input type="range" min="0" max="100" value="40" aria-label="Flug-Tr&auml;gheit">
+            <output>40</output>
+          </label>
+          <label class="vp-tool-range">
+            <span>Geschwindigkeit</span>
+            <input type="range" min="1" max="10" value="5" aria-label="Geschwindigkeit">
+            <output>5</output>
+          </label>
+        </section>
+
+        <section class="vp-tool-group">
+          <h3 class="vp-tool-group__title">Platzierung</h3>
+          <label class="vp-tool-setting">
+            <span>Luftplatzierung</span>
+            <input type="checkbox" aria-label="Luftplatzierung">
+          </label>
+          <label class="vp-tool-setting">
+            <span>Rasterfang</span>
+            <input type="checkbox" aria-label="Rasterfang" checked>
+          </label>
+        </section>
+
+        <section class="vp-tool-group">
+          <h3 class="vp-tool-group__title">Werkzeug</h3>
+          <label class="vp-tool-range">
+            <span>Reichweite</span>
+            <input type="range" min="1" max="32" value="12" aria-label="Werkzeug-Reichweite">
+            <output>12</output>
+          </label>
+          <label class="vp-tool-range">
+            <span>Block-Radius</span>
+            <input type="range" min="1" max="8" value="1" aria-label="Block-Radius">
+            <output>1</output>
+          </label>
+          <button class="vp-creative-tools__reset" type="button">
+            Standardwerte
+          </button>
+        </section>
       </section>
     </aside>
 
-    {% set user_inventory_hotbar_variant = "dock" %}
-    {% set user_inventory_hotbar_id = "vp-creative-user-hotbar" %}
-    {% set user_inventory_hotbar_label = "Aktuelles User-Inventar" %}
-    {% set user_inventory_slot_count = _creative_slot_count %}
-    {% set user_inventory_active_slot_index = _creative_active_slot_index %}
-    {% set user_inventory_last_selected_slot_index = _creative_last_selected_slot_index %}
-    {% set user_inventory_user_id = _creative_user_id %}
-    {% set user_inventory_key = _creative_inventory_key %}
-    {% set user_inventory_create_embed_hotbar_area = true %}
-    {% include "inventar/partials/_user-hotbar.html" with context %}
-
-    <div
-      id="vp-creative-user-inventory-status"
-      class="vp-user-inventory-status"
-      aria-live="polite"
-      data-user-inventory-status="true"
-      hidden
-    ></div>
   </main>
 
   <script
