@@ -261,6 +261,23 @@
             Variable bearbeiten
           </h3>
 
+          <label class="vp-create-variant-drawer__name-editor">
+            <span>Variantenname</span>
+            <input
+              class="vp-create-control vp-create-variant-drawer__name-input"
+              type="text"
+              name="definition_values[variant.label]"
+              value=""
+              autocomplete="off"
+              required
+              data-vp-variant-drawer-name-input="true"
+              data-vp-field-input="true"
+              data-vp-field-key="variant.label"
+              data-vp-definition-value-key="variant.label"
+              aria-label="Variantenname"
+            />
+          </label>
+
           <p
             id="{{ _vp_variant_drawer_id }}-subtitle"
             class="vp-create-variant-drawer__subtitle"
@@ -272,7 +289,44 @@
 
         <div class="vp-create-variant-drawer__header-actions">
           <button
-            class="vp-create-button vp-create-button--ghost vp-create-variant-drawer__close"
+            class="vp-create-button vp-create-button--ghost vp-create-variant-drawer__header-action"
+            type="button"
+            data-vp-variant-drawer-cancel="true"
+            data-vp-variant-footer-action="cancel"
+            aria-label="Variantenbearbeitung abbrechen"
+          >
+            Abbrechen
+          </button>
+
+          <button
+            class="vp-create-button vp-create-button--secondary vp-create-variant-drawer__header-action"
+            type="button"
+            data-vp-variant-drawer-validate="true"
+            data-vp-variant-footer-action="validate"
+            aria-label="Variante prüfen"
+            {% if not _drawer_definitions_available %}
+              data-vp-action-disabled-reason="definitions_unavailable"
+            {% endif %}
+          >
+            Prüfen
+          </button>
+
+          <button
+            class="vp-create-button vp-create-button--primary vp-create-variant-drawer__header-action"
+            type="button"
+            data-vp-variant-drawer-apply="true"
+            data-vp-variant-footer-action="apply"
+            data-vp-action-label="Speichern"
+            aria-label="Variante speichern"
+            {% if not _drawer_definitions_available %}
+              data-vp-action-disabled-reason="definitions_unavailable"
+            {% endif %}
+          >
+            Speichern
+          </button>
+
+          <button
+            class="vp-create-button vp-create-button--ghost vp-create-variant-drawer__close vp-create-variant-drawer__header-action"
             type="button"
             data-vp-variant-drawer-close="true"
             data-vp-variant-footer-action="close"
@@ -410,11 +464,14 @@
           <div
             class="vp-create-variant-drawer__content-grid"
             data-vp-variant-drawer-content-grid="true"
-            data-vp-variant-drawer-content-layout="profile-and-optional"
+            data-vp-variant-drawer-content-layout="variable-list-detail"
           >
             <div
               class="vp-create-variant-drawer__profile-column"
               data-vp-variant-drawer-profile-column="true"
+              data-vp-profile-fields-storage="true"
+              aria-hidden="true"
+              hidden
             >
               <div
                 class="vp-create-variant-drawer__sections"
@@ -428,30 +485,10 @@
               data-vp-variant-drawer-optional-fields="true"
               data-vp-variant-optional-fields-root="true"
               data-vp-variant-drawer-optional-column="true"
-              data-vp-variant-optional-placement="beside-profile-fields"
-              aria-labelledby="{{ _vp_variant_drawer_id }}-optional-fields-title"
+              data-vp-variant-optional-placement="list-detail"
+              data-vp-optional-ui-mode="list-detail"
+              aria-label="Variablen auswählen und bearbeiten"
             >
-              <header class="vp-create-variant-optional-fields__header">
-                <div>
-                  <h4 id="{{ _vp_variant_drawer_id }}-optional-fields-title">
-                    Weitere technische Angaben
-                  </h4>
-
-                  <p>
-                    Zusätzliche Variablen aus dem Backend-Katalog auswählen, z. B. U-Wert, Brandschutz oder Rohdichte.
-                  </p>
-                </div>
-
-                <span
-                  class="vp-create-variant-optional-fields__status"
-                  data-vp-variant-optional-fields-status="true"
-                  data-vp-variant-optional-fields-count-label="true"
-                  aria-live="polite"
-                >
-                  Keine Zusatzfelder aktiv.
-                </span>
-              </header>
-
               <div
                 class="vp-create-variant-optional-fields__available"
                 data-vp-variant-optional-fields-available="true"
@@ -462,7 +499,7 @@
                   data-vp-variant-optional-fields-available-header="true"
                 >
                   <strong data-vp-variant-optional-fields-available-title="true">
-                    Verfügbare Variablen
+                    Variablen
                   </strong>
 
                   <span data-vp-variant-optional-fields-available-count="true">
@@ -475,9 +512,7 @@
                   data-vp-variant-optional-fields-available-columns="true"
                   aria-hidden="true"
                 >
-                  <span>Bezeichnung</span>
-                  <span>Beschreibung</span>
-                  <span>Art</span>
+                  <span>Variablenbezeichnung</span>
                 </div>
 
                 <div
@@ -491,12 +526,15 @@
               <div
                 class="vp-create-variant-optional-fields__selected"
                 data-vp-variant-optional-fields-selected="true"
+                data-vp-variant-detail-pane="true"
               >
                 <div class="vp-create-variant-optional-fields__selected-header">
-                  <strong>Gewählte Zusatzfelder</strong>
+                  <strong data-vp-variant-detail-title="true">
+                    Variable bearbeiten
+                  </strong>
 
                   <span data-vp-variant-optional-fields-selected-count="true">
-                    0
+                    0 ausgefüllt
                   </span>
                 </div>
 
@@ -504,7 +542,10 @@
                   class="vp-create-variant-optional-fields__selected-empty"
                   data-vp-variant-optional-fields-selected-empty="true"
                 >
-                  Noch keine zusätzlichen Variablen gewählt.
+                  <strong>Variable auswählen</strong>
+                  <span>
+                    Wähle links eine Variable aus. Der passende Eingabetyp erscheint dann hier.
+                  </span>
                 </div>
 
                 <div
@@ -562,115 +603,6 @@
         </aside>
       </div>
 
-      <footer
-        class="vp-create-variant-drawer__footer vp-create-variant-drawer-footer vp-create-variant-drawer-footer--compact"
-        data-vp-variant-drawer-footer="true"
-        data-vp-variant-drawer-footer-root="true"
-        data-vp-variant-drawer-footer-version="0.7.0"
-        data-vp-variant-drawer-footer-sticky="true"
-        data-vp-workspace-id="{{ _drawer_workspace_id | string | e }}"
-        data-vp-drawer-id="{{ _vp_variant_drawer_id | string | e }}"
-        data-vp-definitions-available="{% if _drawer_definitions_available %}true{% else %}false{% endif %}"
-        data-vp-family-profile-id="{{ _drawer_family_profile_id | string | e }}"
-        data-vp-variant-profile-id="{{ _drawer_variant_profile_id | string | e }}"
-        data-vp-profile-state="{% if _drawer_variant_profile_id %}resolved{% elif _drawer_definitions_available %}pending{% else %}unavailable{% endif %}"
-        data-vp-validation-state="idle"
-        data-vp-dirty="false"
-        data-vp-busy="false"
-        aria-label="Variantenaktionen"
-      >
-        <div class="vp-create-variant-drawer-footer__left">
-          <span
-            class="vp-create-variant-drawer-footer__dirty-state"
-            data-vp-variant-drawer-dirty-state="true"
-            data-vp-dirty="false"
-          >
-            Keine ungespeicherten Änderungen
-          </span>
-
-          <span
-            class="vp-create-variant-drawer-footer__validation-state"
-            data-vp-variant-drawer-footer-validation-state="true"
-            data-vp-validation-state="idle"
-            hidden
-          >
-            Nicht geprüft
-          </span>
-
-          <span
-            class="vp-create-variant-drawer-footer__profile-state"
-            data-vp-variant-drawer-footer-profile-state="true"
-            data-vp-profile-state="{% if _drawer_variant_profile_id %}resolved{% elif _drawer_definitions_available %}pending{% else %}unavailable{% endif %}"
-            hidden
-          >
-            {% if _drawer_variant_profile_id %}
-              Profil: {{ _drawer_variant_profile_id }}
-            {% elif _drawer_definitions_available %}
-              Profil: auto
-            {% else %}
-              Profil: nicht verfügbar
-            {% endif %}
-          </span>
-
-          <span
-            class="vp-create-variant-drawer-footer__status"
-            data-vp-variant-drawer-footer-status="true"
-            hidden
-          >
-            <span
-              class="vp-create-variant-drawer-footer__status-dot"
-              data-vp-variant-drawer-footer-status-dot="true"
-              aria-hidden="true"
-            ></span>
-
-            <span
-              class="vp-create-variant-drawer-footer__status-text"
-              data-vp-variant-drawer-footer-status-text="true"
-            >
-              Bereit.
-            </span>
-          </span>
-        </div>
-
-        <div class="vp-create-variant-drawer-footer__right">
-          <button
-            class="vp-create-button vp-create-button--ghost vp-create-variant-drawer-footer__button"
-            type="button"
-            data-vp-variant-drawer-cancel="true"
-            data-vp-variant-footer-action="cancel"
-            aria-label="Variantenbearbeitung abbrechen"
-          >
-            Abbrechen
-          </button>
-
-          <button
-            class="vp-create-button vp-create-button--secondary vp-create-variant-drawer-footer__button"
-            type="button"
-            data-vp-variant-drawer-validate="true"
-            data-vp-variant-footer-action="validate"
-            aria-label="Variante prüfen"
-            {% if not _drawer_definitions_available %}
-              data-vp-action-disabled-reason="definitions_unavailable"
-            {% endif %}
-          >
-            Prüfen
-          </button>
-
-          <button
-            class="vp-create-button vp-create-button--primary vp-create-variant-drawer-footer__button"
-            type="button"
-            data-vp-variant-drawer-apply="true"
-            data-vp-variant-footer-action="apply"
-            data-vp-action-label="Speichern"
-            aria-label="Variante speichern"
-            {% if not _drawer_definitions_available %}
-              data-vp-action-disabled-reason="definitions_unavailable"
-            {% endif %}
-          >
-            Speichern
-          </button>
-        </div>
-      </footer>
 
       <template data-vp-variant-drawer-section-template="true">
         <section
@@ -759,7 +691,9 @@
           data-vp-upload-purpose="variant_document_list"
           data-vp-upload-backend-enabled="true"
           data-vp-upload-local-only="false"
-          data-vp-upload-metadata-field="variant_document_uploads_json"
+          data-vp-upload-metadata-field="variant_document_uploads[__field_key__]"
+          data-vp-upload-accumulate="true"
+          data-vp-upload-max-files="12"
         >
           <div class="vp-create-upload__header" data-vp-upload-header>
             <div>
@@ -768,7 +702,7 @@
               </strong>
 
               <p class="vp-create-upload__hint" data-vp-upload-hint>
-                Dokumente für diese Variable auswählen. Sie werden direkt in das VPLIB eingebettet.
+                Bis zu 12 Dateien gleichzeitig oder nacheinander auswählen. Sie werden direkt in das VPLIB eingebettet.
               </p>
             </div>
 
@@ -793,6 +727,8 @@
               data-vp-upload-kind="variant_documents"
               data-vp-upload-purpose="variant_document_list"
               data-vp-upload-local-only="false"
+              data-vp-upload-accumulate="true"
+              data-vp-upload-max-files="12"
             />
 
             <input
@@ -834,20 +770,6 @@
             data-vp-optional-available-name="true"
           >
             __field_label__
-          </span>
-
-          <span
-            class="vp-create-variant-optional-fields__available-description"
-            data-vp-optional-available-description="true"
-          >
-            __field_description__
-          </span>
-
-          <span
-            class="vp-create-variant-optional-fields__available-type"
-            data-vp-optional-available-type="true"
-          >
-            __field_type__
           </span>
         </button>
       </template>
@@ -1229,11 +1151,11 @@
 
         if (cache.contentGrid) {
           cache.contentGrid.setAttribute("data-vp-layout-managed-by", COMPONENT_NAME);
-          cache.contentGrid.setAttribute("data-vp-variant-drawer-content-layout", "profile-and-optional");
+          cache.contentGrid.setAttribute("data-vp-variant-drawer-content-layout", "variable-list-detail");
         }
 
         if (cache.optionalRoot) {
-          cache.optionalRoot.setAttribute("data-vp-variant-optional-placement", "beside-profile-fields");
+          cache.optionalRoot.setAttribute("data-vp-variant-optional-placement", "list-detail");
           cache.optionalRoot.setAttribute("data-vp-layout-managed-by", COMPONENT_NAME);
           cache.optionalRoot.setAttribute("data-vp-variant-optional-fields-root", "true");
           cache.optionalRoot.setAttribute("data-vp-variant-drawer-optional-fields", "true");

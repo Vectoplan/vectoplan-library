@@ -1,6 +1,6 @@
 <!-- templates/inventar/creative-inventar.html -->
 <!doctype html>
-<html lang="de">
+<html lang="de" class="vp-creative-inventory-embed">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -60,108 +60,8 @@
     {% set _user_inventory_select_url = "/api/v1/vplib/inventar_user/select-slot" %}
   {% endif %}
 
-  {# --------------------------------------------------------------------------
-     Fallback-Daten für die Creative Library.
-     Backend kann später creative_items übergeben.
-     -------------------------------------------------------------------------- #}
-  {% set _fallback_creative_items = [
-    {
-      "family_id": "vp.hochbau.bloecke.basic_stone_block",
-      "variant_id": "default",
-      "domain": "hochbau",
-      "category": "tragwerk",
-      "subcategory": "fundamente",
-      "object_kind": "cell_block",
-      "icon_text": "ST",
-      "title": "Basic Stone Block",
-      "text": "Einfacher Basisblock für Rasterbau, Tests und frühe Platzierungslogik."
-    },
-    {
-      "family_id": "vp.hochbau.waende.masonry_wall",
-      "variant_id": "24cm_tragend",
-      "domain": "hochbau",
-      "category": "waende",
-      "subcategory": "mauerwerkswaende",
-      "object_kind": "cell_block",
-      "icon_text": "MW",
-      "title": "Mauerwerkswand",
-      "text": "Wand-Family mit späteren Varianten für Dicke, Tragfähigkeit und technische Kennwerte."
-    },
-    {
-      "family_id": "vp.hochbau.decken.concrete_slab",
-      "variant_id": "default",
-      "domain": "hochbau",
-      "category": "decken",
-      "subcategory": "massivdecken",
-      "object_kind": "cell_block",
-      "icon_text": "MD",
-      "title": "Massivdecke",
-      "text": "Deckenbauteil als Platzhalter für spätere Mengen-, Maß- und Materiallogik."
-    },
-    {
-      "family_id": "vp.hochbau.module.stair_core",
-      "variant_id": "default",
-      "domain": "hochbau",
-      "category": "treppen_rampen",
-      "subcategory": "treppenlaeufe",
-      "object_kind": "multi_cell_module",
-      "icon_text": "TK",
-      "title": "Treppenkern",
-      "text": "Mehrzelliger Modul-Platzhalter für Erschließung und spätere Occupancy-Daten."
-    },
-    {
-      "family_id": "vp.tiefbau.leitungen.water_pipe",
-      "variant_id": "default",
-      "domain": "tiefbau",
-      "category": "leitungen",
-      "subcategory": "wasserleitungen",
-      "object_kind": "adaptive_system",
-      "icon_text": "WL",
-      "title": "Wasserleitung",
-      "text": "Leitungsobjekt als Platzhalter für spätere Routing- und Tiefbau-Logik."
-    },
-    {
-      "family_id": "vp.ingenieurbau.bruecken.bridge_cap",
-      "variant_id": "default",
-      "domain": "ingenieurbau",
-      "category": "bruecken",
-      "subcategory": "kappen_randbalken",
-      "object_kind": "adaptive_system",
-      "icon_text": "BK",
-      "title": "Brückenkappe",
-      "text": "Adaptives Ingenieurbau-Bauteil, später abhängig von Tragwerk, Breite und Randbedingungen."
-    },
-    {
-      "family_id": "vp.hochbau.moebel.school_desk",
-      "variant_id": "default",
-      "domain": "hochbau",
-      "category": "moebel_ausstattung",
-      "subcategory": "schule",
-      "object_kind": "catalog_object",
-      "icon_text": "SB",
-      "title": "Schulbank",
-      "text": "Einfaches Katalogobjekt für Ausstattung, Preview und spätere Collision-Daten."
-    },
-    {
-      "family_id": "vp.hochbau.technik.faucet",
-      "variant_id": "default",
-      "domain": "hochbau",
-      "category": "sanitaer",
-      "subcategory": "armaturen",
-      "object_kind": "catalog_object",
-      "icon_text": "WH",
-      "badge": "Objekt",
-      "show_kind": true,
-      "title": "Wasserhahn",
-      "text": "Kompaktes technisches Katalogobjekt mit späterer Herstellerfähigkeit."
-    }
-  ] %}
-
-  {% if creative_items is defined and creative_items %}
-    {% set _creative_items = creative_items %}
-  {% else %}
-    {% set _creative_items = _fallback_creative_items %}
-  {% endif %}
+  {# Nur echte, vom Backend gelieferte oder clientseitig geladene VPLIB-Items. #}
+  {% set _creative_items = creative_items if creative_items is defined and creative_items else [] %}
 
   <main
     id="vp-creative-inventory-root"
@@ -251,99 +151,159 @@
         </div>
       </div>
 
-      <div
-        class="vp-creative-taxonomy-bar"
-        aria-label="Creative Library Kategorien"
-        data-create-embed-taxonomy-bar="true"
-        data-create-embed-filter-area="true"
-      >
-        <nav
-          id="vp-creative-taxonomy-filters"
-          class="vp-creative-filters"
+      <div class="vp-creative-catalog" data-creative-catalog="true">
+        <div
+          class="vp-creative-taxonomy-bar"
           aria-label="Creative Library Kategorien"
-          data-taxonomy-filters="true"
+          data-create-embed-taxonomy-bar="true"
+          data-create-embed-filter-area="true"
         >
-          <button class="vp-creative-filter vp-creative-filter--active" type="button" disabled>
-            <span>Kategorien werden geladen</span>
-            <strong>...</strong>
-          </button>
-        </nav>
+          <nav
+            id="vp-creative-taxonomy-filters"
+            class="vp-creative-filters"
+            aria-label="Creative Library Kategorien"
+            data-taxonomy-filters="true"
+          >
+            <button class="vp-creative-filter vp-creative-filter--active" type="button" disabled>
+              <span>Kategorien werden geladen</span>
+              <strong>...</strong>
+            </button>
+          </nav>
+        </div>
+
+        <div class="vp-creative-catalog__main">
+          <div class="vp-creative-catalog__toolbar">
+            <nav
+              id="vp-creative-taxonomy-subfilters"
+              class="vp-creative-subfilters"
+              aria-label="Creative Library Subkategorien"
+              data-taxonomy-subfilters="true"
+              data-create-embed-subfilter-area="true"
+              hidden
+            ></nav>
+
+            <label class="vp-creative-search" for="vp-creative-search-input">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+              <input
+                id="vp-creative-search-input"
+                type="search"
+                inputmode="search"
+                autocomplete="off"
+                placeholder="Objekte und VPLIB durchsuchen"
+                aria-label="Creative-Inventar durchsuchen"
+                data-creative-search="true"
+              >
+              <kbd>F</kbd>
+            </label>
+          </div>
+
+          <section
+            id="vp-create-embed-panel"
+            class="vp-create-embed-panel"
+            aria-label="Neues VPLIB-Element erstellen"
+            data-create-embed-panel="true"
+            hidden
+          >
+            <iframe
+              id="vp-create-embed-frame"
+              class="vp-create-embed-frame"
+              title="VPLIB Create Flow"
+              data-create-embed-frame="true"
+              data-src="{{ _create_url | e }}"
+              loading="lazy"
+              referrerpolicy="same-origin"
+            ></iframe>
+          </section>
+
+          <section
+            class="vp-creative-grid"
+            id="creative-items"
+            aria-label="Creative Library Items"
+            role="list"
+            data-creative-library-grid="true"
+            data-create-embed-library-area="true"
+            data-creative-items-url="/api/v1/vplib/creative-library/items"
+            data-published-items-url="/api/v1/vplib/library/items?visible_only=true&amp;active_only=true&amp;limit=250"
+          >
+            {% for item in _creative_items %}
+              {% set creative_card_item = item %}
+              {% include "inventar/partials/_creative-card.html" with context %}
+            {% endfor %}
+          </section>
+
+          <div class="vp-creative-empty" data-creative-empty="true" role="status" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>
+            <strong>Keine verwendbaren Objekte vorhanden</strong>
+            <span>Hier erscheinen ausschließlich veröffentlichte VPLIB-Objekte mit gültiger Platzierung.</span>
+          </div>
+        </div>
       </div>
-
-      <nav
-        id="vp-creative-taxonomy-subfilters"
-        class="vp-creative-subfilters"
-        aria-label="Creative Library Subkategorien"
-        data-taxonomy-subfilters="true"
-        data-create-embed-subfilter-area="true"
-        hidden
-      ></nav>
-
-      <section
-        id="vp-create-embed-panel"
-        class="vp-create-embed-panel"
-        aria-label="Neues VPLIB-Element erstellen"
-        data-create-embed-panel="true"
-        hidden
-      >
-        <iframe
-          id="vp-create-embed-frame"
-          class="vp-create-embed-frame"
-          title="VPLIB Create Flow"
-          data-create-embed-frame="true"
-          data-src="{{ _create_url | e }}"
-          loading="lazy"
-          referrerpolicy="same-origin"
-        ></iframe>
-      </section>
-
-      <section
-        class="vp-creative-grid"
-        id="creative-items"
-        aria-label="Creative Library Items"
-        role="list"
-        data-creative-library-grid="true"
-        data-create-embed-library-area="true"
-      >
-        {% for item in _creative_items %}
-          {% set creative_card_item = item %}
-          {% include "inventar/partials/_creative-card.html" with context %}
-        {% endfor %}
-      </section>
     </section>
 
     <aside class="vp-creative-tools" aria-label="Creative Mode Tools">
       <section class="vp-creative-tools__panel">
-        <h2 class="vp-creative-tools__title">
-          Creative Mode
-        </h2>
+        <header class="vp-creative-tools__header">
+          <span class="vp-creative-tools__gear" aria-hidden="true">&#9881;</span>
+          <div>
+            <h2 class="vp-creative-tools__title">Creative Mode</h2>
+            <p class="vp-creative-tools__subtitle">Schnelleinstellungen</p>
+          </div>
+          <kbd class="vp-creative-tools__key">&#8649;</kbd>
+        </header>
 
-        <div class="vp-tool-group">
-          <h3 class="vp-tool-group__title">
-            Paint Brush Tool
-          </h3>
-        </div>
+        <section class="vp-tool-group">
+          <h3 class="vp-tool-group__title">Bewegung &amp; Flug</h3>
+          <div class="vp-tool-setting vp-tool-setting--value">
+            <span>Flugmodus</span>
+            <kbd>Leertaste &times; 2</kbd>
+          </div>
+          <label class="vp-tool-setting">
+            <span>Keine Kollision</span>
+            <input type="checkbox" aria-label="Keine Kollision">
+          </label>
+          <label class="vp-tool-range">
+            <span>Flug-Tr&auml;gheit</span>
+            <input type="range" min="0" max="100" value="40" aria-label="Flug-Tr&auml;gheit">
+            <output>40</output>
+          </label>
+          <label class="vp-tool-range">
+            <span>Geschwindigkeit</span>
+            <input type="range" min="1" max="10" value="5" aria-label="Geschwindigkeit">
+            <output>5</output>
+          </label>
+        </section>
+
+        <section class="vp-tool-group">
+          <h3 class="vp-tool-group__title">Platzierung</h3>
+          <label class="vp-tool-setting">
+            <span>Luftplatzierung</span>
+            <input type="checkbox" aria-label="Luftplatzierung">
+          </label>
+          <label class="vp-tool-setting">
+            <span>Rasterfang</span>
+            <input type="checkbox" aria-label="Rasterfang" checked>
+          </label>
+        </section>
+
+        <section class="vp-tool-group">
+          <h3 class="vp-tool-group__title">Werkzeug</h3>
+          <label class="vp-tool-range">
+            <span>Reichweite</span>
+            <input type="range" min="1" max="32" value="12" aria-label="Werkzeug-Reichweite">
+            <output>12</output>
+          </label>
+          <label class="vp-tool-range">
+            <span>Block-Radius</span>
+            <input type="range" min="1" max="8" value="1" aria-label="Block-Radius">
+            <output>1</output>
+          </label>
+          <button class="vp-creative-tools__reset" type="button">
+            Standardwerte
+          </button>
+        </section>
       </section>
     </aside>
 
-    {% set user_inventory_hotbar_variant = "dock" %}
-    {% set user_inventory_hotbar_id = "vp-creative-user-hotbar" %}
-    {% set user_inventory_hotbar_label = "Aktuelles User-Inventar" %}
-    {% set user_inventory_slot_count = _creative_slot_count %}
-    {% set user_inventory_active_slot_index = _creative_active_slot_index %}
-    {% set user_inventory_last_selected_slot_index = _creative_last_selected_slot_index %}
-    {% set user_inventory_user_id = _creative_user_id %}
-    {% set user_inventory_key = _creative_inventory_key %}
-    {% set user_inventory_create_embed_hotbar_area = true %}
-    {% include "inventar/partials/_user-hotbar.html" with context %}
-
-    <div
-      id="vp-creative-user-inventory-status"
-      class="vp-user-inventory-status"
-      aria-live="polite"
-      data-user-inventory-status="true"
-      hidden
-    ></div>
   </main>
 
   <script
@@ -358,13 +318,10 @@
     data-create-url="{{ _create_url | e }}"
   ></script>
 
+
   <script
-    src="{{ url_for('static', filename='js/inventar/user-inventory.js') }}"
+    src="{{ url_for('static', filename='js/inventar/creative-library.js') }}"
     defer
-    data-user-id="{{ _creative_user_id }}"
-    data-inventory-key="{{ _creative_inventory_key | e }}"
-    data-user-inventory-api-url="{{ _user_inventory_api_url | e }}"
-    data-user-inventory-select-url="{{ _user_inventory_select_url | e }}"
   ></script>
 </body>
 </html>

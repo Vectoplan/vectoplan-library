@@ -925,7 +925,7 @@
       createCategoryButton({
         id: SPECIAL_DOMAIN_ALL,
         label: state.selectedDomainId === SPECIAL_DOMAIN_ALL ? "Alles" : "Alle Kategorien",
-        count: categories.length,
+        count: countCardsForCategory(SPECIAL_DOMAIN_ALL),
         active: state.selectedCategoryId === SPECIAL_DOMAIN_ALL
       })
     );
@@ -935,7 +935,7 @@
         createCategoryButton({
           id: category.id,
           label: category.label,
-          count: getSubcategoriesForCategory(category.id).length,
+          count: countCardsForCategory(category.id),
           active: state.selectedCategoryId === category.id
         })
       );
@@ -1023,20 +1023,88 @@
     return button;
   }
 
+  function categoryIconMarkup(categoryId, label) {
+    var key = (cleanString(categoryId) + " " + cleanString(label)).toLowerCase();
+    var paths = '<path d="M4 5h16v14H4zM9 5v14M15 5v14"></path>';
+
+    if (key.indexOf("all") >= 0 || key.indexOf("alle") >= 0) {
+      paths = '<rect x="4" y="4" width="6" height="6" rx="1"></rect><rect x="14" y="4" width="6" height="6" rx="1"></rect><rect x="4" y="14" width="6" height="6" rx="1"></rect><rect x="14" y="14" width="6" height="6" rx="1"></rect>';
+    } else if (/wand|wall|mauer/.test(key)) {
+      paths = '<path d="M3 5h18v14H3zM3 10h18M3 15h18M8 5v5M16 5v5M6 10v5M14 10v5M9 15v4M18 15v4"></path>';
+    } else if (/deck|slab/.test(key)) {
+      paths = '<path d="m3 9 9-4 9 4-9 4zM5 13l7 3 7-3M5 17l7 3 7-3"></path>';
+    } else if (/boden|floor|belag/.test(key)) {
+      paths = '<path d="m3 15 9-6 9 6-9 6zM3 15V9l9-6 9 6v6"></path>';
+    } else if (/dach|roof/.test(key)) {
+      paths = '<path d="m3 12 9-8 9 8M6 10v10h12V10M10 20v-6h4v6"></path>';
+    } else if (/öffnung|oeffnung|fenster|tür|tuer|door|window/.test(key)) {
+      paths = '<path d="M5 21V3h14v18M9 21V7h6v14M12 14h.01"></path>';
+    } else if (/trag|struktur|stütz|stuetz|column/.test(key)) {
+      paths = '<path d="M4 4h16M4 20h16M8 4v16M16 4v16M8 9h8M8 15h8"></path>';
+    } else if (/trepp|stair|ramp/.test(key)) {
+      paths = '<path d="M3 19h5v-4h4v-4h4V7h5"></path>';
+    } else if (/möbel|moebel|ausstattung|furniture/.test(key)) {
+      paths = '<path d="M5 12h14v7H5zM7 12V8a5 5 0 0 1 10 0v4M7 19v2M17 19v2"></path>';
+    } else if (/sanitär|sanitaer|wasser|pipe|leitung/.test(key)) {
+      paths = '<path d="M5 4h9v5H9v4a4 4 0 0 0 4 4h6M17 14l3 3-3 3"></path>';
+    } else if (/elektr|strom|energie/.test(key)) {
+      paths = '<path d="m13 2-7 12h6l-1 8 7-12h-6z"></path>';
+    } else if (/lüft|lueft|klima|hvac|technik/.test(key)) {
+      paths = '<circle cx="12" cy="12" r="2"></circle><path d="M12 10c-1-5 2-7 5-6 2 3 0 6-3 7M14 12c5-1 7 2 6 5-3 2-6 0-7-3M12 14c1 5-2 7-5 6-2-3 0-6 3-7M10 12c-5 1-7-2-6-5 3-2 6 0 7 3"></path>';
+    } else if (/straße|strasse|road|verkehr/.test(key)) {
+      paths = '<path d="M8 3 5 21M16 3l3 18M12 4v3M12 10v4M12 17v3"></path>';
+    } else if (/terrain|gelände|gelaende|erde|landschaft/.test(key)) {
+      paths = '<path d="m3 18 5-7 4 4 3-5 6 8zM3 21h18"></path>';
+    } else if (/kanal|abwasser|drain/.test(key)) {
+      paths = '<path d="M3 7h18M5 7v5a7 7 0 0 0 14 0V7M8 11h8M9 15h6"></path>';
+    } else if (/brück|brueck|bridge/.test(key)) {
+      paths = '<path d="M3 9h18M5 9v10M19 9v10M7 19v-3a5 5 0 0 1 10 0v3M3 19h18"></path>';
+    } else if (/tunnel/.test(key)) {
+      paths = '<path d="M4 21V11a8 8 0 0 1 16 0v10M8 21V11a4 4 0 0 1 8 0v10"></path>';
+    } else if (/bahn|rail|gleis/.test(key)) {
+      paths = '<path d="M8 3h8M9 3 6 21M15 3l3 18M7 8h10M7 13h10M6 18h12"></path>';
+    }
+
+    return '<svg viewBox="0 0 24 24" aria-hidden="true">' + paths + '</svg>';
+  }
+
+  function countCardsForCategory(categoryId) {
+    try {
+      var domainId = state.selectedDomainId;
+      return state.elements.creativeCards.filter(function (card) {
+        var cardDomain = cleanString(card.dataset.domain);
+        var cardCategory = cleanString(card.dataset.category);
+        var domainMatches = domainId === SPECIAL_DOMAIN_ALL || cardDomain === domainId;
+        return domainMatches && (categoryId === SPECIAL_DOMAIN_ALL || cardCategory === categoryId);
+      }).length;
+    } catch (err) {
+      return 0;
+    }
+  }
+
   function createCategoryButton(options) {
     var button = document.createElement("button");
 
     button.type = "button";
     button.className = CLASSES.filter + (options.active ? " " + CLASSES.filterActive : "");
     button.setAttribute("data-taxonomy-category", options.id);
+    button.setAttribute("data-category-label", options.label);
+    button.setAttribute("aria-label", options.label + ", " + String(toNumber(options.count, 0)) + " Objekte");
+    button.setAttribute("title", options.label);
     button.setAttribute("aria-pressed", options.active ? "true" : "false");
 
+    var iconSpan = document.createElement("span");
+    iconSpan.className = "vp-creative-filter__icon";
+    iconSpan.innerHTML = categoryIconMarkup(options.id, options.label);
+
     var labelSpan = document.createElement("span");
+    labelSpan.className = "vp-visually-hidden";
     setText(labelSpan, options.label);
 
     var countStrong = document.createElement("strong");
     setText(countStrong, String(toNumber(options.count, 0)));
 
+    button.appendChild(iconSpan);
     button.appendChild(labelSpan);
     button.appendChild(countStrong);
 
@@ -1048,7 +1116,6 @@
 
     return button;
   }
-
   function createSubcategoryButton(options) {
     var button = document.createElement("button");
 
@@ -1417,7 +1484,8 @@
       var selectedSubcategory = state.selectedSubcategoryId || SPECIAL_DOMAIN_ALL;
 
       if (selectedDomain === SPECIAL_WORLD_EDIT) {
-        return false;
+        var worldEditDomain = cleanString(card.dataset.domain).toLowerCase().replace(/[_\s]+/g, "-");
+        return worldEditDomain === "world-edit" || worldEditDomain === "worldedit";
       }
 
       if (selectedDomain !== SPECIAL_DOMAIN_ALL) {

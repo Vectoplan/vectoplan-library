@@ -441,6 +441,8 @@ def test_library_export_import_routes_roundtrip(tmp_path: Path, monkeypatch: pyt
 
 def test_create_ui_has_texture_upload_and_no_global_step3_documents() -> None:
     geometry = (SERVICE_ROOT / "templates/vplib/create/sections/_geometry.html").read_text(encoding="utf-8")
+    variant_table = (SERVICE_ROOT / "templates/vplib/create/variants/_variant_table.html").read_text(encoding="utf-8")
+    variant_table_js = (SERVICE_ROOT / "static/js/vplib/create/create_variant_table.js").read_text(encoding="utf-8")
     variables = (SERVICE_ROOT / "templates/vplib/create/sections/_variables.html").read_text(encoding="utf-8")
     drawer = (SERVICE_ROOT / "templates/vplib/create/variants/_variant_drawer_shell.html").read_text(encoding="utf-8")
     actions = (SERVICE_ROOT / "static/js/vplib/create/create_actions.js").read_text(encoding="utf-8")
@@ -500,22 +502,116 @@ def test_create_ui_exposes_full_width_variants_and_functional_technical_inputs()
     technical = (SERVICE_ROOT / "templates/vplib/create/sections/_technical_cad.html").read_text(encoding="utf-8")
     technical_js = (SERVICE_ROOT / "static/js/vplib/create/create_technical.js").read_text(encoding="utf-8")
     geometry = (SERVICE_ROOT / "templates/vplib/create/sections/_geometry.html").read_text(encoding="utf-8")
+    variant_table = (SERVICE_ROOT / "templates/vplib/create/variants/_variant_table.html").read_text(encoding="utf-8")
+    variant_table_js = (SERVICE_ROOT / "static/js/vplib/create/create_variant_table.js").read_text(encoding="utf-8")
+    variant_drawer = (SERVICE_ROOT / "templates/vplib/create/variants/_variant_drawer_shell.html").read_text(encoding="utf-8")
+    variant_drawer_js = (SERVICE_ROOT / "static/js/vplib/create/create_variant_drawer.js").read_text(encoding="utf-8")
     assert "grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr)" not in css
     assert "grid-template-columns: minmax(0, 1fr)" in css
-    assert "alle verfügbaren Variablen" in variables
+    assert "Variable anklicken und rechts bearbeiten" in variables
     assert "als lokale Metadaten" not in variables
     assert 'name="technical_document_files"' not in technical
     assert 'data-vp-technical-variant-select' in technical
-    assert 'data-vp-technical-material-select' in technical
-    assert 'data-vp-technical-add-select' in technical
-    assert "Reale Bauteildaten für CAD" in technical
+    assert 'data-vp-technical-material-select' not in technical
+    assert 'data-vp-technical-add-select' not in technical
+    assert 'data-vp-technical-controller="dimensions"' in technical
+    assert 'data-vp-technical-dimension-table="true"' in technical
+    assert "Reale Maße für CAD" in technical
+    assert "var DIMENSION_FIELDS = [" in technical_js
     assert '"dimensions.thickness_mm"' in technical_js
+    assert '"dimensions.length_mm"' in technical_js
+    assert "isTechnicalVariable" not in technical_js
+    assert "populateAddSelect" not in technical_js
+    assert 'data-vp-technical-dimension-value' in technical_js
+    assert 'quantity === "length"' in technical_js
     assert '"variables[" + index + "][variant_id]"' not in technical_js
     assert 'variant_id: variantId(variant)' in technical_js
+    assert 'class="vp-create-variant-row__name-button"' in variant_table
+    assert 'data-vp-edit-definition-variant="true"' in variant_table
+    assert '<span role="columnheader">Zusatzfelder</span>' in variant_table
+    assert 'U().createElement("button", {' in variant_table_js
+    assert 'createProfileCell' not in variant_table_js
+    assert 'text: getSummary(variant)' not in variant_table_js
+    assert 'data-vp-variant-drawer-name-input="true"' in variant_drawer
+    assert 'name="definition_values[variant.label]"' in variant_drawer
+    assert 'values["variant.label"] = String(cache.nameInput.value || "").trim()' in variant_drawer_js
     assert 'name="geometry_model_files"' in geometry
     assert 'name="texture_files"' in geometry
     assert "direkt in das VPLIB eingebettet" in geometry
 
+
+
+
+def test_create_ui_uses_light_cad_workspace_and_visible_variable_drawer() -> None:
+    css = (SERVICE_ROOT / "static/css/vplib/create.css").read_text(encoding="utf-8")
+    template = (SERVICE_ROOT / "templates/vplib/create.html").read_text(encoding="utf-8")
+    optional_fields = (
+        SERVICE_ROOT / "static/js/vplib/create/create_variant_optional_fields.js"
+    ).read_text(encoding="utf-8")
+    variables_template = (
+        SERVICE_ROOT / "templates/vplib/create/sections/_variables.html"
+    ).read_text(encoding="utf-8")
+    drawer_template = (
+        SERVICE_ROOT / "templates/vplib/create/variants/_variant_drawer_shell.html"
+    ).read_text(encoding="utf-8")
+    actions_template = (
+        SERVICE_ROOT / "templates/vplib/create/sections/_actions.html"
+    ).read_text(encoding="utf-8")
+    uploads = (
+        SERVICE_ROOT / "static/js/vplib/create/create_uploads.js"
+    ).read_text(encoding="utf-8")
+
+    assert "/* VECTOPLAN CAD light workspace */" in css
+    assert "--vp-create-preview-width: clamp(660px, 44vw, 840px)" in css
+    assert (
+        ".vp-create-variant-drawer__body {\n"
+        "  grid-template-columns: minmax(0, 1fr)"
+    ) in css
+    assert 'data-theme="light"' in template
+    assert 'data-vp-create-style="cad-light"' in template
+    assert "var defaultTheme = \"light\";" in template
+    assert 'button.setAttribute("data-vp-variant-optional-add", key)' in optional_fields
+    assert "/* VECTOPLAN variable list and focused detail editor */" in css
+    assert 'data-vp-profile-fields-storage="true"' in drawer_template
+    assert 'data-vp-optional-ui-mode="list-detail"' in drawer_template
+    assert 'data-vp-variant-detail-pane="true"' in drawer_template
+    assert 'data-vp-variable-configured' in optional_fields
+    assert 'activeFieldKey' in optional_fields
+    assert 'hasMeaningfulValue' in optional_fields
+    assert 'data-vp-optional-document-upload' in optional_fields
+    assert 'variant_document_files[" + key + "][]' in optional_fields
+    assert 'fileInput.multiple = true' in optional_fields
+    assert 'data-vp-upload-accumulate' in optional_fields
+    assert 'data-vp-upload-max-files' in optional_fields
+    assert 'mergeAccumulatedFiles' in uploads
+    assert 'input.files = transfer.files' in uploads
+    assert 'button.appendChild(descriptionCell)' not in optional_fields
+    assert 'button.appendChild(typeCell)' not in optional_fields
+    assert 'Variablenbezeichnung' in drawer_template
+    assert 'data-vp-optional-available-description="true"' not in drawer_template
+    assert 'data-vp-optional-available-type="true"' not in drawer_template
+    assert '/* VECTOPLAN concise variable catalog and document upload */' in css
+    assert 'data-vp-optional-ui-mode", "list-detail"' in optional_fields
+    assert "/* VECTOPLAN CAD light layout corrections and compact variable picker */" in css
+    assert "/* VECTOPLAN compact variant actions and clean create step */" in css
+    assert "Weitere technische Angaben" not in drawer_template
+    assert "Variable suchen" not in drawer_template
+    assert "Alle Kategorien" not in drawer_template
+    assert 'data-vp-variant-drawer-footer="true"' not in drawer_template
+    assert drawer_template.index('data-vp-variant-drawer-cancel="true"') < drawer_template.index(
+        'data-vp-variant-drawer-close="true"'
+    )
+    assert 'data-vp-actions-health-pill="true"' not in actions_template
+    assert 'data-create-action-status="true"' not in actions_template
+    assert (
+        'data-vp-object-kind-hidden-context="true"'
+        in variables_template
+    )
+    assert (
+        '    </div>\n\n    <div\n'
+        '      class="vp-create-object-variants__workspace vp-create-variables__workspace"'
+        in variables_template
+    )
 
 
 def test_variant_editor_keeps_workspace_visible_when_drawer_opens() -> None:
@@ -593,6 +689,52 @@ def test_download_route_embeds_technical_document_without_write_flag() -> None:
             archive.read("assets/documents/technical/datasheet.pdf")
             == b"%PDF-1.4\ntechnical regression\n"
         )
+
+def test_download_route_embeds_document_list_upload() -> None:
+    flask = flask_runtime()
+    route = create_route_module()
+    app = flask.Flask(__name__)
+    app.register_blueprint(route.create_bp)
+    response = app.test_client().post(
+        "/api/v1/vplib/create/download",
+        data={
+            "payload_json": json.dumps(minimal_payload()),
+            "variant_document_files[documents.datasheets][]": [
+                (
+                    io.BytesIO(b"%PDF-1.4\nvariant datasheet regression\n"),
+                    "product-datasheet.pdf",
+                ),
+                (
+                    io.BytesIO(b"property,value\nfire_resistance,F90\n"),
+                    "product-properties.csv",
+                ),
+            ],
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200, response.get_data(as_text=True)
+    with zipfile.ZipFile(io.BytesIO(response.data), "r") as archive:
+        assert (
+            archive.read("assets/documents/variants/product-datasheet.pdf")
+            == b"%PDF-1.4\nvariant datasheet regression\n"
+        )
+        assert (
+            archive.read("assets/documents/variants/product-properties.csv")
+            == b"property,value\nfire_resistance,F90\n"
+        )
+        asset_index = json.loads(archive.read("assets/index.json"))
+        variant_documents = [
+            item
+            for item in asset_index["assets"]
+            if item["kind"] == "variant_documents"
+        ]
+        assert {
+            item["relative_path"]
+            for item in variant_documents
+        } >= {
+            "assets/documents/variants/product-datasheet.pdf",
+            "assets/documents/variants/product-properties.csv",
+        }
 
 def test_generator_options_expose_complete_taxonomy_and_definition_catalogs() -> None:
     service = importlib.import_module("src.services.library_create_route_service")
@@ -686,10 +828,10 @@ def _selected_value(html: str, name: str) -> str:
 def test_rendered_generator_uses_fresh_assets_and_one_operational_variant_state() -> None:
     app, html = _rendered_create_page()
     assert app
-    assert "/static/css/vplib/create.css?v=20260728.9" in html
-    assert "/static/js/vplib/create/create_uploads.js?v=20260728.9" in html
-    assert "/static/js/vplib/create/create_variant_drawer.js?v=20260728.9" in html
-    assert "/static/js/vplib/create/create_actions.js?v=20260728.9" in html
+    assert "/static/css/vplib/create.css?v=20260729.6" in html
+    assert "/static/js/vplib/create/create_uploads.js?v=20260729.6" in html
+    assert "/static/js/vplib/create/create_variant_drawer.js?v=20260729.6" in html
+    assert "/static/js/vplib/create/create_actions.js?v=20260729.6" in html
 
     for name in (
         "object_kind",
@@ -726,7 +868,7 @@ def test_rendered_generator_embeds_isolated_editor_preview() -> None:
     assert "http://127.0.0.1:5100/editor/test-generator" in html
     assert "parentOrigin=http%3A%2F%2Flocalhost" in html
     assert (
-        "/static/js/vplib/create/create_editor_preview_bridge.js?v=20260728.9"
+        "/static/js/vplib/create/create_editor_preview_bridge.js?v=20260729.6"
         in html
     )
     assert 'data-vp-preview-mode="dev-empty"' not in html

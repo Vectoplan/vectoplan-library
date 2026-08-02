@@ -19,6 +19,7 @@
   var SAVE_DEBOUNCE_MS = 140;
   var STATUS_HIDE_DELAY_MS = 1200;
   var WHEEL_THROTTLE_MS = 120;
+  var CREATIVE_DRAG_MIME = "application/x-vectoplan-vplib-item+json";
 
   var SELECTORS = {
     root: "[data-user-inventory-root]",
@@ -40,6 +41,7 @@
     error: "vp-user-slot--error",
     locked: "vp-user-slot--locked",
     pinned: "vp-user-slot--pinned",
+    dropTarget: "vp-user-slot--drop-target",
 
     statusLoading: "vp-user-inventory-status--loading",
     statusSaving: "vp-user-inventory-status--saving",
@@ -88,6 +90,7 @@
     wheelLockedUntil: 0,
     pendingSaveTimer: null,
     statusTimer: null,
+    activeDragItem: null,
 
     slots: [],
 
@@ -107,6 +110,7 @@
         refreshElements();
         ensureSlotElements();
         bindSlotClickEvents();
+        bindSlotDropEvents();
         render();
         return true;
       }
@@ -475,6 +479,7 @@
 
   function bindEvents() {
     bindSlotClickEvents();
+    bindSlotDropEvents();
 
     if (state.eventsBound) {
       return;
@@ -531,6 +536,84 @@
     }
   }
 
+  function clearDropTargets() {
+    try {
+      state.elements.slotElements.forEach(function (element) {
+        element.classList.remove(CLASSES.dropTarget);
+        element.removeAttribute("data-drop-target");
+      });
+    } catch (err) {
+      // visual cleanup is best effort
+    }
+  }
+
+  function readCreativeDragPayload(dataTransfer) {
+    var raw = "";
+    try {
+      if (dataTransfer) {
+        raw = dataTransfer.getData(CREATIVE_DRAG_MIME) || dataTransfer.getData("text/plain") || "";
+      }
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (hasMeaningfulItemData(parsed)) return parsed;
+      }
+    } catch (err) {
+      // The editor relay below is the cross-frame fallback.
+    }
+    return state.activeDragItem && hasMeaningfulItemData(state.activeDragItem)
+      ? state.activeDragItem
+      : null;
+  }
+
+  function bindSlotDropEvents() {
+    try {
+      refreshElements();
+      state.elements.slotElements.forEach(function (element) {
+        if (!element || element.getAttribute("data-user-inventory-drop-bound") === "true") return;
+        element.setAttribute("data-user-inventory-drop-bound", "true");
+
+        element.addEventListener("dragenter", function (event) {
+          if (isSlotLocked(element) || !readCreativeDragPayload(event.dataTransfer)) return;
+          event.preventDefault();
+          element.classList.add(CLASSES.dropTarget);
+          element.setAttribute("data-drop-target", "true");
+        });
+
+        element.addEventListener("dragover", function (event) {
+          if (isSlotLocked(element) || !readCreativeDragPayload(event.dataTransfer)) return;
+          event.preventDefault();
+          if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+          clearDropTargets();
+          element.classList.add(CLASSES.dropTarget);
+          element.setAttribute("data-drop-target", "true");
+        });
+
+        element.addEventListener("dragleave", function (event) {
+          if (event.relatedTarget && element.contains(event.relatedTarget)) return;
+          element.classList.remove(CLASSES.dropTarget);
+          element.removeAttribute("data-drop-target");
+        });
+
+        element.addEventListener("drop", function (event) {
+          event.preventDefault();
+          var item = readCreativeDragPayload(event.dataTransfer);
+          var slotIndex = normalizeSlotIndex(element.getAttribute("data-slot-index"));
+          clearDropTargets();
+          state.activeDragItem = null;
+          if (!item || isSlotLocked(element)) return;
+          void setSlotItem(slotIndex, item, {
+            select: true,
+            persist: true,
+            source: "creative-drag-drop"
+          });
+        });
+      });
+
+      document.addEventListener("dragend", clearDropTargets, { once: false });
+    } catch (err) {
+      error("Could not bind slot drop events.", err);
+    }
+  }
   function bindWheelEvents() {
     if (!state.wheelNavigationEnabled) {
       return;
@@ -555,10 +638,6 @@
   }
 
   function bindKeyboardEvents() {
-    if (!state.keyboardNavigationEnabled) {
-      return;
-    }
-
     try {
       document.addEventListener("keydown", function (event) {
         try {
@@ -574,6 +653,59 @@
   }
 
   function bindExternalEvents() {
+  try {
+    window.addEventListener("message", function (event) {
+      try {
+        if (!window.parent || event.source !== window.parent) {
+          return;
+        }
+
+        var expectedOrigin = "";
+        try {
+          if (document.referrer) {
+            expectedOrigin = new URL(document.referrer).origin;
+          }
+        } catch (originError) {
+          expectedOrigin = "";
+        }
+        if (expectedOrigin && event.origin !== expectedOrigin) {
+          return;
+        }
+
+        var message = event && event.data ? event.data : {};
+        var detail = message.detail || {};
+
+        if (
+          message.source === "vectoplan-editor" &&
+          (message.type === "vectoplan:creative-drag-start" || message.type === "vectoplan:creative-drag-end")
+        ) {
+          state.activeDragItem = message.type === "vectoplan:creative-drag-start"
+            ? normalizeItemPayload(detail.item || detail.payload)
+            : null;
+          if (!state.activeDragItem) clearDropTargets();
+          return;
+        }
+
+        if (
+          message.type !== EVENTS.selectSlot ||
+          message.source !== "vectoplan-editor"
+        ) {
+          return;
+        }
+
+        selectSlot(detail.slot_index || detail.slotIndex, {
+          source: detail.source || "editor-host",
+          persist: detail.persist !== false,
+          focus: detail.focus === true,
+          immediate: detail.immediate === true
+        });      } catch (err) {
+        error("Editor host select-slot message failed.", err);
+      }
+    });
+  } catch (err) {
+    // Cross-origin host integration is optional.
+  }
+
     try {
       document.addEventListener(EVENTS.selectSlot, function (event) {
         try {
@@ -766,7 +898,71 @@
     }
   }
 
+  function postCreativeInventoryHostMessage(type) {
+    if (!window.parent || window.parent === window) {
+      return;
+    }
+
+    var targetOrigin = "*";
+
+    try {
+      if (document.referrer) {
+        targetOrigin = new URL(document.referrer).origin;
+      }
+    } catch (originError) {
+      targetOrigin = "*";
+    }
+
+    window.parent.postMessage({
+      type: type,
+      source: "vectoplan-library-inventory",
+      version: MODULE_VERSION
+    }, targetOrigin);
+  }
+
   function handleKeydown(event) {
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+
+
+    var key = event.key;
+    var normalizedKey = cleanString(key).toLowerCase();
+    var isCreativePage = document.body.classList.contains("vp-creative-inventar-page");
+    var eventTarget = event.target;
+    var targetTagName = eventTarget && eventTarget.tagName
+      ? cleanString(eventTarget.tagName).toUpperCase()
+      : "";
+    if ((eventTarget && eventTarget.isContentEditable) || ["INPUT", "TEXTAREA", "SELECT"].indexOf(targetTagName) >= 0) {
+      return;
+    }
+
+    var togglesCreativeInventory = normalizedKey === "tab"
+      || event.code === "Tab"
+      || normalizedKey === "i"
+      || event.code === "KeyI";
+
+    if (togglesCreativeInventory && !event.repeat) {
+      tryPreventDefault(event);
+      if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+      postCreativeInventoryHostMessage(
+        isCreativePage
+          ? "vectoplan:creative-inventory-close"
+          : "vectoplan:creative-inventory-toggle"
+      );
+      return;
+    }
+
+    if (normalizedKey === "escape" && isCreativePage) {
+      tryPreventDefault(event);
+      postCreativeInventoryHostMessage("vectoplan:creative-inventory-close");
+      return;
+    }
+
+
+    if (shouldIgnoreInputEvent(event)) {
+      return;
+    }
     if (!state.initialized || !state.keyboardNavigationEnabled) {
       return;
     }
@@ -774,16 +970,6 @@
     if (state.suspendDuringCreateEmbed && isCreateEmbedActive()) {
       return;
     }
-
-    if (event.ctrlKey || event.metaKey || event.altKey) {
-      return;
-    }
-
-    if (shouldIgnoreInputEvent(event)) {
-      return;
-    }
-
-    var key = event.key;
 
     if (/^[1-9]$/.test(key)) {
       tryPreventDefault(event);
@@ -2216,6 +2402,24 @@
           detail: payload
         })
       );
+      if (window.parent && window.parent !== window) {
+        var targetOrigin = "*";
+
+        try {
+          if (document.referrer) {
+            targetOrigin = new URL(document.referrer).origin;
+          }
+        } catch (originError) {
+          targetOrigin = "*";
+        }
+
+        window.parent.postMessage({
+          type: "vectoplan:user-inventory-" + type,
+          source: "vectoplan-library-user-inventory",
+          version: MODULE_VERSION,
+          detail: payload
+        }, targetOrigin);
+      }
     } catch (err) {
       // non-critical
     }

@@ -800,27 +800,27 @@ class UserInventoryState(TimestampMixin, JsonMixin, db.Model):
     active_collection = db.relationship(
         "CreativeLibraryCollection",
         foreign_keys=[active_collection_id],
-        lazy="joined",
+        lazy="select",
     )
     last_selected_collection = db.relationship(
         "CreativeLibraryCollection",
         foreign_keys=[last_selected_collection_id],
-        lazy="joined",
+        lazy="select",
     )
     last_selected_collection_item = db.relationship(
         "CreativeLibraryCollectionItem",
         foreign_keys=[last_selected_collection_item_id],
-        lazy="joined",
+        lazy="select",
     )
     last_selected_item = db.relationship(
         "CreativeLibraryItem",
         foreign_keys=[last_selected_item_db_id],
-        lazy="joined",
+        lazy="select",
     )
     last_selected_variant = db.relationship(
         "CreativeLibraryVariant",
         foreign_keys=[last_selected_variant_db_id],
-        lazy="joined",
+        lazy="select",
     )
 
     __table_args__ = (
@@ -1176,33 +1176,33 @@ class UserInventorySlot(TimestampMixin, JsonMixin, db.Model):
     state = db.relationship(
         "UserInventoryState",
         back_populates="slots",
-        lazy="joined",
+        lazy="select",
     )
 
     collection = db.relationship(
         "CreativeLibraryCollection",
         foreign_keys=[collection_id],
-        lazy="joined",
+        lazy="select",
     )
     collection_item = db.relationship(
         "CreativeLibraryCollectionItem",
         foreign_keys=[collection_item_id],
-        lazy="joined",
+        lazy="select",
     )
     item = db.relationship(
         "CreativeLibraryItem",
         foreign_keys=[item_db_id],
-        lazy="joined",
+        lazy="select",
     )
     variant_row = db.relationship(
         "CreativeLibraryVariant",
         foreign_keys=[variant_db_id],
-        lazy="joined",
+        lazy="select",
     )
     source_draft = db.relationship(
         "CreativeLibraryDraft",
         foreign_keys=[source_draft_id],
-        lazy="joined",
+        lazy="select",
     )
 
     __table_args__ = (
@@ -1692,8 +1692,8 @@ class UserInventoryAuditEvent(TimestampMixin, JsonMixin, db.Model):
     meta = db.Column(db.JSON, nullable=False, default=dict)
     metadata_json = db.Column(db.JSON, nullable=False, default=dict)
 
-    state = db.relationship("UserInventoryState", foreign_keys=[state_id], lazy="joined")
-    slot = db.relationship("UserInventorySlot", foreign_keys=[slot_id], lazy="joined")
+    state = db.relationship("UserInventoryState", foreign_keys=[state_id], lazy="select")
+    slot = db.relationship("UserInventorySlot", foreign_keys=[slot_id], lazy="select")
 
     __table_args__ = (
         db.Index("ix_user_inventory_audit_user_event", "user_id", "event_type", "created_at"),

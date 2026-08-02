@@ -850,6 +850,7 @@
         title: U().qs("[data-vp-variant-drawer-title='true']", drawer),
         subtitle: U().qs("[data-vp-variant-drawer-subtitle='true']", drawer),
         kicker: U().qs("[data-vp-variant-drawer-kicker='true']", drawer),
+        nameInput: U().qs("[data-vp-variant-drawer-name-input='true']", drawer),
 
         statusPill: U().qs("[data-vp-variant-drawer-status-pill='true']", drawer),
         statusText: U().qs("[data-vp-variant-drawer-status-text='true']", drawer),
@@ -2134,6 +2135,10 @@
         cache.summaryName.textContent = session.label || (session.mode === "edit" ? "Bestehende Variante" : "Neue Variante");
       }
 
+      if (cache.nameInput) {
+        cache.nameInput.value = session.definition_values["variant.label"] || session.label || "Neue Variante";
+      }
+
       if (cache.summaryId) {
         cache.summaryId.textContent = session.variant_id || "wird automatisch vergeben";
       }
@@ -2732,6 +2737,10 @@
       }
 
       values = collectOptionalValues(values);
+
+      if (cache.nameInput) {
+        values["variant.label"] = String(cache.nameInput.value || "").trim();
+      }
 
       return values || {};
     } catch (error) {

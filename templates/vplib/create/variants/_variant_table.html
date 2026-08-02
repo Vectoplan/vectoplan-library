@@ -102,7 +102,7 @@
   data-vp-variant-table="true"
   data-vp-variant-table-root="true"
   data-create-variant-table="true"
-  data-vp-variant-table-version="0.7.0"
+  data-vp-variant-table-version="0.8.0"
   data-vp-variant-table-readonly="true"
   data-vp-variant-editor-state="closed"
   data-vp-table-editor-mode="closed"
@@ -122,7 +122,7 @@
     <span role="columnheader">Status</span>
     <span role="columnheader">Variante</span>
     <span role="columnheader">Profil</span>
-    <span role="columnheader">Kurzwerte</span>
+    <span role="columnheader">Zusatzfelder</span>
     <span role="columnheader">Aktion</span>
   </div>
 
@@ -388,12 +388,15 @@
             role="cell"
           >
             <div class="vp-create-variant-row__title-wrap">
-              <strong
-                class="vp-create-variant-row__title"
+              <button
+                class="vp-create-variant-row__name-button"
+                type="button"
                 data-vp-variant-row-display-name="true"
-              >
+                data-vp-edit-definition-variant="true"
+                title="Variantenname bearbeiten"
+                >
                 {{ _row_variant_label }}
-              </strong>
+                </button>
 
               <span
                 class="vp-create-variant-row__id"
@@ -614,12 +617,15 @@
           role="cell"
         >
           <div class="vp-create-variant-row__title-wrap">
-            <strong
-              class="vp-create-variant-row__title"
+            <button
+              class="vp-create-variant-row__name-button"
+              type="button"
               data-vp-variant-row-display-name="true"
-            >
+              data-vp-edit-definition-variant="true"
+              title="Variantenname bearbeiten"
+              >
               Standard
-            </strong>
+              </button>
 
             <span
               class="vp-create-variant-row__id"
@@ -811,12 +817,15 @@
         role="cell"
       >
         <div class="vp-create-variant-row__title-wrap">
-          <strong
-            class="vp-create-variant-row__title"
+          <button
+            class="vp-create-variant-row__name-button"
+            type="button"
             data-vp-variant-row-display-name="true"
-          >
+            data-vp-edit-definition-variant="true"
+            title="Variantenname bearbeiten"
+            >
             __variant_label__
-          </strong>
+            </button>
 
           <span
             class="vp-create-variant-row__id"
