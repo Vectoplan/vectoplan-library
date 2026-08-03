@@ -1588,7 +1588,10 @@
     var description = getVariableDescription(variable);
     var typeLabel = getVariableTypeLabel(variable);
     var unitLabel = getVariableUnitLabel(variable);
-    var configured = containsString(state.additionalFieldKeys, key) && hasMeaningfulValue(getValueForKey(key));
+    var configured = (
+      containsString(state.additionalFieldKeys, key) ||
+      isHiddenProfileFieldAvailable(key)
+    ) && hasMeaningfulValue(getValueForKey(key));
     var active = state.activeFieldKey === key;
     var button = document.createElement("button");
     button.type = "button";
@@ -1740,7 +1743,13 @@
     remove.setAttribute("data-vp-remove-additional-field", key);
     remove.setAttribute("data-vp-optional-row-remove", key);
     remove.setAttribute("data-vp-variable-key", key);
-    remove.textContent = "Entfernen";
+    if (isHiddenProfileFieldAvailable(key)) {
+      remove.disabled = true;
+      remove.setAttribute("aria-label", "Festes Profilfeld");
+      remove.textContent = "Profilfeld";
+    } else {
+      remove.textContent = "Entfernen";
+    }
 
     row.appendChild(variableCell);
     row.appendChild(controlCell);
@@ -2078,7 +2087,10 @@
         return false;
       }
 
-      if (containsString(state.profileFieldKeys, normalizedKey)) {
+      if (
+        containsString(state.profileFieldKeys, normalizedKey) &&
+        !isHiddenProfileFieldAvailable(normalizedKey)
+      ) {
         setStatus("Variable ist bereits Teil des Profils.", "warning");
         return false;
       }
@@ -2125,6 +2137,11 @@
     try {
       var normalizedKey = String(key || "").trim();
       var safeOptions = options || {};
+
+      if (isHiddenProfileFieldAvailable(normalizedKey)) {
+        setStatus("Feste Profilfelder sind nicht entfernbar.", "warning");
+        return false;
+      }
 
       state.additionalFieldKeys = state.additionalFieldKeys.filter(function (item) {
         return item !== normalizedKey;
@@ -2217,6 +2234,7 @@
 
       currentValues = mergeObjects(currentValues, state.definitionValues || {});
       currentValues = mergeObjects(currentValues, optionalValues);
+      syncHiddenProfileFieldControls(optionalValues);
 
       var configuredKeys = [];
       uniqueStrings(state.additionalFieldKeys.concat(Object.keys(state.definitionValues || {})).concat(Object.keys(optionalValues || {}))).forEach(function (key) {
@@ -2309,6 +2327,47 @@
     }
   }
 
+  function syncHiddenProfileFieldControls(values) {
+    try {
+      var drawer = state.drawerRoot && state.drawerRoot !== document
+        ? state.drawerRoot
+        : query(SELECTORS.drawerRoot);
+      var profileColumn = query(".vp-create-variant-drawer__profile-column", drawer);
+
+      if (!profileColumn || !values || typeof values !== "object") {
+        return false;
+      }
+
+      var controls = queryAll("[data-vp-definition-value-key]", profileColumn);
+
+      Object.keys(values).forEach(function (key) {
+        if (!containsString(state.profileFieldKeys, key)) {
+          return;
+        }
+
+        controls.forEach(function (control) {
+          if (control.getAttribute("data-vp-definition-value-key") !== key) {
+            return;
+          }
+
+          var value = values[key];
+
+          if (control.type === "checkbox") {
+            control.checked = value === true || String(value).toLowerCase() === "true" || String(value) === "1";
+            return;
+          }
+
+          writeFieldValueSilently(control, valueToControlString(value));
+        });
+      });
+
+      return true;
+    } catch (error) {
+      warn("Hidden profile field synchronization failed", error);
+      return false;
+    }
+  }
+
   function getAvailableVariables(options) {
     try {
       var safeOptions = options || {};
@@ -2326,7 +2385,10 @@
           return false;
         }
 
-        if (containsString(state.profileFieldKeys, key)) {
+        if (
+          containsString(state.profileFieldKeys, key) &&
+          !isHiddenProfileFieldAvailable(key)
+        ) {
           return false;
         }
 
@@ -2985,6 +3047,41 @@
 
   function isCoreValueKey(key) {
     return !!CORE_VALUE_KEYS[String(key || "").trim()];
+  }
+
+  function areProfileFieldsHidden() {
+    try {
+      var drawer = state.drawerRoot && state.drawerRoot !== document
+        ? state.drawerRoot
+        : query(SELECTORS.drawerRoot);
+      var profileColumn = query(".vp-create-variant-drawer__profile-column", drawer);
+
+      if (!profileColumn) {
+        return false;
+      }
+
+      if (profileColumn.hidden) {
+        return true;
+      }
+
+      if (window.getComputedStyle) {
+        return window.getComputedStyle(profileColumn).display === "none";
+      }
+
+      return false;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function isHiddenProfileFieldAvailable(key) {
+    var normalizedKey = String(key || "").trim();
+
+    return !!normalizedKey &&
+      containsString(state.profileFieldKeys, normalizedKey) &&
+      !isCoreValueKey(normalizedKey) &&
+      !isSystemKey(normalizedKey) &&
+      areProfileFieldsHidden();
   }
 
   function getVariableKey(variable) {

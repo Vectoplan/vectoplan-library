@@ -1,0 +1,75 @@
+{
+  "schema_version": "0.1.0",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "default_variant_id": "default",
+  "variant_count": 6,
+  "variants": [
+    {
+      "variant_id": "default",
+      "variant_key": "default",
+      "label": "11,5 cm",
+      "description": "Mauerwerkswand mit 115 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": true,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_175_mm",
+      "variant_key": "dicke_175_mm",
+      "label": "17,5 cm",
+      "description": "Mauerwerkswand mit 175 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_240_mm",
+      "variant_key": "dicke_240_mm",
+      "label": "24 cm",
+      "description": "Mauerwerkswand mit 240 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_300_mm",
+      "variant_key": "dicke_300_mm",
+      "label": "30 cm",
+      "description": "Mauerwerkswand mit 300 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_365_mm",
+      "variant_key": "dicke_365_mm",
+      "label": "36,5 cm",
+      "description": "Mauerwerkswand mit 365 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_425_mm",
+      "variant_key": "dicke_425_mm",
+      "label": "42,5 cm",
+      "description": "Mauerwerkswand mit 425 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    }
+  ]
+}

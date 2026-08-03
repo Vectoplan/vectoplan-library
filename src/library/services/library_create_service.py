@@ -2899,6 +2899,7 @@ def _materialize_variant_contract(
         "dimensions.height_mm": _unit_value_to_millimetres(geometry_height, geometry_unit),
         "dimensions.depth_mm": _unit_value_to_millimetres(geometry_depth, geometry_unit),
     }
+    requested_default = _slugify(explicit_default_variant_id) if explicit_default_variant_id else ""
 
     for index, raw_variant in enumerate(list(variants or ())[:MAX_VARIANTS]):
         item = dict(raw_variant) if isinstance(raw_variant, Mapping) else {}
@@ -2932,8 +2933,14 @@ def _materialize_variant_contract(
         definition_values["variant.variant_id"] = variant_id
         definition_values["variant.label"] = label
         if starter:
+            is_default_variant = (
+                variant_id == requested_default if requested_default else index == 0
+            )
             for key, value in dimensions_mm.items():
-                definition_values[key] = value
+                if is_default_variant:
+                    definition_values[key] = value
+                else:
+                    definition_values.setdefault(key, value)
             definition_values.setdefault("variant.description", "Standardvariante für einen einfachen Rasterblock.")
             definition_values.setdefault("material.type", "generic")
             definition_values.setdefault("material.subtype", "generic_block")
@@ -2990,7 +2997,6 @@ def _materialize_variant_contract(
             }
         ]
 
-    requested_default = _slugify(explicit_default_variant_id) if explicit_default_variant_id else ""
     default_index = next(
         (
             index

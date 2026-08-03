@@ -132,6 +132,8 @@ def test_vplib_archive_is_deterministic_with_binary_assets() -> None:
 
 def test_vplib_archive_preserves_exact_cad_dimensions_per_variant() -> None:
     payload = minimal_payload()
+    payload["geometry_height"] = "3"
+    payload["geometry_depth"] = "0.365"
     payload["definition_variants"] = [
         {
             "variant_id": "default",
@@ -167,6 +169,10 @@ def test_vplib_archive_preserves_exact_cad_dimensions_per_variant() -> None:
         second_variant = json.loads(archive.read("variants/wand_240.json"))
     assert default_variant["definition_values"]["dimensions.thickness_mm"] == 365
     assert second_variant["definition_values"]["dimensions.thickness_mm"] == 240
+    assert default_variant["definition_values"]["dimensions.height_mm"] == 3000
+    assert second_variant["definition_values"]["dimensions.height_mm"] == 3000
+    assert default_variant["definition_values"]["dimensions.depth_mm"] == 365
+    assert second_variant["definition_values"]["dimensions.depth_mm"] == 240
     assert default_variant["definition_values"]["technical.units"]["dimensions.thickness_mm"] == "mm"
     assert second_variant["definition_values"]["technical.units"]["dimensions.thickness_mm"] == "mm"
 
@@ -578,6 +584,12 @@ def test_create_ui_uses_light_cad_workspace_and_visible_variable_drawer() -> Non
     assert 'data-vp-variable-configured' in optional_fields
     assert 'activeFieldKey' in optional_fields
     assert 'hasMeaningfulValue' in optional_fields
+    assert 'function areProfileFieldsHidden()' in optional_fields
+    assert 'function isHiddenProfileFieldAvailable(key)' in optional_fields
+    assert 'function syncHiddenProfileFieldControls(values)' in optional_fields
+    assert 'syncHiddenProfileFieldControls(optionalValues)' in optional_fields
+    assert '!isHiddenProfileFieldAvailable(key)' in optional_fields
+    assert 'remove.textContent = "Profilfeld"' in optional_fields
     assert 'data-vp-optional-document-upload' in optional_fields
     assert 'variant_document_files[" + key + "][]' in optional_fields
     assert 'fileInput.multiple = true' in optional_fields
@@ -735,6 +747,32 @@ def test_download_route_embeds_document_list_upload() -> None:
             "assets/documents/variants/product-datasheet.pdf",
             "assets/documents/variants/product-properties.csv",
         }
+
+def test_simple_cell_block_supports_requested_basic_materials() -> None:
+    materials = json.loads(
+        (SRC_ROOT / "library/definitions/data/materials.v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    by_id = {item["id"]: item for item in materials["items"]}
+
+    for material_id in ("brick", "reinforced_concrete", "steel", "wood"):
+        material = by_id[material_id]
+        assert "simple_cell_block" in material["compatible_family_profiles"]
+        assert "simple_cell_block.v1" in material["compatible_variant_profiles"]
+
+
+def test_generator_options_expose_active_create_write_mode(monkeypatch: Any) -> None:
+    monkeypatch.setenv("VPLIB_CREATE_WRITE_ENABLED", "true")
+    service = importlib.import_module("src.services.library_create_route_service")
+
+    options = service.get_options_response()
+    template_context = service.get_template_context_response()
+
+    assert options.data["write_enabled"] is True
+    assert options.data["capabilities"]["save_to_source_root"] is True
+    assert template_context.data["_write_enabled"] is True
+
 
 def test_generator_options_expose_complete_taxonomy_and_definition_catalogs() -> None:
     service = importlib.import_module("src.services.library_create_route_service")
@@ -952,3 +990,34 @@ def test_rendered_generator_defaults_download_with_all_three_upload_types() -> N
             == b"%PDF-1.4\nrendered\n"
         )
 
+
+
+def test_single_native_variant_and_nested_geometry_survive_normalization_roundtrip() -> None:
+    payload = minimal_payload()
+    payload["geometry_height"] = "3"
+    payload["geometry_depth"] = "0.365"
+    payload["definition_variants"][0]["definition_values"] = {
+        "dimensions.width_mm": 1000,
+        "dimensions.height_mm": 3000,
+        "dimensions.depth_mm": 365,
+    }
+    normalizer = importlib.import_module(
+        "src.services.library_create_variant_payload_service"
+    )
+
+    normalized = normalizer.normalize_create_variant_payload(payload)
+    assert len(normalized["definition_variants"]) == 1
+    assert normalized["definition_variants"][0]["variant_id"] == "default"
+
+    first = create_service().build_draft(payload)
+    second = create_service().build_draft(first.data["draft"])
+
+    assert first.ok and second.ok
+    assert len(second.data["draft"]["variants"]) == 1
+    assert second.data["draft"]["variants"][0]["variant_id"] == "default"
+    assert second.data["draft"]["geometry"]["dimensions"] == {
+        "width": 1.0,
+        "height": 3.0,
+        "depth": 0.365,
+        "unit": "m",
+    }

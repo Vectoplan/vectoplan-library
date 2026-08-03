@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "8aa2d86b-f64c-4078-8e95-a69d8fe93b85",
+  "family_id": "vp.hochbau.decken.holzdecken.decke_holz",
+  "slug": "decke_holz",
+  "label": "Decke Holz",
+  "description": "Holzdecke als ein Blocktyp mit auswählbaren realen Dicken.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

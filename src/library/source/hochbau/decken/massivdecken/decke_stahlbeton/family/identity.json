@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "cafedb8f-da7a-4ab5-af01-01f488ebee0a",
+  "family_id": "vp.hochbau.decken.massivdecken.decke_stahlbeton",
+  "slug": "decke_stahlbeton",
+  "label": "Decke Stahlbeton",
+  "description": "Stahlbetondecke als ein Blocktyp mit auswählbaren realen Dicken.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

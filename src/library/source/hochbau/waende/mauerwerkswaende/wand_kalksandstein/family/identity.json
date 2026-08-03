@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "efac77da-9924-5910-b297-c4d9a18ae07a",
+  "family_id": "vp.hochbau.waende.mauerwerkswaende.wand_kalksandstein",
+  "slug": "wand_kalksandstein",
+  "label": "Wand Kalksandstein",
+  "description": "Kalksandsteinwand als ein Blocktyp mit auswählbaren realen Dicken.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

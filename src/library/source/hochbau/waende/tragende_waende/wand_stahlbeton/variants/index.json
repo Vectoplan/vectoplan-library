@@ -1,0 +1,86 @@
+{
+  "schema_version": "0.1.0",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "default_variant_id": "default",
+  "variant_count": 7,
+  "variants": [
+    {
+      "variant_id": "default",
+      "variant_key": "default",
+      "label": "12 cm",
+      "description": "Stahlbetonwand mit 120 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": true,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_150_mm",
+      "variant_key": "dicke_150_mm",
+      "label": "15 cm",
+      "description": "Stahlbetonwand mit 150 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_180_mm",
+      "variant_key": "dicke_180_mm",
+      "label": "18 cm",
+      "description": "Stahlbetonwand mit 180 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_200_mm",
+      "variant_key": "dicke_200_mm",
+      "label": "20 cm",
+      "description": "Stahlbetonwand mit 200 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_240_mm",
+      "variant_key": "dicke_240_mm",
+      "label": "24 cm",
+      "description": "Stahlbetonwand mit 240 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_250_mm",
+      "variant_key": "dicke_250_mm",
+      "label": "25 cm",
+      "description": "Stahlbetonwand mit 250 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_300_mm",
+      "variant_key": "dicke_300_mm",
+      "label": "30 cm",
+      "description": "Stahlbetonwand mit 300 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    }
+  ]
+}

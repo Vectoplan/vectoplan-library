@@ -22,7 +22,7 @@ import json
 import sys
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any, Iterable, Mapping
 
 import pytest
@@ -274,6 +274,82 @@ def _minimal_create_payload() -> dict[str, Any]:
         },
     }
 
+
+def test_optional_post_save_sync_failure_keeps_source_save_successful(
+    monkeypatch: Any,
+) -> None:
+    module = _workflow_module()
+    service = module.LibraryGeneratorWorkflowService()
+    request = module.LibraryGeneratorWorkflowRequest(
+        action=module.WORKFLOW_ACTION_SAVE,
+        sync_after_save=True,
+    )
+    result = module.GeneratorWorkflowResult(action=module.WORKFLOW_ACTION_SAVE)
+
+    monkeypatch.setattr(
+        service.context_service,
+        "resolve_dependency",
+        lambda key: SimpleNamespace(key=key),
+    )
+    monkeypatch.setattr(
+        service,
+        "_call_dependency",
+        lambda *args, **kwargs: SimpleNamespace(
+            ok=False,
+            error="no_candidate_method_available",
+        ),
+    )
+
+    sync_payload = service._sync_after_save(request, None, result)
+
+    assert sync_payload["ok"] is False
+    assert result.steps[-1].status == module.GeneratorWorkflowStatus.PARTIAL
+    assert result.steps[-1].ok is True
+    assert result.failed_step_count == 0
+    assert result.ok is True
+
+
+def test_source_save_forwards_explicit_overwrite_flag(monkeypatch: Any) -> None:
+    module = _workflow_module()
+    service = module.LibraryGeneratorWorkflowService()
+    request = module.LibraryGeneratorWorkflowRequest(
+        action=module.WORKFLOW_ACTION_SAVE,
+        payload={
+            "domain": "hochbau",
+            "category": "waende",
+            "subcategory": "tragende_waende",
+            "overwrite": True,
+        },
+        allow_source_write=True,
+    )
+    result = module.GeneratorWorkflowResult(action=module.WORKFLOW_ACTION_SAVE)
+    context = SimpleNamespace(
+        context_uid="test-context",
+        schema_version="test",
+        status=SimpleNamespace(value="ready"),
+        definitions=SimpleNamespace(definitions_version="test"),
+        taxonomy=SimpleNamespace(current_taxonomy_path=""),
+        capabilities=SimpleNamespace(payload_schema_version="test"),
+    )
+    captured: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        service.context_service,
+        "resolve_dependency",
+        lambda key: SimpleNamespace(key=key),
+    )
+
+    def capture_call(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        captured.update(kwargs["kwargs"])
+        return SimpleNamespace(
+            ok=True,
+            payload={"ok": True, "status": "saved"},
+            method="save_package",
+        )
+
+    monkeypatch.setattr(service, "_call_dependency", capture_call)
+
+    save_payload = service._save_source_payload(request, context, result)
 
 def test_generator_workflow_module_imports_and_keeps_layer_contract() -> None:
     module = _workflow_module()

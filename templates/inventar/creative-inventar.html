@@ -223,7 +223,7 @@
             data-creative-library-grid="true"
             data-create-embed-library-area="true"
             data-creative-items-url="/api/v1/vplib/creative-library/items"
-            data-published-items-url="/api/v1/vplib/library/items?visible_only=true&amp;active_only=true&amp;limit=250"
+            data-published-items-url="/api/v1/vplib/library/items?visible_only=true&amp;active_only=true&amp;include_current_revision=false&amp;include_variants=true&amp;limit=250"
           >
             {% for item in _creative_items %}
               {% set creative_card_item = item %}

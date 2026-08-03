@@ -1,0 +1,55 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "7ddda675-7ac7-493e-a2ee-01556339eeb9",
+  "package_id": "vplib.vp.hochbau.waende.tragende_waende.wand_stahl",
+  "family_id": "vp.hochbau.waende.tragende_waende.wand_stahl",
+  "family_slug": "wand_stahl",
+  "family_name": "Wand Stahl",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "waende",
+  "subcategory": "tragende_waende",
+  "classification": {
+    "domain": "hochbau",
+    "category": "waende",
+    "subcategory": "tragende_waende",
+    "classification_path": "hochbau/waende/tragende_waende",
+    "labels": {
+      "domain": "Hochbau",
+      "category": "Wände",
+      "subcategory": "Tragende Wände"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "hochbau/waende/tragende_waende",
+  "source_path": "hochbau/waende/tragende_waende/wand_stahl",
+  "default_variant_id": "default",
+  "variant_count": 6,
+  "documents_required": false,
+  "external_assets_required": false,
+  "created_at": "2026-08-03T19:07:00Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.5.0",
+    "mode": "simple_create",
+    "starter_contract": true
+  },
+  "assets": [],
+  "asset_count": 0
+}

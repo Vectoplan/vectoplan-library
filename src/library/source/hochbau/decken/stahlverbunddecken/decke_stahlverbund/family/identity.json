@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "e26b6693-55ce-599a-970d-0dcb6a6e8774",
+  "family_id": "vp.hochbau.decken.stahlverbunddecken.decke_stahlverbund",
+  "slug": "decke_stahlverbund",
+  "label": "Decke Stahlverbund",
+  "description": "Stahlverbunddecke als ein Blocktyp mit auswählbaren realen Dicken.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

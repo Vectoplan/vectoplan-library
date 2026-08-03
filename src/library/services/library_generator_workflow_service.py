@@ -2039,6 +2039,7 @@ class LibraryGeneratorWorkflowService:
                     extra={
                         "allow_source_write": request.allow_source_write,
                         "dry_run": request.dry_run,
+                        "overwrite": safe_bool(request.payload.get("overwrite"), False),
                     },
                 ),
                 positional_variants=[
@@ -2418,7 +2419,11 @@ class LibraryGeneratorWorkflowService:
                     error=payload.error,
                 )
                 step.payload = fallback
-                step.status = GeneratorWorkflowStatus.UNAVAILABLE
+                step.status = (
+                    GeneratorWorkflowStatus.PARTIAL
+                    if request.action == WORKFLOW_ACTION_SAVE
+                    else GeneratorWorkflowStatus.UNAVAILABLE
+                )
                 return fallback
 
             unwrapped = _unwrap_response(payload.payload)
@@ -2439,13 +2444,21 @@ class LibraryGeneratorWorkflowService:
             }
             step.error = safe_str(exc)
             step.traceback = _traceback_text()
-            step.add_error(
-                "sync_failed",
-                "Sync failed.",
-                error=safe_str(exc),
-            )
+            if request.action == WORKFLOW_ACTION_SAVE:
+                step.add_warning(
+                    "sync_failed",
+                    "Optional post-save sync failed after the source package was saved.",
+                    error=safe_str(exc),
+                )
+                step.status = GeneratorWorkflowStatus.PARTIAL
+            else:
+                step.add_error(
+                    "sync_failed",
+                    "Sync failed.",
+                    error=safe_str(exc),
+                )
+                step.status = GeneratorWorkflowStatus.ERROR
             step.payload = fallback
-            step.status = GeneratorWorkflowStatus.ERROR
             return fallback
         finally:
             step.duration_ms = int((time.monotonic() - started) * 1000)

@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "e05078b4-7f52-5647-b6c1-141406835335",
+  "family_id": "vp.hochbau.waende.mauerwerkswaende.wand_porenbeton",
+  "slug": "wand_porenbeton",
+  "label": "Wand Porenbeton",
+  "description": "Porenbetonwand als ein Blocktyp mit auswählbaren realen Dicken.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

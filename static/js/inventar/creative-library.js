@@ -5,6 +5,7 @@
   var MODULE_NAME = "VectoplanCreativeLibrary";
   var MODULE_VERSION = "1.0.0";
   var DRAG_MIME = "application/x-vectoplan-vplib-item+json";
+  var REQUEST_TIMEOUT_MS = 12000;
   var SELECTORS = {
     grid: "[data-creative-library-grid]",
     search: "[data-creative-search]",
@@ -69,6 +70,58 @@
     return value;
   }
 
+  function normalizeVariant(value) {
+    var raw = record(value);
+    var variantId = first(raw.variant_id, raw.variantId, raw.id_in_family, raw.slug);
+    if (!variantId) return null;
+
+    var status = first(raw.publication_status, raw.status).toLowerCase();
+    var enabled = booleanValue(raw.enabled, booleanValue(raw.active, true));
+    var visible = booleanValue(raw.visible, true);
+    var published = !status || ["published", "ready", "active", "ok"].indexOf(status) >= 0;
+    if (!enabled || !visible || !published) return null;
+
+    return {
+      variant_id: variantId,
+      label: first(raw.label, raw.name, variantId),
+      description: first(raw.description),
+      is_default: booleanValue(raw.is_default, false),
+      definition_values: record(raw.definition_values || raw.definitionValues),
+      metadata: record(raw.metadata),
+      revision_hash: first(raw.revision_hash)
+    };
+  }
+
+  function normalizeVariants(raw) {
+    var values = Array.isArray(raw.variants) ? raw.variants : [];
+    return values.map(normalizeVariant).filter(Boolean);
+  }
+
+  function selectedVariant(variants, variantId) {
+    var selected = null;
+    variants.some(function (variant) {
+      if (variant.variant_id !== variantId) return false;
+      selected = variant;
+      return true;
+    });
+    if (selected) return selected;
+    return variants.filter(function (variant) { return variant.is_default; })[0] || variants[0] || null;
+  }
+
+  function variantMetadata(baseMetadata, variant, variants) {
+    return Object.assign({}, record(baseMetadata), {
+      selected_variant_id: variant ? variant.variant_id : "default",
+      definition_values: variant ? record(variant.definition_values) : {},
+      available_variants: variants.map(function (entry) {
+        return {
+          variant_id: entry.variant_id,
+          label: entry.label,
+          definition_values: record(entry.definition_values)
+        };
+      })
+    });
+  }
+
   function normalizeItem(value) {
     var wrapper = record(value);
     var raw = record(wrapper.item && typeof wrapper.item === "object" ? wrapper.item : wrapper);
@@ -81,6 +134,14 @@
       nestedValue(payload, ["variant", "placement"])
     );
     var command = record(raw.placementCommand || raw.placement_command || placement.command);
+    var vplibUid = first(raw.vplib_uid, raw.vplibUid, raw.uid, payload.vplib_uid, payload.vplibUid);
+    var familyId = first(raw.family_id, raw.familyId, payload.family_id, payload.familyId);
+    var itemDbId = first(raw.item_db_id, raw.itemDbId, raw.family_db_id, raw.id, wrapper.item_db_id, wrapper.id);
+    var packageId = first(raw.package_id, raw.packageId, payload.package_id, payload.packageId);
+    var variants = normalizeVariants(raw);
+    var requestedVariantId = first(raw.variant_id, raw.variantId, raw.default_variant_id, payload.variant_id, payload.variantId, "default");
+    var activeVariant = selectedVariant(variants, requestedVariantId);
+    var variantId = activeVariant ? activeVariant.variant_id : requestedVariantId;
     var runtimeBlockTypeId = first(
       raw.runtimeBlockTypeId,
       raw.runtime_block_type_id,
@@ -95,13 +156,10 @@
       payload.runtimeBlockTypeId,
       payload.runtime_block_type_id,
       metadata.runtimeBlockTypeId,
-      metadata.runtime_block_type_id
+      metadata.runtime_block_type_id,
+      familyId,
+      vplibUid ? "vplib:" + vplibUid + ":" + variantId : ""
     );
-    var vplibUid = first(raw.vplib_uid, raw.vplibUid, raw.uid, payload.vplib_uid, payload.vplibUid);
-    var familyId = first(raw.family_id, raw.familyId, payload.family_id, payload.familyId);
-    var itemDbId = first(raw.item_db_id, raw.itemDbId, raw.family_db_id, raw.id, wrapper.item_db_id, wrapper.id);
-    var packageId = first(raw.package_id, raw.packageId, payload.package_id, payload.packageId);
-    var variantId = first(raw.variant_id, raw.variantId, raw.default_variant_id, payload.variant_id, payload.variantId, "default");
     var status = first(raw.publication_status, raw.status, wrapper.status).toLowerCase();
     var label = first(raw.label, raw.name, raw.title, payload.label, payload.name, familyId, vplibUid);
     var objectKind = first(raw.object_kind, raw.objectKind, raw.kind, payload.object_kind, payload.objectKind, "block");
@@ -155,8 +213,47 @@
         placeable: true
       },
       revision_hash: first(raw.revision_hash, raw.current_revision_hash),
-      metadata: metadata
+      variants: variants,
+      selected_variant: activeVariant,
+      metadata: variantMetadata(metadata, activeVariant, variants)
     };
+  }
+
+  function expandItemVariants(value) {
+    var wrapper = record(value);
+    var raw = record(wrapper.item && typeof wrapper.item === "object" ? wrapper.item : wrapper);
+    var variants = Array.isArray(raw.variants) ? raw.variants : [];
+    if (!variants.length) return [value];
+
+    var familyLabel = first(raw.label, raw.name, raw.title, raw.family_id, raw.vplib_uid);
+    return variants.map(function (variantValue) {
+      var variant = record(variantValue);
+      var merged = Object.assign({}, raw);
+      var variantId = first(variant.variant_id, variant.variantId, variant.id_in_family, variant.slug, "default");
+      var variantLabel = first(variant.label, variant.name, variantId);
+
+      merged.variant = variant;
+      merged.variant_id = variantId;
+      merged.label = variantLabel ? familyLabel + " - " + variantLabel : familyLabel;
+      merged.description = first(variant.description, raw.description, raw.text);
+      merged.enabled = booleanValue(raw.enabled, true) && booleanValue(variant.enabled, true);
+      merged.visible = booleanValue(raw.visible, true) && booleanValue(variant.visible, true);
+      merged.status = first(variant.publication_status, variant.status, raw.publication_status, raw.status);
+      merged.publication_status = merged.status;
+      merged.payload = Object.assign(
+        {},
+        record(raw.payload),
+        record(variant.payload),
+        record(variant.resolved_payload)
+      );
+      merged.metadata = Object.assign(
+        {},
+        record(raw.metadata),
+        record(variant.metadata),
+        { definition_values: record(variant.definition_values) }
+      );
+      return merged;
+    });
   }
 
   function uniqueItems(values) {
@@ -165,7 +262,7 @@
     values.forEach(function (value) {
       var item = normalizeItem(value);
       if (!item) return;
-      var key = [item.vplib_uid || item.family_id || item.item_db_id, item.variant_id, item.runtimeBlockTypeId].join("::");
+      var key = item.vplib_uid || item.family_id || item.item_db_id;
       if (seen[key]) return;
       seen[key] = true;
       result.push(item);
@@ -210,6 +307,8 @@
       icon: item.icon,
       preview: item.preview,
       placement: item.placement,
+      variant: item.selected_variant,
+      variants: item.variants,
       metadata: item.metadata
     };
   }
@@ -242,6 +341,7 @@
     card.dataset.familyId = item.family_id;
     card.dataset.packageId = item.package_id;
     card.dataset.variantId = item.variant_id;
+    card.dataset.definitionValues = JSON.stringify(item.selected_variant ? item.selected_variant.definition_values : {});
     card.dataset.runtimeBlockTypeId = item.runtimeBlockTypeId;
     card.dataset.blockTypeId = item.blockTypeId;
     card.dataset.domain = item.domain;
@@ -259,7 +359,7 @@
     card.dataset.selectable = "true";
     card.dataset.draggable = "true";
     card.dataset.disabled = "false";
-    card.dataset.searchText = [item.label, item.description, item.vplib_uid, item.family_id, item.package_id, item.domain, item.category, item.subcategory].join(" ").toLowerCase();
+    card.dataset.searchText = [item.label, item.description, item.vplib_uid, item.family_id, item.package_id, item.domain, item.category, item.subcategory, item.variants.map(function (variant) { return variant.label; }).join(" ")].join(" ").toLowerCase();
 
     var preview = document.createElement("div");
     preview.className = "vp-creative-card__preview vp-creative-card__banner";
@@ -292,6 +392,39 @@
       description.className = "vp-creative-card__text";
       description.textContent = item.description;
       content.appendChild(description);
+    }
+    if (item.variants.length > 1) {
+      var variantControl = document.createElement("label");
+      variantControl.className = "vp-creative-card__variant-control";
+      var variantLabel = document.createElement("span");
+      variantLabel.className = "vp-creative-card__variant-label";
+      variantLabel.textContent = "Dicke";
+      var variantSelect = document.createElement("select");
+      variantSelect.className = "vp-creative-card__variant-select";
+      variantSelect.setAttribute("aria-label", "Dicke f?r " + item.label + " w?hlen");
+      variantSelect.draggable = false;
+      item.variants.forEach(function (variant) {
+        var option = document.createElement("option");
+        option.value = variant.variant_id;
+        option.textContent = variant.label;
+        option.selected = variant.variant_id === item.variant_id;
+        variantSelect.appendChild(option);
+      });
+      variantSelect.addEventListener("change", function () {
+        var activeVariant = selectedVariant(item.variants, variantSelect.value);
+        if (!activeVariant) return;
+        item.variant_id = activeVariant.variant_id;
+        item.selected_variant = activeVariant;
+        item.metadata = variantMetadata(item.metadata, activeVariant, item.variants);
+        card.dataset.variantId = activeVariant.variant_id;
+        card.dataset.definitionValues = JSON.stringify(activeVariant.definition_values);
+      });
+      ["pointerdown", "mousedown", "click", "dragstart"].forEach(function (eventName) {
+        variantSelect.addEventListener(eventName, function (event) { event.stopPropagation(); });
+      });
+      variantControl.appendChild(variantLabel);
+      variantControl.appendChild(variantSelect);
+      content.appendChild(variantControl);
     }
     var hint = document.createElement("span");
     hint.className = "vp-creative-card__drag-hint";
@@ -374,12 +507,25 @@
 
   function requestItems(url) {
     if (!url || typeof window.fetch !== "function") return Promise.resolve([]);
-    return window.fetch(url, { credentials: "same-origin", cache: "no-store", headers: { "Accept": "application/json" } })
+    var controller = typeof window.AbortController === "function" ? new window.AbortController() : null;
+    var timeoutId = window.setTimeout(function () {
+      if (controller) controller.abort();
+    }, REQUEST_TIMEOUT_MS);
+    var options = { credentials: "same-origin", cache: "no-store", headers: { "Accept": "application/json" } };
+    if (controller) options.signal = controller.signal;
+    return window.fetch(url, options)
       .then(function (response) {
         if (!response.ok) throw new Error("HTTP " + response.status + " für " + url);
         return response.json();
       })
-      .then(unwrapItems);
+      .then(unwrapItems)
+      .then(function (items) {
+        window.clearTimeout(timeoutId);
+        return items;
+      }, function (error) {
+        window.clearTimeout(timeoutId);
+        throw error;
+      });
   }
 
   function load() {

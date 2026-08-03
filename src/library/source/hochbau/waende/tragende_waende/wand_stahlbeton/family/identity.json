@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "3dc6707f-e0aa-5239-b25f-8bd553caadb9",
+  "family_id": "vp.hochbau.waende.tragende_waende.wand_stahlbeton",
+  "slug": "wand_stahlbeton",
+  "label": "Wand Stahlbeton",
+  "description": "Stahlbetonwand als ein Blocktyp mit auswählbaren realen Dicken.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

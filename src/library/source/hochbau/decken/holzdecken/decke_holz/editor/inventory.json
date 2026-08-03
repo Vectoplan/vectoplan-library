@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "8aa2d86b-f64c-4078-8e95-a69d8fe93b85",
+  "family_id": "vp.hochbau.decken.holzdecken.decke_holz",
+  "default_variant_id": "default",
+  "label": "Decke Holz",
+  "description": "Holzdecke als ein Blocktyp mit auswählbaren realen Dicken.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "decken",
+  "subcategory": "holzdecken",
+  "classification_path": "hochbau/decken/holzdecken",
+  "source_path": "hochbau/decken/holzdecken/decke_holz",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Decken",
+    "subcategory": "Holzdecken"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

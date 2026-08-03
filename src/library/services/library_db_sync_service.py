@@ -1317,6 +1317,28 @@ def extract_manifest(documents: Mapping[str, Any]) -> dict[str, Any]:
     return get_document(documents, *MANIFEST_DOCUMENT_KEYS)
 
 
+def extract_manifest_payload(
+    value: Any,
+    documents: Optional[Mapping[str, Any]] = None,
+) -> dict[str, Any]:
+    docs = documents or extract_documents_from_any(value)
+    manifest = extract_manifest(docs)
+    if manifest:
+        return manifest
+
+    data = to_mapping(value)
+    summary = extract_summary_payload(value)
+    return to_mapping(
+        first_non_empty(
+            data.get("manifest_payload"),
+            data.get("manifest"),
+            summary.get("manifest_payload"),
+            summary.get("manifest"),
+            {},
+        )
+    )
+
+
 def extract_identity(documents: Mapping[str, Any]) -> dict[str, Any]:
     return get_document(documents, *IDENTITY_DOCUMENT_KEYS)
 
@@ -1654,14 +1676,14 @@ def build_family_upsert_payload(value: Any) -> dict[str, Any]:
     package_id = extract_package_id(value, documents)
 
     family_slug = first_non_empty(
-        data.get("family_slug"),
-        data.get("slug"),
-        summary.get("family_slug"),
-        summary.get("slug"),
         manifest.get("family_slug"),
         manifest.get("slug"),
         identity.get("family_slug"),
         identity.get("slug"),
+        data.get("family_slug"),
+        data.get("slug"),
+        summary.get("family_slug"),
+        summary.get("slug"),
         Path(package_root).name if package_root else None,
     )
 
@@ -2058,13 +2080,27 @@ def extract_asset_payloads(value: Any) -> list[dict[str, Any]]:
         iterable = []
 
     for index_or_role, asset_value in iterable:
-        if asset_value is None:
+        if asset_value in (None, "", [], {}):
             continue
 
         if isinstance(asset_value, Mapping):
             asset_data = dict(asset_value)
         else:
             asset_data = {"path": asset_value}
+
+        asset_path = first_non_empty(
+            asset_data.get("path"),
+            asset_data.get("relative_path"),
+            asset_data.get("uri"),
+            asset_data.get("url"),
+        )
+        file_reference = first_non_empty(
+            asset_data.get("library_file_id"),
+            asset_data.get("file_uid"),
+            asset_data.get("filename"),
+        )
+        if not asset_path and not file_reference:
+            continue
 
         role = asset_data.get("role") or index_or_role
 
@@ -2074,7 +2110,7 @@ def extract_asset_payloads(value: Any) -> list[dict[str, Any]]:
                 "asset_kind": asset_data.get("asset_kind") or asset_data.get("kind") or asset_data.get("asset_type") or asset_data.get("type"),
                 "role": role,
                 "asset_type": asset_data.get("asset_type") or asset_data.get("type"),
-                "path": first_non_empty(asset_data.get("path"), asset_data.get("relative_path"), asset_data.get("uri")),
+                "path": asset_path,
                 "relative_path": asset_data.get("relative_path") or asset_data.get("path"),
                 "uri": asset_data.get("uri") or asset_data.get("url"),
                 "url": asset_data.get("url"),
@@ -2599,7 +2635,7 @@ class LibraryDbSyncService:
 
         for raw_candidate in candidates:
             try:
-                candidate_result = self.sync_candidate_to_db(
+                candidate_result = self._sync_candidate_with_savepoint(
                     raw_candidate,
                     scan_run=scan_run,
                     repository=repository,
@@ -2655,6 +2691,32 @@ class LibraryDbSyncService:
 
         result.finish(message="Library DB sync finished.")
         return result
+
+    def _sync_candidate_with_savepoint(
+        self,
+        raw_candidate: Any,
+        *,
+        scan_run: Any,
+        repository: Any,
+        publish_valid_only: bool,
+    ) -> LibrarySyncCandidateResult:
+        session = getattr(repository, "session", None)
+        begin_nested = getattr(session, "begin_nested", None)
+        if not callable(begin_nested):
+            return self.sync_candidate_to_db(
+                raw_candidate,
+                scan_run=scan_run,
+                repository=repository,
+                publish_valid_only=publish_valid_only,
+            )
+
+        with begin_nested():
+            return self.sync_candidate_to_db(
+                raw_candidate,
+                scan_run=scan_run,
+                repository=repository,
+                publish_valid_only=publish_valid_only,
+            )
 
     def sync_candidate_to_db(
         self,
@@ -3031,6 +3093,18 @@ class LibraryDbSyncService:
         data = to_mapping(publish_result)
         payload = to_mapping(data.get("payload"))
 
+        if "ok" in data and not safe_bool(data.get("ok"), False):
+            errors = data.get("errors")
+            if isinstance(errors, (list, tuple)) and errors:
+                message = str(errors[0])
+            else:
+                message = str(
+                    errors
+                    or data.get("message")
+                    or data.get("status")
+                    or "Creative Library publish failed."
+                )
+            raise LibraryDbSyncCandidateError(message)
         candidate_result.metadata["publish_result"] = json_safe(data)
 
         created = safe_bool(payload.get("created"), False)
@@ -3049,53 +3123,57 @@ class LibraryDbSyncService:
         candidate_result.family_db_id = first_non_empty(item_payload.get("id"), item_payload.get("item_id"))
         candidate_result.item_db_id = candidate_result.family_db_id
         candidate_result.revision_db_id = first_non_empty(revision_payload.get("id"), revision_payload.get("revision_id"))
-        candidate_result.revision_created = bool(revision_payload) or safe_bool(payload.get("revision_created"), True)
+        if "revision_created" in payload:
+            candidate_result.revision_created = safe_bool(
+                payload.get("revision_created"),
+                False,
+            )
+        else:
+            candidate_result.revision_created = bool(revision_payload)
 
         candidate_result.variant_count = safe_int(counts.get("variant_count"), 0)
         candidate_result.asset_count = safe_int(counts.get("asset_count"), 0)
         candidate_result.document_count = safe_int(counts.get("document_count"), 0)
 
+        item_operation_status = (
+            LibrarySyncCandidateStatus.INSERTED.value
+            if created
+            else LibrarySyncCandidateStatus.UPDATED.value
+            if updated
+            else LibrarySyncCandidateStatus.UNCHANGED.value
+        )
         candidate_result.add_operation(
             LibrarySyncOperationResult(
                 operation=LibrarySyncOperation.UPSERT_ITEM.value if hasattr(LibrarySyncOperation, "UPSERT_ITEM") else LibrarySyncOperation.UPSERT_FAMILY.value,
-                status=LibrarySyncCandidateStatus.INSERTED.value if created else LibrarySyncCandidateStatus.UPDATED.value,
-                affected_count=1,
+                status=item_operation_status,
+                affected_count=1 if created or updated else 0,
                 created_count=1 if created else 0,
                 updated_count=1 if updated else 0,
             )
         )
-        candidate_result.add_operation(
-            LibrarySyncOperationResult(
-                operation=LibrarySyncOperation.CREATE_REVISION.value,
-                status=LibrarySyncCandidateStatus.REVISION_CREATED.value,
-                affected_count=1,
-                created_count=1,
+
+        if candidate_result.revision_created:
+            candidate_result.add_operation(
+                LibrarySyncOperationResult(
+                    operation=LibrarySyncOperation.CREATE_REVISION.value,
+                    status=LibrarySyncCandidateStatus.REVISION_CREATED.value,
+                    affected_count=1,
+                    created_count=1,
+                )
             )
-        )
-        candidate_result.add_operation(
-            LibrarySyncOperationResult(
-                operation=LibrarySyncOperation.REPLACE_VARIANTS.value,
-                status=LibrarySyncCandidateStatus.UPDATED.value,
-                affected_count=candidate_result.variant_count,
-                created_count=candidate_result.variant_count,
-            )
-        )
-        candidate_result.add_operation(
-            LibrarySyncOperationResult(
-                operation=LibrarySyncOperation.REPLACE_ASSETS.value,
-                status=LibrarySyncCandidateStatus.UPDATED.value,
-                affected_count=candidate_result.asset_count,
-                created_count=candidate_result.asset_count,
-            )
-        )
-        candidate_result.add_operation(
-            LibrarySyncOperationResult(
-                operation=LibrarySyncOperation.REPLACE_DOCUMENTS.value,
-                status=LibrarySyncCandidateStatus.UPDATED.value,
-                affected_count=candidate_result.document_count,
-                created_count=candidate_result.document_count,
-            )
-        )
+            for operation, affected_count in (
+                (LibrarySyncOperation.REPLACE_VARIANTS.value, candidate_result.variant_count),
+                (LibrarySyncOperation.REPLACE_ASSETS.value, candidate_result.asset_count),
+                (LibrarySyncOperation.REPLACE_DOCUMENTS.value, candidate_result.document_count),
+            ):
+                candidate_result.add_operation(
+                    LibrarySyncOperationResult(
+                        operation=operation,
+                        status=LibrarySyncCandidateStatus.UPDATED.value,
+                        affected_count=affected_count,
+                        created_count=affected_count,
+                    )
+                )
 
     def _persist_candidate_issues(
         self,
@@ -3151,28 +3229,30 @@ class LibraryDbSyncService:
     def _finish_scan_run(self, repository: Any, scan_run: Any, result: LibrarySyncResult) -> None:
         if scan_run is None:
             return
+        scan_run_ref = self._get_object_id(scan_run) or scan_run
 
         method = getattr(repository, "finish_scan_run", None)
         if callable(method):
             try:
                 method(
-                    scan_run,
+                    scan_run_ref,
                     counters=result.stats.to_dict(),
                     status="completed" if result.ok else "failed",
                     errors=[issue.to_dict() for issue in result.issues],
                     commit=False,
                 )
             except TypeError:
-                method(scan_run, status="completed" if result.ok else "failed", commit=False)
+                method(scan_run_ref, status="completed" if result.ok else "failed", commit=False)
 
     def _fail_scan_run(self, repository: Any, scan_run: Any, exc: BaseException) -> None:
         if scan_run is None:
             return
+        scan_run_ref = self._get_object_id(scan_run) or scan_run
 
         fail_method = getattr(repository, "fail_scan_run", None)
         if callable(fail_method):
             try:
-                fail_method(scan_run, error=exc, commit=False)
+                fail_method(scan_run_ref, error=exc, commit=False)
                 return
             except TypeError:
                 pass
@@ -3181,13 +3261,13 @@ class LibraryDbSyncService:
         if callable(finish_method):
             try:
                 finish_method(
-                    scan_run,
+                    scan_run_ref,
                     status="failed",
                     errors=[{"message": str(exc), "type": exc.__class__.__name__}],
                     commit=False,
                 )
             except TypeError:
-                finish_method(scan_run, status="failed", commit=False)
+                finish_method(scan_run_ref, status="failed", commit=False)
 
     def _upsert_item(self, repository: Any, payload: Mapping[str, Any]) -> tuple[Any, bool]:
         for method_name in ("upsert_item", "upsert_family"):
@@ -3277,14 +3357,15 @@ class LibraryDbSyncService:
         revision: Any = None,
     ) -> Any:
         payload = issue.to_dict() if hasattr(issue, "to_dict") else json_safe(issue)
+        scan_run_ref = self._get_object_id(scan_run) if scan_run is not None else None
 
         for method_name in ("record_scan_issue", "add_issue", "create_issue"):
             method = getattr(repository, method_name, None)
             if callable(method):
                 try:
                     if method_name == "record_scan_issue" and scan_run is not None:
-                        return method(scan_run, payload, commit=False)
-                    return method(payload, scan_run=scan_run, family=family, revision=revision, commit=False)
+                        return method(scan_run_ref, payload, commit=False)
+                    return method(payload, scan_run=scan_run_ref, family=family, revision=revision, commit=False)
                 except TypeError:
                     try:
                         return method(payload, commit=False)
@@ -3315,7 +3396,7 @@ class LibraryDbSyncService:
         if obj is None:
             return None
 
-        for name in ("id", "pk", "uuid", "scan_run_id"):
+        for name in ("id", "pk", "uuid", "scan_run_id", "scan_run_uid"):
             try:
                 value = getattr(obj, name)
             except Exception:

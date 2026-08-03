@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "9420122d-7f36-461b-a878-39391bc9bff0",
+  "family_id": "vp.hochbau.waende.tragende_waende.wand_mauerwerk",
+  "slug": "wand_mauerwerk",
+  "label": "Wand Mauerwerk",
+  "description": "Mauerwerkswand als ein Blocktyp mit auswählbaren realen Dicken.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

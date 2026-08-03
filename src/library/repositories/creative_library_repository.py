@@ -48,6 +48,7 @@ Phase 1:
 
 from __future__ import annotations
 
+import inspect
 import importlib
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -421,6 +422,33 @@ def new_model_with_attrs(model_class: type[Any], attrs: Mapping[str, Any]) -> An
     return obj
 
 
+def call_model_payload_factory(
+    factory: Any,
+    payload: Mapping[str, Any],
+    **context: Any,
+) -> Any:
+    """Calls current keyword-only and legacy positional model factories."""
+    try:
+        parameters = inspect.signature(factory).parameters
+    except (TypeError, ValueError):
+        return factory(payload, **context)
+
+    accepts_kwargs = any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
+    accepted_context = {
+        key: value
+        for key, value in context.items()
+        if accepts_kwargs or key in parameters
+    }
+
+    if accepts_kwargs or "payload" in parameters:
+        return factory(payload=payload, **accepted_context)
+
+    return factory(payload, **accepted_context)
+
+
 def ref_is_numeric(value: Any) -> bool:
     text = clean_string(value)
     return bool(text and text.isdigit())
@@ -747,6 +775,8 @@ class CreativeLibraryRepository:
         if not include_deleted and hasattr(model, "status"):
             query = query.filter(model.status != STATUS_DELETED)
 
+        query = self._without_default_eagerloads(query)
+
         if for_update:
             query = self._with_for_update(query)
 
@@ -904,6 +934,7 @@ class CreativeLibraryRepository:
         if item_query.limit:
             db_query = db_query.limit(item_query.limit)
 
+        db_query = self._without_default_eagerloads(db_query)
         values = db_query.all()
 
         if as_dict:
@@ -938,7 +969,7 @@ class CreativeLibraryRepository:
             creator = getattr(self.models.CreativeLibraryItem, "create_from_payload", None)
 
             if callable(creator):
-                item = creator(data)
+                item = call_model_payload_factory(creator, data)
             else:
                 item = new_model_with_attrs(
                     self.models.CreativeLibraryItem,
@@ -1146,6 +1177,7 @@ class CreativeLibraryRepository:
         if not include_deleted and hasattr(model, "status"):
             query = query.filter(model.status != STATUS_DELETED)
 
+        query = self._without_default_eagerloads(query)
         query = self._apply_revision_sort(query, model)
         return query.first()
 
@@ -1191,6 +1223,7 @@ class CreativeLibraryRepository:
         if revision_query.limit:
             db_query = db_query.limit(revision_query.limit)
 
+        db_query = self._without_default_eagerloads(db_query)
         values = db_query.all()
 
         if as_dict:
@@ -1209,14 +1242,23 @@ class CreativeLibraryRepository:
         data = normalize_json_mapping(payload)
 
         try:
-            item = self.require_item(item_ref, include_deleted=True, for_update=True)
+            if not isinstance(item_ref, Mapping) and getattr(item_ref, "id", None) is not None:
+                item = item_ref
+            else:
+                item = self.require_item(item_ref, include_deleted=True, for_update=True)
+
+            previous_revision_count = normalize_int(
+                getattr(item, "revision_count", 0),
+                default=0,
+                minimum=0,
+            ) or 0
 
             if mark_current:
                 self._unset_current_revisions(item.id)
 
             creator = getattr(self.models.CreativeLibraryRevision, "create_from_payload", None)
             if callable(creator):
-                revision = creator(data, item=item)
+                revision = call_model_payload_factory(creator, data, item=item)
             else:
                 revision = new_model_with_attrs(
                     self.models.CreativeLibraryRevision,
@@ -1226,8 +1268,14 @@ class CreativeLibraryRepository:
             self.session.add(revision)
             self.session.flush()
 
-            if hasattr(item, "current_revision_id"):
+            set_current_revision = getattr(item, "set_current_revision", None)
+            if mark_current and callable(set_current_revision):
+                set_current_revision(revision)
+            elif mark_current and hasattr(item, "current_revision_id"):
                 item.current_revision_id = getattr(revision, "id", None)
+            if hasattr(item, "revision_count"):
+                item.revision_count = previous_revision_count + 1
+
 
             if hasattr(item, "status") and getattr(item, "status", None) in {None, STATUS_DRAFT, STATUS_INVALID}:
                 item.status = STATUS_PUBLISHED
@@ -1347,6 +1395,7 @@ class CreativeLibraryRepository:
         if variant_query.limit:
             db_query = db_query.limit(variant_query.limit)
 
+        db_query = self._without_default_eagerloads(db_query)
         values = db_query.all()
 
         if as_dict:
@@ -1362,7 +1411,7 @@ class CreativeLibraryRepository:
 
             creator = getattr(self.models.CreativeLibraryVariant, "create_from_payload", None)
             if callable(creator):
-                variant = creator(data, item=item, revision=revision)
+                variant = call_model_payload_factory(creator, data, item=item, revision=revision)
             else:
                 variant = new_model_with_attrs(
                     self.models.CreativeLibraryVariant,
@@ -1387,7 +1436,7 @@ class CreativeLibraryRepository:
             created = variant is None
 
             if created:
-                variant = self.create_variant(data, item_ref=getattr(item, "id", None), revision_ref=getattr(revision, "id", None) if revision else None, commit=False)
+                variant = self.create_variant(data, item_ref=item, revision_ref=revision, commit=False)
             else:
                 self._fallback_update_child(variant, data)
 
@@ -1543,16 +1592,38 @@ class CreativeLibraryRepository:
         data = normalize_json_mapping(payload)
 
         try:
-            creator = getattr(self.models.CreativeLibraryScanRun, "create_from_payload", None)
+            model = self.models.CreativeLibraryScanRun
+            creator = getattr(model, "create_from_payload", None)
+            starter = getattr(model, "start", None)
             if callable(creator):
-                scan_run = creator({**data, "status": data.get("status") or SCAN_STATUS_STARTED})
+                scan_run = call_model_payload_factory(creator, {**data, "status": data.get("status") or SCAN_STATUS_STARTED})
+            elif callable(starter):
+                try:
+                    scan_run = starter(
+                        source_root=optional_string(data.get("source_root")),
+                        mode=optional_string(data.get("mode")),
+                        triggered_by=optional_string(data.get("triggered_by")),
+                        metadata=normalize_json_mapping(
+                            data.get("metadata") or data.get("meta")
+                        ),
+                    )
+                except TypeError:
+                    scan_run = starter()
+
+                if hasattr(scan_run, "status"):
+                    scan_run.status = data.get("status") or SCAN_STATUS_STARTED
+                if hasattr(scan_run, "payload"):
+                    scan_run.payload = data
             else:
+                started_at = data.get("started_at")
+                if isinstance(started_at, str):
+                    started_at = None
                 scan_run = new_model_with_attrs(
-                    self.models.CreativeLibraryScanRun,
+                    model,
                     {
                         "status": data.get("status") or SCAN_STATUS_STARTED,
                         "source_root": optional_string(data.get("source_root")),
-                        "started_at": data.get("started_at"),
+                        "started_at": started_at,
                         "payload": data,
                         "meta": normalize_json_mapping(data.get("meta")),
                     },
@@ -1585,7 +1656,21 @@ class CreativeLibraryRepository:
                 try:
                     scan_run.finish(status=status, counters=counter_payload, errors=errors_payload)
                 except TypeError:
-                    scan_run.finish(status)
+                    summary = {
+                        "counters": counter_payload,
+                        "errors": errors_payload,
+                    }
+                    try:
+                        scan_run.finish(status=status, summary=summary)
+                    except TypeError:
+                        scan_run.finish()
+
+                    apply_counts = getattr(scan_run, "apply_counts", None)
+                    if callable(apply_counts):
+                        try:
+                            apply_counts(counts=counter_payload)
+                        except TypeError:
+                            apply_counts(counter_payload)
             else:
                 if hasattr(scan_run, "status"):
                     scan_run.status = clean_string(status, fallback=SCAN_STATUS_COMPLETED)
@@ -1619,7 +1704,7 @@ class CreativeLibraryRepository:
 
             creator = getattr(model, "create_from_payload", None)
             if callable(creator):
-                issue = creator(data, scan_run=scan_run)
+                issue = call_model_payload_factory(creator, data, scan_run=scan_run)
             else:
                 issue = new_model_with_attrs(
                     model,
@@ -1818,6 +1903,10 @@ class CreativeLibraryRepository:
         payload = to_dict_or_payload(item)
 
         item_id = getattr(item, "id", None)
+        current_revision_id = getattr(item, "current_revision_id", None)
+        current_children_query = {"item_id": item_id, "include_deleted": True}
+        if current_revision_id is not None:
+            current_children_query["revision_id"] = current_revision_id
 
         if include_current_revision:
             payload["current_revision"] = to_dict_or_payload(self.get_current_revision(item_id, include_deleted=True))
@@ -1826,13 +1915,13 @@ class CreativeLibraryRepository:
             payload["revisions"] = self.list_revisions(query={"item_id": item_id, "include_deleted": True}, as_dict=True)
 
         if include_variants:
-            payload["variants"] = self.list_variants(query={"item_id": item_id, "include_deleted": True}, as_dict=True)
+            payload["variants"] = self.list_variants(query=current_children_query, as_dict=True)
 
         if include_assets:
-            payload["assets"] = self.list_assets(query={"item_id": item_id, "include_deleted": True}, as_dict=True)
+            payload["assets"] = self.list_assets(query=current_children_query, as_dict=True)
 
         if include_documents:
-            payload["documents"] = self.list_documents(query={"item_id": item_id, "include_deleted": True}, as_dict=True)
+            payload["documents"] = self.list_documents(query=current_children_query, as_dict=True)
 
         return payload
 
@@ -1902,7 +1991,22 @@ class CreativeLibraryRepository:
     # Internal generic helpers
     # ------------------------------------------------------------------
 
+    def _without_default_eagerloads(self, query: Any) -> Any:
+        """Disable the model-wide eager relationship graph for scalar reads.
+
+        Published models expose rich relationship graphs for detail operations.
+        Loading a catalog with those defaults recursively walks item -> revision
+        -> item and item -> variant -> revision -> item paths. Catalog reads
+        serialize scalar payloads and fetch requested children explicitly, so
+        that eager graph is unnecessary and can make the route unresponsive.
+        """
+        try:
+            return query.enable_eagerloads(False)
+        except Exception:
+            return query
+
     def _with_for_update(self, query: Any) -> Any:
+        query = self._without_default_eagerloads(query)
         try:
             return query.with_for_update()
         except Exception:
@@ -1998,6 +2102,7 @@ class CreativeLibraryRepository:
         if child_query.limit:
             db_query = db_query.limit(child_query.limit)
 
+        db_query = self._without_default_eagerloads(db_query)
         values = db_query.all()
 
         if as_dict:
@@ -2024,7 +2129,7 @@ class CreativeLibraryRepository:
 
             creator = getattr(model_class, "create_from_payload", None)
             if callable(creator):
-                child = creator(data, item=item, revision=revision, variant=variant)
+                child = call_model_payload_factory(creator, data, item=item, revision=revision, variant=variant)
             else:
                 attrs = self._fallback_child_attrs(child_kind, data, item=item, revision=revision, variant=variant)
                 child = new_model_with_attrs(model_class, attrs)
@@ -2091,12 +2196,17 @@ class CreativeLibraryRepository:
 
     def _resolve_item_revision_for_write(self, data: Mapping[str, Any], *, item_ref: Any = None, revision_ref: Any = None) -> tuple[Any, Any | None]:
         item_ref_value = first_non_empty(item_ref, data.get("item_id"), data.get("item_uid"), data.get("vplib_uid"), data.get("family_id"))
-        item = self.require_item(item_ref_value, include_deleted=True)
+        if not isinstance(item_ref_value, Mapping) and getattr(item_ref_value, "id", None) is not None:
+            item = item_ref_value
+        else:
+            item = self.require_item(item_ref_value, include_deleted=True)
 
         revision = None
         revision_ref_value = first_non_empty(revision_ref, data.get("revision_id"), data.get("revision_uid"))
 
-        if revision_ref_value is not None:
+        if not isinstance(revision_ref_value, Mapping) and getattr(revision_ref_value, "id", None) is not None:
+            revision = revision_ref_value
+        elif revision_ref_value is not None:
             revision = self.require_revision(revision_ref_value, include_deleted=True)
         elif data.get("use_current_revision") or data.get("current_revision"):
             revision = self.get_current_revision(getattr(item, "id", None), include_deleted=True)
@@ -2111,13 +2221,26 @@ class CreativeLibraryRepository:
         query = self.session.query(model).filter(model.item_id == item_id)
 
         if hasattr(model, "is_current"):
-            query = query.filter(model.is_current.is_(True))
+            current_query = query.filter(model.is_current.is_(True))
+            if hasattr(model, "status"):
+                current_query.filter(model.status == REVISION_STATUS_CURRENT).update(
+                    {
+                        model.is_current: False,
+                        model.status: REVISION_STATUS_ARCHIVED,
+                    },
+                    synchronize_session=False,
+                )
+            current_query.update(
+                {model.is_current: False},
+                synchronize_session=False,
+            )
+            return
 
-        for revision in query.all():
-            if hasattr(revision, "is_current"):
-                revision.is_current = False
-            if hasattr(revision, "status") and getattr(revision, "status", None) == REVISION_STATUS_CURRENT:
-                revision.status = REVISION_STATUS_ARCHIVED
+        if hasattr(model, "status"):
+            query.filter(model.status == REVISION_STATUS_CURRENT).update(
+                {model.status: REVISION_STATUS_ARCHIVED},
+                synchronize_session=False,
+            )
 
     def _find_variant_for_upsert(self, data: Mapping[str, Any], *, item: Any, revision: Any | None = None, for_update: bool = False) -> Any | None:
         model = self.models.CreativeLibraryVariant
@@ -2220,92 +2343,163 @@ class CreativeLibraryRepository:
     # ------------------------------------------------------------------
 
     def _fallback_item_attrs(self, data: Mapping[str, Any]) -> dict[str, Any]:
+        manifest = normalize_json_mapping(data.get("manifest_payload") or data.get("manifest"))
+        classification = normalize_json_mapping(
+            data.get("classification_payload")
+            or data.get("classification")
+            or manifest.get("classification")
+        )
+        metadata = normalize_json_mapping(data.get("metadata_json") or data.get("metadata"))
+        family_slug = optional_string(
+            data.get("family_slug") or data.get("slug") or manifest.get("family_slug") or manifest.get("slug")
+        )
+        classification_path = optional_string(
+            data.get("classification_path")
+            or manifest.get("classification_path")
+            or classification.get("classification_path")
+        )
+
         return {
-            "vplib_uid": optional_string(data.get("vplib_uid")),
-            "family_id": optional_string(data.get("family_id")),
-            "package_id": optional_string(data.get("package_id")),
+            "vplib_uid": optional_string(data.get("vplib_uid") or manifest.get("vplib_uid")),
+            "family_id": optional_string(data.get("family_id") or manifest.get("family_id")),
+            "package_id": optional_string(data.get("package_id") or manifest.get("package_id")),
+            "owner_user_id": normalize_int(data.get("owner_user_id"), default=None, minimum=1),
             "source_scope": optional_string(data.get("source_scope")) or SOURCE_SCOPE_SYSTEM,
-            "source_path": optional_string(data.get("source_path")),
-            "classification_path": optional_string(data.get("classification_path")),
-            "domain": optional_string(data.get("domain")),
-            "category": optional_string(data.get("category")),
-            "subcategory": optional_string(data.get("subcategory")),
-            "object_kind": optional_string(data.get("object_kind")),
-            "label": optional_string(data.get("label") or data.get("name") or data.get("title")),
-            "name": optional_string(data.get("name") or data.get("label") or data.get("title")),
-            "title": optional_string(data.get("title") or data.get("label") or data.get("name")),
-            "description": optional_string(data.get("description")),
-            "status": optional_string(data.get("status")) or STATUS_ACTIVE,
-            "active": normalize_bool(data.get("active"), default=True),
+            "owner_scope": optional_string(data.get("owner_scope") or data.get("source_scope")) or SOURCE_SCOPE_SYSTEM,
+            "family_slug": family_slug,
+            "slug": family_slug,
+            "source_root": optional_string(data.get("source_root")),
+            "source_path": optional_string(data.get("source_path") or manifest.get("source_path")),
+            "package_root": optional_string(data.get("package_root") or manifest.get("package_root")),
+            "source_hash": optional_string(data.get("source_hash") or manifest.get("source_hash")),
+            "classification_path": classification_path,
+            "taxonomy_path": classification_path,
+            "domain": optional_string(data.get("domain") or manifest.get("domain") or classification.get("domain")),
+            "category": optional_string(data.get("category") or manifest.get("category") or classification.get("category")),
+            "subcategory": optional_string(data.get("subcategory") or manifest.get("subcategory") or classification.get("subcategory")),
+            "object_kind": optional_string(data.get("object_kind") or manifest.get("object_kind")),
+            "family_profile_id": optional_string(data.get("family_profile_id") or manifest.get("family_profile_id")),
+            "variant_profile_id": optional_string(data.get("variant_profile_id") or manifest.get("variant_profile_id")),
+            "definition_version": optional_string(data.get("definitions_version") or manifest.get("definitions_version") or manifest.get("definition_version")),
+            "label": optional_string(data.get("label") or data.get("name") or data.get("title") or manifest.get("family_name")),
+            "name": optional_string(data.get("name") or data.get("label") or data.get("title") or manifest.get("family_name")),
+            "description": optional_string(data.get("description") or manifest.get("description")),
+            "default_variant_id": optional_string(data.get("default_variant_id") or manifest.get("default_variant_id")),
+            "variant_count": normalize_int(data.get("variant_count") or manifest.get("variant_count"), default=0, minimum=0) or 0,
+            "asset_count": normalize_int(data.get("asset_count") or manifest.get("asset_count"), default=0, minimum=0) or 0,
+            "document_count": normalize_int(data.get("document_count"), default=0, minimum=0) or 0,
+            "status": optional_string(data.get("status")) or STATUS_PUBLISHED,
+            "publication_status": optional_string(data.get("publication_status")) or STATUS_PUBLISHED,
+            "enabled": normalize_bool(data.get("enabled", data.get("active")), default=True),
             "visible": normalize_bool(data.get("visible"), default=True),
-            "sort_order": normalize_int(data.get("sort_order"), default=0, minimum=0) or 0,
-            "manifest_payload": normalize_json_mapping(data.get("manifest_payload") or data.get("manifest")),
-            "classification_payload": normalize_json_mapping(data.get("classification_payload") or data.get("classification")),
-            "payload": normalize_json_mapping(data.get("payload") or data),
-            "meta": normalize_json_mapping(data.get("meta")),
-            "metadata_json": normalize_json_mapping(data.get("metadata")),
+            "is_deleted": False,
+            "payload": manifest or normalize_json_mapping(data.get("payload") or data),
+            "generator_payload": normalize_json_mapping(data.get("generator_payload") or manifest.get("generator")),
+            "definition_payload": normalize_json_mapping(data.get("definition_payload") or manifest.get("definitions")),
+            "file_refs_json": normalize_json_list(data.get("file_refs") or manifest.get("file_refs") or manifest.get("files")),
+            "meta": normalize_json_mapping(data.get("meta") or metadata),
+            "metadata_json": metadata,
         }
 
     def _fallback_update_item(self, item: Any, data: Mapping[str, Any]) -> None:
-        for field_name in (
-            "vplib_uid",
-            "family_id",
-            "package_id",
-            "source_scope",
+        attrs = self._fallback_item_attrs(data)
+        nullable_fields = {
+            "source_root",
             "source_path",
-            "classification_path",
-            "domain",
-            "category",
-            "subcategory",
-            "object_kind",
-            "label",
-            "name",
-            "title",
-            "description",
-            "status",
-        ):
-            if field_name in data and hasattr(item, field_name):
-                setattr(item, field_name, optional_string(data.get(field_name)))
+            "package_root",
+            "source_hash",
+        }
+        preserved_count_fields = {
+            "variant_count",
+            "asset_count",
+            "document_count",
+        }
 
-        for field_name in ("active", "visible"):
-            if field_name in data and hasattr(item, field_name):
-                setattr(item, field_name, normalize_bool(data.get(field_name), default=getattr(item, field_name)))
 
-        if "sort_order" in data and hasattr(item, "sort_order"):
-            item.sort_order = normalize_int(data.get("sort_order"), default=getattr(item, "sort_order", 0), minimum=0) or 0
+        for field_name, value in attrs.items():
+            if not hasattr(item, field_name):
+                continue
+            if field_name in preserved_count_fields and field_name not in data:
+                continue
+            if value is None and field_name in nullable_fields:
+                continue
+            setattr(item, field_name, value)
 
-        for field_name in ("manifest_payload", "classification_payload", "payload", "meta", "metadata_json"):
-            source_names = {
-                "manifest_payload": ("manifest_payload", "manifest"),
-                "classification_payload": ("classification_payload", "classification"),
-                "metadata_json": ("metadata_json", "metadata"),
-            }.get(field_name, (field_name,))
-            for source_name in source_names:
-                if source_name in data and hasattr(item, field_name):
-                    setattr(item, field_name, normalize_json_mapping(data.get(source_name)))
-                    break
-
-        if hasattr(item, "touch") and callable(item.touch):
+        mark_seen = getattr(item, "mark_seen", None)
+        if callable(mark_seen):
+            mark_seen()
+        elif hasattr(item, "touch") and callable(item.touch):
             item.touch()
 
     def _fallback_revision_attrs(self, data: Mapping[str, Any], *, item: Any, mark_current: bool) -> dict[str, Any]:
+        manifest = normalize_json_mapping(data.get("manifest_payload") or data.get("manifest"))
+        document_bundle = normalize_json_mapping(data.get("document_bundle"))
+        documents = normalize_json_mapping(
+            data.get("documents_payload")
+            or data.get("documents")
+            or document_bundle.get("documents")
+        )
+        revision_hash = optional_string(
+            data.get("revision_hash") or manifest.get("revision_hash")
+        )
+
+        if not revision_hash:
+            raise CreativeLibraryConflictError(
+                "Creative Library revision requires revision_hash."
+            )
+
+        scan_run_id = normalize_int(
+            data.get("scan_run_id") or data.get("scan_run_db_id"),
+            default=None,
+            minimum=1,
+        )
+        metadata = normalize_json_mapping(
+            data.get("metadata_json") or data.get("metadata")
+        )
+        item_id = getattr(item, "id", None)
+
         return {
-            "item_id": getattr(item, "id", None),
-            "revision_number": normalize_int(data.get("revision_number"), default=None, minimum=1),
-            "version": optional_string(data.get("version") or data.get("package_version")),
-            "status": REVISION_STATUS_CURRENT if mark_current else optional_string(data.get("status")) or STATUS_PUBLISHED,
-            "is_current": mark_current,
+            "family_db_id": item_id,
+            "item_id": item_id,
+            "scan_run_id": scan_run_id,
+            "scan_run_db_id": scan_run_id,
+            "source_draft_id": normalize_int(data.get("source_draft_id"), default=None, minimum=1),
+            "source_draft_uid": optional_string(data.get("source_draft_uid") or data.get("draft_uid")),
+            "owner_user_id": getattr(item, "owner_user_id", None),
+            "source_scope": optional_string(data.get("source_scope") or getattr(item, "source_scope", None)) or SOURCE_SCOPE_SYSTEM,
+            "owner_scope": optional_string(data.get("owner_scope") or getattr(item, "owner_scope", None)) or SOURCE_SCOPE_SYSTEM,
+            "vplib_uid": optional_string(data.get("vplib_uid") or manifest.get("vplib_uid") or getattr(item, "vplib_uid", None)),
+            "family_id": optional_string(data.get("family_id") or manifest.get("family_id") or getattr(item, "family_id", None)),
+            "package_id": optional_string(data.get("package_id") or manifest.get("package_id") or getattr(item, "package_id", None)),
+            "revision_id": optional_string(data.get("revision_id")),
+            "revision_hash": revision_hash,
+            "previous_revision_hash": optional_string(data.get("previous_revision_hash") or getattr(item, "current_revision_hash", None)),
+            "package_version": optional_string(data.get("package_version") or data.get("version") or manifest.get("package_version")),
+            "schema_version": optional_string(data.get("schema_version") or manifest.get("schema_version")),
+            "definitions_version": optional_string(data.get("definitions_version") or manifest.get("definitions_version") or manifest.get("definition_version")),
+            "source_root": optional_string(data.get("source_root") or getattr(item, "source_root", None)),
             "source_path": optional_string(data.get("source_path") or getattr(item, "source_path", None)),
-            "scan_run_id": normalize_int(data.get("scan_run_id"), default=None, minimum=1),
-            "manifest_payload": normalize_json_mapping(data.get("manifest_payload") or data.get("manifest")),
-            "modules_payload": normalize_json_mapping(data.get("modules_payload") or data.get("modules")),
-            "family_payload": normalize_json_mapping(data.get("family_payload") or data.get("family")),
-            "classification_payload": normalize_json_mapping(data.get("classification_payload") or data.get("classification")),
-            "document_bundle": normalize_json_mapping(data.get("document_bundle")),
+            "source_mtime_ns": normalize_int(data.get("source_mtime_ns"), default=None, minimum=0),
+            "source_size_bytes": normalize_int(data.get("source_size_bytes"), default=None, minimum=0),
+            "validation_status": optional_string(data.get("validation_status")),
+            "status": optional_string(data.get("status")) or STATUS_PUBLISHED,
+            "publication_status": optional_string(data.get("publication_status")) or STATUS_PUBLISHED,
+            "manifest_json": manifest,
+            "modules_json": normalize_json_mapping(data.get("modules_payload") or data.get("modules")),
+            "identity_json": normalize_json_mapping(data.get("family_payload") or data.get("family")),
+            "classification_json": normalize_json_mapping(data.get("classification_payload") or data.get("classification")),
+            "resolved_package_json": document_bundle,
+            "document_paths_json": normalize_json_list(data.get("document_paths") or documents.keys()),
+            "summary_payload": normalize_json_mapping(data.get("summary_payload") or data.get("summary")),
+            "detail_payload": normalize_json_mapping(data.get("detail_payload") or data.get("detail")),
+            "raw_documents": normalize_json_mapping(data.get("raw_documents") or documents),
+            "documents": documents,
+            "validation_payload": normalize_json_mapping(data.get("validation_payload") or data.get("validation")),
+            "generator_payload": normalize_json_mapping(data.get("generator_payload") or data.get("generator")),
+            "file_refs_json": normalize_json_list(data.get("file_refs") or manifest.get("file_refs") or manifest.get("files")),
             "payload": normalize_json_mapping(data.get("payload") or data),
-            "meta": normalize_json_mapping(data.get("meta")),
-            "metadata_json": normalize_json_mapping(data.get("metadata")),
-            "active": normalize_bool(data.get("active"), default=True),
+            "meta": normalize_json_mapping(data.get("meta") or metadata),
+            "metadata_json": metadata,
         }
 
     def _fallback_variant_attrs(self, data: Mapping[str, Any], *, item: Any, revision: Any | None = None) -> dict[str, Any]:
