@@ -1,6 +1,44 @@
 {
   "schema_version": "0.1.0",
   "embedded": true,
-  "asset_count": 0,
-  "assets": []
+  "asset_count": 1,
+  "assets": [
+    {
+      "field": "texture_files",
+      "filename": "albedo.webp",
+      "kind": "textures",
+      "asset_kind": "texture",
+      "role": "albedo",
+      "purpose": "albedo",
+      "content_type": "image/webp",
+      "relative_path": "assets/textures/albedo.webp",
+      "path": "assets/textures/albedo.webp",
+      "uri": "/static/textures/materials/timber.webp",
+      "size_bytes": 12214,
+      "sha256": "21564f989644c35b13ed7f67d352b1eed007947650d6756aa097c77a281446bf",
+      "checksum": "21564f989644c35b13ed7f67d352b1eed007947650d6756aa097c77a281446bf",
+      "embedded": true,
+      "exists": true,
+      "is_primary": true,
+      "optimization": {
+        "status": "optimized",
+        "strategy": "webp-bounded-v1",
+        "dimensions": {
+          "width": 512,
+          "height": 512
+        },
+        "quality": 80,
+        "metadata_stripped": true
+      },
+      "runtime": {
+        "color_space": "srgb",
+        "wrap_s": "repeat",
+        "wrap_t": "repeat",
+        "min_filter": "linear_mipmap_linear",
+        "mag_filter": "linear",
+        "generate_mipmaps": true,
+        "anisotropy": 4
+      }
+    }
+  ]
 }

@@ -8,7 +8,7 @@
 
   <title>Creative-Inventar · VECTOPLAN</title>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css', v='20260804.1') }}">
 </head>
 
 <body class="vp-inventar-page vp-creative-inventar-page">
@@ -40,9 +40,9 @@
     {% set _creative_last_selected_slot_index = _creative_active_slot_index %}
   {% endif %}
 
-  {% set _taxonomy_url = taxonomy_url | default("/api/v1/vplib/taxonomy/create-options", true) | string | trim %}
+  {% set _taxonomy_url = taxonomy_url | default("/api/v1/vplib/taxonomy/create-options?compact=true", true) | string | trim %}
   {% if not _taxonomy_url %}
-    {% set _taxonomy_url = "/api/v1/vplib/taxonomy/create-options" %}
+    {% set _taxonomy_url = "/api/v1/vplib/taxonomy/create-options?compact=true" %}
   {% endif %}
 
   {% set _create_url = create_url | default("/create", true) | string | trim %}
@@ -222,7 +222,7 @@
             role="list"
             data-creative-library-grid="true"
             data-create-embed-library-area="true"
-            data-creative-items-url="/api/v1/vplib/creative-library/items"
+            data-creative-items-url="/api/v1/vplib/creative-library/items?compact=true"
             data-published-items-url="/api/v1/vplib/library/items?visible_only=true&amp;active_only=true&amp;include_current_revision=false&amp;include_variants=true&amp;limit=250"
           >
             {% for item in _creative_items %}
@@ -320,7 +320,7 @@
 
 
   <script
-    src="{{ url_for('static', filename='js/inventar/creative-library.js') }}"
+    src="{{ url_for('static', filename='js/inventar/creative-library.js', v='20260804.1') }}"
     defer
   ></script>
 </body>

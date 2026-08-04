@@ -360,6 +360,7 @@ def creative_library_user_items_list() -> Response:
                 include_overrides=_bool_arg("include_overrides", default=True),
                 include_audit=False,
                 ensure_defaults=_bool_arg("ensure_defaults", default=True),
+                compact=_bool_arg("compact", default=False),
             )
         )
     )

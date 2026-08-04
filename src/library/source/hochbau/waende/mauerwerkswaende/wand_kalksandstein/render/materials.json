@@ -3,8 +3,22 @@
   "materials": [
     {
       "material_id": "default",
-      "type": "generic",
-      "color_hint": "#9CA3AF"
+      "type": "calcium_silicate",
+      "color_hint": "#D8D7D0",
+      "roughness": 0.88,
+      "metalness": 0,
+      "albedo_texture": {
+        "asset_path": "assets/textures/albedo.webp",
+        "uri": "/static/textures/materials/concrete.webp",
+        "sha256": "eab65e9f0c054ca3e6f2dc0dd0bc796e95822e93d2398b319d1c9e6dbd18ae76",
+        "color_space": "srgb",
+        "wrap_s": "repeat",
+        "wrap_t": "repeat",
+        "min_filter": "linear_mipmap_linear",
+        "mag_filter": "linear",
+        "generate_mipmaps": true,
+        "anisotropy": 4
+      }
     }
   ]
 }

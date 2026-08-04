@@ -2227,20 +2227,22 @@ class CreativeLibraryUserRepository:
         collection_payloads: list[dict[str, Any]] = []
         all_items: list[dict[str, Any]] = []
 
-        if include_collections:
-            for collection in collections:
-                collection_uid = collection.get("collection_uid") or collection.get("id")
-                try:
-                    resolved = self.get_resolved_collection_payload(
-                        collection_uid,
-                        user_id=normalized_user_id,
-                        include_hidden=include_hidden,
-                        include_deleted=include_deleted,
-                    )
+        # Resolve items independently from whether callers request collection
+        # metadata. The item-focused route sets include_collections=False.
+        for collection in collections:
+            collection_uid = collection.get("collection_uid") or collection.get("id")
+            try:
+                resolved = self.get_resolved_collection_payload(
+                    collection_uid,
+                    user_id=normalized_user_id,
+                    include_hidden=include_hidden,
+                    include_deleted=include_deleted,
+                )
+                if include_collections:
                     collection_payloads.append(resolved)
-                    all_items.extend(normalize_json_list(resolved.get("items")))
-                except Exception:
-                    continue
+                all_items.extend(normalize_json_list(resolved.get("items")))
+            except Exception:
+                continue
 
         return {
             "schema_version": CREATIVE_LIBRARY_USER_REPOSITORY_VERSION,

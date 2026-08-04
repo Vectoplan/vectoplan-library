@@ -308,6 +308,55 @@ def test_optional_post_save_sync_failure_keeps_source_save_successful(
     assert result.failed_step_count == 0
     assert result.ok is True
 
+def test_post_save_sync_builds_publish_bundle_before_db_publish(monkeypatch: Any) -> None:
+    module = _workflow_module()
+    service = module.LibraryGeneratorWorkflowService()
+    request = module.LibraryGeneratorWorkflowRequest(
+        action=module.WORKFLOW_ACTION_SAVE,
+        payload={"vplib_uid": "uid-1", "family_name": "Wand Holz"},
+        sync_after_save=True,
+    )
+    result = module.GeneratorWorkflowResult(action=module.WORKFLOW_ACTION_SAVE)
+    result.save_payload = {"data": {"revision_hash": "revision-1"}}
+    captured: dict[str, Any] = {}
+    publish_candidate = {
+        "vplib_uid": "uid-1",
+        "family_id": "vp.hochbau.waende.tragende_waende.wand_holz",
+        "package_id": "vplib.vp.hochbau.waende.tragende_waende.wand_holz",
+        "variants": [{"variant_id": "default"}],
+    }
+
+    monkeypatch.setattr(
+        service.context_service,
+        "resolve_dependency",
+        lambda key: SimpleNamespace(key=key),
+    )
+
+    def fake_call(resolution: Any, *args: Any, **kwargs: Any) -> SimpleNamespace:
+        if resolution.key == "create":
+            return SimpleNamespace(
+                ok=True,
+                payload={"ok": True, "data": {"publish": publish_candidate}},
+                method="build_publish_bundle_from_create_payload",
+            )
+        captured.update(kwargs["kwargs"])
+        return SimpleNamespace(
+            ok=True,
+            payload={"ok": True, "status": "published"},
+            method="sync_package_payload",
+        )
+
+    monkeypatch.setattr(service, "_call_dependency", fake_call)
+
+    sync_payload = service._sync_after_save(request, None, result)
+
+    assert sync_payload["ok"] is True
+    assert captured["package_payload"] == {**publish_candidate, "revision_hash": "revision-1"}
+    assert captured["package_payload"]["revision_hash"] == "revision-1"
+    assert captured["payload"] == {**publish_candidate, "revision_hash": "revision-1"}
+    assert result.steps[-1].status == module.GeneratorWorkflowStatus.PUBLISHED
+
+
 
 def test_source_save_forwards_explicit_overwrite_flag(monkeypatch: Any) -> None:
     module = _workflow_module()

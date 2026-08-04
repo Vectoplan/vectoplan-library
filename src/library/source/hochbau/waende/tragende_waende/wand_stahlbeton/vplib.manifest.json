@@ -50,6 +50,44 @@
     "mode": "simple_create",
     "starter_contract": true
   },
-  "assets": [],
-  "asset_count": 0
+  "assets": [
+    {
+      "field": "texture_files",
+      "filename": "albedo.webp",
+      "kind": "textures",
+      "asset_kind": "texture",
+      "role": "albedo",
+      "purpose": "albedo",
+      "content_type": "image/webp",
+      "relative_path": "assets/textures/albedo.webp",
+      "path": "assets/textures/albedo.webp",
+      "uri": "/static/textures/materials/concrete.webp",
+      "size_bytes": 33592,
+      "sha256": "eab65e9f0c054ca3e6f2dc0dd0bc796e95822e93d2398b319d1c9e6dbd18ae76",
+      "checksum": "eab65e9f0c054ca3e6f2dc0dd0bc796e95822e93d2398b319d1c9e6dbd18ae76",
+      "embedded": true,
+      "exists": true,
+      "is_primary": true,
+      "optimization": {
+        "status": "optimized",
+        "strategy": "webp-bounded-v1",
+        "dimensions": {
+          "width": 512,
+          "height": 512
+        },
+        "quality": 80,
+        "metadata_stripped": true
+      },
+      "runtime": {
+        "color_space": "srgb",
+        "wrap_s": "repeat",
+        "wrap_t": "repeat",
+        "min_filter": "linear_mipmap_linear",
+        "mag_filter": "linear",
+        "generate_mipmaps": true,
+        "anisotropy": 4
+      }
+    }
+  ],
+  "asset_count": 1
 }

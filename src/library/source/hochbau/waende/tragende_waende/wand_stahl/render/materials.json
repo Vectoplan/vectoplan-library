@@ -3,8 +3,22 @@
   "materials": [
     {
       "material_id": "default",
-      "type": "generic",
-      "color_hint": "#9CA3AF"
+      "type": "structural_steel",
+      "color_hint": "#8FA1AD",
+      "roughness": 0.52,
+      "metalness": 0.68,
+      "albedo_texture": {
+        "asset_path": "assets/textures/albedo.webp",
+        "uri": "/static/textures/materials/steel.webp",
+        "sha256": "5f0bfd0d318c19da61347544ba1dcf981d71f1e5cff32dd27627541fd7c28114",
+        "color_space": "srgb",
+        "wrap_s": "repeat",
+        "wrap_t": "repeat",
+        "min_filter": "linear_mipmap_linear",
+        "mag_filter": "linear",
+        "generate_mipmaps": true,
+        "anisotropy": 4
+      }
     }
   ]
 }

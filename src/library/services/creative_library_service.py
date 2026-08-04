@@ -953,17 +953,17 @@ class CreativeLibraryService:
                     "status": ITEM_STATUS_PUBLISHED,
                 }
 
-                if options.commit:
-                    self.repository.commit()
-                else:
-                    self.repository.flush()
-
                 item_result = to_dict_or_payload(item)
                 item_result["current_revision"] = revision_result
                 item_result["variants"] = []
                 item_result["assets"] = []
                 item_result["documents"] = []
                 item_result.update(child_counts)
+
+                if options.commit:
+                    self.repository.commit()
+                else:
+                    self.repository.flush()
 
                 return CreativeLibraryServiceResult(
                     ok=True,
@@ -1001,19 +1001,20 @@ class CreativeLibraryService:
                     setattr(item, field_name, int(child_counts.get(field_name, 0) or 0))
 
 
-            if options.commit:
-                self.repository.commit()
-            else:
-                self.repository.flush()
-
+            revision_result = to_dict_or_payload(revision)
             item_result = to_dict_or_payload(item)
-            item_result["current_revision"] = to_dict_or_payload(revision)
+            item_result["current_revision"] = revision_result
             item_result["variants"] = child_payload.get("variants", [])
             item_result["assets"] = child_payload.get("assets", [])
             item_result["documents"] = child_payload.get("documents", [])
             item_result["variant_count"] = child_payload.get("counts", {}).get("variant_count", 0)
             item_result["asset_count"] = child_payload.get("counts", {}).get("asset_count", 0)
             item_result["document_count"] = child_payload.get("counts", {}).get("document_count", 0)
+
+            if options.commit:
+                self.repository.commit()
+            else:
+                self.repository.flush()
 
             return CreativeLibraryServiceResult(
                 ok=True,
@@ -1023,7 +1024,7 @@ class CreativeLibraryService:
                     "created": item_created,
                     "updated": not item_created,
                     "item": item_result,
-                    "revision": to_dict_or_payload(revision),
+                    "revision": revision_result,
                     "children": child_payload,
                     "vplib_uid": extract_vplib_uid(data),
                 },
@@ -1233,14 +1234,17 @@ class CreativeLibraryService:
         # naturally scopes children to the published revision.
         _replace_existing_ignored = replace_existing
 
+        # A new revision cannot already contain children. Create all child rows
+        # without per-row flushes, then flush once before serializing IDs.
         for variant_payload in variant_payloads:
-            variant, _created = self.repository.upsert_variant(
+            variant = self.repository.create_variant(
                 variant_payload,
                 item_ref=item_ref,
                 revision_ref=revision_ref,
                 commit=False,
+                flush=False,
             )
-            created_variants.append(to_dict_or_payload(variant))
+            created_variants.append(variant)
 
         for asset_payload in asset_payloads:
             variant_ref = first_non_empty(asset_payload.get("variant_ref"), asset_payload.get("variant_uid"), asset_payload.get("variant_id_db"))
@@ -1250,8 +1254,9 @@ class CreativeLibraryService:
                 revision_ref=revision_ref,
                 variant_ref=variant_ref,
                 commit=False,
+                flush=False,
             )
-            created_assets.append(to_dict_or_payload(asset))
+            created_assets.append(asset)
 
         for document_payload in document_payloads:
             variant_ref = first_non_empty(document_payload.get("variant_ref"), document_payload.get("variant_uid"), document_payload.get("variant_id_db"))
@@ -1261,14 +1266,18 @@ class CreativeLibraryService:
                 revision_ref=revision_ref,
                 variant_ref=variant_ref,
                 commit=False,
+                flush=False,
             )
-            created_documents.append(to_dict_or_payload(document))
+            created_documents.append(document)
 
         if commit:
             self.repository.commit()
         else:
             self.repository.flush()
 
+        created_variants = [to_dict_or_payload(value) for value in created_variants]
+        created_assets = [to_dict_or_payload(value) for value in created_assets]
+        created_documents = [to_dict_or_payload(value) for value in created_documents]
         return {
             "variants": created_variants,
             "assets": created_assets,
@@ -1847,6 +1856,11 @@ def create_creative_library_service(
     )
 
 
+def get_creative_library_service() -> CreativeLibraryService:
+    """Return the published service for lazy generator dependency resolution."""
+    return create_creative_library_service()
+
+
 @lru_cache(maxsize=1)
 def get_service_version() -> str:
     return CREATIVE_LIBRARY_SERVICE_VERSION
@@ -1917,6 +1931,7 @@ __all__ = [
     "LibraryService",
     "PublishedLibraryService",
     "create_creative_library_service",
+    "get_creative_library_service",
     "create_library_service",
     "create_published_library_service",
 

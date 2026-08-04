@@ -73,6 +73,10 @@ psycopg[binary]>=3.2,<4.0
 
 
 # -----------------------------------------------------------------------------
+# Bildverarbeitung f??r Upload-Optimierung: Resize, Metadaten entfernen und WebP.
+Pillow>=11.0,<13.0
+
+
 # Testing
 # -----------------------------------------------------------------------------
 

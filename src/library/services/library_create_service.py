@@ -79,6 +79,9 @@ from typing import Any, Iterable, Mapping, Optional, Sequence
 # ---------------------------------------------------------------------------
 
 LIBRARY_CREATE_SERVICE_VERSION = "0.5.0"
+ENV_TEXTURE_OPTIMIZATION_ENABLED = "VPLIB_TEXTURE_OPTIMIZATION_ENABLED"
+ENV_TEXTURE_MAX_EDGE = "VPLIB_TEXTURE_MAX_EDGE"
+ENV_TEXTURE_WEBP_QUALITY = "VPLIB_TEXTURE_WEBP_QUALITY"
 LIBRARY_CREATE_SERVICE_COMPONENT = "library-create-service"
 
 CREATE_API_PREFIX = "/api/v1/vplib/create"
@@ -143,6 +146,10 @@ ALLOWED_PRIMITIVE_SHAPES = {
     "cylinder",
     "pipe",
 }
+DEFAULT_TEXTURE_MAX_EDGE = 1024
+DEFAULT_TEXTURE_WEBP_QUALITY = 82
+TEXTURE_RASTER_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".tga", ".bmp"}
+
 
 ALLOWED_UNITS = {
     "m",
@@ -1664,6 +1671,30 @@ def save_package(payload: Any, *, overwrite: bool | None = None) -> CreateResult
                 }
             )
 
+        revision_hash = ""
+        save_warnings = list(plan.warnings)
+        try:
+            try:
+                fingerprint_module = importlib.import_module("library.scanner.package_fingerprint")
+            except ImportError:
+                fingerprint_module = importlib.import_module("src.library.scanner.package_fingerprint")
+            fingerprint_result = fingerprint_module.fingerprint_package_root(
+                target_dir,
+                source_root=source_root,
+                relative_package_root="/".join(str(part) for part in source_parts),
+            )
+            revision_hash = str(getattr(fingerprint_result, "revision_hash", "") or "")
+        except Exception as fingerprint_exc:
+            save_warnings.append(
+                _warning(
+                    "saved_package_fingerprint_failed",
+                    "Das gespeicherte Package konnte nicht direkt fingerprinted werden.",
+                    field="revision_hash",
+                    details={"error": str(fingerprint_exc)},
+                )
+            )
+
+
         return CreateResult(
             ok=True,
             status="saved",
@@ -1676,12 +1707,13 @@ def save_package(payload: Any, *, overwrite: bool | None = None) -> CreateResult
                 "source_parts": source_parts,
                 "target_dir": str(target_dir),
                 "source_root": str(source_root),
+                "revision_hash": revision_hash,
                 "written_file_count": len(written_files),
                 "written_files": written_files,
                 "next_scan_route": "/api/v1/vplib/library/scan",
                 "next_blocks_route": "/api/v1/vplib/library/blocks",
             },
-            warnings=plan.warnings,
+            warnings=save_warnings,
             info=plan.info
             + [
                 _info(
@@ -4969,6 +5001,123 @@ def _is_blocked_executable_path(path: str | Path) -> bool:
     return suffix in EXECUTABLE_EXTENSIONS_BLOCKLIST
 
 
+@lru_cache(maxsize=1)
+def _load_pillow_image_modules() -> tuple[Any, Any]:
+    """Load Pillow lazily so non-image generator routes stay lightweight."""
+    image_module = importlib.import_module("PIL.Image")
+    image_ops_module = importlib.import_module("PIL.ImageOps")
+    return image_module, image_ops_module
+
+
+def _texture_runtime_metadata() -> dict[str, Any]:
+    return {
+        "color_space": "srgb",
+        "wrap_s": "repeat",
+        "wrap_t": "repeat",
+        "min_filter": "linear_mipmap_linear",
+        "mag_filter": "linear",
+        "generate_mipmaps": True,
+        "anisotropy": 4,
+    }
+
+
+def _optimize_texture_asset(
+    *,
+    content: bytes,
+    relative_path: str,
+    content_type: str,
+) -> tuple[bytes, str, str, dict[str, Any]]:
+    """Normalize raster textures to bounded metadata-free WebP assets.
+
+    Invalid or unsupported image payloads remain untouched. This preserves
+    compatibility with older packages while valid uploads get a predictable,
+    GPU-friendly representation.
+    """
+    suffix = Path(relative_path).suffix.lower()
+    runtime = _texture_runtime_metadata()
+    base_metadata: dict[str, Any] = {
+        "status": "skipped",
+        "strategy": "webp-bounded-v1",
+        "original_path": relative_path,
+        "original_content_type": content_type,
+        "original_size_bytes": len(content),
+        "runtime": runtime,
+    }
+
+    if suffix not in TEXTURE_RASTER_EXTENSIONS:
+        base_metadata["reason"] = "non_raster_texture"
+        return content, relative_path, content_type, base_metadata
+    if not _env_bool(ENV_TEXTURE_OPTIMIZATION_ENABLED, default=True):
+        base_metadata["reason"] = "disabled"
+        return content, relative_path, content_type, base_metadata
+
+    try:
+        image_module, image_ops_module = _load_pillow_image_modules()
+        max_edge = _safe_int(
+            os.getenv(ENV_TEXTURE_MAX_EDGE),
+            default=DEFAULT_TEXTURE_MAX_EDGE,
+            minimum=128,
+            maximum=4096,
+        )
+        quality = _safe_int(
+            os.getenv(ENV_TEXTURE_WEBP_QUALITY),
+            default=DEFAULT_TEXTURE_WEBP_QUALITY,
+            minimum=45,
+            maximum=95,
+        )
+
+        with image_module.open(io.BytesIO(content)) as opened:
+            image = image_ops_module.exif_transpose(opened)
+            image.load()
+            original_width, original_height = image.size
+            if max(image.size) > max_edge:
+                image.thumbnail((max_edge, max_edge), image_module.Resampling.LANCZOS)
+
+            has_alpha = image.mode in {"RGBA", "LA"} or (
+                image.mode == "P" and "transparency" in image.info
+            )
+            image = image.convert("RGBA" if has_alpha else "RGB")
+            output = io.BytesIO()
+            image.save(
+                output,
+                format="WEBP",
+                quality=quality,
+                method=6,
+                optimize=True,
+                exact=has_alpha,
+            )
+            optimized = output.getvalue()
+            optimized_width, optimized_height = image.size
+
+        optimized_path = str(Path(relative_path).with_suffix(".webp")).replace("\\", "/")
+        return (
+            optimized,
+            optimized_path,
+            "image/webp",
+            {
+                **base_metadata,
+                "status": "optimized",
+                "quality": quality,
+                "max_edge": max_edge,
+                "original_dimensions": {
+                    "width": original_width,
+                    "height": original_height,
+                },
+                "dimensions": {
+                    "width": optimized_width,
+                    "height": optimized_height,
+                },
+                "size_bytes": len(optimized),
+                "bytes_saved": len(content) - len(optimized),
+                "runtime": runtime,
+            },
+        )
+    except Exception as exc:
+        base_metadata["reason"] = "decode_or_encode_failed"
+        base_metadata["error"] = f"{type(exc).__name__}: image could not be decoded or optimized"
+        return content, relative_path, content_type, base_metadata
+
+
 def _normalize_binary_assets(payload: Any) -> list[dict[str, Any]]:
     mapping = _coerce_payload_mapping(payload)
     raw_assets = mapping.get("_binary_assets")
@@ -4979,6 +5128,7 @@ def _normalize_binary_assets(payload: Any) -> list[dict[str, Any]]:
 
     normalized: list[dict[str, Any]] = []
     seen_paths: set[str] = set()
+    seen_texture_hashes: set[str] = set()
     for index, raw_asset in enumerate(raw_assets):
         if not isinstance(raw_asset, Mapping):
             raise ValueError(f"Binary asset at index {index} must be an object.")
@@ -4996,8 +5146,6 @@ def _normalize_binary_assets(payload: Any) -> list[dict[str, Any]]:
             or ""
         ).replace("\\", "/").strip()
         _assert_safe_relative_file(relative_path)
-        if relative_path in seen_paths:
-            raise ValueError(f"Duplicate binary asset path: {relative_path}")
         if _is_blocked_executable_path(relative_path):
             raise ValueError(f"Blocked executable binary asset: {relative_path}")
 
@@ -5013,23 +5161,50 @@ def _normalize_binary_assets(payload: Any) -> list[dict[str, Any]]:
         if allowed_extensions is None or suffix not in allowed_extensions:
             raise ValueError(f"Unsupported binary asset type for {kind}: {suffix or '(none)'}")
 
+        content_type = str(
+            raw_asset.get("content_type")
+            or raw_asset.get("mimetype")
+            or "application/octet-stream"
+        )
+        optimization: dict[str, Any] = {}
+        if kind == "textures":
+            content, relative_path, content_type, optimization = _optimize_texture_asset(
+                content=content,
+                relative_path=relative_path,
+                content_type=content_type,
+            )
+            _assert_safe_relative_file(relative_path)
+
         actual_sha256 = hashlib.sha256(content).hexdigest()
+        if kind == "textures" and actual_sha256 in seen_texture_hashes:
+            continue
+        if relative_path in seen_paths and kind == "textures":
+            path = Path(relative_path)
+            relative_path = str(
+                path.with_name(f"{path.stem}-{actual_sha256[:8]}{path.suffix}")
+            ).replace("\\", "/")
+        if relative_path in seen_paths:
+            raise ValueError(f"Duplicate binary asset path: {relative_path}")
         normalized.append(
             {
                 "field": str(raw_asset.get("field") or ""),
                 "filename": Path(relative_path).name,
                 "kind": kind,
                 "purpose": str(raw_asset.get("purpose") or kind),
-                "content_type": str(raw_asset.get("content_type") or raw_asset.get("mimetype") or "application/octet-stream"),
+                "content_type": content_type,
                 "relative_path": relative_path,
                 "path": relative_path,
                 "size_bytes": len(content),
                 "sha256": actual_sha256,
                 "embedded": True,
+                "optimization": optimization,
+                "runtime": optimization.get("runtime", {}) if optimization else {},
                 "content": content,
             }
         )
         seen_paths.add(relative_path)
+        if kind == "textures":
+            seen_texture_hashes.add(actual_sha256)
     return normalized
 
 
@@ -5045,6 +5220,8 @@ def _asset_metadata(asset: Mapping[str, Any]) -> dict[str, Any]:
         "size_bytes": int(asset.get("size_bytes") or 0),
         "sha256": str(asset.get("sha256") or ""),
         "embedded": True,
+        "optimization": _json_safe(asset.get("optimization") or {}),
+        "runtime": _json_safe(asset.get("runtime") or {}),
     }
 
 
@@ -5073,6 +5250,33 @@ def _attach_assets_to_documents(
             asset for asset in asset_entries if asset["kind"] in {"geometry_model", "textures"}
         ]
         result["render/render_variants.json"] = render_payload
+
+    primary_texture = next(
+        (asset for asset in asset_entries if asset["kind"] == "textures"),
+        None,
+    )
+    materials = result.get("render/materials.json")
+    if primary_texture and isinstance(materials, Mapping):
+        materials_payload = dict(materials)
+        material_items = [
+            dict(item) for item in materials_payload.get("materials", [])
+            if isinstance(item, Mapping)
+        ]
+        if material_items:
+            runtime = (
+                dict(primary_texture.get("runtime") or {})
+                if isinstance(primary_texture.get("runtime"), Mapping)
+                else _texture_runtime_metadata()
+            )
+            material_items[0]["albedo_texture"] = {
+                "asset_path": primary_texture["relative_path"],
+                "sha256": primary_texture["sha256"],
+                **runtime,
+            }
+            material_items[0].setdefault("roughness", 0.88)
+            material_items[0].setdefault("metalness", 0.02)
+            materials_payload["materials"] = material_items
+            result["render/materials.json"] = materials_payload
     return result
 
 

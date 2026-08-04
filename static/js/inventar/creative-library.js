@@ -3,8 +3,12 @@
   "use strict";
 
   var MODULE_NAME = "VectoplanCreativeLibrary";
-  var MODULE_VERSION = "1.0.0";
+  var MODULE_VERSION = "1.2.0";
   var DRAG_MIME = "application/x-vectoplan-vplib-item+json";
+  var POINTER_DRAG_START = "vectoplan:creative-pointer-drag-start";
+  var POINTER_DRAG_MOVE = "vectoplan:creative-pointer-drag-move";
+  var POINTER_DRAG_END = "vectoplan:creative-pointer-drag-end";
+  var POINTER_DRAG_THRESHOLD = 6;
   var REQUEST_TIMEOUT_MS = 12000;
   var SELECTORS = {
     grid: "[data-creative-library-grid]",
@@ -121,6 +125,74 @@
       })
     });
   }
+  function normalizeAssets(raw, payload) {
+    var candidates = [raw.assets, payload.assets, record(raw.revision).assets];
+    var values = [];
+    candidates.some(function (candidate) {
+      if (!Array.isArray(candidate)) return false;
+      values = candidate.map(record).filter(function (asset) {
+        return booleanValue(asset.active, true) && booleanValue(asset.visible, true) && booleanValue(asset.exists, true);
+      });
+      return values.length > 0;
+    });
+    return values;
+  }
+
+  function normalizeAppearance(raw, payload, metadata, activeVariant, assets) {
+    var definitionValues = activeVariant ? record(activeVariant.definition_values) : {};
+    var textureAsset = assets.filter(function (asset) {
+      var assetPayload = record(asset.payload);
+      var role = first(asset.role, asset.purpose, asset.asset_kind, asset.kind, assetPayload.role, assetPayload.purpose).toLowerCase();
+      var mimeType = first(asset.mime_type, asset.content_type, assetPayload.mime_type, assetPayload.content_type).toLowerCase();
+      return ["albedo", "texture", "textures", "preview"].indexOf(role) >= 0 || mimeType.indexOf("image/") === 0;
+    })[0] || {};
+    var texturePayload = record(textureAsset.payload);
+    var runtime = Object.assign({}, record(texturePayload.runtime), record(textureAsset.runtime));
+    var textureUrl = safePreviewUrl(first(
+      textureAsset.uri,
+      textureAsset.url,
+      texturePayload.uri,
+      texturePayload.url
+    ));
+    var materialType = first(
+      definitionValues["material.type"],
+      nestedValue(definitionValues, ["material", "type"]),
+      metadata.material_type,
+      metadata.materialType,
+      "generic"
+    ).toLowerCase();
+    var color = first(
+      definitionValues["material.color_hint"],
+      nestedValue(definitionValues, ["material", "color_hint"]),
+      record(raw.icon).color,
+      raw.color,
+      payload.color,
+      "#ffffff"
+    );
+    var metalness = Number(runtime.metalness);
+    var roughness = Number(runtime.roughness);
+    if (!Number.isFinite(metalness)) metalness = materialType.indexOf("steel") >= 0 ? 0.66 : 0.02;
+    if (!Number.isFinite(roughness)) {
+      roughness = materialType.indexOf("steel") >= 0 ? 0.52 : materialType.indexOf("wood") >= 0 || materialType.indexOf("timber") >= 0 ? 0.76 : 0.88;
+    }
+
+    return {
+      version: "vplib-appearance.v1",
+      textureUrl: textureUrl,
+      textureKey: first(textureAsset.sha256, textureAsset.checksum, textureAsset.asset_hash, texturePayload.sha256, textureUrl),
+      color: color,
+      materialType: materialType,
+      roughness: roughness,
+      metalness: metalness,
+      colorSpace: first(runtime.color_space, runtime.colorSpace, "srgb"),
+      wrapS: first(runtime.wrap_s, runtime.wrapS, "repeat"),
+      wrapT: first(runtime.wrap_t, runtime.wrapT, "repeat"),
+      generateMipmaps: booleanValue(runtime.generate_mipmaps, true),
+      anisotropy: Number(runtime.anisotropy || 4) || 4
+    };
+  }
+
+
 
   function normalizeItem(value) {
     var wrapper = record(value);
@@ -174,14 +246,16 @@
 
     var icon = record(raw.icon || payload.icon);
     var preview = record(raw.preview || payload.preview);
+    var assets = normalizeAssets(raw, payload);
+    var appearance = normalizeAppearance(raw, payload, metadata, activeVariant, assets);
     var description = first(raw.description, raw.text, payload.description);
     var domain = first(raw.domain, payload.domain, "all").toLowerCase();
     var category = first(raw.category, payload.category, "all").toLowerCase();
     var subcategory = first(raw.subcategory, payload.subcategory, "all").toLowerCase();
     var taxonomyPath = first(raw.taxonomy_path, raw.taxonomyPath, payload.taxonomy_path, [domain, category, subcategory].join("/"));
     var iconText = first(icon.text, icon.label, raw.icon_text, label).replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "VP";
-    var previewUrl = first(preview.url, preview.src, raw.preview_url, raw.banner_url);
-    var color = first(icon.color, raw.color, payload.color);
+    var previewUrl = safePreviewUrl(first(preview.url, preview.src, raw.preview_url, raw.banner_url, appearance.textureUrl));
+    var color = first(icon.color, appearance.color, raw.color, payload.color);
 
     return {
       id: itemDbId,
@@ -204,18 +278,30 @@
       source: first(raw.source, raw.source_scope, "creative-library"),
       scope: first(raw.scope, "editor"),
       mode: "creative",
-      icon: { text: iconText, color: color },
+      icon: { text: iconText, color: color, url: previewUrl },
       preview: previewUrl ? { url: previewUrl } : {},
+      assets: {
+        iconUrl: previewUrl,
+        previewUrl: previewUrl,
+        textureUrl: appearance.textureUrl,
+        textureKey: appearance.textureKey,
+        items: assets
+      },
+      appearance: appearance,
       placement: {
         kind: first(placement.kind, command.kind, "SetBlock"),
         runtimeBlockTypeId: runtimeBlockTypeId,
         blockTypeId: runtimeBlockTypeId,
-        placeable: true
+        placeable: true,
+        appearance: appearance
       },
       revision_hash: first(raw.revision_hash, raw.current_revision_hash),
       variants: variants,
       selected_variant: activeVariant,
-      metadata: variantMetadata(metadata, activeVariant, variants)
+      metadata: Object.assign(
+        variantMetadata(metadata, activeVariant, variants),
+        { appearance: appearance }
+      )
     };
   }
 
@@ -306,6 +392,8 @@
       mode: item.mode,
       icon: item.icon,
       preview: item.preview,
+      assets: item.assets,
+      appearance: item.appearance,
       placement: item.placement,
       variant: item.selected_variant,
       variants: item.variants,
@@ -313,15 +401,19 @@
     };
   }
 
-  function postDragMessage(type, item) {
+  function postDragMessage(type, item, extraDetail) {
     if (!window.parent || window.parent === window) return;
     var targetOrigin = "*";
     try { if (document.referrer) targetOrigin = new URL(document.referrer).origin; } catch (error) { targetOrigin = "*"; }
+    var detail = item ? { item: itemPayload(item) } : {};
+    if (extraDetail && typeof extraDetail === "object") {
+      Object.keys(extraDetail).forEach(function (key) { detail[key] = extraDetail[key]; });
+    }
     window.parent.postMessage({
       type: type,
       source: "vectoplan-library-creative-inventory",
       version: MODULE_VERSION,
-      detail: item ? { item: itemPayload(item) } : {}
+      detail: detail
     }, targetOrigin);
   }
 
@@ -332,7 +424,7 @@
     card.setAttribute("tabindex", "0");
     card.setAttribute("draggable", "true");
     card.setAttribute("aria-label", item.label + ", in einen Inventar-Slot ziehen");
-    card.setAttribute("title", item.label + " in einen Slot ziehen");
+    card.dataset.tooltip = item.label;
     card.dataset.creativeItemCard = "true";
     card.dataset.creativeCard = "true";
     card.dataset.itemId = item.id;
@@ -372,6 +464,7 @@
       image.alt = "";
       image.loading = "lazy";
       image.decoding = "async";
+      image.draggable = false;
       preview.appendChild(image);
     }
     var icon = document.createElement("span");
@@ -381,57 +474,25 @@
     if (/^#[0-9a-f]{3,8}$/i.test(item.icon.color)) icon.style.backgroundColor = item.icon.color;
     preview.appendChild(icon);
 
-    var content = document.createElement("div");
-    content.className = "vp-creative-card__content";
-    var title = document.createElement("h2");
-    title.className = "vp-creative-card__title";
-    title.textContent = item.label;
-    content.appendChild(title);
-    if (item.description) {
-      var description = document.createElement("p");
-      description.className = "vp-creative-card__text";
-      description.textContent = item.description;
-      content.appendChild(description);
-    }
-    if (item.variants.length > 1) {
-      var variantControl = document.createElement("label");
-      variantControl.className = "vp-creative-card__variant-control";
-      var variantLabel = document.createElement("span");
-      variantLabel.className = "vp-creative-card__variant-label";
-      variantLabel.textContent = "Dicke";
-      var variantSelect = document.createElement("select");
-      variantSelect.className = "vp-creative-card__variant-select";
-      variantSelect.setAttribute("aria-label", "Dicke f?r " + item.label + " w?hlen");
-      variantSelect.draggable = false;
-      item.variants.forEach(function (variant) {
-        var option = document.createElement("option");
-        option.value = variant.variant_id;
-        option.textContent = variant.label;
-        option.selected = variant.variant_id === item.variant_id;
-        variantSelect.appendChild(option);
-      });
-      variantSelect.addEventListener("change", function () {
-        var activeVariant = selectedVariant(item.variants, variantSelect.value);
-        if (!activeVariant) return;
-        item.variant_id = activeVariant.variant_id;
-        item.selected_variant = activeVariant;
-        item.metadata = variantMetadata(item.metadata, activeVariant, item.variants);
-        card.dataset.variantId = activeVariant.variant_id;
-        card.dataset.definitionValues = JSON.stringify(activeVariant.definition_values);
-      });
-      ["pointerdown", "mousedown", "click", "dragstart"].forEach(function (eventName) {
-        variantSelect.addEventListener(eventName, function (event) { event.stopPropagation(); });
-      });
-      variantControl.appendChild(variantLabel);
-      variantControl.appendChild(variantSelect);
-      content.appendChild(variantControl);
-    }
-    var hint = document.createElement("span");
-    hint.className = "vp-creative-card__drag-hint";
-    hint.textContent = "Ziehen und auf Slot 1–9 ablegen";
-    content.appendChild(hint);
+    var tooltip = document.createElement("div");
+    tooltip.className = "vp-creative-card__tooltip";
+    tooltip.setAttribute("role", "tooltip");
+    var tooltipTitle = document.createElement("strong");
+    tooltipTitle.className = "vp-creative-card__tooltip-title";
+    tooltipTitle.textContent = item.label;
+    tooltip.appendChild(tooltipTitle);
+
+    var variantDetail = item.selected_variant ? item.selected_variant.label : "";
+    var tooltipDetail = document.createElement("span");
+    tooltipDetail.className = "vp-creative-card__tooltip-detail";
+    tooltipDetail.textContent = item.variants.length > 1
+      ? (variantDetail ? "Standard: " + variantDetail + " · " : "") + item.variants.length + " Dicken hinterlegt"
+      : first(variantDetail, item.description, item.appearance.materialType);
+    tooltip.appendChild(tooltipDetail);
+
+    card.dataset.hasTexture = previewUrl ? "true" : "false";
     card.appendChild(preview);
-    card.appendChild(content);
+    card.appendChild(tooltip);
 
     card.addEventListener("dragstart", function (event) {
       var payload = itemPayload(item);
@@ -447,6 +508,73 @@
       card.classList.remove("vp-creative-card--dragging");
       postDragMessage("vectoplan:creative-drag-end", null);
     });
+
+    var pointerDrag = null;
+    var pointerMoveFrame = 0;
+
+    function pointerDetail(event) {
+      return {
+        pointer: {
+          pointerId: event.pointerId,
+          pointerType: event.pointerType || "mouse",
+          clientX: event.clientX,
+          clientY: event.clientY
+        }
+      };
+    }
+
+    function sendPointerMove() {
+      pointerMoveFrame = 0;
+      if (!pointerDrag || !pointerDrag.started || !pointerDrag.lastEvent) return;
+      postDragMessage(POINTER_DRAG_MOVE, item, pointerDetail(pointerDrag.lastEvent));
+    }
+
+    function finishPointerDrag(event, drop) {
+      if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
+      if (pointerMoveFrame) {
+        window.cancelAnimationFrame(pointerMoveFrame);
+        pointerMoveFrame = 0;
+      }
+      if (pointerDrag.started) {
+        postDragMessage(POINTER_DRAG_END, item, Object.assign(pointerDetail(event), { drop: drop !== false }));
+      }
+      try { if (card.hasPointerCapture(event.pointerId)) card.releasePointerCapture(event.pointerId); } catch (error) { /* best effort */ }
+      pointerDrag = null;
+      card.classList.remove("vp-creative-card--dragging", "vp-creative-card--pointer-dragging");
+    }
+
+    card.addEventListener("pointerdown", function (event) {
+      if (!event.isPrimary || event.button !== 0) return;
+      pointerDrag = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        started: false,
+        lastEvent: event
+      };
+      try { card.setPointerCapture(event.pointerId); } catch (error) { /* capture is optional */ }
+      event.preventDefault();
+    });
+
+    card.addEventListener("pointermove", function (event) {
+      if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
+      pointerDrag.lastEvent = event;
+      if (!pointerDrag.started) {
+        var distance = Math.hypot(event.clientX - pointerDrag.startX, event.clientY - pointerDrag.startY);
+        if (distance < POINTER_DRAG_THRESHOLD) return;
+        pointerDrag.started = true;
+        card.classList.add("vp-creative-card--dragging", "vp-creative-card--pointer-dragging");
+        postDragMessage(POINTER_DRAG_START, item, pointerDetail(event));
+      }
+      event.preventDefault();
+      if (!pointerMoveFrame) pointerMoveFrame = window.requestAnimationFrame(sendPointerMove);
+    });
+
+    card.addEventListener("pointerup", function (event) { finishPointerDrag(event, true); });
+    card.addEventListener("pointercancel", function (event) { finishPointerDrag(event, false); });
+    card.addEventListener("lostpointercapture", function (event) {
+      if (pointerDrag && event.pointerId === pointerDrag.pointerId) finishPointerDrag(event, false);
+    });
     return card;
   }
 
@@ -454,8 +582,12 @@
     try {
       var taxonomy = window.VectoplanTaxonomyNavigation;
       if (taxonomy) {
-        taxonomy.refreshElements();
-        taxonomy.applyCreativeCardFilter();
+        if (typeof taxonomy.refreshCatalog === "function") {
+          taxonomy.refreshCatalog();
+        } else {
+          taxonomy.refreshElements();
+          taxonomy.applyCreativeCardFilter();
+        }
       }
     } catch (error) { state.errors.push(String(error)); }
   }
@@ -534,13 +666,21 @@
     state.loading = true;
     setLoadingStatus("Veröffentlichte VPLIB-Objekte werden geladen …");
     updateEmptyState();
-    var urls = [clean(grid.dataset.creativeItemsUrl), clean(grid.dataset.publishedItemsUrl)].filter(Boolean);
-    return Promise.allSettled(urls.map(requestItems)).then(function (results) {
-      var rawItems = [];
-      results.forEach(function (result) {
-        if (result.status === "fulfilled") rawItems = rawItems.concat(result.value);
-        else state.errors.push(String(result.reason));
+    var primaryUrl = clean(grid.dataset.creativeItemsUrl);
+    var fallbackUrl = clean(grid.dataset.publishedItemsUrl);
+
+    function safeRequest(url) {
+      if (!url) return Promise.resolve([]);
+      return requestItems(url).catch(function (error) {
+        state.errors.push(String(error));
+        return [];
       });
+    }
+
+    return safeRequest(primaryUrl).then(function (rawItems) {
+      if (rawItems.length || !fallbackUrl) return rawItems;
+      return safeRequest(fallbackUrl);
+    }).then(function (rawItems) {
       state.loading = false;
       var items = uniqueItems(rawItems);
       render(items);

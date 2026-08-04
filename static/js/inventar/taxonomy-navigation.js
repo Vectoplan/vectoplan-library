@@ -5,7 +5,7 @@
   var MODULE_NAME = "VectoplanTaxonomyNavigation";
   var MODULE_VERSION = "1.1.0";
 
-  var DEFAULT_TAXONOMY_URL = "/api/v1/vplib/taxonomy/create-options";
+  var DEFAULT_TAXONOMY_URL = "/api/v1/vplib/taxonomy/create-options?compact=true";
   var SESSION_CACHE_KEY = "vectoplan.inventory.taxonomy.createOptions.v1";
   var SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -2040,6 +2040,21 @@
     };
   }
 
+  function refreshCatalog() {
+    try {
+      refreshElements();
+      renderFilters();
+      renderSubfilters();
+      applyCreativeCardFilter();
+      return getPublicState();
+    } catch (err) {
+      state.error = err;
+      error("Could not refresh taxonomy catalog.", err);
+      return getPublicState();
+    }
+  }
+
+
   function forceReload() {
     clearCaches();
 
@@ -2081,7 +2096,8 @@
     selectSubcategory: selectSubcategory,
     applyCreativeCardFilter: applyCreativeCardFilter,
     setFilterCardsEnabled: setFilterCardsEnabled,
-    refreshElements: refreshElements
+    refreshElements: refreshElements,
+    refreshCatalog: refreshCatalog
   };
 
   if (document.readyState === "loading") {

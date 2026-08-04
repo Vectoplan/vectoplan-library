@@ -1,6 +1,44 @@
 {
   "schema_version": "0.1.0",
   "embedded": true,
-  "asset_count": 0,
-  "assets": []
+  "asset_count": 1,
+  "assets": [
+    {
+      "field": "texture_files",
+      "filename": "albedo.webp",
+      "kind": "textures",
+      "asset_kind": "texture",
+      "role": "albedo",
+      "purpose": "albedo",
+      "content_type": "image/webp",
+      "relative_path": "assets/textures/albedo.webp",
+      "path": "assets/textures/albedo.webp",
+      "uri": "/static/textures/materials/masonry.webp",
+      "size_bytes": 40334,
+      "sha256": "be03b7dd2568da521fcee582b49fe16fd35b3253f42655f818b39425e0b428ed",
+      "checksum": "be03b7dd2568da521fcee582b49fe16fd35b3253f42655f818b39425e0b428ed",
+      "embedded": true,
+      "exists": true,
+      "is_primary": true,
+      "optimization": {
+        "status": "optimized",
+        "strategy": "webp-bounded-v1",
+        "dimensions": {
+          "width": 512,
+          "height": 512
+        },
+        "quality": 80,
+        "metadata_stripped": true
+      },
+      "runtime": {
+        "color_space": "srgb",
+        "wrap_s": "repeat",
+        "wrap_t": "repeat",
+        "min_filter": "linear_mipmap_linear",
+        "mag_filter": "linear",
+        "generate_mipmaps": true,
+        "anisotropy": 4
+      }
+    }
+  ]
 }

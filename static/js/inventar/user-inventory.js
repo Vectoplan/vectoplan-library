@@ -3,7 +3,7 @@
   "use strict";
 
   var MODULE_NAME = "VectoplanUserInventory";
-  var MODULE_VERSION = "1.1.0";
+  var MODULE_VERSION = "1.2.0";
 
   var DEFAULT_USER_ID = 1;
   var DEFAULT_INVENTORY_KEY = "default";
@@ -20,6 +20,9 @@
   var STATUS_HIDE_DELAY_MS = 1200;
   var WHEEL_THROTTLE_MS = 120;
   var CREATIVE_DRAG_MIME = "application/x-vectoplan-vplib-item+json";
+  var CREATIVE_POINTER_DRAG_START = "vectoplan:creative-pointer-drag-start";
+  var CREATIVE_POINTER_DRAG_MOVE = "vectoplan:creative-pointer-drag-move";
+  var CREATIVE_POINTER_DRAG_END = "vectoplan:creative-pointer-drag-end";
 
   var SELECTORS = {
     root: "[data-user-inventory-root]",
@@ -674,6 +677,44 @@
 
         var message = event && event.data ? event.data : {};
         var detail = message.detail || {};
+
+        if (
+          message.source === "vectoplan-editor" &&
+          (
+            message.type === CREATIVE_POINTER_DRAG_START
+            || message.type === CREATIVE_POINTER_DRAG_MOVE
+            || message.type === CREATIVE_POINTER_DRAG_END
+          )
+        ) {
+          var pointerItem = normalizeItemPayload(detail.item || detail.payload);
+          var pointer = detail.pointer && typeof detail.pointer === "object" ? detail.pointer : {};
+          var pointerX = Number(pointer.clientX);
+          var pointerY = Number(pointer.clientY);
+          var pointerInside = pointer.inside !== false && Number.isFinite(pointerX) && Number.isFinite(pointerY);
+          var pointerTarget = pointerInside ? document.elementFromPoint(pointerX, pointerY) : null;
+          var pointerSlot = pointerTarget && pointerTarget.closest ? pointerTarget.closest(SELECTORS.slot) : null;
+
+          clearDropTargets();
+          if (message.type !== CREATIVE_POINTER_DRAG_END) {
+            state.activeDragItem = pointerItem;
+            if (pointerSlot && !isSlotLocked(pointerSlot)) {
+              pointerSlot.classList.add(CLASSES.dropTarget);
+              pointerSlot.setAttribute("data-drop-target", "true");
+            }
+            return;
+          }
+
+          state.activeDragItem = null;
+          if (detail.drop !== false && pointerItem && pointerSlot && !isSlotLocked(pointerSlot)) {
+            var pointerSlotIndex = normalizeSlotIndex(pointerSlot.getAttribute("data-slot-index"));
+            void setSlotItem(pointerSlotIndex, pointerItem, {
+              select: true,
+              persist: true,
+              source: "creative-pointer-drag-drop"
+            });
+          }
+          return;
+        }
 
         if (
           message.source === "vectoplan-editor" &&

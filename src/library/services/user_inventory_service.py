@@ -165,6 +165,39 @@ def _repository() -> Any:
     return module.get_user_inventory_repository()
 
 
+@lru_cache(maxsize=1)
+def _load_published_service_module() -> Any:
+    """Loads the published Creative Library service without eager DB access."""
+
+    errors: list[str] = []
+    for import_path in (
+        "library.services.creative_library_service",
+        "src.library.services.creative_library_service",
+        "vectoplan_library.library.services.creative_library_service",
+    ):
+        try:
+            return __import__(import_path, fromlist=["get_creative_library_service"])
+        except Exception as exc:
+            errors.append(f"{import_path}: {type(exc).__name__}: {exc}")
+
+    raise UserInventoryServiceError(
+        "Could not import published Creative Library service. "
+        f"Import attempts: {'; '.join(errors)}"
+    )
+
+
+def _published_service() -> Any:
+    module = _load_published_service_module()
+    factory = getattr(module, "get_creative_library_service", None)
+    if not callable(factory):
+        factory = getattr(module, "create_creative_library_service", None)
+    if not callable(factory):
+        raise UserInventoryServiceError(
+            "Published Creative Library service exposes no factory."
+        )
+    return factory()
+
+
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
@@ -610,6 +643,7 @@ def inventory_payload_from_snapshot(snapshot: Any) -> dict[str, Any]:
 
     raw_slots = raw.get("slots", [])
     slots = normalize_slots(raw_slots, active_slot_index=active_slot_index)
+    slots = enrich_slots_with_published_assets(slots)
 
     state = normalize_json_mapping(raw.get("state"))
 
@@ -626,6 +660,76 @@ def inventory_payload_from_snapshot(snapshot: Any) -> dict[str, Any]:
         "state": state,
         "selected_slot": selected_slot_from_slots(slots, active_slot_index=active_slot_index),
     }
+
+
+def enrich_slots_with_published_assets(
+    slots: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Hydrates legacy slot snapshots from the current published item revision."""
+
+    service: Any | None = None
+    item_cache: dict[str, dict[str, Any] | None] = {}
+    result: list[dict[str, Any]] = []
+
+    for original in slots:
+        slot = normalize_json_mapping(original)
+        result.append(slot)
+        if normalize_bool(slot.get("empty"), default=True):
+            continue
+        if normalize_json_list(slot.get("assets")):
+            continue
+
+        item_ref = slot.get("item_db_id") or slot.get("vplib_uid")
+        if item_ref in (None, ""):
+            continue
+        cache_key = str(item_ref)
+
+        if cache_key not in item_cache:
+            try:
+                service = service or _published_service()
+                response = service.get_item(
+                    item_ref,
+                    include_current_revision=False,
+                    include_revisions=False,
+                    include_variants=False,
+                    include_assets=True,
+                    include_documents=False,
+                )
+                response_payload = normalize_json_mapping(response.get("payload"))
+                published_item = normalize_json_mapping(response_payload.get("item"))
+                item_cache[cache_key] = published_item or None
+            except Exception:
+                item_cache[cache_key] = None
+
+        published_item = item_cache[cache_key]
+        if not published_item:
+            continue
+        published_assets = normalize_json_list(published_item.get("assets"))
+        if not published_assets:
+            continue
+
+        slot["assets"] = published_assets
+        slot["metadata"] = {
+            **normalize_json_mapping(published_item.get("metadata")),
+            **normalize_json_mapping(slot.get("metadata")),
+        }
+        payload = normalize_json_mapping(slot.get("payload"))
+        payload["assets"] = published_assets
+        slot["payload"] = payload
+
+        if not normalize_json_mapping(slot.get("preview")):
+            for asset in published_assets:
+                asset_payload = normalize_json_mapping(asset)
+                uri = asset_payload.get("uri") or asset_payload.get("url")
+                if uri and str(asset_payload.get("asset_kind") or "").lower() == "texture":
+                    slot["preview"] = {
+                        "url": uri,
+                        "kind": "texture",
+                        "role": asset_payload.get("role") or "albedo",
+                    }
+                    break
+
+    return result
 
 
 def normalize_slots(value: Any, *, active_slot_index: int) -> list[dict[str, Any]]:

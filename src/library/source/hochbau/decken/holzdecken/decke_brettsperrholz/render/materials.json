@@ -3,8 +3,22 @@
   "materials": [
     {
       "material_id": "default",
-      "type": "generic",
-      "color_hint": "#9CA3AF"
+      "type": "cross_laminated_timber",
+      "color_hint": "#C99550",
+      "roughness": 0.74,
+      "metalness": 0,
+      "albedo_texture": {
+        "asset_path": "assets/textures/albedo.webp",
+        "uri": "/static/textures/materials/timber.webp",
+        "sha256": "21564f989644c35b13ed7f67d352b1eed007947650d6756aa097c77a281446bf",
+        "color_space": "srgb",
+        "wrap_s": "repeat",
+        "wrap_t": "repeat",
+        "min_filter": "linear_mipmap_linear",
+        "mag_filter": "linear",
+        "generate_mipmaps": true,
+        "anisotropy": 4
+      }
     }
   ]
 }

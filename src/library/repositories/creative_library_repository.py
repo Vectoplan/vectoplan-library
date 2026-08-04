@@ -754,10 +754,10 @@ class CreativeLibraryRepository:
     def rollback(self) -> None:
         self.session.rollback()
 
-    def _finish_write(self, *, commit: bool) -> None:
+    def _finish_write(self, *, commit: bool, flush: bool = True) -> None:
         if commit:
             self.session.commit()
-        else:
+        elif flush:
             self.session.flush()
 
     # ------------------------------------------------------------------
@@ -800,6 +800,8 @@ class CreativeLibraryRepository:
         if not include_deleted and hasattr(model, "status"):
             query = query.filter(model.status != STATUS_DELETED)
 
+        query = self._without_default_eagerloads(query)
+
         if for_update:
             query = self._with_for_update(query)
 
@@ -818,6 +820,8 @@ class CreativeLibraryRepository:
 
         if not include_deleted and hasattr(model, "status"):
             query = query.filter(model.status != STATUS_DELETED)
+
+        query = self._without_default_eagerloads(query)
 
         if for_update:
             query = self._with_for_update(query)
@@ -838,6 +842,8 @@ class CreativeLibraryRepository:
         if not include_deleted and hasattr(model, "status"):
             query = query.filter(model.status != STATUS_DELETED)
 
+        query = self._without_default_eagerloads(query)
+
         if for_update:
             query = self._with_for_update(query)
 
@@ -856,6 +862,8 @@ class CreativeLibraryRepository:
 
         if not include_deleted and hasattr(model, "status"):
             query = query.filter(model.status != STATUS_DELETED)
+
+        query = self._without_default_eagerloads(query)
 
         if for_update:
             query = self._with_for_update(query)
@@ -1403,7 +1411,7 @@ class CreativeLibraryRepository:
 
         return values
 
-    def create_variant(self, payload: Mapping[str, Any], *, item_ref: Any = None, revision_ref: Any = None, commit: bool = False) -> Any:
+    def create_variant(self, payload: Mapping[str, Any], *, item_ref: Any = None, revision_ref: Any = None, commit: bool = False, flush: bool = True) -> Any:
         data = normalize_json_mapping(payload)
 
         try:
@@ -1419,7 +1427,7 @@ class CreativeLibraryRepository:
                 )
 
             self.session.add(variant)
-            self._finish_write(commit=commit)
+            self._finish_write(commit=commit, flush=flush)
             return variant
 
         except Exception:
@@ -1480,7 +1488,7 @@ class CreativeLibraryRepository:
     def list_documents(self, *, query: ChildQuery | Mapping[str, Any] | None = None, as_dict: bool = False) -> list[Any]:
         return self._list_children(self.models.CreativeLibraryDocument, query=query, as_dict=as_dict)
 
-    def create_asset(self, payload: Mapping[str, Any], *, item_ref: Any = None, revision_ref: Any = None, variant_ref: Any = None, commit: bool = False) -> Any:
+    def create_asset(self, payload: Mapping[str, Any], *, item_ref: Any = None, revision_ref: Any = None, variant_ref: Any = None, commit: bool = False, flush: bool = True) -> Any:
         return self._create_child(
             model_class=self.models.CreativeLibraryAsset,
             child_kind="asset",
@@ -1489,9 +1497,10 @@ class CreativeLibraryRepository:
             revision_ref=revision_ref,
             variant_ref=variant_ref,
             commit=commit,
+            flush=flush,
         )
 
-    def create_document(self, payload: Mapping[str, Any], *, item_ref: Any = None, revision_ref: Any = None, variant_ref: Any = None, commit: bool = False) -> Any:
+    def create_document(self, payload: Mapping[str, Any], *, item_ref: Any = None, revision_ref: Any = None, variant_ref: Any = None, commit: bool = False, flush: bool = True) -> Any:
         return self._create_child(
             model_class=self.models.CreativeLibraryDocument,
             child_kind="document",
@@ -1500,6 +1509,7 @@ class CreativeLibraryRepository:
             revision_ref=revision_ref,
             variant_ref=variant_ref,
             commit=commit,
+            flush=flush,
         )
 
     def update_asset(self, asset_ref: Any, payload: Mapping[str, Any], *, commit: bool = False) -> Any:
@@ -2120,6 +2130,7 @@ class CreativeLibraryRepository:
         revision_ref: Any = None,
         variant_ref: Any = None,
         commit: bool = False,
+        flush: bool = True,
     ) -> Any:
         data = normalize_json_mapping(payload)
 
@@ -2135,7 +2146,7 @@ class CreativeLibraryRepository:
                 child = new_model_with_attrs(model_class, attrs)
 
             self.session.add(child)
-            self._finish_write(commit=commit)
+            self._finish_write(commit=commit, flush=flush)
             return child
 
         except Exception:

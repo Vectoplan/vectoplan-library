@@ -80,7 +80,7 @@ from types import ModuleType
 from typing import Any, Final, Mapping
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 
 # -----------------------------------------------------------------------------
@@ -788,6 +788,24 @@ def _configure_app_defaults(app: Flask) -> None:
     except Exception:
         pass
 
+def _configure_texture_delivery(app: Flask) -> None:
+    """Enable safe cross-origin GPU use and immutable caching for textures."""
+
+    @app.after_request
+    def _add_texture_delivery_headers(response: Any) -> Any:
+        try:
+            if request.path.startswith("/static/textures/"):
+                if request.path.lower().endswith(".webp"):
+                    response.headers["Content-Type"] = "image/webp"
+                response.headers.setdefault("Access-Control-Allow-Origin", "*")
+                response.headers.setdefault("Cross-Origin-Resource-Policy", "cross-origin")
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+                response.headers.setdefault("Vary", "Accept-Encoding")
+        except Exception:
+            pass
+        return response
+
+
 
 def _configure_logger(app: Flask) -> None:
     """Stellt sicher, dass die App einen brauchbaren Logger-Zustand hat."""
@@ -1157,7 +1175,6 @@ def _register_builtin_health_routes(app: Flask) -> None:
                         "models_ready": models_ready,
                         "metadata_ready": metadata_ready,
                     },
-                    "metadata": metadata,
                 }
             ), 200 if ready else 503
 
@@ -1787,6 +1804,7 @@ def create_app(config_object: Any = None) -> Flask:
     _apply_config(app, config_class)
     _configure_app_defaults(app)
     _configure_logger(app)
+    _configure_texture_delivery(app)
     _register_builtin_health_routes(app)
 
     _validate_config(config_class, app.logger)

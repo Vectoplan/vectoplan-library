@@ -2382,6 +2382,81 @@ class LibraryGeneratorWorkflowService:
         started = time.monotonic()
 
         try:
+            create_resolution = self.context_service.resolve_dependency("create")
+            bundle_call = self._call_dependency(
+                create_resolution,
+                method_names=[
+                    "build_publish_bundle_from_create_payload",
+                    "build_publish_bundle",
+                    "prepare_publish_bundle",
+                ],
+                kwargs={"payload": request.payload},
+                positional_variants=[(request.payload,)],
+            )
+
+            if not bundle_call.ok:
+                fallback = {
+                    "ok": False,
+                    "status": GeneratorWorkflowStatus.UNAVAILABLE.value,
+                    "error": bundle_call.error,
+                    "message": "Publish bundle for post-save sync is unavailable.",
+                }
+                step.add_warning(
+                    "sync_bundle_unavailable",
+                    "Publish bundle for post-save sync is unavailable.",
+                    error=bundle_call.error,
+                )
+                step.payload = fallback
+                step.status = (
+                    GeneratorWorkflowStatus.PARTIAL
+                    if request.action == WORKFLOW_ACTION_SAVE
+                    else GeneratorWorkflowStatus.UNAVAILABLE
+                )
+                return fallback
+
+            bundle_response = _unwrap_response(bundle_call.payload)
+            bundle_data = safe_mapping(bundle_response.get("data"))
+            sync_candidate = safe_mapping(
+                bundle_data.get("publish")
+                or bundle_data.get("publish_payload")
+                or bundle_response.get("publish")
+                or bundle_response.get("publish_payload")
+            )
+            if not sync_candidate:
+                fallback = {
+                    "ok": False,
+                    "status": GeneratorWorkflowStatus.PARTIAL.value,
+                    "message": "Publish bundle contains no sync candidate.",
+                }
+                step.add_warning(
+                    "sync_candidate_missing",
+                    "Publish bundle contains no sync candidate.",
+                )
+                step.payload = fallback
+                step.status = GeneratorWorkflowStatus.PARTIAL
+                return fallback
+
+            save_data = safe_mapping(result.save_payload.get("data"))
+            revision_hash = safe_str(
+                sync_candidate.get("revision_hash") or save_data.get("revision_hash"),
+                default="",
+            )
+            if not revision_hash:
+                fallback = {
+                    "ok": False,
+                    "status": GeneratorWorkflowStatus.PARTIAL.value,
+                    "message": "Saved package contains no revision hash.",
+                }
+                step.add_warning(
+                    "sync_revision_hash_missing",
+                    "Saved package contains no revision hash.",
+                )
+                step.payload = fallback
+                step.status = GeneratorWorkflowStatus.PARTIAL
+                return fallback
+            sync_candidate["revision_hash"] = revision_hash
+
+
             published_resolution = self.context_service.resolve_dependency("published")
             payload = self._call_dependency(
                 published_resolution,
@@ -2390,10 +2465,11 @@ class LibraryGeneratorWorkflowService:
                     "publish_bundle",
                     "sync",
                     "sync_library_to_db",
-                    "sync_library_source",
                 ],
                 kwargs={
-                    "payload": request.payload,
+                    "package_payload": sync_candidate,
+                    "publish_payload": sync_candidate,
+                    "payload": sync_candidate,
                     "generator_context": context,
                     "user_id": request.user_id,
                     "owner_scope": request.owner_scope,
@@ -2401,8 +2477,8 @@ class LibraryGeneratorWorkflowService:
                     "force_refresh": request.force_refresh,
                 },
                 positional_variants=[
-                    (request.payload,),
-                    (request.payload, request.user_id),
+                    (sync_candidate,),
+                    (sync_candidate, request.user_id),
                 ],
             )
 
