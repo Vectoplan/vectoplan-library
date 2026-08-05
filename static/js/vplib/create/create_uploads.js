@@ -996,7 +996,9 @@
       if (empty) {
         if (files.length) {
           empty.textContent = payload.backendEnabled
-            ? "Dateien ausgewählt. Sie werden beim Speichern oder Download direkt in das VPLIB eingebettet."
+            ? (payload.kind === "textures"
+              ? "Texturen ausgewählt. Rasterbilder werden beim Speichern automatisch verkleinert, als WebP komprimiert und anhand ihres Inhalts dedupliziert."
+              : "Dateien ausgewählt. Sie werden beim Speichern oder Download direkt in das VPLIB eingebettet.")
             : "Für diesen Upload ist keine Backend-Speicherung aktiviert.";
         } else if (payload.kind === "geometry_model") {
           empty.textContent = "Noch kein 3D-Modell ausgewählt.";

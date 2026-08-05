@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1.0",
+  "variant_id": "dicke_160_mm",
+  "variant_key": "dicke_160_mm",
+  "label": "16 cm",
+  "description": "Holzwand mit 160 mm realer Dicke.",
+  "kind": "other",
+  "is_default": false,
+  "active": true,
+  "visible": true,
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "definition_values": {
+    "dimensions.depth_mm": 160,
+    "dimensions.height_mm": 1000,
+    "dimensions.thickness_mm": 160,
+    "dimensions.width_mm": 1000,
+    "material.color_hint": "#CA8A04",
+    "material.subtype": "timber_wall",
+    "material.type": "wood",
+    "variant.description": "Holzwand mit 160 mm realer Dicke.",
+    "variant.label": "16 cm",
+    "variant.variant_id": "dicke_160_mm"
+  },
+  "additional_field_keys": [],
+  "overrides": {
+    "dimensions.depth_mm": 160,
+    "dimensions.height_mm": 1000,
+    "dimensions.thickness_mm": 160,
+    "dimensions.width_mm": 1000,
+    "material.color_hint": "#CA8A04",
+    "material.subtype": "timber_wall",
+    "material.type": "wood",
+    "variant.description": "Holzwand mit 160 mm realer Dicke.",
+    "variant.label": "16 cm",
+    "variant.variant_id": "dicke_160_mm"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1.0",
+  "variant_id": "dicke_180_mm",
+  "variant_key": "dicke_180_mm",
+  "label": "18 cm",
+  "description": "Stahlverbunddecke mit 180 mm realer Dicke.",
+  "kind": "other",
+  "is_default": false,
+  "active": true,
+  "visible": true,
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "definition_values": {
+    "dimensions.depth_mm": 1000,
+    "dimensions.height_mm": 180,
+    "dimensions.thickness_mm": 180,
+    "dimensions.width_mm": 1000,
+    "material.color_hint": "#475569",
+    "material.subtype": "steel_composite_slab",
+    "material.type": "steel_composite",
+    "variant.description": "Stahlverbunddecke mit 180 mm realer Dicke.",
+    "variant.label": "18 cm",
+    "variant.variant_id": "dicke_180_mm"
+  },
+  "additional_field_keys": [],
+  "overrides": {
+    "dimensions.depth_mm": 1000,
+    "dimensions.height_mm": 180,
+    "dimensions.thickness_mm": 180,
+    "dimensions.width_mm": 1000,
+    "material.color_hint": "#475569",
+    "material.subtype": "steel_composite_slab",
+    "material.type": "steel_composite",
+    "variant.description": "Stahlverbunddecke mit 180 mm realer Dicke.",
+    "variant.label": "18 cm",
+    "variant.variant_id": "dicke_180_mm"
+  }
+}

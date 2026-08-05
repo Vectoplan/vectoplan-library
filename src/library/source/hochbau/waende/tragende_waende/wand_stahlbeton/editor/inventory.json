@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "3dc6707f-e0aa-5239-b25f-8bd553caadb9",
+  "family_id": "vp.hochbau.waende.tragende_waende.wand_stahlbeton",
+  "default_variant_id": "default",
+  "label": "Wand Stahlbeton",
+  "description": "Stahlbetonwand als ein Blocktyp mit auswählbaren realen Dicken.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "waende",
+  "subcategory": "tragende_waende",
+  "classification_path": "hochbau/waende/tragende_waende",
+  "source_path": "hochbau/waende/tragende_waende/wand_stahlbeton",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Wände",
+    "subcategory": "Tragende Wände"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

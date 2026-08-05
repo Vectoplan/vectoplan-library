@@ -1,0 +1,75 @@
+{
+  "schema_version": "0.1.0",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "default_variant_id": "default",
+  "variant_count": 6,
+  "variants": [
+    {
+      "variant_id": "default",
+      "variant_key": "default",
+      "label": "18 cm",
+      "description": "Holzdecke mit 180 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": true,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_200_mm",
+      "variant_key": "dicke_200_mm",
+      "label": "20 cm",
+      "description": "Holzdecke mit 200 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_220_mm",
+      "variant_key": "dicke_220_mm",
+      "label": "22 cm",
+      "description": "Holzdecke mit 220 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_240_mm",
+      "variant_key": "dicke_240_mm",
+      "label": "24 cm",
+      "description": "Holzdecke mit 240 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_280_mm",
+      "variant_key": "dicke_280_mm",
+      "label": "28 cm",
+      "description": "Holzdecke mit 280 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_300_mm",
+      "variant_key": "dicke_300_mm",
+      "label": "30 cm",
+      "description": "Holzdecke mit 300 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    }
+  ]
+}

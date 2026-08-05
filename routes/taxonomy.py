@@ -320,7 +320,10 @@ def taxonomy_create_options() -> Response:
             )
         )
 
-    return _to_flask_response(_legacy_service().create_options(request.args))
+    result = _legacy_service().create_options(request.args)
+    if _bool_arg("compact", default=False):
+        return _to_compact_create_options_response(result)
+    return _to_flask_response(result)
 
 
 @taxonomy_bp.get("/tree")
@@ -1099,6 +1102,37 @@ def _should_use_user_taxonomy(args: Mapping[str, Any]) -> bool:
 # ---------------------------------------------------------------------------
 # Response helpers
 # ---------------------------------------------------------------------------
+
+def _to_compact_create_options_response(result: Any) -> Response:
+    """Returns only the navigation taxonomy fields needed by the inventory UI."""
+    if hasattr(result, "to_tuple") and callable(result.to_tuple):
+        payload, status_code, headers = result.to_tuple()
+    elif isinstance(result, Mapping):
+        payload, status_code, headers = result, _status_code_from_payload(result), {}
+    else:
+        return _to_flask_response(result)
+
+    envelope = dict(payload)
+    data = envelope.get("data")
+    if isinstance(data, Mapping):
+        compact_keys = (
+            "domains",
+            "categories_by_domain",
+            "subcategories_by_category",
+            "required_fields",
+            "taxonomy_version",
+            "taxonomy_schema_version",
+        )
+        envelope["data"] = {key: data[key] for key in compact_keys if key in data}
+        envelope["compact"] = True
+
+    response = jsonify(envelope)
+    response.status_code = status_code
+    for key, value in dict(headers).items():
+        if key.lower() != "content-type":
+            response.headers[key] = value
+    return response
+
 
 def _to_flask_response(result: Any) -> Response:
     """

@@ -1,0 +1,75 @@
+{
+  "schema_version": "0.1.0",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "default_variant_id": "default",
+  "variant_count": 6,
+  "variants": [
+    {
+      "variant_id": "default",
+      "variant_key": "default",
+      "label": "7,5 cm",
+      "description": "Stahlwand mit 75 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": true,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_100_mm",
+      "variant_key": "dicke_100_mm",
+      "label": "10 cm",
+      "description": "Stahlwand mit 100 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_125_mm",
+      "variant_key": "dicke_125_mm",
+      "label": "12,5 cm",
+      "description": "Stahlwand mit 125 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_150_mm",
+      "variant_key": "dicke_150_mm",
+      "label": "15 cm",
+      "description": "Stahlwand mit 150 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_175_mm",
+      "variant_key": "dicke_175_mm",
+      "label": "17,5 cm",
+      "description": "Stahlwand mit 175 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "dicke_200_mm",
+      "variant_key": "dicke_200_mm",
+      "label": "20 cm",
+      "description": "Stahlwand mit 200 mm realer Dicke.",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    }
+  ]
+}

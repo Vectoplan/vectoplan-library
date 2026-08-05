@@ -1,0 +1,93 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "7ddda675-7ac7-493e-a2ee-01556339eeb9",
+  "package_id": "vplib.vp.hochbau.waende.tragende_waende.wand_stahl",
+  "family_id": "vp.hochbau.waende.tragende_waende.wand_stahl",
+  "family_slug": "wand_stahl",
+  "family_name": "Wand Stahl",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "waende",
+  "subcategory": "tragende_waende",
+  "classification": {
+    "domain": "hochbau",
+    "category": "waende",
+    "subcategory": "tragende_waende",
+    "classification_path": "hochbau/waende/tragende_waende",
+    "labels": {
+      "domain": "Hochbau",
+      "category": "Wände",
+      "subcategory": "Tragende Wände"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "hochbau/waende/tragende_waende",
+  "source_path": "hochbau/waende/tragende_waende/wand_stahl",
+  "default_variant_id": "default",
+  "variant_count": 6,
+  "documents_required": false,
+  "external_assets_required": false,
+  "created_at": "2026-08-03T19:07:00Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.5.0",
+    "mode": "simple_create",
+    "starter_contract": true
+  },
+  "assets": [
+    {
+      "field": "texture_files",
+      "filename": "albedo.webp",
+      "kind": "textures",
+      "asset_kind": "texture",
+      "role": "albedo",
+      "purpose": "albedo",
+      "content_type": "image/webp",
+      "relative_path": "assets/textures/albedo.webp",
+      "path": "assets/textures/albedo.webp",
+      "uri": "/static/textures/materials/steel.webp",
+      "size_bytes": 24070,
+      "sha256": "5f0bfd0d318c19da61347544ba1dcf981d71f1e5cff32dd27627541fd7c28114",
+      "checksum": "5f0bfd0d318c19da61347544ba1dcf981d71f1e5cff32dd27627541fd7c28114",
+      "embedded": true,
+      "exists": true,
+      "is_primary": true,
+      "optimization": {
+        "status": "optimized",
+        "strategy": "webp-bounded-v1",
+        "dimensions": {
+          "width": 512,
+          "height": 512
+        },
+        "quality": 80,
+        "metadata_stripped": true
+      },
+      "runtime": {
+        "color_space": "srgb",
+        "wrap_s": "repeat",
+        "wrap_t": "repeat",
+        "min_filter": "linear_mipmap_linear",
+        "mag_filter": "linear",
+        "generate_mipmaps": true,
+        "anisotropy": 4
+      }
+    }
+  ],
+  "asset_count": 1
+}

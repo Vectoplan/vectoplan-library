@@ -81,9 +81,11 @@
       },
       "parent_material_id": "ceramic",
       "compatible_family_profiles": [
+        "simple_cell_block",
         "wall_masonry"
       ],
       "compatible_variant_profiles": [
+        "simple_cell_block.v1",
         "wall_masonry_product.v1"
       ],
       "default_values": {
@@ -231,6 +233,7 @@
       },
       "parent_material_id": "concrete",
       "compatible_family_profiles": [
+        "simple_cell_block",
         "wall_concrete",
         "slab_concrete",
         "foundation_module",
@@ -241,6 +244,7 @@
         "shaft_module"
       ],
       "compatible_variant_profiles": [
+        "simple_cell_block.v1",
         "concrete_structural_part.v1",
         "adaptive_system.v1"
       ],
@@ -331,12 +335,14 @@
       },
       "parent_material_id": "metal",
       "compatible_family_profiles": [
+        "simple_cell_block",
         "generic_catalog_object",
         "equipment_catalog_object",
         "railing_system",
         "adaptive_bridge_component"
       ],
       "compatible_variant_profiles": [
+        "simple_cell_block.v1",
         "catalog_object.v1",
         "adaptive_system.v1"
       ],
@@ -522,10 +528,12 @@
       },
       "parent_material_id": null,
       "compatible_family_profiles": [
+        "simple_cell_block",
         "furniture_catalog_object",
         "generic_catalog_object"
       ],
       "compatible_variant_profiles": [
+        "simple_cell_block.v1",
         "catalog_object.v1"
       ],
       "default_values": {

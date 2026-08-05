@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "decken",
+  "subcategory": "stahlverbunddecken",
+  "classification_path": "hochbau/decken/stahlverbunddecken",
+  "source_path": "hochbau/decken/stahlverbunddecken/decke_stahlverbund",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Decken",
+    "subcategory": "Stahlverbunddecken"
+  },
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  }
+}

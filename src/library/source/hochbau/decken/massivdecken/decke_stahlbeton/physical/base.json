@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "cafedb8f-da7a-4ab5-af01-01f488ebee0a",
+  "family_id": "vp.hochbau.decken.massivdecken.decke_stahlbeton",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": []
+}

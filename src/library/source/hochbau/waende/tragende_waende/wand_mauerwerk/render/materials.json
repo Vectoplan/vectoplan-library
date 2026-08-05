@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1.0",
+  "materials": [
+    {
+      "material_id": "default",
+      "type": "masonry",
+      "color_hint": "#B85E3D",
+      "roughness": 0.9,
+      "metalness": 0,
+      "albedo_texture": {
+        "asset_path": "assets/textures/albedo.webp",
+        "uri": "/static/textures/materials/masonry.webp",
+        "sha256": "be03b7dd2568da521fcee582b49fe16fd35b3253f42655f818b39425e0b428ed",
+        "color_space": "srgb",
+        "wrap_s": "repeat",
+        "wrap_t": "repeat",
+        "min_filter": "linear_mipmap_linear",
+        "mag_filter": "linear",
+        "generate_mipmaps": true,
+        "anisotropy": 4
+      }
+    }
+  ]
+}

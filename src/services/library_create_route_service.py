@@ -816,6 +816,7 @@ def get_options_response(*, user_id: Any = 1) -> RouteResponse:
                 )
                 response = _enrich_options_response_with_taxonomy(response)
                 response = _enrich_options_response_with_definitions(response, user_id=user_id)
+                response = _enrich_options_response_with_create_runtime(response)
                 return _attach_vplib_uid_to_response(response, payload=result_payload)
 
             service = _generator_context_service()
@@ -839,6 +840,7 @@ def get_options_response(*, user_id: Any = 1) -> RouteResponse:
                 )
                 response = _enrich_options_response_with_taxonomy(response)
                 response = _enrich_options_response_with_definitions(response, user_id=user_id)
+                response = _enrich_options_response_with_create_runtime(response)
                 return _attach_vplib_uid_to_response(response, payload=result_payload)
 
         except Exception as exc:
@@ -4398,6 +4400,42 @@ def _first_mapping(*values: Any) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Options enrichment
 # ---------------------------------------------------------------------------
+
+def _enrich_options_response_with_create_runtime(response: RouteResponse) -> RouteResponse:
+    """Attach write-mode flags owned by the legacy create service."""
+    data = dict(response.data)
+    create_health = _safe_create_service_health()
+    health_payload = _first_mapping(create_health.get("payload"))
+    runtime_data = _first_mapping(
+        health_payload.get("data"),
+        health_payload.get("payload"),
+        health_payload,
+    )
+
+    for key in ("write_enabled", "overwrite_enabled", "source_root"):
+        if key not in data and key in runtime_data:
+            data[key] = runtime_data[key]
+
+    capabilities = data.get("capabilities")
+    if isinstance(capabilities, Mapping) and "write_enabled" in data:
+        capabilities = dict(capabilities)
+        capabilities["save_to_source_root"] = _safe_bool(
+            data.get("write_enabled"),
+            default=False,
+        )
+        data["capabilities"] = capabilities
+
+    return RouteResponse(
+        ok=response.ok,
+        status=response.status,
+        route=response.route,
+        data=data,
+        errors=list(response.errors),
+        warnings=list(response.warnings),
+        info=list(response.info),
+        http_status=response.http_status,
+    )
+
 
 def _enrich_options_response_with_taxonomy(response: RouteResponse) -> RouteResponse:
     """Merge canonical backend taxonomy into create/options response."""

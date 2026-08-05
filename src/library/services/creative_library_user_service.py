@@ -170,6 +170,25 @@ def _repo_module() -> ModuleType:
     return _load_repository_module()
 
 
+@lru_cache(maxsize=1)
+def _load_published_service_module() -> ModuleType:
+    """Loads the shared published Creative Library service defensively."""
+    errors: list[str] = []
+    for module_name in (
+        "library.services.creative_library_service",
+        "src.library.services.creative_library_service",
+        "vectoplan_library.library.services.creative_library_service",
+        "vectoplan_library.src.library.services.creative_library_service",
+    ):
+        try:
+            return importlib.import_module(module_name)
+        except Exception as exc:
+            errors.append(f"{module_name}: {type(exc).__name__}: {exc}")
+
+    raise CreativeLibraryUserServiceImportError(
+        "Could not import creative_library_service. " + " | ".join(errors)
+    )
+
 # ---------------------------------------------------------------------------
 # Generic helpers
 # ---------------------------------------------------------------------------
@@ -443,6 +462,120 @@ def _dedupe_items(items: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
 
     return result
 
+def _item_merge_key(item: Mapping[str, Any]) -> str:
+    """Returns the stable family key used to overlay user item settings."""
+    data = normalize_json_mapping(item)
+    return clean_string(
+        first_non_empty(
+            data.get("vplib_uid"),
+            data.get("family_id"),
+            data.get("package_id"),
+            data.get("item_db_id"),
+            data.get("id"),
+        )
+    )
+
+
+def _merge_published_and_user_items(
+    published_items: Iterable[Mapping[str, Any]],
+    user_items: Iterable[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Overlays user collection fields while retaining published variants."""
+    merged: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+
+    for source in published_items or ():
+        payload = normalize_json_mapping(source)
+        key = _item_merge_key(payload)
+        if not key:
+            continue
+        if key not in merged:
+            order.append(key)
+        merged[key] = payload
+
+    for source in user_items or ():
+        overlay = normalize_json_mapping(source)
+        key = _item_merge_key(overlay)
+        if not key:
+            continue
+        if key not in merged:
+            order.append(key)
+            merged[key] = overlay
+            continue
+
+        base = merged[key]
+        variants = normalize_json_list(base.get("variants"))
+        assets = normalize_json_list(base.get("assets"))
+        base.update(overlay)
+        if variants and not normalize_json_list(overlay.get("variants")):
+            base["variants"] = variants
+        if assets and not normalize_json_list(overlay.get("assets")):
+            base["assets"] = assets
+
+    return [merged[key] for key in order]
+
+
+
+
+def compact_creative_library_item(item: Mapping[str, Any]) -> dict[str, Any]:
+    """Returns the card/drag contract without heavyweight revision internals."""
+    data = normalize_json_mapping(item)
+
+    def select(source: Mapping[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
+        normalized = normalize_json_mapping(source)
+        return {key: normalized[key] for key in keys if key in normalized}
+
+    item_keys = (
+        "id", "item_db_id", "family_db_id", "vplib_uid", "family_id", "package_id",
+        "variant_id", "default_variant_id", "runtimeBlockTypeId", "runtime_block_type_id",
+        "blockTypeId", "block_type_id", "label", "name", "title", "description",
+        "object_kind", "objectKind", "domain", "category", "subcategory", "taxonomy_path",
+        "taxonomyPath", "publication_status", "status", "enabled", "active", "visible",
+        "is_deleted", "placeable", "source", "source_scope", "scope", "quantity", "color",
+        "icon", "preview", "placement", "placementCommand", "placement_command", "metadata",
+        "revision_hash", "current_revision_hash",
+    )
+    payload_keys = (
+        "vplib_uid", "vplibUid", "family_id", "familyId", "package_id", "packageId",
+        "variant_id", "variantId", "runtimeBlockTypeId", "runtime_block_type_id", "blockTypeId",
+        "block_type_id", "label", "name", "description", "object_kind", "objectKind", "domain",
+        "category", "subcategory", "taxonomy_path", "taxonomyPath", "color", "icon", "preview",
+        "placement", "placementCommand", "placement_command", "metadata", "source", "source_scope",
+        "scope", "placeable",
+    )
+    variant_keys = (
+        "id", "variant_id", "variantId", "id_in_family", "slug", "label", "name", "description",
+        "is_default", "definition_values", "definitionValues", "metadata", "revision_hash",
+        "publication_status", "status", "enabled", "active", "visible",
+    )
+    asset_keys = (
+        "id", "uri", "url", "path", "asset_path", "relative_path", "mime_type", "content_type",
+        "role", "purpose", "asset_kind", "kind", "type", "asset_type", "label", "checksum",
+        "sha256", "asset_hash", "size_bytes", "exists", "active", "visible", "is_primary",
+        "variant_id", "payload", "runtime",
+    )
+    asset_payload_keys = (
+        "uri", "url", "mime_type", "content_type", "role", "purpose", "checksum", "sha256",
+        "textureKey", "texture_key", "runtime",
+    )
+
+    compact = select(data, item_keys)
+    compact["payload"] = select(normalize_json_mapping(data.get("payload")), payload_keys)
+    compact["variants"] = [
+        select(variant, variant_keys)
+        for variant in normalize_json_list(data.get("variants"))
+    ]
+    compact_assets: list[dict[str, Any]] = []
+    for asset in normalize_json_list(data.get("assets")):
+        compact_asset = select(asset, asset_keys)
+        if "payload" in compact_asset:
+            compact_asset["payload"] = select(
+                normalize_json_mapping(compact_asset.get("payload")),
+                asset_payload_keys,
+            )
+        compact_assets.append(compact_asset)
+    compact["assets"] = compact_assets
+    return compact
 
 # ---------------------------------------------------------------------------
 # Dataclasses
@@ -846,6 +979,41 @@ class CreativeLibraryUserService:
 
         return repo_class()
 
+    def _get_published_items(self, *, include_deleted: bool = False) -> list[dict[str, Any]]:
+        """Loads the shared published catalog, including internal variants."""
+        module = _load_published_service_module()
+        factory = getattr(module, "get_creative_library_service", None)
+        if not callable(factory):
+            factory = getattr(module, "create_creative_library_service", None)
+        if not callable(factory):
+            raise CreativeLibraryUserServiceImportError(
+                "creative_library_service exposes no service factory."
+            )
+
+        result = factory().get_library(
+            include_deleted=include_deleted,
+            include_current_revision=False,
+            include_variants=True,
+            include_assets=True,
+            include_documents=False,
+            active_only=not include_deleted,
+            visible_only=not include_deleted,
+            limit=MAX_LIMIT,
+        )
+        if not normalize_bool(result.get("ok"), default=False):
+            raise CreativeLibraryUserServiceError(
+                clean_string(result.get("errors"), fallback="Published library read failed.")
+            )
+
+        return [
+            normalize_json_mapping(item)
+            for item in normalize_json_list(
+                normalize_json_mapping(result.get("payload")).get("items")
+            )
+        ]
+
+
+
     # ------------------------------------------------------------------
     # Resolved read API
     # ------------------------------------------------------------------
@@ -861,6 +1029,7 @@ class CreativeLibraryUserService:
         include_overrides: bool = True,
         include_audit: bool = False,
         ensure_defaults: bool = True,
+        compact: bool = False,
     ) -> dict[str, Any]:
         """Returns resolved Creative Library for user."""
         query = ResolvedCreativeLibraryQuery.from_payload(
@@ -887,7 +1056,20 @@ class CreativeLibraryUserService:
         )
 
         collections = normalize_json_list(payload.get("collections"))
-        items = _dedupe_items(normalize_json_list(payload.get("items")))
+        user_items = normalize_json_list(payload.get("items"))
+        overrides = normalize_json_list(payload.get("overrides"))
+        published_items = self._get_published_items(include_deleted=query.include_deleted)
+        merged_items = _merge_published_and_user_items(published_items, user_items)
+        items = _dedupe_items(
+            self.repository.apply_overrides_to_items(
+                merged_items,
+                overrides,
+                include_hidden=query.include_hidden,
+                include_deleted=query.include_deleted,
+            )
+        )
+        if compact:
+            items = [compact_creative_library_item(item) for item in items]
 
         result_payload = {
             "schema_version": CREATIVE_LIBRARY_USER_SERVICE_VERSION,
@@ -906,7 +1088,7 @@ class CreativeLibraryUserService:
             result_payload["items"] = items
 
         if query.include_overrides:
-            result_payload["overrides"] = normalize_json_list(payload.get("overrides"))
+            result_payload["overrides"] = overrides
 
         if query.include_audit:
             result_payload["audit"] = self.repository.list_audit_events(

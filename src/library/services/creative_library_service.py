@@ -929,8 +929,60 @@ class CreativeLibraryService:
             item, item_created = self.repository.upsert_item(item_payload, commit=False)
 
             revision_payload = self.build_revision_payload_from_publish_payload(data, item=item, scan_run_ref=options.scan_run_ref)
+            requested_revision_hash = optional_string(revision_payload.get("revision_hash"))
+            current_revision_hash = optional_string(getattr(item, "current_revision_hash", None))
+            if (
+                not item_created
+                and requested_revision_hash
+                and requested_revision_hash == current_revision_hash
+            ):
+                child_counts = {
+                    "variant_count": int(getattr(item, "variant_count", 0) or 0),
+                    "asset_count": int(getattr(item, "asset_count", 0) or 0),
+                    "document_count": int(getattr(item, "document_count", 0) or 0),
+                }
+                child_payload = {
+                    "variants": [],
+                    "assets": [],
+                    "documents": [],
+                    "counts": child_counts,
+                }
+                revision_result = {
+                    "id": getattr(item, "current_revision_id", None),
+                    "revision_hash": current_revision_hash,
+                    "status": ITEM_STATUS_PUBLISHED,
+                }
+
+                item_result = to_dict_or_payload(item)
+                item_result["current_revision"] = revision_result
+                item_result["variants"] = []
+                item_result["assets"] = []
+                item_result["documents"] = []
+                item_result.update(child_counts)
+
+                if options.commit:
+                    self.repository.commit()
+                else:
+                    self.repository.flush()
+
+                return CreativeLibraryServiceResult(
+                    ok=True,
+                    status=STATUS_OK,
+                    action="publish_bundle",
+                    payload={
+                        "created": False,
+                        "updated": False,
+                        "unchanged": True,
+                        "revision_created": False,
+                        "item": item_result,
+                        "revision": revision_result,
+                        "children": child_payload,
+                        "vplib_uid": extract_vplib_uid(data),
+                    },
+                ).to_dict()
+
             revision = self.repository.create_revision(
-                getattr(item, "id", None),
+                item,
                 revision_payload,
                 mark_current=options.mark_current,
                 commit=False,
@@ -943,20 +995,26 @@ class CreativeLibraryService:
                 replace_existing=options.replace_children,
                 commit=False,
             )
+            child_counts = child_payload.get("counts", {})
+            for field_name in ("variant_count", "asset_count", "document_count"):
+                if hasattr(item, field_name):
+                    setattr(item, field_name, int(child_counts.get(field_name, 0) or 0))
+
+
+            revision_result = to_dict_or_payload(revision)
+            item_result = to_dict_or_payload(item)
+            item_result["current_revision"] = revision_result
+            item_result["variants"] = child_payload.get("variants", [])
+            item_result["assets"] = child_payload.get("assets", [])
+            item_result["documents"] = child_payload.get("documents", [])
+            item_result["variant_count"] = child_payload.get("counts", {}).get("variant_count", 0)
+            item_result["asset_count"] = child_payload.get("counts", {}).get("asset_count", 0)
+            item_result["document_count"] = child_payload.get("counts", {}).get("document_count", 0)
 
             if options.commit:
                 self.repository.commit()
             else:
                 self.repository.flush()
-
-            item_result = self.repository.get_item_payload(
-                getattr(item, "id", None),
-                include_current_revision=True,
-                include_revisions=False,
-                include_variants=True,
-                include_assets=True,
-                include_documents=True,
-            )
 
             return CreativeLibraryServiceResult(
                 ok=True,
@@ -966,7 +1024,7 @@ class CreativeLibraryService:
                     "created": item_created,
                     "updated": not item_created,
                     "item": item_result,
-                    "revision": to_dict_or_payload(revision),
+                    "revision": revision_result,
                     "children": child_payload,
                     "vplib_uid": extract_vplib_uid(data),
                 },
@@ -1107,16 +1165,36 @@ class CreativeLibraryService:
 
         return compact_payload(
             {
+                "vplib_uid": first_non_empty(data.get("vplib_uid"), manifest.get("vplib_uid"), getattr(item, "vplib_uid", None)),
+                "family_id": first_non_empty(data.get("family_id"), manifest.get("family_id"), family.get("family_id"), getattr(item, "family_id", None)),
+                "package_id": first_non_empty(data.get("package_id"), manifest.get("package_id"), getattr(item, "package_id", None)),
+                "revision_id": data.get("revision_id"),
+                "revision_hash": first_non_empty(data.get("revision_hash"), manifest.get("revision_hash")),
+                "previous_revision_hash": first_non_empty(data.get("previous_revision_hash"), getattr(item, "current_revision_hash", None)),
                 "version": first_non_empty(data.get("version"), data.get("package_version"), manifest.get("package_version")),
+                "package_version": first_non_empty(data.get("package_version"), data.get("version"), manifest.get("package_version")),
+                "schema_version": first_non_empty(data.get("schema_version"), manifest.get("schema_version")),
+                "definitions_version": first_non_empty(data.get("definitions_version"), manifest.get("definitions_version"), manifest.get("definition_version")),
                 "revision_number": data.get("revision_number"),
+                "source_root": data.get("source_root"),
                 "source_path": first_non_empty(data.get("source_path"), manifest.get("source_path"), getattr(item, "source_path", None)),
+                "source_mtime_ns": data.get("source_mtime_ns"),
+                "source_size_bytes": data.get("source_size_bytes"),
+                "validation_status": data.get("validation_status"),
                 "scan_run_id": scan_run_id,
                 "manifest_payload": manifest,
                 "modules_payload": modules,
                 "family_payload": family,
                 "classification_payload": classification,
                 "document_bundle": extract_first_mapping(data, "document_bundle"),
+                "document_paths": data.get("document_paths"),
+                "summary_payload": extract_first_mapping(data, "summary_payload", "summary"),
+                "detail_payload": extract_first_mapping(data, "detail_payload", "detail"),
+                "raw_documents": extract_first_mapping(data, "raw_documents"),
+                "documents_payload": extract_first_mapping(data, "documents_payload"),
+                "validation_payload": extract_first_mapping(data, "validation_payload", "validation"),
                 "generator_payload": generator,
+                "file_refs": data.get("file_refs"),
                 "payload": data,
                 "metadata": {
                     "source": data.get("source"),
@@ -1140,8 +1218,8 @@ class CreativeLibraryService:
         """Creates variants/assets/documents for a published revision."""
         data = normalize_json_mapping(publish_payload)
 
-        item_ref = getattr(item, "id", None)
-        revision_ref = getattr(revision, "id", None)
+        item_ref = item
+        revision_ref = revision
 
         variant_payloads = self.extract_variant_payloads(data)
         asset_payloads = self.extract_asset_payloads(data)
@@ -1156,14 +1234,17 @@ class CreativeLibraryService:
         # naturally scopes children to the published revision.
         _replace_existing_ignored = replace_existing
 
+        # A new revision cannot already contain children. Create all child rows
+        # without per-row flushes, then flush once before serializing IDs.
         for variant_payload in variant_payloads:
-            variant, _created = self.repository.upsert_variant(
+            variant = self.repository.create_variant(
                 variant_payload,
                 item_ref=item_ref,
                 revision_ref=revision_ref,
                 commit=False,
+                flush=False,
             )
-            created_variants.append(to_dict_or_payload(variant))
+            created_variants.append(variant)
 
         for asset_payload in asset_payloads:
             variant_ref = first_non_empty(asset_payload.get("variant_ref"), asset_payload.get("variant_uid"), asset_payload.get("variant_id_db"))
@@ -1173,8 +1254,9 @@ class CreativeLibraryService:
                 revision_ref=revision_ref,
                 variant_ref=variant_ref,
                 commit=False,
+                flush=False,
             )
-            created_assets.append(to_dict_or_payload(asset))
+            created_assets.append(asset)
 
         for document_payload in document_payloads:
             variant_ref = first_non_empty(document_payload.get("variant_ref"), document_payload.get("variant_uid"), document_payload.get("variant_id_db"))
@@ -1184,14 +1266,18 @@ class CreativeLibraryService:
                 revision_ref=revision_ref,
                 variant_ref=variant_ref,
                 commit=False,
+                flush=False,
             )
-            created_documents.append(to_dict_or_payload(document))
+            created_documents.append(document)
 
         if commit:
             self.repository.commit()
         else:
             self.repository.flush()
 
+        created_variants = [to_dict_or_payload(value) for value in created_variants]
+        created_assets = [to_dict_or_payload(value) for value in created_assets]
+        created_documents = [to_dict_or_payload(value) for value in created_documents]
         return {
             "variants": created_variants,
             "assets": created_assets,
@@ -1275,6 +1361,11 @@ class CreativeLibraryService:
                         "library_file_id": item.get("library_file_id"),
                         "file_version_id": item.get("file_version_id"),
                         "file_uid": item.get("file_uid"),
+                        "path": first_non_empty(item.get("path"), item.get("relative_path"), item.get("uri")),
+                        "relative_path": first_non_empty(item.get("relative_path"), item.get("path")),
+                        "uri": first_non_empty(item.get("uri"), item.get("url")),
+                        "label": first_non_empty(item.get("label"), item.get("role")),
+                        "checksum": first_non_empty(item.get("checksum"), item.get("sha256")),
                         "source_path": item.get("source_path"),
                         "storage_path": item.get("storage_path"),
                         "filename": first_non_empty(item.get("filename"), item.get("original_filename")),
@@ -1334,6 +1425,10 @@ class CreativeLibraryService:
                         "library_file_id": item.get("library_file_id"),
                         "file_version_id": item.get("file_version_id"),
                         "file_uid": item.get("file_uid"),
+                        "relative_path": first_non_empty(item.get("relative_path"), item.get("path"), item.get("field_key")),
+                        "path": first_non_empty(item.get("path"), item.get("relative_path"), item.get("field_key")),
+                        "module": item.get("module"),
+                        "checksum": item.get("checksum"),
                         "storage_path": item.get("storage_path"),
                         "url": item.get("url"),
                         "sort_order": first_non_empty(item.get("sort_order"), index),
@@ -1761,6 +1856,11 @@ def create_creative_library_service(
     )
 
 
+def get_creative_library_service() -> CreativeLibraryService:
+    """Return the published service for lazy generator dependency resolution."""
+    return create_creative_library_service()
+
+
 @lru_cache(maxsize=1)
 def get_service_version() -> str:
     return CREATIVE_LIBRARY_SERVICE_VERSION
@@ -1831,6 +1931,7 @@ __all__ = [
     "LibraryService",
     "PublishedLibraryService",
     "create_creative_library_service",
+    "get_creative_library_service",
     "create_library_service",
     "create_published_library_service",
 

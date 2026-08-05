@@ -106,6 +106,83 @@ def test_package_plan_exposes_binary_asset_metadata_without_bytes() -> None:
     assert manifest["assets"][0]["embedded"] is True
 
 
+def valid_texture_png(width: int = 1600, height: int = 900) -> bytes:
+    from PIL import Image
+
+    output = io.BytesIO()
+    image = Image.new("RGB", (width, height), (184, 132, 78))
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+def test_valid_texture_is_resized_converted_and_described_for_runtime() -> None:
+    source = valid_texture_png()
+    payload = minimal_payload()
+    payload["_binary_assets"] = [
+        {
+            "field": "texture_files",
+            "filename": "timber.png",
+            "kind": "textures",
+            "purpose": "albedo",
+            "relative_path": "assets/textures/timber.png",
+            "content_type": "image/png",
+            "content": source,
+        }
+    ]
+
+    filename, content, result = create_service().build_vplib_archive(payload)
+
+    assert result.ok, [issue.to_dict() for issue in result.errors]
+    assert filename.endswith(".vplib")
+    with zipfile.ZipFile(io.BytesIO(content), "r") as archive:
+        index = json.loads(archive.read("assets/index.json"))
+        materials = json.loads(archive.read("render/materials.json"))
+        texture = index["assets"][0]
+        optimized = archive.read("assets/textures/timber.webp")
+
+    assert texture["content_type"] == "image/webp"
+    assert texture["relative_path"] == "assets/textures/timber.webp"
+    assert texture["optimization"]["status"] == "optimized"
+    assert texture["optimization"]["dimensions"] == {"width": 1024, "height": 576}
+    assert texture["runtime"]["generate_mipmaps"] is True
+    assert texture["runtime"]["wrap_s"] == "repeat"
+    assert texture["sha256"] == hashlib.sha256(optimized).hexdigest()
+    assert materials["materials"][0]["albedo_texture"]["asset_path"] == texture["relative_path"]
+    assert materials["materials"][0]["albedo_texture"]["sha256"] == texture["sha256"]
+    assert len(optimized) < len(source)
+
+
+def test_duplicate_textures_are_stored_once_after_optimization() -> None:
+    source = valid_texture_png(512, 512)
+    payload = minimal_payload()
+    payload["_binary_assets"] = [
+        {
+            "relative_path": "assets/textures/timber-a.png",
+            "kind": "textures",
+            "content_type": "image/png",
+            "content": source,
+        },
+        {
+            "relative_path": "assets/textures/timber-b.png",
+            "kind": "textures",
+            "content_type": "image/png",
+            "content": source,
+        },
+    ]
+
+    _, archive_content, result = create_service().build_vplib_archive(payload)
+
+    assert result.ok, [issue.to_dict() for issue in result.errors]
+    with zipfile.ZipFile(io.BytesIO(archive_content), "r") as archive:
+        index = json.loads(archive.read("assets/index.json"))
+        texture_files = [
+            name for name in archive.namelist()
+            if name.startswith("assets/textures/") and name != "assets/textures/"
+        ]
+    assert index["asset_count"] == 1
+    assert len(texture_files) == 1
+
+
 def test_vplib_archive_embeds_model_texture_and_asset_index() -> None:
     filename, content, result = create_service().build_vplib_archive(payload_with_assets())
     assert result.ok, [issue.to_dict() for issue in result.errors]
@@ -132,6 +209,8 @@ def test_vplib_archive_is_deterministic_with_binary_assets() -> None:
 
 def test_vplib_archive_preserves_exact_cad_dimensions_per_variant() -> None:
     payload = minimal_payload()
+    payload["geometry_height"] = "3"
+    payload["geometry_depth"] = "0.365"
     payload["definition_variants"] = [
         {
             "variant_id": "default",
@@ -167,6 +246,10 @@ def test_vplib_archive_preserves_exact_cad_dimensions_per_variant() -> None:
         second_variant = json.loads(archive.read("variants/wand_240.json"))
     assert default_variant["definition_values"]["dimensions.thickness_mm"] == 365
     assert second_variant["definition_values"]["dimensions.thickness_mm"] == 240
+    assert default_variant["definition_values"]["dimensions.height_mm"] == 3000
+    assert second_variant["definition_values"]["dimensions.height_mm"] == 3000
+    assert default_variant["definition_values"]["dimensions.depth_mm"] == 365
+    assert second_variant["definition_values"]["dimensions.depth_mm"] == 240
     assert default_variant["definition_values"]["technical.units"]["dimensions.thickness_mm"] == "mm"
     assert second_variant["definition_values"]["technical.units"]["dimensions.thickness_mm"] == "mm"
 
@@ -182,6 +265,8 @@ def test_save_package_writes_exact_binary_assets(tmp_path: Path, monkeypatch: py
     assert (target / "assets/textures/stone.png").read_bytes() == binary_assets()[1]["content"]
     assert result.data["written_file_count"] == len(result.data["written_files"])
 
+    assert len(result.data["revision_hash"]) == 64
+    assert all(character in "0123456789abcdef" for character in result.data["revision_hash"])
 
 @pytest.mark.parametrize(
     ("path", "kind"),
@@ -578,6 +663,12 @@ def test_create_ui_uses_light_cad_workspace_and_visible_variable_drawer() -> Non
     assert 'data-vp-variable-configured' in optional_fields
     assert 'activeFieldKey' in optional_fields
     assert 'hasMeaningfulValue' in optional_fields
+    assert 'function areProfileFieldsHidden()' in optional_fields
+    assert 'function isHiddenProfileFieldAvailable(key)' in optional_fields
+    assert 'function syncHiddenProfileFieldControls(values)' in optional_fields
+    assert 'syncHiddenProfileFieldControls(optionalValues)' in optional_fields
+    assert '!isHiddenProfileFieldAvailable(key)' in optional_fields
+    assert 'remove.textContent = "Profilfeld"' in optional_fields
     assert 'data-vp-optional-document-upload' in optional_fields
     assert 'variant_document_files[" + key + "][]' in optional_fields
     assert 'fileInput.multiple = true' in optional_fields
@@ -736,6 +827,32 @@ def test_download_route_embeds_document_list_upload() -> None:
             "assets/documents/variants/product-properties.csv",
         }
 
+def test_simple_cell_block_supports_requested_basic_materials() -> None:
+    materials = json.loads(
+        (SRC_ROOT / "library/definitions/data/materials.v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    by_id = {item["id"]: item for item in materials["items"]}
+
+    for material_id in ("brick", "reinforced_concrete", "steel", "wood"):
+        material = by_id[material_id]
+        assert "simple_cell_block" in material["compatible_family_profiles"]
+        assert "simple_cell_block.v1" in material["compatible_variant_profiles"]
+
+
+def test_generator_options_expose_active_create_write_mode(monkeypatch: Any) -> None:
+    monkeypatch.setenv("VPLIB_CREATE_WRITE_ENABLED", "true")
+    service = importlib.import_module("src.services.library_create_route_service")
+
+    options = service.get_options_response()
+    template_context = service.get_template_context_response()
+
+    assert options.data["write_enabled"] is True
+    assert options.data["capabilities"]["save_to_source_root"] is True
+    assert template_context.data["_write_enabled"] is True
+
+
 def test_generator_options_expose_complete_taxonomy_and_definition_catalogs() -> None:
     service = importlib.import_module("src.services.library_create_route_service")
     response = service.get_options_response()
@@ -828,10 +945,10 @@ def _selected_value(html: str, name: str) -> str:
 def test_rendered_generator_uses_fresh_assets_and_one_operational_variant_state() -> None:
     app, html = _rendered_create_page()
     assert app
-    assert "/static/css/vplib/create.css?v=20260729.6" in html
-    assert "/static/js/vplib/create/create_uploads.js?v=20260729.6" in html
-    assert "/static/js/vplib/create/create_variant_drawer.js?v=20260729.6" in html
-    assert "/static/js/vplib/create/create_actions.js?v=20260729.6" in html
+    assert "/static/css/vplib/create.css?v=20260803.1" in html
+    assert "/static/js/vplib/create/create_uploads.js?v=20260803.1" in html
+    assert "/static/js/vplib/create/create_variant_drawer.js?v=20260803.1" in html
+    assert "/static/js/vplib/create/create_actions.js?v=20260803.1" in html
 
     for name in (
         "object_kind",
@@ -868,7 +985,7 @@ def test_rendered_generator_embeds_isolated_editor_preview() -> None:
     assert "http://127.0.0.1:5100/editor/test-generator" in html
     assert "parentOrigin=http%3A%2F%2Flocalhost" in html
     assert (
-        "/static/js/vplib/create/create_editor_preview_bridge.js?v=20260729.6"
+        "/static/js/vplib/create/create_editor_preview_bridge.js?v=20260803.1"
         in html
     )
     assert 'data-vp-preview-mode="dev-empty"' not in html
@@ -952,3 +1069,34 @@ def test_rendered_generator_defaults_download_with_all_three_upload_types() -> N
             == b"%PDF-1.4\nrendered\n"
         )
 
+
+
+def test_single_native_variant_and_nested_geometry_survive_normalization_roundtrip() -> None:
+    payload = minimal_payload()
+    payload["geometry_height"] = "3"
+    payload["geometry_depth"] = "0.365"
+    payload["definition_variants"][0]["definition_values"] = {
+        "dimensions.width_mm": 1000,
+        "dimensions.height_mm": 3000,
+        "dimensions.depth_mm": 365,
+    }
+    normalizer = importlib.import_module(
+        "src.services.library_create_variant_payload_service"
+    )
+
+    normalized = normalizer.normalize_create_variant_payload(payload)
+    assert len(normalized["definition_variants"]) == 1
+    assert normalized["definition_variants"][0]["variant_id"] == "default"
+
+    first = create_service().build_draft(payload)
+    second = create_service().build_draft(first.data["draft"])
+
+    assert first.ok and second.ok
+    assert len(second.data["draft"]["variants"]) == 1
+    assert second.data["draft"]["variants"][0]["variant_id"] == "default"
+    assert second.data["draft"]["geometry"]["dimensions"] == {
+        "width": 1.0,
+        "height": 3.0,
+        "depth": 0.365,
+        "unit": "m",
+    }

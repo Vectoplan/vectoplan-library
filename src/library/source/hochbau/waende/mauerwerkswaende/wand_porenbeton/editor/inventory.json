@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "e05078b4-7f52-5647-b6c1-141406835335",
+  "family_id": "vp.hochbau.waende.mauerwerkswaende.wand_porenbeton",
+  "default_variant_id": "default",
+  "label": "Wand Porenbeton",
+  "description": "Porenbetonwand als ein Blocktyp mit auswählbaren realen Dicken.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "waende",
+  "subcategory": "mauerwerkswaende",
+  "classification_path": "hochbau/waende/mauerwerkswaende",
+  "source_path": "hochbau/waende/mauerwerkswaende/wand_porenbeton",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Wände",
+    "subcategory": "Mauerwerkswände"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.1.0",
+  "material_classes": [
+    "wood"
+  ],
+  "primary_material_class": "wood",
+  "source": "create_form"
+}

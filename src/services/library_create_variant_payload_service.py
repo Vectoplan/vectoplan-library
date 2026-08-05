@@ -2376,8 +2376,8 @@ def normalize_json_value_from_form(value: Any) -> Any:
             pass
 
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        if len(value) == 1:
-            return normalize_json_value(value[0])
+        # Native Python lists represent structured JSON arrays. Only Werkzeug
+        # getlist() values above may be safely collapsed as scalar form fields.
         return [normalize_json_value(item) for item in value]
 
     return normalize_json_value(value)
@@ -2470,8 +2470,14 @@ def merge_nested_aliases(payload: Mapping[str, Any]) -> dict[str, Any]:
 
     geometry = normalized.get("geometry")
     dimensions = normalized.get("dimensions")
+    geometry_dimensions = (
+        geometry.get("dimensions")
+        if isinstance(geometry, Mapping)
+        and isinstance(geometry.get("dimensions"), Mapping)
+        else None
+    )
 
-    for source in (geometry, dimensions):
+    for source in (geometry, geometry_dimensions, dimensions):
         if not isinstance(source, Mapping):
             continue
 

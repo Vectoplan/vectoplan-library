@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1.0",
+  "variant_id": "default",
+  "variant_key": "default",
+  "label": "11,5 cm",
+  "description": "Mauerwerkswand mit 115 mm realer Dicke.",
+  "kind": "standard",
+  "is_default": true,
+  "active": true,
+  "visible": true,
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "definition_values": {
+    "dimensions.depth_mm": 115,
+    "dimensions.height_mm": 1000,
+    "dimensions.thickness_mm": 115,
+    "dimensions.width_mm": 1000,
+    "material.color_hint": "#B45309",
+    "material.subtype": "masonry_brick",
+    "material.type": "brick",
+    "variant.description": "Mauerwerkswand mit 115 mm realer Dicke.",
+    "variant.label": "11,5 cm",
+    "variant.variant_id": "default"
+  },
+  "additional_field_keys": [],
+  "overrides": {
+    "dimensions.depth_mm": 115,
+    "dimensions.height_mm": 1000,
+    "dimensions.thickness_mm": 115,
+    "dimensions.width_mm": 1000,
+    "material.color_hint": "#B45309",
+    "material.subtype": "masonry_brick",
+    "material.type": "brick",
+    "variant.description": "Mauerwerkswand mit 115 mm realer Dicke.",
+    "variant.label": "11,5 cm",
+    "variant.variant_id": "default"
+  }
+}

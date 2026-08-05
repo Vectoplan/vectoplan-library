@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.1.0",
+  "material_classes": [
+    "reinforced_concrete"
+  ],
+  "primary_material_class": "reinforced_concrete",
+  "source": "create_form"
+}

@@ -3,8 +3,13 @@
   "use strict";
 
   var MODULE_NAME = "VectoplanCreativeLibrary";
-  var MODULE_VERSION = "1.0.0";
+  var MODULE_VERSION = "1.2.0";
   var DRAG_MIME = "application/x-vectoplan-vplib-item+json";
+  var POINTER_DRAG_START = "vectoplan:creative-pointer-drag-start";
+  var POINTER_DRAG_MOVE = "vectoplan:creative-pointer-drag-move";
+  var POINTER_DRAG_END = "vectoplan:creative-pointer-drag-end";
+  var POINTER_DRAG_THRESHOLD = 6;
+  var REQUEST_TIMEOUT_MS = 12000;
   var SELECTORS = {
     grid: "[data-creative-library-grid]",
     search: "[data-creative-search]",
@@ -69,6 +74,126 @@
     return value;
   }
 
+  function normalizeVariant(value) {
+    var raw = record(value);
+    var variantId = first(raw.variant_id, raw.variantId, raw.id_in_family, raw.slug);
+    if (!variantId) return null;
+
+    var status = first(raw.publication_status, raw.status).toLowerCase();
+    var enabled = booleanValue(raw.enabled, booleanValue(raw.active, true));
+    var visible = booleanValue(raw.visible, true);
+    var published = !status || ["published", "ready", "active", "ok"].indexOf(status) >= 0;
+    if (!enabled || !visible || !published) return null;
+
+    return {
+      variant_id: variantId,
+      label: first(raw.label, raw.name, variantId),
+      description: first(raw.description),
+      is_default: booleanValue(raw.is_default, false),
+      definition_values: record(raw.definition_values || raw.definitionValues),
+      metadata: record(raw.metadata),
+      revision_hash: first(raw.revision_hash)
+    };
+  }
+
+  function normalizeVariants(raw) {
+    var values = Array.isArray(raw.variants) ? raw.variants : [];
+    return values.map(normalizeVariant).filter(Boolean);
+  }
+
+  function selectedVariant(variants, variantId) {
+    var selected = null;
+    variants.some(function (variant) {
+      if (variant.variant_id !== variantId) return false;
+      selected = variant;
+      return true;
+    });
+    if (selected) return selected;
+    return variants.filter(function (variant) { return variant.is_default; })[0] || variants[0] || null;
+  }
+
+  function variantMetadata(baseMetadata, variant, variants) {
+    return Object.assign({}, record(baseMetadata), {
+      selected_variant_id: variant ? variant.variant_id : "default",
+      definition_values: variant ? record(variant.definition_values) : {},
+      available_variants: variants.map(function (entry) {
+        return {
+          variant_id: entry.variant_id,
+          label: entry.label,
+          definition_values: record(entry.definition_values)
+        };
+      })
+    });
+  }
+  function normalizeAssets(raw, payload) {
+    var candidates = [raw.assets, payload.assets, record(raw.revision).assets];
+    var values = [];
+    candidates.some(function (candidate) {
+      if (!Array.isArray(candidate)) return false;
+      values = candidate.map(record).filter(function (asset) {
+        return booleanValue(asset.active, true) && booleanValue(asset.visible, true) && booleanValue(asset.exists, true);
+      });
+      return values.length > 0;
+    });
+    return values;
+  }
+
+  function normalizeAppearance(raw, payload, metadata, activeVariant, assets) {
+    var definitionValues = activeVariant ? record(activeVariant.definition_values) : {};
+    var textureAsset = assets.filter(function (asset) {
+      var assetPayload = record(asset.payload);
+      var role = first(asset.role, asset.purpose, asset.asset_kind, asset.kind, assetPayload.role, assetPayload.purpose).toLowerCase();
+      var mimeType = first(asset.mime_type, asset.content_type, assetPayload.mime_type, assetPayload.content_type).toLowerCase();
+      return ["albedo", "texture", "textures", "preview"].indexOf(role) >= 0 || mimeType.indexOf("image/") === 0;
+    })[0] || {};
+    var texturePayload = record(textureAsset.payload);
+    var runtime = Object.assign({}, record(texturePayload.runtime), record(textureAsset.runtime));
+    var textureUrl = safePreviewUrl(first(
+      textureAsset.uri,
+      textureAsset.url,
+      texturePayload.uri,
+      texturePayload.url
+    ));
+    var materialType = first(
+      definitionValues["material.type"],
+      nestedValue(definitionValues, ["material", "type"]),
+      metadata.material_type,
+      metadata.materialType,
+      "generic"
+    ).toLowerCase();
+    var color = first(
+      definitionValues["material.color_hint"],
+      nestedValue(definitionValues, ["material", "color_hint"]),
+      record(raw.icon).color,
+      raw.color,
+      payload.color,
+      "#ffffff"
+    );
+    var metalness = Number(runtime.metalness);
+    var roughness = Number(runtime.roughness);
+    if (!Number.isFinite(metalness)) metalness = materialType.indexOf("steel") >= 0 ? 0.66 : 0.02;
+    if (!Number.isFinite(roughness)) {
+      roughness = materialType.indexOf("steel") >= 0 ? 0.52 : materialType.indexOf("wood") >= 0 || materialType.indexOf("timber") >= 0 ? 0.76 : 0.88;
+    }
+
+    return {
+      version: "vplib-appearance.v1",
+      textureUrl: textureUrl,
+      textureKey: first(textureAsset.sha256, textureAsset.checksum, textureAsset.asset_hash, texturePayload.sha256, textureUrl),
+      color: color,
+      materialType: materialType,
+      roughness: roughness,
+      metalness: metalness,
+      colorSpace: first(runtime.color_space, runtime.colorSpace, "srgb"),
+      wrapS: first(runtime.wrap_s, runtime.wrapS, "repeat"),
+      wrapT: first(runtime.wrap_t, runtime.wrapT, "repeat"),
+      generateMipmaps: booleanValue(runtime.generate_mipmaps, true),
+      anisotropy: Number(runtime.anisotropy || 4) || 4
+    };
+  }
+
+
+
   function normalizeItem(value) {
     var wrapper = record(value);
     var raw = record(wrapper.item && typeof wrapper.item === "object" ? wrapper.item : wrapper);
@@ -81,6 +206,14 @@
       nestedValue(payload, ["variant", "placement"])
     );
     var command = record(raw.placementCommand || raw.placement_command || placement.command);
+    var vplibUid = first(raw.vplib_uid, raw.vplibUid, raw.uid, payload.vplib_uid, payload.vplibUid);
+    var familyId = first(raw.family_id, raw.familyId, payload.family_id, payload.familyId);
+    var itemDbId = first(raw.item_db_id, raw.itemDbId, raw.family_db_id, raw.id, wrapper.item_db_id, wrapper.id);
+    var packageId = first(raw.package_id, raw.packageId, payload.package_id, payload.packageId);
+    var variants = normalizeVariants(raw);
+    var requestedVariantId = first(raw.variant_id, raw.variantId, raw.default_variant_id, payload.variant_id, payload.variantId, "default");
+    var activeVariant = selectedVariant(variants, requestedVariantId);
+    var variantId = activeVariant ? activeVariant.variant_id : requestedVariantId;
     var runtimeBlockTypeId = first(
       raw.runtimeBlockTypeId,
       raw.runtime_block_type_id,
@@ -95,13 +228,10 @@
       payload.runtimeBlockTypeId,
       payload.runtime_block_type_id,
       metadata.runtimeBlockTypeId,
-      metadata.runtime_block_type_id
+      metadata.runtime_block_type_id,
+      familyId,
+      vplibUid ? "vplib:" + vplibUid + ":" + variantId : ""
     );
-    var vplibUid = first(raw.vplib_uid, raw.vplibUid, raw.uid, payload.vplib_uid, payload.vplibUid);
-    var familyId = first(raw.family_id, raw.familyId, payload.family_id, payload.familyId);
-    var itemDbId = first(raw.item_db_id, raw.itemDbId, raw.family_db_id, raw.id, wrapper.item_db_id, wrapper.id);
-    var packageId = first(raw.package_id, raw.packageId, payload.package_id, payload.packageId);
-    var variantId = first(raw.variant_id, raw.variantId, raw.default_variant_id, payload.variant_id, payload.variantId, "default");
     var status = first(raw.publication_status, raw.status, wrapper.status).toLowerCase();
     var label = first(raw.label, raw.name, raw.title, payload.label, payload.name, familyId, vplibUid);
     var objectKind = first(raw.object_kind, raw.objectKind, raw.kind, payload.object_kind, payload.objectKind, "block");
@@ -116,14 +246,16 @@
 
     var icon = record(raw.icon || payload.icon);
     var preview = record(raw.preview || payload.preview);
+    var assets = normalizeAssets(raw, payload);
+    var appearance = normalizeAppearance(raw, payload, metadata, activeVariant, assets);
     var description = first(raw.description, raw.text, payload.description);
     var domain = first(raw.domain, payload.domain, "all").toLowerCase();
     var category = first(raw.category, payload.category, "all").toLowerCase();
     var subcategory = first(raw.subcategory, payload.subcategory, "all").toLowerCase();
     var taxonomyPath = first(raw.taxonomy_path, raw.taxonomyPath, payload.taxonomy_path, [domain, category, subcategory].join("/"));
     var iconText = first(icon.text, icon.label, raw.icon_text, label).replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "VP";
-    var previewUrl = first(preview.url, preview.src, raw.preview_url, raw.banner_url);
-    var color = first(icon.color, raw.color, payload.color);
+    var previewUrl = safePreviewUrl(first(preview.url, preview.src, raw.preview_url, raw.banner_url, appearance.textureUrl));
+    var color = first(icon.color, appearance.color, raw.color, payload.color);
 
     return {
       id: itemDbId,
@@ -146,17 +278,68 @@
       source: first(raw.source, raw.source_scope, "creative-library"),
       scope: first(raw.scope, "editor"),
       mode: "creative",
-      icon: { text: iconText, color: color },
+      icon: { text: iconText, color: color, url: previewUrl },
       preview: previewUrl ? { url: previewUrl } : {},
+      assets: {
+        iconUrl: previewUrl,
+        previewUrl: previewUrl,
+        textureUrl: appearance.textureUrl,
+        textureKey: appearance.textureKey,
+        items: assets
+      },
+      appearance: appearance,
       placement: {
         kind: first(placement.kind, command.kind, "SetBlock"),
         runtimeBlockTypeId: runtimeBlockTypeId,
         blockTypeId: runtimeBlockTypeId,
-        placeable: true
+        placeable: true,
+        appearance: appearance
       },
       revision_hash: first(raw.revision_hash, raw.current_revision_hash),
-      metadata: metadata
+      variants: variants,
+      selected_variant: activeVariant,
+      metadata: Object.assign(
+        variantMetadata(metadata, activeVariant, variants),
+        { appearance: appearance }
+      )
     };
+  }
+
+  function expandItemVariants(value) {
+    var wrapper = record(value);
+    var raw = record(wrapper.item && typeof wrapper.item === "object" ? wrapper.item : wrapper);
+    var variants = Array.isArray(raw.variants) ? raw.variants : [];
+    if (!variants.length) return [value];
+
+    var familyLabel = first(raw.label, raw.name, raw.title, raw.family_id, raw.vplib_uid);
+    return variants.map(function (variantValue) {
+      var variant = record(variantValue);
+      var merged = Object.assign({}, raw);
+      var variantId = first(variant.variant_id, variant.variantId, variant.id_in_family, variant.slug, "default");
+      var variantLabel = first(variant.label, variant.name, variantId);
+
+      merged.variant = variant;
+      merged.variant_id = variantId;
+      merged.label = variantLabel ? familyLabel + " - " + variantLabel : familyLabel;
+      merged.description = first(variant.description, raw.description, raw.text);
+      merged.enabled = booleanValue(raw.enabled, true) && booleanValue(variant.enabled, true);
+      merged.visible = booleanValue(raw.visible, true) && booleanValue(variant.visible, true);
+      merged.status = first(variant.publication_status, variant.status, raw.publication_status, raw.status);
+      merged.publication_status = merged.status;
+      merged.payload = Object.assign(
+        {},
+        record(raw.payload),
+        record(variant.payload),
+        record(variant.resolved_payload)
+      );
+      merged.metadata = Object.assign(
+        {},
+        record(raw.metadata),
+        record(variant.metadata),
+        { definition_values: record(variant.definition_values) }
+      );
+      return merged;
+    });
   }
 
   function uniqueItems(values) {
@@ -165,7 +348,7 @@
     values.forEach(function (value) {
       var item = normalizeItem(value);
       if (!item) return;
-      var key = [item.vplib_uid || item.family_id || item.item_db_id, item.variant_id, item.runtimeBlockTypeId].join("::");
+      var key = item.vplib_uid || item.family_id || item.item_db_id;
       if (seen[key]) return;
       seen[key] = true;
       result.push(item);
@@ -209,20 +392,28 @@
       mode: item.mode,
       icon: item.icon,
       preview: item.preview,
+      assets: item.assets,
+      appearance: item.appearance,
       placement: item.placement,
+      variant: item.selected_variant,
+      variants: item.variants,
       metadata: item.metadata
     };
   }
 
-  function postDragMessage(type, item) {
+  function postDragMessage(type, item, extraDetail) {
     if (!window.parent || window.parent === window) return;
     var targetOrigin = "*";
     try { if (document.referrer) targetOrigin = new URL(document.referrer).origin; } catch (error) { targetOrigin = "*"; }
+    var detail = item ? { item: itemPayload(item) } : {};
+    if (extraDetail && typeof extraDetail === "object") {
+      Object.keys(extraDetail).forEach(function (key) { detail[key] = extraDetail[key]; });
+    }
     window.parent.postMessage({
       type: type,
       source: "vectoplan-library-creative-inventory",
       version: MODULE_VERSION,
-      detail: item ? { item: itemPayload(item) } : {}
+      detail: detail
     }, targetOrigin);
   }
 
@@ -233,7 +424,7 @@
     card.setAttribute("tabindex", "0");
     card.setAttribute("draggable", "true");
     card.setAttribute("aria-label", item.label + ", in einen Inventar-Slot ziehen");
-    card.setAttribute("title", item.label + " in einen Slot ziehen");
+    card.dataset.tooltip = item.label;
     card.dataset.creativeItemCard = "true";
     card.dataset.creativeCard = "true";
     card.dataset.itemId = item.id;
@@ -242,6 +433,7 @@
     card.dataset.familyId = item.family_id;
     card.dataset.packageId = item.package_id;
     card.dataset.variantId = item.variant_id;
+    card.dataset.definitionValues = JSON.stringify(item.selected_variant ? item.selected_variant.definition_values : {});
     card.dataset.runtimeBlockTypeId = item.runtimeBlockTypeId;
     card.dataset.blockTypeId = item.blockTypeId;
     card.dataset.domain = item.domain;
@@ -259,7 +451,7 @@
     card.dataset.selectable = "true";
     card.dataset.draggable = "true";
     card.dataset.disabled = "false";
-    card.dataset.searchText = [item.label, item.description, item.vplib_uid, item.family_id, item.package_id, item.domain, item.category, item.subcategory].join(" ").toLowerCase();
+    card.dataset.searchText = [item.label, item.description, item.vplib_uid, item.family_id, item.package_id, item.domain, item.category, item.subcategory, item.variants.map(function (variant) { return variant.label; }).join(" ")].join(" ").toLowerCase();
 
     var preview = document.createElement("div");
     preview.className = "vp-creative-card__preview vp-creative-card__banner";
@@ -272,6 +464,7 @@
       image.alt = "";
       image.loading = "lazy";
       image.decoding = "async";
+      image.draggable = false;
       preview.appendChild(image);
     }
     var icon = document.createElement("span");
@@ -281,24 +474,25 @@
     if (/^#[0-9a-f]{3,8}$/i.test(item.icon.color)) icon.style.backgroundColor = item.icon.color;
     preview.appendChild(icon);
 
-    var content = document.createElement("div");
-    content.className = "vp-creative-card__content";
-    var title = document.createElement("h2");
-    title.className = "vp-creative-card__title";
-    title.textContent = item.label;
-    content.appendChild(title);
-    if (item.description) {
-      var description = document.createElement("p");
-      description.className = "vp-creative-card__text";
-      description.textContent = item.description;
-      content.appendChild(description);
-    }
-    var hint = document.createElement("span");
-    hint.className = "vp-creative-card__drag-hint";
-    hint.textContent = "Ziehen und auf Slot 1–9 ablegen";
-    content.appendChild(hint);
+    var tooltip = document.createElement("div");
+    tooltip.className = "vp-creative-card__tooltip";
+    tooltip.setAttribute("role", "tooltip");
+    var tooltipTitle = document.createElement("strong");
+    tooltipTitle.className = "vp-creative-card__tooltip-title";
+    tooltipTitle.textContent = item.label;
+    tooltip.appendChild(tooltipTitle);
+
+    var variantDetail = item.selected_variant ? item.selected_variant.label : "";
+    var tooltipDetail = document.createElement("span");
+    tooltipDetail.className = "vp-creative-card__tooltip-detail";
+    tooltipDetail.textContent = item.variants.length > 1
+      ? (variantDetail ? "Standard: " + variantDetail + " · " : "") + item.variants.length + " Dicken hinterlegt"
+      : first(variantDetail, item.description, item.appearance.materialType);
+    tooltip.appendChild(tooltipDetail);
+
+    card.dataset.hasTexture = previewUrl ? "true" : "false";
     card.appendChild(preview);
-    card.appendChild(content);
+    card.appendChild(tooltip);
 
     card.addEventListener("dragstart", function (event) {
       var payload = itemPayload(item);
@@ -314,6 +508,73 @@
       card.classList.remove("vp-creative-card--dragging");
       postDragMessage("vectoplan:creative-drag-end", null);
     });
+
+    var pointerDrag = null;
+    var pointerMoveFrame = 0;
+
+    function pointerDetail(event) {
+      return {
+        pointer: {
+          pointerId: event.pointerId,
+          pointerType: event.pointerType || "mouse",
+          clientX: event.clientX,
+          clientY: event.clientY
+        }
+      };
+    }
+
+    function sendPointerMove() {
+      pointerMoveFrame = 0;
+      if (!pointerDrag || !pointerDrag.started || !pointerDrag.lastEvent) return;
+      postDragMessage(POINTER_DRAG_MOVE, item, pointerDetail(pointerDrag.lastEvent));
+    }
+
+    function finishPointerDrag(event, drop) {
+      if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
+      if (pointerMoveFrame) {
+        window.cancelAnimationFrame(pointerMoveFrame);
+        pointerMoveFrame = 0;
+      }
+      if (pointerDrag.started) {
+        postDragMessage(POINTER_DRAG_END, item, Object.assign(pointerDetail(event), { drop: drop !== false }));
+      }
+      try { if (card.hasPointerCapture(event.pointerId)) card.releasePointerCapture(event.pointerId); } catch (error) { /* best effort */ }
+      pointerDrag = null;
+      card.classList.remove("vp-creative-card--dragging", "vp-creative-card--pointer-dragging");
+    }
+
+    card.addEventListener("pointerdown", function (event) {
+      if (!event.isPrimary || event.button !== 0) return;
+      pointerDrag = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        started: false,
+        lastEvent: event
+      };
+      try { card.setPointerCapture(event.pointerId); } catch (error) { /* capture is optional */ }
+      event.preventDefault();
+    });
+
+    card.addEventListener("pointermove", function (event) {
+      if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
+      pointerDrag.lastEvent = event;
+      if (!pointerDrag.started) {
+        var distance = Math.hypot(event.clientX - pointerDrag.startX, event.clientY - pointerDrag.startY);
+        if (distance < POINTER_DRAG_THRESHOLD) return;
+        pointerDrag.started = true;
+        card.classList.add("vp-creative-card--dragging", "vp-creative-card--pointer-dragging");
+        postDragMessage(POINTER_DRAG_START, item, pointerDetail(event));
+      }
+      event.preventDefault();
+      if (!pointerMoveFrame) pointerMoveFrame = window.requestAnimationFrame(sendPointerMove);
+    });
+
+    card.addEventListener("pointerup", function (event) { finishPointerDrag(event, true); });
+    card.addEventListener("pointercancel", function (event) { finishPointerDrag(event, false); });
+    card.addEventListener("lostpointercapture", function (event) {
+      if (pointerDrag && event.pointerId === pointerDrag.pointerId) finishPointerDrag(event, false);
+    });
     return card;
   }
 
@@ -321,8 +582,12 @@
     try {
       var taxonomy = window.VectoplanTaxonomyNavigation;
       if (taxonomy) {
-        taxonomy.refreshElements();
-        taxonomy.applyCreativeCardFilter();
+        if (typeof taxonomy.refreshCatalog === "function") {
+          taxonomy.refreshCatalog();
+        } else {
+          taxonomy.refreshElements();
+          taxonomy.applyCreativeCardFilter();
+        }
       }
     } catch (error) { state.errors.push(String(error)); }
   }
@@ -374,12 +639,25 @@
 
   function requestItems(url) {
     if (!url || typeof window.fetch !== "function") return Promise.resolve([]);
-    return window.fetch(url, { credentials: "same-origin", cache: "no-store", headers: { "Accept": "application/json" } })
+    var controller = typeof window.AbortController === "function" ? new window.AbortController() : null;
+    var timeoutId = window.setTimeout(function () {
+      if (controller) controller.abort();
+    }, REQUEST_TIMEOUT_MS);
+    var options = { credentials: "same-origin", cache: "no-store", headers: { "Accept": "application/json" } };
+    if (controller) options.signal = controller.signal;
+    return window.fetch(url, options)
       .then(function (response) {
         if (!response.ok) throw new Error("HTTP " + response.status + " für " + url);
         return response.json();
       })
-      .then(unwrapItems);
+      .then(unwrapItems)
+      .then(function (items) {
+        window.clearTimeout(timeoutId);
+        return items;
+      }, function (error) {
+        window.clearTimeout(timeoutId);
+        throw error;
+      });
   }
 
   function load() {
@@ -388,13 +666,21 @@
     state.loading = true;
     setLoadingStatus("Veröffentlichte VPLIB-Objekte werden geladen …");
     updateEmptyState();
-    var urls = [clean(grid.dataset.creativeItemsUrl), clean(grid.dataset.publishedItemsUrl)].filter(Boolean);
-    return Promise.allSettled(urls.map(requestItems)).then(function (results) {
-      var rawItems = [];
-      results.forEach(function (result) {
-        if (result.status === "fulfilled") rawItems = rawItems.concat(result.value);
-        else state.errors.push(String(result.reason));
+    var primaryUrl = clean(grid.dataset.creativeItemsUrl);
+    var fallbackUrl = clean(grid.dataset.publishedItemsUrl);
+
+    function safeRequest(url) {
+      if (!url) return Promise.resolve([]);
+      return requestItems(url).catch(function (error) {
+        state.errors.push(String(error));
+        return [];
       });
+    }
+
+    return safeRequest(primaryUrl).then(function (rawItems) {
+      if (rawItems.length || !fallbackUrl) return rawItems;
+      return safeRequest(fallbackUrl);
+    }).then(function (rawItems) {
       state.loading = false;
       var items = uniqueItems(rawItems);
       render(items);

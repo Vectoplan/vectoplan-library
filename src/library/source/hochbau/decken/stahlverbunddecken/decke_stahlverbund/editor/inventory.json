@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "e26b6693-55ce-599a-970d-0dcb6a6e8774",
+  "family_id": "vp.hochbau.decken.stahlverbunddecken.decke_stahlverbund",
+  "default_variant_id": "default",
+  "label": "Decke Stahlverbund",
+  "description": "Stahlverbunddecke als ein Blocktyp mit auswählbaren realen Dicken.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "decken",
+  "subcategory": "stahlverbunddecken",
+  "classification_path": "hochbau/decken/stahlverbunddecken",
+  "source_path": "hochbau/decken/stahlverbunddecken/decke_stahlverbund",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Decken",
+    "subcategory": "Stahlverbunddecken"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

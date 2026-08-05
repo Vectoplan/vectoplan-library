@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "889ddf61-864a-4f59-aa70-e12622de0feb",
+  "family_id": "vp.hochbau.waende.tragende_waende.wand_holz",
+  "slug": "wand_holz",
+  "label": "Wand Holz",
+  "description": "Holzwand als ein Blocktyp mit auswählbaren realen Dicken.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}
