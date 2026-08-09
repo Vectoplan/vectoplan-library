@@ -3717,3 +3717,145 @@ html.vp-creative-inventory-embed .vp-creative-layout[data-create-embed-active="t
   font-weight: 650;
   line-height: 1.3;
 }
+
+/* Hytale-like block thumbnails: the real material texture is projected onto
+   three cube faces instead of being shown as a flat color/texture swatch. */
+.vp-inventory-cube {
+  --vp-inventory-cube-size: 42px;
+  position: relative;
+  display: block;
+  width: var(--vp-inventory-cube-size);
+  height: var(--vp-inventory-cube-size);
+  filter: drop-shadow(0 8px 7px rgba(18, 31, 51, 0.26));
+  pointer-events: none;
+}
+
+.vp-inventory-cube__face {
+  position: absolute;
+  display: block;
+  border: 1px solid rgba(12, 25, 43, 0.16);
+  background-color: #8ea2b5;
+  background-position: center;
+  background-repeat: repeat;
+  background-size: cover;
+  image-rendering: auto;
+}
+
+.vp-inventory-cube__face--front {
+  left: 5%;
+  top: 24%;
+  width: 46%;
+  height: 67%;
+  clip-path: polygon(0 0, 100% 18%, 100% 100%, 0 82%);
+  filter: brightness(0.94) saturate(1.04);
+}
+
+.vp-inventory-cube__face--right {
+  right: 5%;
+  top: 24%;
+  width: 46%;
+  height: 67%;
+  clip-path: polygon(0 18%, 100% 0, 100% 82%, 0 100%);
+  filter: brightness(0.72) saturate(0.96);
+}
+
+.vp-inventory-cube__face--top {
+  left: 5%;
+  top: 1%;
+  width: 90%;
+  height: 40%;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  filter: brightness(1.16) saturate(1.04);
+}
+
+.vp-creative-card__preview,
+.vp-creative-card__banner {
+  perspective: 260px;
+}
+
+.vp-creative-card__cube {
+  --vp-inventory-cube-size: 46px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -47%);
+  transition: transform 150ms ease, filter 150ms ease;
+}
+
+.vp-creative-card:hover .vp-creative-card__cube,
+.vp-creative-card:focus-visible .vp-creative-card__cube {
+  transform: translate(-50%, -52%) scale(1.08);
+  filter: drop-shadow(0 10px 8px rgba(18, 31, 51, 0.32));
+}
+
+.vp-user-slot__content {
+  perspective: 260px;
+}
+
+.vp-user-slot__cube {
+  --vp-inventory-cube-size: 42px;
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot[data-has-texture="true"] .vp-user-slot__icon,
+.vp-creative-inventar-page .vp-user-slot[data-has-texture="true"] .vp-user-slot__icon {
+  display: none !important;
+}
+
+/* Gameplay hotbar: keep previews large and show the selected block name
+   briefly above its slot without relaying out the rest of the inventory. */
+.vp-user-inventar-overlay-page .vp-user-slot,
+.vp-user-inventar-overlay-page .vp-user-slot__content {
+  overflow: visible;
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot__cube {
+  --vp-inventory-cube-size: 56px;
+  top: 52%;
+  filter: drop-shadow(0 7px 6px rgba(18, 31, 51, 0.24));
+}
+
+.vp-user-inventar-overlay-page .vp-user-slot--selection-announced .vp-user-slot__label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  z-index: 12;
+  display: block !important;
+  width: max-content;
+  max-width: 240px;
+  padding: 6px 11px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 7px;
+  color: #fff;
+  background: rgba(12, 20, 31, 0.92);
+  box-shadow: 0 7px 20px rgba(5, 10, 18, 0.32);
+  font-size: 0.74rem;
+  font-weight: 780;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: vp-user-slot-selection-label 1500ms ease both;
+  transform: translateX(-50%);
+}
+
+@keyframes vp-user-slot-selection-label {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 5px);
+  }
+  12%, 72% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -3px);
+  }
+}

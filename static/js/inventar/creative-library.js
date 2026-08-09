@@ -368,6 +368,29 @@
     }
   }
 
+  function createTextureCube(textureUrl, extraClassName) {
+    var cube = document.createElement("span");
+    cube.className = "vp-inventory-cube " + (extraClassName || "");
+    cube.setAttribute("aria-hidden", "true");
+    ["front", "right", "top"].forEach(function (faceName) {
+      var face = document.createElement("span");
+      face.className = "vp-inventory-cube__face vp-inventory-cube__face--" + faceName;
+      face.style.backgroundImage = "url(\"" + textureUrl.replace(/[\"\\]/g, "\\$&") + "\")";
+      cube.appendChild(face);
+    });
+    return cube;
+  }
+
+  function isBlockLikeObjectKind(value) {
+    var objectKind = clean(value).toLowerCase().replace(/-/g, "_");
+    return !objectKind
+      || objectKind === "block"
+      || objectKind === "cell_block"
+      || objectKind === "material"
+      || objectKind === "terrain_block"
+      || objectKind === "voxel";
+  }
+
   function itemPayload(item) {
     return {
       id: item.id,
@@ -458,14 +481,18 @@
     preview.setAttribute("aria-hidden", "true");
     var previewUrl = safePreviewUrl(item.preview.url);
     if (previewUrl) {
-      var image = document.createElement("img");
-      image.className = "vp-creative-card__preview-image vp-creative-card__banner-image";
-      image.src = previewUrl;
-      image.alt = "";
-      image.loading = "lazy";
-      image.decoding = "async";
-      image.draggable = false;
-      preview.appendChild(image);
+      if (isBlockLikeObjectKind(item.object_kind)) {
+        preview.appendChild(createTextureCube(previewUrl, "vp-creative-card__cube"));
+      } else {
+        var image = document.createElement("img");
+        image.className = "vp-creative-card__preview-image vp-creative-card__banner-image";
+        image.src = previewUrl;
+        image.alt = "";
+        image.loading = "lazy";
+        image.decoding = "async";
+        image.draggable = false;
+        preview.appendChild(image);
+      }
     }
     var icon = document.createElement("span");
     icon.className = "vp-creative-card__icon";
