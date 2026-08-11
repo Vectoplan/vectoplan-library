@@ -3,7 +3,7 @@
   "use strict";
 
   var MODULE_NAME = "VectoplanUserInventory";
-  var MODULE_VERSION = "1.2.0";
+  var MODULE_VERSION = "1.5.0";
 
   var DEFAULT_USER_ID = 1;
   var DEFAULT_INVENTORY_KEY = "default";
@@ -19,6 +19,8 @@
   var SAVE_DEBOUNCE_MS = 140;
   var STATUS_HIDE_DELAY_MS = 1200;
   var WHEEL_THROTTLE_MS = 120;
+  var CACHE_WRITE_DEBOUNCE_MS = 180;
+  var SELECTION_LABEL_HIDE_DELAY_MS = 1500;
   var CREATIVE_DRAG_MIME = "application/x-vectoplan-vplib-item+json";
   var CREATIVE_POINTER_DRAG_START = "vectoplan:creative-pointer-drag-start";
   var CREATIVE_POINTER_DRAG_MOVE = "vectoplan:creative-pointer-drag-move";
@@ -45,6 +47,7 @@
     locked: "vp-user-slot--locked",
     pinned: "vp-user-slot--pinned",
     dropTarget: "vp-user-slot--drop-target",
+    selectionAnnounced: "vp-user-slot--selection-announced",
 
     statusLoading: "vp-user-inventory-status--loading",
     statusSaving: "vp-user-inventory-status--saving",
@@ -92,6 +95,8 @@
 
     wheelLockedUntil: 0,
     pendingSaveTimer: null,
+    pendingCacheTimer: null,
+    selectionLabelTimer: null,
     statusTimer: null,
     activeDragItem: null,
 
@@ -526,7 +531,8 @@
               source: "click",
               persist: true,
               focus: true,
-              immediate: true
+              immediate: true,
+              forceDispatch: true
             });
           } catch (err) {
             state.lastError = err;
@@ -728,6 +734,16 @@
         }
 
         if (
+          message.source === "vectoplan-editor"
+          && message.type === EVENTS.requestState
+        ) {
+          dispatch("state", {
+            source: detail.source || "editor-host"
+          });
+          return;
+        }
+
+        if (
           message.type !== EVENTS.selectSlot ||
           message.source !== "vectoplan-editor"
         ) {
@@ -738,7 +754,8 @@
           source: detail.source || "editor-host",
           persist: detail.persist !== false,
           focus: detail.focus === true,
-          immediate: detail.immediate === true
+          immediate: detail.immediate === true,
+          forceDispatch: detail.forceDispatch !== false
         });      } catch (err) {
         error("Editor host select-slot message failed.", err);
       }
@@ -1018,7 +1035,8 @@
         source: "keyboard-number",
         persist: true,
         focus: true,
-        immediate: true
+        immediate: true,
+        forceDispatch: true
       });
       return;
     }
@@ -1221,9 +1239,13 @@
   }
 
   function selectSlot(slotIndex, options) {
+    var selectionStartedAtMs = performance.now();
+    var selectionStartedAtEpochMs = Date.now();
     var normalizedOptions = options || {};
     var normalizedSlotIndex = normalizeSlotIndex(slotIndex);
     var targetSlot = getSlot(normalizedSlotIndex);
+    var selectionChanged = normalizedSlotIndex !== state.activeSlotIndex;
+    var shouldDispatchSelection = selectionChanged || normalizedOptions.forceDispatch === true;
 
     if (targetSlot.locked) {
       setStatus("Dieser Slot ist gesperrt.", "error");
@@ -1238,26 +1260,41 @@
     state.activeSlotIndex = normalizedSlotIndex;
     state.lastSelectedSlotIndex = normalizedSlotIndex;
 
-    state.slots = normalizeSlots(state.slots).map(function (slot) {
-      slot.selected = normalizeSlotIndex(slot.slot_index) === normalizedSlotIndex;
-      return slot;
-    });
+    // Slots are normalized when the inventory payload is loaded. Re-running
+    // the full normalizer here cloned large nested VPLIB payload/metadata
+    // objects several times per wheel tick. Keep selection as a shallow
+    // nine-slot update instead.
+    var selectionStateStartedAtMs = performance.now();
+    state.slots = (Array.isArray(state.slots) ? state.slots : normalizeSlots(state.slots))
+      .map(function (slot) {
+        var selected = normalizeSlotIndex(slot.slot_index) === normalizedSlotIndex;
+        return slot.selected === selected
+          ? slot
+          : Object.assign({}, slot, { selected: selected });
+      });
+    var selectionStateDurationMs = performance.now() - selectionStateStartedAtMs;
 
-    render();
+    var selectionRenderStartedAtMs = performance.now();
+    renderSelectionState(selectionChanged && normalizedOptions.announce !== false);
+    var selectionRenderDurationMs = performance.now() - selectionRenderStartedAtMs;
 
     if (normalizedOptions.focus) {
       focusSlot(normalizedSlotIndex);
     }
 
-    writeCache(inventoryPayloadForCache());
+    if (shouldDispatchSelection) {
+      dispatch("selection-change", {
+        source: normalizedOptions.source || "unknown",
+        slot_index: normalizedSlotIndex,
+        slot: compactSelectionSlot(getSlot(normalizedSlotIndex)),
+        selection_started_at_epoch_ms: selectionStartedAtEpochMs,
+        selection_before_dispatch_ms: performance.now() - selectionStartedAtMs,
+        selection_state_ms: selectionStateDurationMs,
+        selection_render_ms: selectionRenderDurationMs
+      });
+    }
 
-    dispatch("selection-change", {
-      source: normalizedOptions.source || "unknown",
-      slot_index: normalizedSlotIndex,
-      slot: getSlot(normalizedSlotIndex)
-    });
-
-    if (normalizedOptions.persist !== false) {
+    if (selectionChanged && normalizedOptions.persist !== false) {
       if (normalizedOptions.immediate) {
         persistSelection(normalizedSlotIndex);
       } else {
@@ -1303,6 +1340,22 @@
     }
   }
 
+  function scheduleCacheWrite() {
+    try {
+      if (state.pendingCacheTimer) {
+        window.clearTimeout(state.pendingCacheTimer);
+      }
+
+      state.pendingCacheTimer = window.setTimeout(function () {
+        state.pendingCacheTimer = null;
+        writeCache(inventoryPayloadForCache());
+      }, CACHE_WRITE_DEBOUNCE_MS);
+    } catch (err) {
+      // Cache is optional. Selection must stay instant when browser storage is
+      // unavailable or temporarily blocked.
+    }
+  }
+
   function persistSelection(slotIndex) {
     var normalizedSlotIndex = normalizeSlotIndex(slotIndex);
 
@@ -1312,8 +1365,6 @@
 
     state.saving = true;
     syncRootDataset();
-    setSlotSaving(normalizedSlotIndex, true);
-    setStatus("Slot " + normalizedSlotIndex + " wird gespeichert ...", "saving");
 
     return requestJson(state.selectUrl || DEFAULT_SELECT_URL, {
       method: "PATCH",
@@ -1338,17 +1389,15 @@
         applyInventoryPayload(result.payload, {
           source: "select-api",
           persist: false,
-          render: true,
+          render: false,
           preserveExistingSlots: true
         });
 
         state.saving = false;
-        setSlotSaving(normalizedSlotIndex, false);
-        writeCache(inventoryPayloadForCache());
         setStatus("", "ready");
         syncRootDataset();
 
-        dispatch("save", {
+        dispatch("selection-persisted", {
           operation: "select-slot",
           slot_index: normalizedSlotIndex
         });
@@ -1358,7 +1407,6 @@
       .catch(function (err) {
         state.saving = false;
         state.lastError = err;
-        setSlotSaving(normalizedSlotIndex, false);
         setSlotError(normalizedSlotIndex, true);
         setStatus("Slot-Auswahl konnte nicht gespeichert werden.", "error");
         syncRootDataset();
@@ -1401,7 +1449,8 @@
       selectSlot(normalizedSlotIndex, {
         source: normalizedOptions.source || "set-slot-local",
         persist: false,
-        focus: false
+        focus: false,
+        forceDispatch: true
       });
     } else {
       render();
@@ -1639,7 +1688,7 @@
 
         icon: normalizeIcon(normalizedItem.icon || normalizedItem.icon_text || normalizedItem.iconText),
         preview: normalizeObject(normalizedItem.preview),
-        assets: normalizeArray(normalizedItem.assets),
+        assets: normalizeAssets(normalizedItem.assets),
         variant: normalizeObject(normalizedItem.variant),
         placement: normalizeObject(normalizedItem.placement),
         payload: normalizedItem,
@@ -1730,6 +1779,110 @@
     }
   }
 
+  /**
+   * Selection changes are the hottest inventory path. Rebuilding all nine
+   * slot contents here recreated every cube face and texture preloader for a
+   * single mouse-wheel notch. Keep the existing DOM and only update the
+   * selection attributes/classes that actually changed.
+   */
+  function renderSelectionState(announceSelection) {
+    try {
+      syncRootDataset();
+
+      var selectedElement = null;
+
+      state.elements.slotElements.forEach(function (element) {
+        var slotIndex = normalizeSlotIndex(element.getAttribute("data-slot-index"));
+        var selected = slotIndex === state.activeSlotIndex;
+
+        element.classList.toggle(CLASSES.active, selected);
+        element.classList.toggle(CLASSES.selected, selected);
+        element.classList.remove(CLASSES.selectionAnnounced);
+        element.setAttribute("tabindex", selected ? "0" : "-1");
+        element.setAttribute("aria-selected", selected ? "true" : "false");
+        element.setAttribute("data-slot-selected", selected ? "true" : "false");
+
+        if (selected) {
+          selectedElement = element;
+        }
+      });
+
+      if (state.selectionLabelTimer) {
+        window.clearTimeout(state.selectionLabelTimer);
+        state.selectionLabelTimer = null;
+      }
+
+      if (
+        announceSelection
+        && selectedElement
+        && selectedElement.getAttribute("data-slot-empty") !== "true"
+      ) {
+        selectedElement.classList.add(CLASSES.selectionAnnounced);
+        state.selectionLabelTimer = window.setTimeout(function () {
+          state.selectionLabelTimer = null;
+          if (selectedElement && selectedElement.classList) {
+            selectedElement.classList.remove(CLASSES.selectionAnnounced);
+          }
+        }, SELECTION_LABEL_HIDE_DELAY_MS);
+      }
+    } catch (err) {
+      state.lastError = err;
+      error("Selection render failed.", err);
+    }
+  }
+
+  function worldEditToolIdFromSlot(slotValue) {
+    var slot = normalizeObject(slotValue);
+    var payload = normalizeObject(slot.payload);
+    var metadata = normalizeObject(slot.metadata || payload.metadata);
+    var placement = normalizeObject(slot.placement || payload.placement);
+    var objectKind = cleanString(readFirstDefined(
+      slot.object_kind,
+      slot.objectKind,
+      payload.object_kind,
+      payload.objectKind
+    )).toLowerCase().replace(/-/g, "_");
+    var domain = cleanString(readFirstDefined(slot.domain, payload.domain)).toLowerCase().replace(/_/g, "-");
+    var familyId = cleanString(readFirstDefined(slot.family_id, slot.familyId, payload.family_id, payload.familyId)).toLowerCase();
+    var vplibUid = cleanString(readFirstDefined(slot.vplib_uid, slot.vplibUid, payload.vplib_uid, payload.vplibUid)).toLowerCase();
+    var packageId = cleanString(readFirstDefined(slot.package_id, slot.packageId, payload.package_id, payload.packageId)).toLowerCase();
+    var isWorldEdit = objectKind === "world_edit_tool"
+      || domain === "world-edit"
+      || familyId.indexOf("world-edit.") === 0
+      || vplibUid.indexOf("vectoplan.world-edit.") === 0
+      || packageId === "vectoplan.world-edit";
+    if (!isWorldEdit) return "";
+
+    var candidates = [
+      slot.world_edit_tool,
+      slot.worldEditTool,
+      payload.world_edit_tool,
+      payload.worldEditTool,
+      metadata.world_edit_tool,
+      metadata.worldEditTool,
+      placement.world_edit_tool,
+      placement.worldEditTool,
+      placement.toolId,
+      slot.variant_id,
+      slot.variantId,
+      payload.variant_id,
+      payload.variantId,
+      familyId,
+      vplibUid
+    ];
+    var knownTools = ["selection", "paint", "sculpt", "parcel", "parcel-grid", "ruler-laser", "copy-transform"];
+    for (var index = 0; index < candidates.length; index += 1) {
+      var candidate = cleanString(candidates[index]).toLowerCase().replace(/_/g, "-");
+      ["vectoplan.world-edit.", "world-edit.", "world-edit-"].some(function (prefix) {
+        if (candidate.indexOf(prefix) !== 0) return false;
+        candidate = candidate.slice(prefix.length);
+        return true;
+      });
+      if (knownTools.indexOf(candidate) >= 0) return candidate;
+    }
+    return "";
+  }
+
   function renderSlotElement(element, slot) {
     try {
       var slotIndex = normalizeSlotIndex(slot.slot_index);
@@ -1737,6 +1890,7 @@
       var empty = inferSlotEmpty(slot);
       var locked = normalizeBoolean(slot.locked, false);
       var pinned = normalizeBoolean(slot.pinned, false);
+      var worldEditToolId = worldEditToolIdFromSlot(slot);
 
       element.classList.toggle(CLASSES.active, selected);
       element.classList.toggle(CLASSES.selected, selected);
@@ -1744,6 +1898,7 @@
       element.classList.toggle(CLASSES.filled, !empty);
       element.classList.toggle(CLASSES.locked, locked);
       element.classList.toggle(CLASSES.pinned, pinned);
+      element.classList.toggle("vp-user-slot--editor-tool", Boolean(worldEditToolId));
 
       element.setAttribute("role", "option");
       element.setAttribute("tabindex", selected ? "0" : "-1");
@@ -1768,6 +1923,11 @@
       element.setAttribute("data-mode", slot.mode || "creative");
       element.setAttribute("data-slot-locked", locked ? "true" : "false");
       element.setAttribute("data-slot-pinned", pinned ? "true" : "false");
+      if (worldEditToolId) {
+        element.setAttribute("data-world-edit-tool-id", worldEditToolId);
+      } else {
+        element.removeAttribute("data-world-edit-tool-id");
+      }
 
       if (slot.description) {
         element.setAttribute("title", slot.description);
@@ -1819,14 +1979,170 @@
     icon.setAttribute("aria-hidden", "true");
     icon.textContent = itemIconText(slot);
 
+    var worldEditToolId = worldEditToolIdFromSlot(slot);
+    var previewUrl = slotPreviewUrl(slot);
+    var previewColor = slotPreviewColor(slot);
+    if (worldEditToolId) {
+      element.setAttribute("data-has-texture", "false");
+      icon.hidden = false;
+      content.appendChild(icon);
+    } else if (previewUrl) {
+      var cube = createTextureCube(previewUrl, "vp-user-slot__cube", previewColor);
+      var preloader = new Image();
+      element.setAttribute("data-has-texture", "loading");
+      icon.classList.add("vp-user-slot__icon--fallback");
+      icon.hidden = true;
+      preloader.onload = function () {
+        element.setAttribute("data-has-texture", "true");
+        cube.classList.add("is-loaded");
+      };
+      preloader.onerror = function () {
+        element.setAttribute("data-has-texture", "false");
+        toArray(cube.querySelectorAll(".vp-inventory-cube__face")).forEach(function (face) {
+          face.style.backgroundImage = "none";
+        });
+      };
+      preloader.src = previewUrl;
+      content.appendChild(cube);
+    } else {
+      element.setAttribute("data-has-texture", "false");
+      icon.hidden = true;
+      content.appendChild(createTextureCube("", "vp-user-slot__cube", previewColor));
+    }
+
     var label = document.createElement("span");
     label.className = "vp-user-slot__label";
     label.textContent = slot.label || slot.family_id || slot.vplib_uid || "Item";
 
-    content.appendChild(icon);
+    if (!worldEditToolId) content.appendChild(icon);
     content.appendChild(label);
 
     renderQuantityElement(element, slot);
+  }
+
+  function createTextureCube(textureUrl, extraClassName, fallbackColor) {
+    var cube = document.createElement("span");
+    cube.className = "vp-inventory-cube " + (extraClassName || "");
+    cube.setAttribute("aria-hidden", "true");
+
+    ["front", "right", "top"].forEach(function (faceName) {
+      var face = document.createElement("span");
+      face.className = "vp-inventory-cube__face vp-inventory-cube__face--" + faceName;
+      face.style.backgroundColor = fallbackColor || "#8ea2b5";
+      if (textureUrl) {
+        face.style.backgroundImage = "url(\"" + textureUrl.replace(/[\"\\]/g, "\\$&") + "\")";
+      }
+      cube.appendChild(face);
+    });
+
+    return cube;
+  }
+
+  function safePreviewUrl(value) {
+    var raw = cleanString(value);
+    if (!raw) return "";
+    try {
+      var parsed = new URL(raw, window.location.href);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+      return parsed.href;
+    } catch (err) {
+      return "";
+    }
+  }
+
+  function firstPreviewUrlFromAssets(value) {
+    var candidates = [];
+    if (Array.isArray(value)) {
+      candidates = value;
+    } else if (value && typeof value === "object") {
+      candidates = [value].concat(Array.isArray(value.items) ? value.items : []);
+    }
+
+    for (var index = 0; index < candidates.length; index += 1) {
+      var asset = normalizeObject(candidates[index]);
+      var payload = normalizeObject(asset.payload);
+      var url = safePreviewUrl(readFirstDefined(
+        asset.previewUrl,
+        asset.preview_url,
+        asset.textureUrl,
+        asset.texture_url,
+        asset.iconUrl,
+        asset.icon_url,
+        asset.uri,
+        asset.url,
+        payload.previewUrl,
+        payload.textureUrl,
+        payload.uri,
+        payload.url
+      ));
+      if (url) return url;
+    }
+    return "";
+  }
+
+  function slotPreviewUrl(slot) {
+    var payload = normalizeObject(slot.payload);
+    var metadata = normalizeObject(slot.metadata);
+    var placement = normalizeObject(slot.placement);
+    var appearance = normalizeObject(readFirstDefined(
+      slot.appearance,
+      payload.appearance,
+      metadata.appearance,
+      placement.appearance
+    ));
+    var icon = normalizeIcon(slot.icon);
+    var preview = normalizeObject(slot.preview);
+    var payloadIcon = normalizeIcon(payload.icon);
+    var payloadPreview = normalizeObject(payload.preview);
+    var direct = safePreviewUrl(readFirstDefined(
+      preview.url,
+      preview.src,
+      icon.url,
+      icon.src,
+      icon.value,
+      slot.previewUrl,
+      slot.preview_url,
+      slot.iconUrl,
+      slot.icon_url,
+      payloadPreview.url,
+      payloadPreview.src,
+      payloadIcon.url,
+      payloadIcon.src,
+      payload.previewUrl,
+      payload.preview_url,
+      payload.iconUrl,
+      payload.icon_url,
+      appearance.textureUrl,
+      appearance.texture_url
+    ));
+    return direct
+      || firstPreviewUrlFromAssets(slot.assets)
+      || firstPreviewUrlFromAssets(payload.assets);
+  }
+
+  function slotPreviewColor(slot) {
+    var payload = normalizeObject(slot.payload);
+    var icon = normalizeIcon(slot.icon);
+    var payloadIcon = normalizeIcon(payload.icon);
+    var appearance = normalizeObject(payload.appearance || normalizeObject(slot.metadata).appearance);
+    var candidate = cleanString(readFirstDefined(
+      icon.color,
+      payloadIcon.color,
+      slot.color,
+      payload.color,
+      appearance.color
+    ));
+    if (candidate && (!window.CSS || !window.CSS.supports || window.CSS.supports("color", candidate))) {
+      return candidate;
+    }
+
+    var identity = cleanString(slot.label || slot.family_id || slot.vplib_uid || "block").toLowerCase();
+    if (identity.indexOf("terrain") >= 0 || identity.indexOf("grass") >= 0) return "#78a986";
+    var hash = 0;
+    for (var index = 0; index < identity.length; index += 1) {
+      hash = ((hash << 5) - hash + identity.charCodeAt(index)) | 0;
+    }
+    return "hsl(" + Math.abs(hash % 360) + " 30% 58%)";
   }
 
   function renderQuantityElement(element, slot) {
@@ -1859,6 +2175,17 @@
 
   function itemIconText(slot) {
     var icon = normalizeIcon(slot.icon);
+    var worldEditToolId = worldEditToolIdFromSlot(slot);
+    var worldEditIcons = {
+      selection: "\u2317",
+      paint: "\u270e",
+      sculpt: "\u2248",
+      parcel: "\u2316",
+      "parcel-grid": "\u22d5",
+      "ruler-laser": "\u2194",
+      "copy-transform": "\u27f3"
+    };
+    if (worldEditIcons[worldEditToolId]) return worldEditIcons[worldEditToolId];
 
     var candidates = [
       icon.text,
@@ -1960,10 +2287,22 @@
 
   function getSlot(slotIndex) {
     var normalizedSlotIndex = normalizeSlotIndex(slotIndex);
-    var slots = normalizeSlots(state.slots);
+    var slots = Array.isArray(state.slots)
+      ? state.slots
+      : Object.keys(state.slots || {}).map(function (key) {
+          return state.slots[key];
+        });
 
     for (var index = 0; index < slots.length; index += 1) {
-      if (normalizeSlotIndex(slots[index].slot_index) === normalizedSlotIndex) {
+      if (
+        slots[index]
+        && normalizeSlotIndex(
+          slots[index].slot_index
+          || slots[index].slotIndex
+          || slots[index].index
+          || slots[index].slot
+        ) === normalizedSlotIndex
+      ) {
         return slots[index];
       }
     }
@@ -2043,7 +2382,7 @@
 
       icon: normalizeIcon(raw.icon || raw.icon_text || raw.iconText),
       preview: normalizeObject(raw.preview),
-      assets: normalizeArray(raw.assets),
+      assets: normalizeAssets(raw.assets),
       variant: normalizeObject(raw.variant),
       placement: normalizeObject(raw.placement),
       payload: normalizeObject(raw.payload),
@@ -2416,6 +2755,8 @@
 
   function dispatch(type, detail) {
     try {
+      var compactSelectionEvent = type === "selection-change" || type === "selection-persisted";
+      var selectedSlot = getSlot(state.activeSlotIndex);
       var payload = {
         type: type,
         module: MODULE_NAME,
@@ -2424,8 +2765,14 @@
         inventory_key: state.inventoryKey,
         active_slot_index: state.activeSlotIndex,
         last_selected_slot_index: state.lastSelectedSlotIndex,
-        selected_slot: getSlot(state.activeSlotIndex),
-        slots: normalizeSlots(state.slots),
+        // Selection events cross an iframe boundary. Sending the full slot
+        // structured-cloned the complete VPLIB payload (metadata, previews and
+        // placement data) twice per wheel tick. Keep the public scalar identity
+        // fields while leaving the canonical full object in local state.
+        selected_slot: compactSelectionEvent
+          ? compactSelectionSlot(selectedSlot)
+          : selectedSlot,
+        slots: compactSelectionEvent ? [] : normalizeSlots(state.slots),
         loading: state.loading,
         saving: state.saving,
         loaded_from_api: state.loadedFromApi
@@ -2433,7 +2780,9 @@
 
       if (detail && typeof detail === "object") {
         Object.keys(detail).forEach(function (key) {
-          payload[key] = detail[key];
+          payload[key] = compactSelectionEvent && key === "slot"
+            ? compactSelectionSlot(detail[key])
+            : detail[key];
         });
       }
 
@@ -2464,6 +2813,53 @@
     } catch (err) {
       // non-critical
     }
+  }
+
+  /**
+   * Return only scalar slot identity/presentation fields for frequent
+   * selection events. This intentionally excludes raw payload, metadata,
+   * preview, asset and placement trees because the parent editor only needs
+   * the active index and those trees can be several hundred kilobytes.
+   */
+  function compactSelectionSlot(slot) {
+    var source = slot && typeof slot === "object" ? slot : {};
+    var result = {};
+    var scalarKeys = [
+      "slot_index", "slotIndex", "slot", "index", "slot_key",
+      "item_db_id", "item_id", "id", "uid", "vplib_uid",
+      "family_id", "package_id", "variant_id", "revision_id",
+      "runtime_block_type_id", "runtimeBlockTypeId", "block_type_id",
+      "blockTypeId", "label", "name", "title", "object_kind",
+      "domain", "category", "subcategory", "taxonomy_path", "material",
+      "texture_url", "preview_url", "color", "empty", "selected",
+      "locked", "pinned"
+    ];
+
+    scalarKeys.forEach(function (key) {
+      var value = source[key];
+      if (
+        value === null
+        || typeof value === "string"
+        || typeof value === "number"
+        || typeof value === "boolean"
+      ) {
+        result[key] = value;
+      }
+    });
+
+    var worldEditToolId = worldEditToolIdFromSlot(source);
+    if (worldEditToolId) {
+      result.world_edit_tool = worldEditToolId;
+      result.worldEditTool = worldEditToolId;
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(result, "slot_index")) {
+      result.slot_index = normalizeSlotIndex(
+        source.slot_index || source.slotIndex || source.slot || source.index
+      );
+    }
+
+    return result;
   }
 
   function getState() {
@@ -2663,6 +3059,18 @@
   function normalizeArray(value) {
     if (Array.isArray(value)) {
       return value.slice();
+    }
+
+    return [];
+  }
+
+  function normalizeAssets(value) {
+    if (Array.isArray(value)) {
+      return value.slice();
+    }
+
+    if (value && typeof value === "object") {
+      return normalizeObject(value);
     }
 
     return [];
