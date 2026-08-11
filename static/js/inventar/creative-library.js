@@ -3,11 +3,16 @@
   "use strict";
 
   var MODULE_NAME = "VectoplanCreativeLibrary";
-  var MODULE_VERSION = "1.2.0";
+  var MODULE_VERSION = "1.5.0";
   var DRAG_MIME = "application/x-vectoplan-vplib-item+json";
   var POINTER_DRAG_START = "vectoplan:creative-pointer-drag-start";
   var POINTER_DRAG_MOVE = "vectoplan:creative-pointer-drag-move";
   var POINTER_DRAG_END = "vectoplan:creative-pointer-drag-end";
+  var WORLD_EDIT_SELECTION = "vectoplan:worldedit-inventory-selection";
+  var WORLD_EDIT_SETTINGS_CHANGE = "vectoplan:worldedit-settings-change";
+  var WORLD_EDIT_ACTION = "vectoplan:worldedit-action";
+  var WORLD_EDIT_STATE_SYNC = "vectoplan:worldedit-state";
+  var WORLD_EDIT_STATE_REQUEST = "vectoplan:creative-inventory-request-user-inventory-state";
   var POINTER_DRAG_THRESHOLD = 6;
   var REQUEST_TIMEOUT_MS = 12000;
   var SELECTORS = {
@@ -23,8 +28,42 @@
     loading: false,
     items: [],
     query: "",
+    selectedWorldEditToolId: "",
+    worldEditSettings: {
+      operation: "set",
+      shape: "sphere",
+      radius: 2,
+      density: 100,
+      wallThickness: 0,
+      parcelMask: true,
+      parcelGridMode: "boundary",
+      parcelGridSetback: 0,
+      parcelGridInfluence: 3
+    },
     errors: []
   };
+
+  var WORLD_EDIT_TOOLS = [
+    { id: "selection", label: "Selection Tool", icon: "\u2317", group: "basic-tools", ready: true, description: "Quader markieren, an sechs Flaechenpunkten anpassen und als Set, Wand, Fill, Replace oder Clear ausfuehren." },
+    { id: "parcel", label: "Flurstück Tool", icon: "\u2316", group: "basic-tools", ready: true, description: "Flurstücke direkt im 3D-Editor projektweit auswählen oder abwählen." },
+    { id: "parcel-grid", label: "Grundstücksraster", icon: "\u22d5", group: "basic-tools", ready: true, description: "Eine Flurstücksgrenze als Bauachse wählen und direkte Grenzbebauung oder einen festen Abstand vorgeben." },
+    { id: "paint", label: "Paint Brush", icon: "\u270e", group: "basic-tools", ready: true, description: "Kugel-, Quader- und Zylinderpinsel mit Radius, Dichte und Wandstaerke." },
+    { id: "sculpt", label: "Sculpt Brush", icon: "\u2248", group: "basic-tools", ready: true, description: "Material auftragen oder mit Rechtsklick abtragen; bildet das Fundament fuer Smooth, Refine und Erosion." },
+    { id: "shape", label: "Shape Tool", icon: "\u25c7", group: "basic-tools", description: "Parametrische Voll- und Hohlformen." },
+    { id: "entity", label: "Entity Tool", icon: "\u25c9", group: "basic-tools", description: "Entities auswaehlen, platzieren und bearbeiten." },
+    { id: "trigger-volume", label: "Trigger Volume", icon: "\u2318", group: "basic-tools", description: "Interaktions- und Triggerregionen anlegen." },
+    { id: "ruler-laser", label: "Ruler & Laser", icon: "\u2194", group: "basic-tools", ready: true, description: "Distanzen zwischen zwei Punkten direkt in Metern messen." },
+    { id: "copy-transform", label: "Copy / Cut / Paste", icon: "\u27f3", group: "basic-tools", ready: true, description: "Markierte Bereiche kopieren, ausschneiden und am Ziel wieder einfügen." },
+    { id: "extrude-flood", label: "Extrude & Flood", icon: "\u21e5", group: "basic-tools", description: "Flaechen extrudieren oder zusammenhaengende Bereiche fluten." },
+    { id: "boulder", label: "Boulder Brush", icon: "\u25ce", group: "terrain-brushes", description: "Unregelmaessige Felsvolumen." },
+    { id: "cave", label: "Cave Brush", icon: "\u25d0", group: "terrain-brushes", description: "Tunnel und Hohlraeume aus Terrain schneiden." },
+    { id: "mountain", label: "Mountain Brush", icon: "\u25b2", group: "terrain-brushes", description: "Gebirge und Hoehenzuege aufbauen." },
+    { id: "tentacle", label: "Tentacle Brush", icon: "\u223f", group: "terrain-brushes", description: "Organische, gerichtete Volumenpfade." },
+    { id: "lava-cracks", label: "Lava Cracks", icon: "\u26a1", group: "terrain-brushes", description: "Verzweigte Spalten und Materialadern." },
+    { id: "grass-erosion", label: "Grass & Erosion", icon: "\u224b", group: "terrain-brushes", description: "Oberflaechenmaterial verteilen und Terrain erodieren." },
+    { id: "path-wall-layer", label: "Path / Wall / Layer", icon: "\u2503", group: "terrain-brushes", description: "Pfade, Waende und Materialschichten entlang einer Spur." },
+    { id: "revolve", label: "Revolve Tool", icon: "\u27f2", group: "terrain-brushes", description: "Profil um eine Achse rotieren und als Volumen aufbauen." }
+  ];
 
   function clean(value) {
     try { return String(value == null ? "" : value).trim(); } catch (error) { return ""; }
@@ -391,6 +430,50 @@
       || objectKind === "voxel";
   }
 
+  function worldEditToolItem(tool) {
+    var toolId = clean(tool && tool.id).toLowerCase();
+    return {
+      id: "world-edit-" + toolId,
+      item_db_id: null,
+      vplib_uid: "vectoplan.world-edit." + toolId,
+      family_id: "world-edit." + toolId,
+      package_id: "vectoplan.world-edit",
+      variant_id: toolId,
+      runtimeBlockTypeId: "",
+      blockTypeId: "",
+      label: tool.label,
+      title: tool.label,
+      description: tool.description,
+      object_kind: "world_edit_tool",
+      world_edit_tool: toolId,
+      domain: "world-edit",
+      category: tool.group,
+      subcategory: "built-in",
+      taxonomy_path: "world-edit/" + tool.group + "/" + toolId,
+      quantity: 1,
+      source: "system",
+      scope: "editor",
+      mode: "creative",
+      icon: { text: tool.icon, color: "#315fc4" },
+      preview: {},
+      assets: [],
+      appearance: {},
+      placement: {
+        kind: "editor-tool",
+        tool: "world-edit",
+        toolId: toolId,
+        world_edit_tool: toolId
+      },
+      selected_variant: null,
+      variants: [],
+      metadata: {
+        builtin: true,
+        ready: Boolean(tool.ready),
+        world_edit_tool: toolId
+      }
+    };
+  }
+
   function itemPayload(item) {
     return {
       id: item.id,
@@ -405,6 +488,7 @@
       title: item.title,
       description: item.description,
       object_kind: item.object_kind,
+      world_edit_tool: item.world_edit_tool,
       domain: item.domain,
       category: item.category,
       subcategory: item.subcategory,
@@ -438,6 +522,438 @@
       version: MODULE_VERSION,
       detail: detail
     }, targetOrigin);
+  }
+
+  function bindCreativeCardDrag(card, item) {
+    card.addEventListener("dragstart", function (event) {
+      var payload = itemPayload(item);
+      card.classList.add("vp-creative-card--dragging");
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "copy";
+        event.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload));
+        event.dataTransfer.setData("text/plain", JSON.stringify(payload));
+      }
+      postDragMessage("vectoplan:creative-drag-start", item);
+    });
+    card.addEventListener("dragend", function () {
+      card.classList.remove("vp-creative-card--dragging");
+      postDragMessage("vectoplan:creative-drag-end", null);
+    });
+
+    var pointerDrag = null;
+    var pointerMoveFrame = 0;
+
+    function pointerDetail(event) {
+      return {
+        pointer: {
+          pointerId: event.pointerId,
+          pointerType: event.pointerType || "mouse",
+          clientX: event.clientX,
+          clientY: event.clientY
+        }
+      };
+    }
+
+    function sendPointerMove() {
+      pointerMoveFrame = 0;
+      if (!pointerDrag || !pointerDrag.started || !pointerDrag.lastEvent) return;
+      postDragMessage(POINTER_DRAG_MOVE, item, pointerDetail(pointerDrag.lastEvent));
+    }
+
+    function finishPointerDrag(event, drop) {
+      if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
+      if (pointerMoveFrame) {
+        window.cancelAnimationFrame(pointerMoveFrame);
+        pointerMoveFrame = 0;
+      }
+      if (pointerDrag.started) {
+        postDragMessage(POINTER_DRAG_END, item, Object.assign(pointerDetail(event), { drop: drop !== false }));
+      }
+      try { if (card.hasPointerCapture(event.pointerId)) card.releasePointerCapture(event.pointerId); } catch (error) { /* best effort */ }
+      pointerDrag = null;
+      card.classList.remove("vp-creative-card--dragging", "vp-creative-card--pointer-dragging");
+    }
+
+    card.addEventListener("pointerdown", function (event) {
+      if (!event.isPrimary || event.button !== 0) return;
+      pointerDrag = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        started: false,
+        lastEvent: event
+      };
+      try { card.setPointerCapture(event.pointerId); } catch (error) { /* capture is optional */ }
+      event.preventDefault();
+    });
+
+    card.addEventListener("pointermove", function (event) {
+      if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
+      pointerDrag.lastEvent = event;
+      if (!pointerDrag.started) {
+        var distance = Math.hypot(event.clientX - pointerDrag.startX, event.clientY - pointerDrag.startY);
+        if (distance < POINTER_DRAG_THRESHOLD) return;
+        pointerDrag.started = true;
+        card.classList.add("vp-creative-card--dragging", "vp-creative-card--pointer-dragging");
+        postDragMessage(POINTER_DRAG_START, item, pointerDetail(event));
+      }
+      event.preventDefault();
+      if (!pointerMoveFrame) pointerMoveFrame = window.requestAnimationFrame(sendPointerMove);
+    });
+
+    card.addEventListener("pointerup", function (event) { finishPointerDrag(event, true); });
+    card.addEventListener("pointercancel", function (event) { finishPointerDrag(event, false); });
+    card.addEventListener("lostpointercapture", function (event) {
+      if (pointerDrag && event.pointerId === pointerDrag.pointerId) finishPointerDrag(event, false);
+    });
+  }
+
+  function showWorldEditTool(tool, card) {
+    var aside = document.querySelector(".vp-creative-tools");
+    var panel = document.querySelector("[data-world-edit-tool-config]");
+    if (!aside || !panel || !tool) return;
+    state.selectedWorldEditToolId = tool.id;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-world-edit-tool-card]"), function (entry) {
+      entry.classList.toggle("is-selected", entry === card);
+      entry.setAttribute("aria-selected", entry === card ? "true" : "false");
+    });
+    aside.dataset.worldEditConfigOpen = "true";
+    panel.hidden = false;
+    var title = panel.querySelector("[data-world-edit-config-title]");
+    var description = panel.querySelector("[data-world-edit-config-description]");
+    var status = panel.querySelector("[data-world-edit-config-status]");
+    var panelTitle = aside.querySelector("[data-creative-tools-title]");
+    var panelSubtitle = aside.querySelector("[data-creative-tools-subtitle]");
+    var selectionSettings = panel.querySelector("[data-world-edit-selection-settings]");
+    var brushSettings = panel.querySelector("[data-world-edit-brush-settings]");
+    var utilitySettings = panel.querySelector("[data-world-edit-utility-settings]");
+    var parcelGridSettings = panel.querySelector("[data-world-edit-parcel-grid-settings]");
+    var utilityTitle = panel.querySelector("[data-world-edit-utility-title]");
+    var utilityText = panel.querySelector("[data-world-edit-utility-text]");
+    var operationField = panel.querySelector("[data-world-edit-operation-field]");
+    var operationSelect = panel.querySelector("[data-world-edit-config-operation]");
+    var parcelMask = panel.querySelector(".vp-world-edit-config__mask");
+    var actions = panel.querySelector("[data-world-edit-config-actions]");
+    panel.dataset.tool = tool.id;
+    if (panelTitle) panelTitle.textContent = tool.label;
+    if (panelSubtitle) panelSubtitle.textContent = "World Edit Einstellungen";
+    if (title) title.textContent = tool.label;
+    if (description) description.textContent = tool.description;
+    if (selectionSettings) selectionSettings.hidden = tool.id !== "selection";
+    if (brushSettings) brushSettings.hidden = tool.id !== "paint" && tool.id !== "sculpt";
+    if (utilitySettings) utilitySettings.hidden = ["parcel", "parcel-grid", "ruler-laser", "copy-transform"].indexOf(tool.id) < 0;
+    if (parcelGridSettings) parcelGridSettings.hidden = tool.id !== "parcel-grid";
+    if (utilityTitle) utilityTitle.textContent = tool.label;
+    if (utilityText) utilityText.textContent = tool.id === "parcel"
+      ? "Flurstück anvisieren und anklicken. Die Auswahl wird sofort mit Map und Projekt synchronisiert."
+      : tool.id === "parcel-grid"
+        ? "Grenzkante anvisieren und anklicken. Die cyanfarbene Bauachse zeigt Grenzlage, Abstand und Wirkbereich."
+      : tool.id === "ruler-laser"
+        ? "Linksklick halten, Kamera bis zum zweiten Punkt bewegen und loslassen."
+        : "Zuerst mit Selection markieren, dann Copy, Cut oder Paste wählen.";
+    if (operationField) operationField.hidden = ["parcel", "parcel-grid", "ruler-laser"].indexOf(tool.id) >= 0;
+    if (parcelMask) parcelMask.hidden = ["parcel", "parcel-grid", "ruler-laser"].indexOf(tool.id) >= 0;
+    if (actions) actions.hidden = ["selection", "copy-transform"].indexOf(tool.id) < 0;
+    if (operationSelect) {
+      var clipboardTool = tool.id === "copy-transform";
+      if (operationSelect.dataset.mode !== (clipboardTool ? "clipboard" : "world")) {
+        operationSelect.innerHTML = clipboardTool
+          ? '<option value="copy">Kopieren</option><option value="cut">Ausschneiden</option><option value="paste">Einfügen</option>'
+          : '<option value="set">Setzen</option><option value="wall">Wände</option><option value="fill">Nur Luft füllen</option><option value="replace">Ersetzen</option><option value="clear">Leeren</option>';
+        operationSelect.dataset.mode = clipboardTool ? "clipboard" : "world";
+      }
+      if (clipboardTool && ["copy", "cut", "paste"].indexOf(state.worldEditSettings.operation) < 0) state.worldEditSettings.operation = "copy";
+      if (!clipboardTool && ["set", "wall", "fill", "replace", "clear"].indexOf(state.worldEditSettings.operation) < 0) state.worldEditSettings.operation = "set";
+      operationSelect.value = state.worldEditSettings.operation;
+    }
+    if (status) {
+      status.textContent = tool.ready ? "Im Editor eingebaut \u00b7 Grundst\u00fccksmaske aktiv" : "Analysiert \u00b7 folgt in einer Ausbauetappe";
+      status.dataset.ready = tool.ready ? "true" : "false";
+    }
+    if (tool.ready) emitWorldEditSettings();
+  }
+
+  function hideWorldEditTool() {
+    var aside = document.querySelector(".vp-creative-tools");
+    var panel = document.querySelector("[data-world-edit-tool-config]");
+    Array.prototype.forEach.call(document.querySelectorAll("[data-world-edit-tool-card]"), function (entry) {
+      entry.classList.remove("is-selected");
+      entry.setAttribute("aria-selected", "false");
+    });
+    if (aside) delete aside.dataset.worldEditConfigOpen;
+    if (panel) panel.hidden = true;
+    var panelTitle = aside && aside.querySelector("[data-creative-tools-title]");
+    var panelSubtitle = aside && aside.querySelector("[data-creative-tools-subtitle]");
+    if (panelTitle) panelTitle.textContent = "Creative Mode";
+    if (panelSubtitle) panelSubtitle.textContent = "Schnelleinstellungen";
+    state.selectedWorldEditToolId = "";
+  }
+
+  function findWorldEditTool(toolId) {
+    var result = null;
+    WORLD_EDIT_TOOLS.some(function (tool) {
+      if (tool.id !== toolId) return false;
+      result = tool;
+      return true;
+    });
+    return result;
+  }
+
+  function worldEditToolIdFromSlot(slotValue) {
+    var slot = record(slotValue);
+    var payload = record(slot.payload);
+    var metadata = record(slot.metadata || payload.metadata);
+    var placement = record(slot.placement || payload.placement);
+    var objectKind = first(slot.object_kind, slot.objectKind, payload.object_kind, payload.objectKind).toLowerCase().replace(/-/g, "_");
+    var domain = first(slot.domain, payload.domain).toLowerCase().replace(/_/g, "-");
+    var familyId = first(slot.family_id, slot.familyId, payload.family_id, payload.familyId).toLowerCase();
+    var vplibUid = first(slot.vplib_uid, slot.vplibUid, payload.vplib_uid, payload.vplibUid).toLowerCase();
+    var packageId = first(slot.package_id, slot.packageId, payload.package_id, payload.packageId).toLowerCase();
+    var isWorldEdit = objectKind === "world_edit_tool"
+      || domain === "world-edit"
+      || familyId.indexOf("world-edit.") === 0
+      || vplibUid.indexOf("vectoplan.world-edit.") === 0
+      || packageId === "vectoplan.world-edit";
+    if (!isWorldEdit) return "";
+
+    var candidates = [
+      slot.world_edit_tool,
+      slot.worldEditTool,
+      payload.world_edit_tool,
+      payload.worldEditTool,
+      metadata.world_edit_tool,
+      metadata.worldEditTool,
+      placement.world_edit_tool,
+      placement.worldEditTool,
+      placement.toolId,
+      slot.variant_id,
+      slot.variantId,
+      payload.variant_id,
+      payload.variantId,
+      familyId,
+      vplibUid
+    ];
+    for (var index = 0; index < candidates.length; index += 1) {
+      var candidate = clean(candidates[index]).toLowerCase().replace(/_/g, "-");
+      ["vectoplan.world-edit.", "world-edit.", "world-edit-"].some(function (prefix) {
+        if (candidate.indexOf(prefix) !== 0) return false;
+        candidate = candidate.slice(prefix.length);
+        return true;
+      });
+      if (findWorldEditTool(candidate)) return candidate;
+    }
+    return "";
+  }
+
+  function updateWorldEditSettingOutputs() {
+    var radius = document.querySelector("[data-world-edit-config-radius]");
+    var density = document.querySelector("[data-world-edit-config-density]");
+    var wall = document.querySelector("[data-world-edit-config-wall]");
+    var setback = document.querySelector("[data-world-edit-config-setback]");
+    var influence = document.querySelector("[data-world-edit-config-influence]");
+    var radiusOutput = document.querySelector("[data-world-edit-config-radius-output]");
+    var densityOutput = document.querySelector("[data-world-edit-config-density-output]");
+    var wallOutput = document.querySelector("[data-world-edit-config-wall-output]");
+    var setbackOutput = document.querySelector("[data-world-edit-config-setback-output]");
+    var influenceOutput = document.querySelector("[data-world-edit-config-influence-output]");
+    if (radiusOutput && radius) radiusOutput.textContent = radius.value;
+    if (densityOutput && density) densityOutput.textContent = density.value + "%";
+    if (wallOutput && wall) wallOutput.textContent = wall.value;
+    if (setbackOutput && setback) setbackOutput.textContent = setback.value + " m";
+    if (influenceOutput && influence) influenceOutput.textContent = influence.value + " m";
+  }
+
+  function applyWorldEditRuntimeState(value) {
+    var detail = record(value);
+    if (detail.toolId && state.selectedWorldEditToolId && detail.toolId !== state.selectedWorldEditToolId) return;
+    var first = document.querySelector("[data-world-edit-runtime-first]");
+    var second = document.querySelector("[data-world-edit-runtime-second]");
+    var status = document.querySelector("[data-world-edit-config-status]");
+    var actions = document.querySelector("[data-world-edit-config-actions]");
+    var execute = document.querySelector('[data-world-edit-config-action="execute"]');
+    var reset = document.querySelector('[data-world-edit-config-action="reset"]');
+    var parcelGridInfluence = document.querySelector("[data-world-edit-config-influence]");
+    if (first) first.textContent = clean(detail.first) || "im 3D-Fenster";
+    if (second) second.textContent = clean(detail.second) || "im 3D-Fenster";
+    if (status && clean(detail.status)) {
+      status.textContent = clean(detail.status);
+      status.dataset.ready = detail.statusKind === "error" || detail.statusKind === "warning" ? "false" : "true";
+    }
+    if (actions) actions.hidden = ["selection", "copy-transform"].indexOf(state.selectedWorldEditToolId) < 0;
+    if (execute) execute.disabled = Boolean(detail.busy) || detail.canExecute === false;
+    if (reset) reset.disabled = Boolean(detail.busy);
+    if (parcelGridInfluence && Number.isFinite(Number(detail.parcelGridInfluence))) {
+      parcelGridInfluence.value = String(Math.max(1, Math.min(6, Math.round(Number(detail.parcelGridInfluence)))));
+      state.worldEditSettings.parcelGridInfluence = Number(parcelGridInfluence.value);
+      updateWorldEditSettingOutputs();
+    }
+  }
+
+  function bindWorldEditActions() {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-world-edit-config-action]"), function (button) {
+      button.addEventListener("click", function () {
+        postDragMessage(WORLD_EDIT_ACTION, null, {
+          tool: state.selectedWorldEditToolId,
+          toolId: state.selectedWorldEditToolId,
+          action: clean(button.getAttribute("data-world-edit-config-action"))
+        });
+      });
+    });
+  }
+
+  function emitWorldEditSettings() {
+    if (!state.selectedWorldEditToolId) return;
+    postDragMessage(WORLD_EDIT_SETTINGS_CHANGE, null, {
+      tool: state.selectedWorldEditToolId,
+      toolId: state.selectedWorldEditToolId,
+      operation: state.worldEditSettings.operation,
+      shape: state.worldEditSettings.shape,
+      radius: state.worldEditSettings.radius,
+      density: state.worldEditSettings.density,
+      wallThickness: state.worldEditSettings.wallThickness,
+      parcelMask: state.worldEditSettings.parcelMask,
+      parcelGridMode: state.worldEditSettings.parcelGridMode,
+      parcelGridSetback: state.worldEditSettings.parcelGridSetback,
+      parcelGridInfluence: state.worldEditSettings.parcelGridInfluence
+    });
+  }
+
+  function bindWorldEditSettings() {
+    var operation = document.querySelector("[data-world-edit-config-operation]");
+    var shape = document.querySelector("[data-world-edit-config-shape]");
+    var radius = document.querySelector("[data-world-edit-config-radius]");
+    var density = document.querySelector("[data-world-edit-config-density]");
+    var wall = document.querySelector("[data-world-edit-config-wall]");
+    var parcelMask = document.querySelector("[data-world-edit-config-parcel-mask]");
+    var parcelGridMode = document.querySelector("[data-world-edit-config-parcel-grid-mode]");
+    var parcelGridSetback = document.querySelector("[data-world-edit-config-setback]");
+    var parcelGridInfluence = document.querySelector("[data-world-edit-config-influence]");
+
+    function readAndEmit() {
+      state.worldEditSettings.operation = operation ? operation.value : "set";
+      state.worldEditSettings.shape = shape ? shape.value : "sphere";
+      state.worldEditSettings.radius = Number(radius ? radius.value : 2);
+      state.worldEditSettings.density = Number(density ? density.value : 100);
+      state.worldEditSettings.wallThickness = Number(wall ? wall.value : 0);
+      state.worldEditSettings.parcelMask = Boolean(parcelMask && parcelMask.checked);
+      state.worldEditSettings.parcelGridMode = parcelGridMode ? parcelGridMode.value : "boundary";
+      state.worldEditSettings.parcelGridSetback = Number(parcelGridSetback ? parcelGridSetback.value : 0);
+      state.worldEditSettings.parcelGridInfluence = Number(parcelGridInfluence ? parcelGridInfluence.value : 3);
+      updateWorldEditSettingOutputs();
+      emitWorldEditSettings();
+    }
+
+    [operation, shape, parcelMask, parcelGridMode].forEach(function (input) {
+      if (input) input.addEventListener("change", readAndEmit);
+    });
+    [radius, density, wall, parcelGridSetback, parcelGridInfluence].forEach(function (input) {
+      if (input) input.addEventListener("input", readAndEmit);
+    });
+    updateWorldEditSettingOutputs();
+  }
+
+  function applyWorldEditSelection(toolId) {
+    var tool = toolId ? findWorldEditTool(toolId) : null;
+    if (!tool) {
+      hideWorldEditTool();
+      return;
+    }
+    var card = document.querySelector('[data-world-edit-tool-id="' + tool.id + '"]');
+    showWorldEditTool(tool, card);
+  }
+
+  function bindUserInventorySelection() {
+    window.addEventListener("message", function (event) {
+      if (!window.parent || event.source !== window.parent) return;
+      var expectedOrigin = "";
+      try { if (document.referrer) expectedOrigin = new URL(document.referrer).origin; } catch (error) { expectedOrigin = ""; }
+      if (expectedOrigin && event.origin !== expectedOrigin) return;
+
+      var message = record(event.data);
+      if (message.source !== "vectoplan-editor") return;
+      var type = clean(message.type);
+      if (type === WORLD_EDIT_STATE_SYNC) {
+        applyWorldEditRuntimeState(record(message.detail));
+        return;
+      }
+      if (type === WORLD_EDIT_SELECTION) {
+        var directDetail = record(message.detail);
+        applyWorldEditSelection(clean(directDetail.toolId || directDetail.tool).toLowerCase());
+        return;
+      }
+      if ([
+        "vectoplan:user-inventory-selection-change",
+        "vectoplan:user-inventory-load",
+        "vectoplan:user-inventory-state"
+      ].indexOf(type) < 0) return;
+
+      var detail = record(message.detail);
+      var slot = detail.selected_slot || detail.selectedSlot || detail.slot;
+      var toolId = worldEditToolIdFromSlot(slot);
+      applyWorldEditSelection(toolId);
+    });
+  }
+
+  function createWorldEditToolCard(tool) {
+    var item = worldEditToolItem(tool);
+    var card = document.createElement("article");
+    card.className = "vp-creative-card vp-world-edit-card" + (tool.ready ? " is-ready" : " is-planned");
+    card.setAttribute("role", "listitem");
+    card.setAttribute("tabindex", tool.ready ? "0" : "-1");
+    card.setAttribute("draggable", tool.ready ? "true" : "false");
+    card.setAttribute("aria-disabled", tool.ready ? "false" : "true");
+    card.setAttribute("aria-label", tool.label + (tool.ready ? ", in einen Inventar-Slot ziehen" : ", geplant"));
+    card.dataset.creativeItemCard = "true";
+    card.dataset.creativeCard = "true";
+    card.dataset.worldEditToolCard = "true";
+    card.dataset.worldEditToolId = tool.id;
+    card.dataset.itemId = item.id;
+    card.dataset.vplibUid = item.vplib_uid;
+    card.dataset.familyId = item.family_id;
+    card.dataset.packageId = item.package_id;
+    card.dataset.variantId = item.variant_id;
+    card.dataset.objectKind = item.object_kind;
+    card.dataset.domain = "world-edit";
+    card.dataset.category = tool.group;
+    card.dataset.subcategory = tool.ready ? "built-in" : "roadmap";
+    card.dataset.taxonomyPath = "world-edit/" + tool.group + "/" + tool.id;
+    card.dataset.itemTitle = tool.label;
+    card.dataset.itemLabel = tool.label;
+    card.dataset.itemDescription = tool.description;
+    card.dataset.itemQuantity = "1";
+    card.dataset.source = item.source;
+    card.dataset.scope = item.scope;
+    card.dataset.mode = item.mode;
+    card.dataset.selectable = "true";
+    card.dataset.draggable = tool.ready ? "true" : "false";
+    card.dataset.disabled = tool.ready ? "false" : "true";
+    card.dataset.searchText = [tool.label, tool.description, "world edit", tool.group, tool.ready ? "eingebaut" : "geplant"].join(" ").toLowerCase();
+
+    var preview = document.createElement("span");
+    preview.className = "vp-creative-card__preview vp-world-edit-card__preview";
+    var icon = document.createElement("span");
+    icon.className = "vp-world-edit-card__icon";
+    icon.textContent = tool.icon;
+    preview.appendChild(icon);
+    var badge = document.createElement("small");
+    badge.className = "vp-world-edit-card__badge";
+    badge.textContent = tool.ready ? "BETA" : "PLAN";
+    preview.appendChild(badge);
+    card.appendChild(preview);
+
+    var tooltip = document.createElement("span");
+    tooltip.className = "vp-creative-card__tooltip";
+    var tooltipTitle = document.createElement("strong");
+    tooltipTitle.className = "vp-creative-card__tooltip-title";
+    tooltipTitle.textContent = tool.label;
+    var tooltipDetail = document.createElement("span");
+    tooltipDetail.className = "vp-creative-card__tooltip-detail";
+    tooltipDetail.textContent = tool.ready ? "Fest eingebaut" : "Analysiert / geplant";
+    tooltip.appendChild(tooltipTitle);
+    tooltip.appendChild(tooltipDetail);
+    card.appendChild(tooltip);
+    if (tool.ready) bindCreativeCardDrag(card, item);
+    return card;
   }
 
   function createCard(item) {
@@ -520,88 +1036,7 @@
     card.dataset.hasTexture = previewUrl ? "true" : "false";
     card.appendChild(preview);
     card.appendChild(tooltip);
-
-    card.addEventListener("dragstart", function (event) {
-      var payload = itemPayload(item);
-      card.classList.add("vp-creative-card--dragging");
-      if (event.dataTransfer) {
-        event.dataTransfer.effectAllowed = "copy";
-        event.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload));
-        event.dataTransfer.setData("text/plain", JSON.stringify(payload));
-      }
-      postDragMessage("vectoplan:creative-drag-start", item);
-    });
-    card.addEventListener("dragend", function () {
-      card.classList.remove("vp-creative-card--dragging");
-      postDragMessage("vectoplan:creative-drag-end", null);
-    });
-
-    var pointerDrag = null;
-    var pointerMoveFrame = 0;
-
-    function pointerDetail(event) {
-      return {
-        pointer: {
-          pointerId: event.pointerId,
-          pointerType: event.pointerType || "mouse",
-          clientX: event.clientX,
-          clientY: event.clientY
-        }
-      };
-    }
-
-    function sendPointerMove() {
-      pointerMoveFrame = 0;
-      if (!pointerDrag || !pointerDrag.started || !pointerDrag.lastEvent) return;
-      postDragMessage(POINTER_DRAG_MOVE, item, pointerDetail(pointerDrag.lastEvent));
-    }
-
-    function finishPointerDrag(event, drop) {
-      if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
-      if (pointerMoveFrame) {
-        window.cancelAnimationFrame(pointerMoveFrame);
-        pointerMoveFrame = 0;
-      }
-      if (pointerDrag.started) {
-        postDragMessage(POINTER_DRAG_END, item, Object.assign(pointerDetail(event), { drop: drop !== false }));
-      }
-      try { if (card.hasPointerCapture(event.pointerId)) card.releasePointerCapture(event.pointerId); } catch (error) { /* best effort */ }
-      pointerDrag = null;
-      card.classList.remove("vp-creative-card--dragging", "vp-creative-card--pointer-dragging");
-    }
-
-    card.addEventListener("pointerdown", function (event) {
-      if (!event.isPrimary || event.button !== 0) return;
-      pointerDrag = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        started: false,
-        lastEvent: event
-      };
-      try { card.setPointerCapture(event.pointerId); } catch (error) { /* capture is optional */ }
-      event.preventDefault();
-    });
-
-    card.addEventListener("pointermove", function (event) {
-      if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
-      pointerDrag.lastEvent = event;
-      if (!pointerDrag.started) {
-        var distance = Math.hypot(event.clientX - pointerDrag.startX, event.clientY - pointerDrag.startY);
-        if (distance < POINTER_DRAG_THRESHOLD) return;
-        pointerDrag.started = true;
-        card.classList.add("vp-creative-card--dragging", "vp-creative-card--pointer-dragging");
-        postDragMessage(POINTER_DRAG_START, item, pointerDetail(event));
-      }
-      event.preventDefault();
-      if (!pointerMoveFrame) pointerMoveFrame = window.requestAnimationFrame(sendPointerMove);
-    });
-
-    card.addEventListener("pointerup", function (event) { finishPointerDrag(event, true); });
-    card.addEventListener("pointercancel", function (event) { finishPointerDrag(event, false); });
-    card.addEventListener("lostpointercapture", function (event) {
-      if (pointerDrag && event.pointerId === pointerDrag.pointerId) finishPointerDrag(event, false);
-    });
+    bindCreativeCardDrag(card, item);
     return card;
   }
 
@@ -654,14 +1089,20 @@
     if (!grid) return;
     while (grid.firstChild) grid.removeChild(grid.firstChild);
     var fragment = document.createDocumentFragment();
+    WORLD_EDIT_TOOLS.forEach(function (tool) { fragment.appendChild(createWorldEditToolCard(tool)); });
     items.forEach(function (item) { fragment.appendChild(createCard(item)); });
     grid.appendChild(fragment);
     state.items = items;
+    if (state.selectedWorldEditToolId) {
+      var selectedTool = findWorldEditTool(state.selectedWorldEditToolId);
+      var selectedCard = document.querySelector('[data-world-edit-tool-id="' + state.selectedWorldEditToolId + '"]');
+      if (selectedTool) showWorldEditTool(selectedTool, selectedCard);
+    }
     refreshTaxonomy();
     applySearch();
     setLoadingStatus("");
     updateEmptyState();
-    document.dispatchEvent(new CustomEvent("vectoplan:creative-library-ready", { detail: { itemCount: items.length } }));
+    document.dispatchEvent(new CustomEvent("vectoplan:creative-library-ready", { detail: { itemCount: items.length, worldEditToolCount: WORLD_EDIT_TOOLS.length } }));
   }
 
   function requestItems(url) {
@@ -763,8 +1204,12 @@
     state.initialized = true;
     bindInventoryToggleKeys();
     bindSearch();
+    bindUserInventorySelection();
+    bindWorldEditSettings();
+    bindWorldEditActions();
     document.addEventListener("vectoplan:taxonomy-filter-applied", function () { applySearch(); });
     void load();
+    postDragMessage(WORLD_EDIT_STATE_REQUEST, null, { reason: "creative-inventory-ready" });
   }
 
   window[MODULE_NAME] = { init: init, load: load, applySearch: applySearch, getState: function () { return state; } };

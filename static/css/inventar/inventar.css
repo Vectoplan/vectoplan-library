@@ -3140,6 +3140,7 @@ html.vp-user-inventory-embed body,
 
 .vp-creative-tools__panel {
   width: 292px;
+  overflow-y: auto;
 }
 
 /* Transparent Creative embed: only the two functional zones remain opaque. */
@@ -3718,6 +3719,206 @@ html.vp-creative-inventory-embed .vp-creative-layout[data-create-embed-active="t
   line-height: 1.3;
 }
 
+/* Built-in WorldEdit catalog. Functional tools are marked BETA; later tools
+   remain visible as an explicit roadmap instead of pretending to be active. */
+.vp-world-edit-card {
+  padding: 0;
+  border: 1px solid rgba(75, 105, 190, 0.25);
+  color: #eaf2ff;
+  background: transparent;
+  cursor: grab;
+}
+
+.vp-world-edit-card:active { cursor: grabbing; }
+
+.vp-world-edit-card__preview {
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(145deg, rgba(32, 55, 103, 0.96), rgba(80, 104, 178, 0.88)),
+    repeating-linear-gradient(0deg, transparent 0 10px, rgba(255,255,255,.06) 10px 11px);
+}
+
+.vp-world-edit-card__icon {
+  font: 800 2rem/1 system-ui, sans-serif;
+  color: #dce8ff;
+  text-shadow: 0 3px 14px rgba(0, 0, 0, 0.32);
+}
+
+.vp-world-edit-card__badge {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: #fff;
+  background: #1d4ed8;
+  font: 800 0.48rem/1 system-ui, sans-serif;
+  letter-spacing: .04em;
+}
+
+.vp-world-edit-card.is-planned {
+  filter: saturate(.55);
+  opacity: .72;
+  cursor: not-allowed;
+}
+
+.vp-world-edit-card.is-planned .vp-world-edit-card__badge { background: #64748b; }
+.vp-world-edit-card.is-selected { box-shadow: 0 0 0 3px #f4b83f, 0 8px 24px rgba(35, 66, 138, .35); }
+
+.vp-world-edit-config {
+  display: grid;
+  gap: 10px;
+  padding: 14px 13px 16px;
+  border-top: 1px solid rgba(113, 136, 177, .22);
+}
+
+.vp-world-edit-config[hidden] { display: none; }
+.vp-world-edit-config__eyebrow { color: #f4b83f; font-size: .67rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.vp-world-edit-config h3, .vp-world-edit-config p { margin: 0; }
+.vp-world-edit-config p, .vp-world-edit-config li { color: var(--vp-creative-text-muted); font-size: .72rem; line-height: 1.45; }
+.vp-world-edit-config ul { display: grid; gap: 6px; margin: 0; padding-left: 18px; }
+.vp-world-edit-config__status { padding: 9px 10px; border-radius: 8px; background: rgba(29, 78, 216, .1); color: #365bb4; font-size: .68rem; font-weight: 800; }
+.vp-world-edit-config__status[data-ready="false"] { background: rgba(100, 116, 139, .1); color: #64748b; }
+.vp-creative-tools[data-world-edit-config-open="true"] .vp-tool-group { display: none; }
+
+.vp-world-edit-config h4 {
+  margin: 0;
+  color: #263b66;
+  font-size: .7rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.vp-world-edit-config__field,
+.vp-world-edit-config__range,
+.vp-world-edit-config__mask {
+  display: grid;
+  align-items: center;
+  gap: 8px;
+  color: #50617e;
+  font-size: .69rem;
+  font-weight: 750;
+}
+
+.vp-world-edit-config__field {
+  grid-template-columns: minmax(60px, 1fr) minmax(112px, 1.35fr);
+}
+
+.vp-world-edit-config__field select {
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid rgba(67, 93, 151, .22);
+  border-radius: 7px;
+  color: #263b66;
+  background: #f6f8fc;
+  font: inherit;
+  font-weight: 760;
+}
+
+.vp-world-edit-config__selection,
+.vp-world-edit-config__brush {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid rgba(67, 93, 151, .16);
+  border-radius: 10px;
+  background: rgba(246, 248, 252, .9);
+}
+
+.vp-world-edit-config__selection[hidden],
+.vp-world-edit-config__brush[hidden] { display: none; }
+
+.vp-world-edit-legend {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vp-world-edit-legend li {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  color: #64728a;
+  font-size: .65rem;
+  line-height: 1.35;
+}
+
+.vp-world-edit-legend kbd {
+  justify-self: start;
+  padding: 3px 5px;
+  border: 1px solid rgba(54, 91, 180, .18);
+  border-radius: 5px;
+  color: #365bb4;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(25, 46, 89, .08);
+  font: 800 .56rem/1 system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+.vp-world-edit-config__selection-state {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(67, 93, 151, .12);
+  color: #6b7890;
+  font-size: .63rem;
+}
+
+.vp-world-edit-config__selection-state strong {
+  color: #344769;
+  font-weight: 800;
+  text-align: right;
+}
+
+.vp-world-edit-config__range {
+  grid-template-columns: 62px minmax(0, 1fr) 30px;
+}
+
+.vp-world-edit-config__range input { width: 100%; accent-color: #315fc4; }
+.vp-world-edit-config__range output { color: #315fc4; font-size: .63rem; font-weight: 850; text-align: right; }
+.vp-world-edit-legend--brush { padding-top: 2px; }
+
+.vp-world-edit-config__mask {
+  grid-template-columns: 16px minmax(0, 1fr);
+  padding: 10px;
+  border: 1px solid rgba(49, 95, 196, .18);
+  border-radius: 9px;
+  color: #344769;
+  background: rgba(49, 95, 196, .06);
+  line-height: 1.3;
+}
+
+.vp-world-edit-config__mask input { margin: 0; accent-color: #315fc4; }
+.vp-world-edit-config__actions {
+  display: grid;
+  grid-template-columns: 1fr 1.12fr;
+  gap: 8px;
+}
+.vp-world-edit-config__actions[hidden] { display: none; }
+.vp-world-edit-config__actions button {
+  min-height: 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  color: #334155;
+  background: #fff;
+  font: 800 .67rem/1 var(--vp-font-ui, Inter, sans-serif);
+  cursor: pointer;
+}
+.vp-world-edit-config__actions button.is-primary {
+  border-color: #315fc4;
+  color: #fff;
+  background: #315fc4;
+}
+.vp-world-edit-config__actions button:disabled { opacity: .5; cursor: wait; }
+.vp-world-edit-config__note { font-size: .62rem !important; line-height: 1.4 !important; }
+
 /* Hytale-like block thumbnails: the real material texture is projected onto
    three cube faces instead of being shown as a flat color/texture swatch. */
 .vp-inventory-cube {
@@ -3805,6 +4006,21 @@ html.vp-creative-inventory-embed .vp-creative-layout[data-create-embed-active="t
 .vp-creative-inventar-page .vp-user-slot[data-has-texture="true"] .vp-user-slot__icon {
   display: none !important;
 }
+
+.vp-user-slot--editor-tool .vp-user-slot__icon {
+  display: grid !important;
+  width: 52px;
+  height: 52px;
+  border-color: rgba(49, 95, 196, .42);
+  color: #eaf2ff;
+  background:
+    radial-gradient(circle at 32% 20%, rgba(255, 255, 255, .28), transparent 42%),
+    linear-gradient(145deg, #203767, #5068b2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 7px 16px rgba(25, 47, 103, .25);
+  font: 850 1.8rem/1 system-ui, sans-serif;
+}
+
+.vp-user-slot--editor-tool .vp-user-slot__content { padding-top: 12px; }
 
 /* Gameplay hotbar: keep previews large and show the selected block name
    briefly above its slot without relaying out the rest of the inventory. */

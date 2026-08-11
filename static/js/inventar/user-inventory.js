@@ -3,7 +3,7 @@
   "use strict";
 
   var MODULE_NAME = "VectoplanUserInventory";
-  var MODULE_VERSION = "1.3.0";
+  var MODULE_VERSION = "1.5.0";
 
   var DEFAULT_USER_ID = 1;
   var DEFAULT_INVENTORY_KEY = "default";
@@ -531,7 +531,8 @@
               source: "click",
               persist: true,
               focus: true,
-              immediate: true
+              immediate: true,
+              forceDispatch: true
             });
           } catch (err) {
             state.lastError = err;
@@ -733,6 +734,16 @@
         }
 
         if (
+          message.source === "vectoplan-editor"
+          && message.type === EVENTS.requestState
+        ) {
+          dispatch("state", {
+            source: detail.source || "editor-host"
+          });
+          return;
+        }
+
+        if (
           message.type !== EVENTS.selectSlot ||
           message.source !== "vectoplan-editor"
         ) {
@@ -743,7 +754,8 @@
           source: detail.source || "editor-host",
           persist: detail.persist !== false,
           focus: detail.focus === true,
-          immediate: detail.immediate === true
+          immediate: detail.immediate === true,
+          forceDispatch: detail.forceDispatch !== false
         });      } catch (err) {
         error("Editor host select-slot message failed.", err);
       }
@@ -1023,7 +1035,8 @@
         source: "keyboard-number",
         persist: true,
         focus: true,
-        immediate: true
+        immediate: true,
+        forceDispatch: true
       });
       return;
     }
@@ -1232,6 +1245,7 @@
     var normalizedSlotIndex = normalizeSlotIndex(slotIndex);
     var targetSlot = getSlot(normalizedSlotIndex);
     var selectionChanged = normalizedSlotIndex !== state.activeSlotIndex;
+    var shouldDispatchSelection = selectionChanged || normalizedOptions.forceDispatch === true;
 
     if (targetSlot.locked) {
       setStatus("Dieser Slot ist gesperrt.", "error");
@@ -1268,7 +1282,7 @@
       focusSlot(normalizedSlotIndex);
     }
 
-    if (selectionChanged) {
+    if (shouldDispatchSelection) {
       dispatch("selection-change", {
         source: normalizedOptions.source || "unknown",
         slot_index: normalizedSlotIndex,
@@ -1435,7 +1449,8 @@
       selectSlot(normalizedSlotIndex, {
         source: normalizedOptions.source || "set-slot-local",
         persist: false,
-        focus: false
+        focus: false,
+        forceDispatch: true
       });
     } else {
       render();
@@ -1816,6 +1831,58 @@
     }
   }
 
+  function worldEditToolIdFromSlot(slotValue) {
+    var slot = normalizeObject(slotValue);
+    var payload = normalizeObject(slot.payload);
+    var metadata = normalizeObject(slot.metadata || payload.metadata);
+    var placement = normalizeObject(slot.placement || payload.placement);
+    var objectKind = cleanString(readFirstDefined(
+      slot.object_kind,
+      slot.objectKind,
+      payload.object_kind,
+      payload.objectKind
+    )).toLowerCase().replace(/-/g, "_");
+    var domain = cleanString(readFirstDefined(slot.domain, payload.domain)).toLowerCase().replace(/_/g, "-");
+    var familyId = cleanString(readFirstDefined(slot.family_id, slot.familyId, payload.family_id, payload.familyId)).toLowerCase();
+    var vplibUid = cleanString(readFirstDefined(slot.vplib_uid, slot.vplibUid, payload.vplib_uid, payload.vplibUid)).toLowerCase();
+    var packageId = cleanString(readFirstDefined(slot.package_id, slot.packageId, payload.package_id, payload.packageId)).toLowerCase();
+    var isWorldEdit = objectKind === "world_edit_tool"
+      || domain === "world-edit"
+      || familyId.indexOf("world-edit.") === 0
+      || vplibUid.indexOf("vectoplan.world-edit.") === 0
+      || packageId === "vectoplan.world-edit";
+    if (!isWorldEdit) return "";
+
+    var candidates = [
+      slot.world_edit_tool,
+      slot.worldEditTool,
+      payload.world_edit_tool,
+      payload.worldEditTool,
+      metadata.world_edit_tool,
+      metadata.worldEditTool,
+      placement.world_edit_tool,
+      placement.worldEditTool,
+      placement.toolId,
+      slot.variant_id,
+      slot.variantId,
+      payload.variant_id,
+      payload.variantId,
+      familyId,
+      vplibUid
+    ];
+    var knownTools = ["selection", "paint", "sculpt", "parcel", "parcel-grid", "ruler-laser", "copy-transform"];
+    for (var index = 0; index < candidates.length; index += 1) {
+      var candidate = cleanString(candidates[index]).toLowerCase().replace(/_/g, "-");
+      ["vectoplan.world-edit.", "world-edit.", "world-edit-"].some(function (prefix) {
+        if (candidate.indexOf(prefix) !== 0) return false;
+        candidate = candidate.slice(prefix.length);
+        return true;
+      });
+      if (knownTools.indexOf(candidate) >= 0) return candidate;
+    }
+    return "";
+  }
+
   function renderSlotElement(element, slot) {
     try {
       var slotIndex = normalizeSlotIndex(slot.slot_index);
@@ -1823,6 +1890,7 @@
       var empty = inferSlotEmpty(slot);
       var locked = normalizeBoolean(slot.locked, false);
       var pinned = normalizeBoolean(slot.pinned, false);
+      var worldEditToolId = worldEditToolIdFromSlot(slot);
 
       element.classList.toggle(CLASSES.active, selected);
       element.classList.toggle(CLASSES.selected, selected);
@@ -1830,6 +1898,7 @@
       element.classList.toggle(CLASSES.filled, !empty);
       element.classList.toggle(CLASSES.locked, locked);
       element.classList.toggle(CLASSES.pinned, pinned);
+      element.classList.toggle("vp-user-slot--editor-tool", Boolean(worldEditToolId));
 
       element.setAttribute("role", "option");
       element.setAttribute("tabindex", selected ? "0" : "-1");
@@ -1854,6 +1923,11 @@
       element.setAttribute("data-mode", slot.mode || "creative");
       element.setAttribute("data-slot-locked", locked ? "true" : "false");
       element.setAttribute("data-slot-pinned", pinned ? "true" : "false");
+      if (worldEditToolId) {
+        element.setAttribute("data-world-edit-tool-id", worldEditToolId);
+      } else {
+        element.removeAttribute("data-world-edit-tool-id");
+      }
 
       if (slot.description) {
         element.setAttribute("title", slot.description);
@@ -1905,9 +1979,14 @@
     icon.setAttribute("aria-hidden", "true");
     icon.textContent = itemIconText(slot);
 
+    var worldEditToolId = worldEditToolIdFromSlot(slot);
     var previewUrl = slotPreviewUrl(slot);
     var previewColor = slotPreviewColor(slot);
-    if (previewUrl) {
+    if (worldEditToolId) {
+      element.setAttribute("data-has-texture", "false");
+      icon.hidden = false;
+      content.appendChild(icon);
+    } else if (previewUrl) {
       var cube = createTextureCube(previewUrl, "vp-user-slot__cube", previewColor);
       var preloader = new Image();
       element.setAttribute("data-has-texture", "loading");
@@ -1935,7 +2014,7 @@
     label.className = "vp-user-slot__label";
     label.textContent = slot.label || slot.family_id || slot.vplib_uid || "Item";
 
-    content.appendChild(icon);
+    if (!worldEditToolId) content.appendChild(icon);
     content.appendChild(label);
 
     renderQuantityElement(element, slot);
@@ -2096,6 +2175,17 @@
 
   function itemIconText(slot) {
     var icon = normalizeIcon(slot.icon);
+    var worldEditToolId = worldEditToolIdFromSlot(slot);
+    var worldEditIcons = {
+      selection: "\u2317",
+      paint: "\u270e",
+      sculpt: "\u2248",
+      parcel: "\u2316",
+      "parcel-grid": "\u22d5",
+      "ruler-laser": "\u2194",
+      "copy-transform": "\u27f3"
+    };
+    if (worldEditIcons[worldEditToolId]) return worldEditIcons[worldEditToolId];
 
     var candidates = [
       icon.text,
@@ -2756,6 +2846,12 @@
         result[key] = value;
       }
     });
+
+    var worldEditToolId = worldEditToolIdFromSlot(source);
+    if (worldEditToolId) {
+      result.world_edit_tool = worldEditToolId;
+      result.worldEditTool = worldEditToolId;
+    }
 
     if (!Object.prototype.hasOwnProperty.call(result, "slot_index")) {
       result.slot_index = normalizeSlotIndex(

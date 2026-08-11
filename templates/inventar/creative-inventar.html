@@ -8,7 +8,7 @@
 
   <title>Creative-Inventar · VECTOPLAN</title>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css', v='20260804.1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css', v='20260809.3') }}">
 </head>
 
 <body class="vp-inventar-page vp-creative-inventar-page">
@@ -245,11 +245,109 @@
         <header class="vp-creative-tools__header">
           <span class="vp-creative-tools__gear" aria-hidden="true">&#9881;</span>
           <div>
-            <h2 class="vp-creative-tools__title">Creative Mode</h2>
-            <p class="vp-creative-tools__subtitle">Schnelleinstellungen</p>
+            <h2 class="vp-creative-tools__title" data-creative-tools-title>Creative Mode</h2>
+            <p class="vp-creative-tools__subtitle" data-creative-tools-subtitle>Schnelleinstellungen</p>
           </div>
           <kbd class="vp-creative-tools__key">&#8649;</kbd>
         </header>
+
+        <section class="vp-world-edit-config" data-world-edit-tool-config hidden>
+          <span class="vp-world-edit-config__eyebrow">World Edit</span>
+          <p data-world-edit-config-description>Werkzeug in der Creative Library ausw&auml;hlen.</p>
+          <div class="vp-world-edit-config__status" data-world-edit-config-status></div>
+
+          <label class="vp-world-edit-config__field" data-world-edit-operation-field>
+            <span>Modus</span>
+            <select data-world-edit-config-operation aria-label="World Edit Modus">
+              <option value="set">Setzen</option>
+              <option value="wall">W&auml;nde</option>
+              <option value="fill">Nur Luft f&uuml;llen</option>
+              <option value="replace">Ersetzen</option>
+              <option value="clear">Leeren</option>
+            </select>
+          </label>
+
+          <section class="vp-world-edit-config__selection" data-world-edit-selection-settings>
+            <h4>Auswahl erstellen</h4>
+            <ol class="vp-world-edit-legend">
+              <li><kbd>Linksklick halten</kbd><span>Punkt A im 3D-Fenster setzen</span></li>
+              <li><kbd>Kamera ziehen</kbd><span>Punkt B und H&ouml;he bestimmen, dann loslassen</span></li>
+              <li><kbd>Links / Rechts</kbd><span>Farbigen Fl&auml;chenpunkt vergr&ouml;&szlig;ern oder verkleinern</span></li>
+            </ol>
+            <div class="vp-world-edit-config__selection-state">
+              <span>Punkt A</span><strong data-world-edit-runtime-first>im 3D-Fenster</strong>
+              <span>Punkt B</span><strong data-world-edit-runtime-second>im 3D-Fenster</strong>
+            </div>
+          </section>
+
+          <section class="vp-world-edit-config__selection" data-world-edit-utility-settings hidden>
+            <h4 data-world-edit-utility-title>Werkzeug</h4>
+            <p data-world-edit-utility-text>Werkzeugeinstellungen werden im 3D-Editor angezeigt.</p>
+          </section>
+
+          <section class="vp-world-edit-config__brush" data-world-edit-parcel-grid-settings hidden>
+            <h4>Bauachse</h4>
+            <label class="vp-world-edit-config__field">
+              <span>Ausrichtung</span>
+              <select data-world-edit-config-parcel-grid-mode aria-label="Grundst&uuml;cksraster-Modus">
+                <option value="boundary">Direkt an Grenze</option>
+                <option value="setback">Mit Grenzabstand</option>
+              </select>
+            </label>
+            <label class="vp-world-edit-config__range">
+              <span>Abstand</span>
+              <input type="range" min="0" max="20" step="0.5" value="0" data-world-edit-config-setback>
+              <output data-world-edit-config-setback-output>0 m</output>
+            </label>
+            <label class="vp-world-edit-config__range">
+              <span>Innere Schr&auml;glinie</span>
+              <input type="range" min="1" max="6" step="1" value="3" data-world-edit-config-influence>
+              <output data-world-edit-config-influence-output>3 m</output>
+            </label>
+            <p class="vp-world-edit-config__hint">Kante mit Linksklick w&auml;hlen. Erneuter Linksklick verschiebt die innere Linie nach innen, Rechtsklick nach au&szlig;en. Zwischenfl&auml;chen werden mittig geteilt und mit den benachbarten Rasterbl&ouml;cken verbunden.</p>
+          </section>
+
+          <section class="vp-world-edit-config__brush" data-world-edit-brush-settings hidden>
+            <h4>Pinsel</h4>
+            <label class="vp-world-edit-config__field">
+              <span>Form</span>
+              <select data-world-edit-config-shape aria-label="Pinsel-Form">
+                <option value="sphere">Kugel</option>
+                <option value="box">Quader</option>
+                <option value="cylinder">Zylinder</option>
+              </select>
+            </label>
+            <label class="vp-world-edit-config__range">
+              <span>Radius</span>
+              <input type="range" min="1" max="12" value="2" data-world-edit-config-radius>
+              <output data-world-edit-config-radius-output>2</output>
+            </label>
+            <label class="vp-world-edit-config__range">
+              <span>Dichte</span>
+              <input type="range" min="10" max="100" value="100" data-world-edit-config-density>
+              <output data-world-edit-config-density-output>100%</output>
+            </label>
+            <label class="vp-world-edit-config__range">
+              <span>Wandst&auml;rke</span>
+              <input type="range" min="0" max="6" value="0" data-world-edit-config-wall>
+              <output data-world-edit-config-wall-output>0</output>
+            </label>
+            <ol class="vp-world-edit-legend vp-world-edit-legend--brush">
+              <li><kbd>Linksklick</kbd><span>Pinsel anwenden</span></li>
+              <li><kbd>Rechtsklick</kbd><span>Mit gleicher Form entfernen</span></li>
+            </ol>
+          </section>
+
+          <label class="vp-world-edit-config__mask">
+            <input type="checkbox" data-world-edit-config-parcel-mask checked>
+            <span>Auf ausgew&auml;hlte Grundst&uuml;cke begrenzen</span>
+          </label>
+          <div class="vp-world-edit-config__actions" data-world-edit-config-actions hidden>
+            <button type="button" data-world-edit-config-action="reset">Auswahl l&ouml;schen</button>
+            <button type="button" class="is-primary" data-world-edit-config-action="execute">Ausf&uuml;hren</button>
+          </div>
+          <p class="vp-world-edit-config__note">Die Einstellungen werden direkt f&uuml;r das aktive Werkzeug im 3D-Editor &uuml;bernommen.</p>
+        </section>
 
         <section class="vp-tool-group">
           <h3 class="vp-tool-group__title">Bewegung &amp; Flug</h3>
@@ -320,7 +418,7 @@
 
 
   <script
-    src="{{ url_for('static', filename='js/inventar/creative-library.js', v='20260804.1') }}"
+    src="{{ url_for('static', filename='js/inventar/creative-library.js', v='20260809.3') }}"
     defer
   ></script>
 </body>
