@@ -1,0 +1,30 @@
+<div
+  class="vplib-create-step__panel vp-create-card vp-create-section vp-create-section--identity-taxonomy"
+  data-create-section="identity-taxonomy"
+  data-vp-create-section="identity-taxonomy"
+  data-vp-step-panel="identity-taxonomy"
+  aria-labelledby="vp-create-identity-taxonomy-title"
+>
+  <header class="vplib-create-step__header">
+    <div class="vplib-create-step__header-main">
+      <span class="vp-create-section-eyebrow">Baustein definieren</span>
+      <h2 id="vp-create-identity-taxonomy-title" class="vplib-create-step__title">
+        Grunddaten &amp; Taxonomie
+      </h2>
+      <p class="vplib-create-step__description">
+        Identität und fachliche Einordnung gemeinsam pflegen.
+      </p>
+    </div>
+  </header>
+
+  <div class="vplib-create-step__body vp-create-identity-taxonomy__body">
+    <div class="vp-create-identity-taxonomy__grid">
+      <div class="vp-create-identity-taxonomy__column vp-create-identity-taxonomy__column--identity">
+        {% include "vplib/create/sections/_identity.html" %}
+      </div>
+      <div class="vp-create-identity-taxonomy__column vp-create-identity-taxonomy__column--taxonomy">
+        {% include "vplib/create/sections/_taxonomy.html" %}
+      </div>
+    </div>
+  </div>
+</div>

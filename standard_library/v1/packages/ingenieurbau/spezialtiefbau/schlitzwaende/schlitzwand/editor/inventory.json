@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "b0277671-7aca-5d9e-aa92-b55809bfcd7f",
+  "family_id": "vp.ingenieurbau.spezialtiefbau.schlitzwaende.schlitzwand",
+  "default_variant_id": "default",
+  "label": "Schlitzwand",
+  "description": "Schlitzwandelement für Baugruben und unterirdische Bauwerke.",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "spezialtiefbau",
+  "subcategory": "schlitzwaende",
+  "classification_path": "ingenieurbau/spezialtiefbau/schlitzwaende",
+  "source_path": "ingenieurbau/spezialtiefbau/schlitzwaende/schlitzwand",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Spezialtiefbau",
+    "subcategory": "Schlitzwände"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

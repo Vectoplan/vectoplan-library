@@ -458,6 +458,8 @@
       var rawDefinitions = raw.definitions || {};
       var options = raw.options || {};
       var catalogs = raw.catalogs || raw.definition_catalogs || raw.definitionCatalogs || {};
+      var payload = raw.payload || raw.data || {};
+      var payloadCatalogs = payload.catalogs || payload.definition_catalogs || payload.definitionCatalogs || payload;
 
       return {
         objectKinds: firstArray(
@@ -467,6 +469,10 @@
           options.object_kinds,
           catalogs.objectKinds,
           catalogs.object_kinds,
+          payload.objectKinds,
+          payload.object_kinds,
+          payloadCatalogs.objectKinds,
+          payloadCatalogs.object_kinds,
           rawDefinitions.objectKinds,
           rawDefinitions.object_kinds
         ),
@@ -477,6 +483,10 @@
           options.family_profiles,
           catalogs.familyProfiles,
           catalogs.family_profiles,
+          payload.familyProfiles,
+          payload.family_profiles,
+          payloadCatalogs.familyProfiles,
+          payloadCatalogs.family_profiles,
           rawDefinitions.familyProfiles,
           rawDefinitions.family_profiles
         ),
@@ -487,6 +497,10 @@
           options.variant_profiles,
           catalogs.variantProfiles,
           catalogs.variant_profiles,
+          payload.variantProfiles,
+          payload.variant_profiles,
+          payloadCatalogs.variantProfiles,
+          payloadCatalogs.variant_profiles,
           rawDefinitions.variantProfiles,
           rawDefinitions.variant_profiles
         ),
@@ -494,6 +508,8 @@
           raw.variables,
           options.variables,
           catalogs.variables,
+          payload.variables,
+          payloadCatalogs.variables,
           rawDefinitions.variables
         ),
         units: firstArray(

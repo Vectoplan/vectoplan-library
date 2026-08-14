@@ -1839,6 +1839,8 @@ def create_app(config_object: Any = None) -> Flask:
         _ensure_service_registry(app).get("startup_module_name"),
     )
 
+    from vectoplan_i18n import init_app as init_i18n
+    init_i18n(app)
     return app
 
 

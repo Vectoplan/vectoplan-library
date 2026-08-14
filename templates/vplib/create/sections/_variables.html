@@ -1,9 +1,9 @@
 {# services/vectoplan-library/templates/vplib/create/sections/_variables.html #}
 {# -----------------------------------------------------------------------------
-  VECTOPLAN Library · VPLIB Create Wizard · Step 3: Variables & Variants
+  VECTOPLAN Library · VPLIB Create Wizard · Step 4: Variables & Variants
 
   Zweck:
-  - Sichtbarer Step-3-Fokus: Variablen und Varianten.
+  - Sichtbarer Step-4-Fokus: Variablen und Varianten.
   - Objektart bleibt technischer Backend-/Runtime-Kontext, aber kein sichtbarer
     Hauptinhalt.
   - Definition-managed Varianten bleiben über _variant_workspace.html angebunden.
@@ -84,6 +84,15 @@
   {% elif _variables_definition_catalogs.get('family_profiles') %}
     {% set _variables_definitions_available = true %}
   {% elif _variables_definition_catalogs.get('familyProfiles') %}
+    {% set _variables_definitions_available = true %}
+  {% endif %}
+{% endif %}
+
+{# Die Create-Options liefern die kanonischen Kataloge auch top-level. Diese
+   werden vom Editor vollständig unterstützt und dürfen nicht als Fehlerzustand
+   behandelt werden, nur weil der optionale definitions-Wrapper partial ist. #}
+{% if not _variables_definitions_available and _variables_options is mapping %}
+  {% if _variables_options.get('object_kinds') and _variables_options.get('family_profiles') and _variables_options.get('variant_profiles') and _variables_options.get('variables') %}
     {% set _variables_definitions_available = true %}
   {% endif %}
 {% endif %}
@@ -251,18 +260,18 @@
     data-vp-variables-header="true"
   >
     <div class="vplib-create-step__header-main vp-create-object-variants__header-main vp-create-variables__header-main">
-      <p class="vplib-create-step__eyebrow">
-        Step 3 · Variablen
+      <p class="vplib-create-step__eyebrow" data-i18n="vectoplan.server.library.vplib.create.sections.variables.p.step_3_variablen.61336b51">
+        Step 4 · Variablen
       </p>
 
       <h2
         id="vp-create-variables-title"
         class="vplib-create-step__title"
-      >
+       data-i18n="vectoplan.server.library.vplib.create.sections.variables.h2.variablen_und_varianten.3c9f21f0">
         Variablen und Varianten
       </h2>
 
-      <p class="vplib-create-step__description">
+      <p class="vplib-create-step__description" data-i18n="vectoplan.server.library.vplib.create.sections.variables.p.variante_w_hlen_variable_anklicken_und.2deca6c7">
         Variante wählen, Variable anklicken und rechts bearbeiten.
       </p>
     </div>
@@ -273,11 +282,11 @@
         data-vp-variables-definitions-pill="true"
         data-vp-status="{% if _variables_definitions_available %}ready{% else %}partial{% endif %}"
       >
-        {% if _variables_definitions_available %}
+        {% if _variables_definitions_available %}<span data-i18n="vectoplan.server.library.vplib.create.sections.variables.span.definitions_geladen.3e21e4b2">
           Definitions geladen
-        {% else %}
+        </span>{% else %}<span data-i18n="vectoplan.server.library.vplib.create.sections.variables.span.definitions_offen.c0c5454e">
           Definitions offen
-        {% endif %}
+        </span>{% endif %}
       </span>
 
       <span
@@ -285,11 +294,11 @@
         data-vp-variant-count-label="true"
         data-vp-variant-count-label-source="variables"
       >
-        {% if _draft_variants | length == 1 %}
+        {% if _draft_variants | length == 1 %}<span data-i18n="vectoplan.server.library.vplib.create.sections.variables.span.1_variante.ae28deb0">
           1 Variante
-        {% else %}
-          {{ _draft_variants | length }} Varianten
-        {% endif %}
+        </span>{% else %}
+          {{ _draft_variants | length }}<span data-i18n="vectoplan.server.library.vplib.create.sections.variables.span.varianten.4849b376"> Varianten
+        </span>{% endif %}
       </span>
     </div>
   </header>
@@ -311,7 +320,7 @@
         data-vp-object-kind-field-area="true"
         data-vp-object-kind-hidden-context="true"
       >
-        <label for="create-object-kind">
+        <label for="create-object-kind" data-i18n="vectoplan.server.library.vplib.create.sections.variables.label.technischer_objektkontext.073191ac">
           Technischer Objektkontext
         </label>
 
@@ -353,7 +362,7 @@
           data-create-object-kind-note-value="{{ _selected_object_kind_normalized }}"
           data-vp-object-kind-note
           aria-label="Technischer Objektkontext"
-        >
+         data-i18n-aria-label="server.library.vplib.create.sections.variables.aside_aria-label.technischer_objektkontext.8bbd3d2d">
           <strong data-create-object-kind-note-label="true">
             {{ _object_kind_label }}
           </strong>

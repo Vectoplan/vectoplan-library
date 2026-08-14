@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "11b2d639-c37a-5e0b-a84f-b934877c4700",
+  "family_id": "vp.ingenieurbau.spezialtiefbau.pfahlwaende.bohrpfahl",
+  "slug": "bohrpfahl",
+  "label": "Bohrpfahl",
+  "description": "Runder Stahlbeton-Bohrpfahl in typischen Durchmessern.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

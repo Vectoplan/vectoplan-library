@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "588ff161-fc0d-58c8-a505-7abd2861b53f",
+  "family_id": "vp.hochbau.waende.tragende_waende.stahlbetonwand",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "stahlbeton"
+  ]
+}

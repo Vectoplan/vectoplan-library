@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "670627ce-ffe8-5fb1-93f6-14ee840e565a",
+  "family_id": "vp.tiefbau.strassen_wege.rinnen.entwaesserungsrinne",
+  "slug": "entwaesserungsrinne",
+  "label": "Entwässerungsrinne",
+  "description": "Linienentwässerung für Verkehrs- und Freiflächen.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

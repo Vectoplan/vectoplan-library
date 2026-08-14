@@ -1,0 +1,155 @@
+{
+  "schema_version": "vplib.render.cad_patterns.v1",
+  "catalog_version": "1.0.0",
+  "units": "mm_paper",
+  "default_variant_id": "default",
+  "pattern_ids": [
+    "cross_orthogonal",
+    "solid"
+  ],
+  "patterns": [
+    {
+      "id": "cross_orthogonal",
+      "label": "Kreuzraster 0°/90°",
+      "category": "line",
+      "category_label": "Linien und Raster",
+      "description": "Orthogonales Kreuzraster.",
+      "kind": "cross",
+      "active": true,
+      "sort_order": 140,
+      "tags": [
+        "cross",
+        "grid",
+        "orthogonal"
+      ],
+      "definition": {
+        "line_families": [
+          {
+            "angle_deg": 0,
+            "spacing_mm": 4,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": []
+          },
+          {
+            "angle_deg": 90,
+            "spacing_mm": 4,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "solid",
+      "label": "Volltonfüllung",
+      "category": "basic",
+      "category_label": "Basis",
+      "description": "Geschlossene, einfarbige Füllung.",
+      "kind": "solid",
+      "active": true,
+      "sort_order": 20,
+      "tags": [
+        "solid",
+        "fill"
+      ],
+      "definition": {
+        "fill": "foreground",
+        "line_families": [],
+        "primitives": []
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "variant_id": "default",
+      "cut": {
+        "pattern_id": "cross_orthogonal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "solid",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "300_400_70",
+      "cut": {
+        "pattern_id": "cross_orthogonal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "solid",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "400_500_90",
+      "cut": {
+        "pattern_id": "cross_orthogonal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "solid",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "500_600_110",
+      "cut": {
+        "pattern_id": "cross_orthogonal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "solid",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "600_700_140",
+      "cut": {
+        "pattern_id": "cross_orthogonal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "solid",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    }
+  ]
+}

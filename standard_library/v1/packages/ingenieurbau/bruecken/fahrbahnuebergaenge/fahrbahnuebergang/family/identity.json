@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "aaba8a82-bf3a-5ee1-baef-92d7de29fe31",
+  "family_id": "vp.ingenieurbau.bruecken.fahrbahnuebergaenge.fahrbahnuebergang",
+  "slug": "fahrbahnuebergang",
+  "label": "Fahrbahnübergang",
+  "description": "Modularer Fahrbahnübergang für unterschiedliche Bewegungsbereiche.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

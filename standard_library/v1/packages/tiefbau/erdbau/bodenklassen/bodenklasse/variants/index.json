@@ -1,0 +1,86 @@
+{
+  "schema_version": "0.1.0",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "default_variant_id": "default",
+  "variant_count": 7,
+  "variants": [
+    {
+      "variant_id": "default",
+      "variant_key": "default",
+      "label": "Bodenklasse 1",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": true,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "bodenklasse_2",
+      "variant_key": "bodenklasse_2",
+      "label": "Bodenklasse 2",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "bodenklasse_3",
+      "variant_key": "bodenklasse_3",
+      "label": "Bodenklasse 3",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "bodenklasse_4",
+      "variant_key": "bodenklasse_4",
+      "label": "Bodenklasse 4",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "bodenklasse_5",
+      "variant_key": "bodenklasse_5",
+      "label": "Bodenklasse 5",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "bodenklasse_6",
+      "variant_key": "bodenklasse_6",
+      "label": "Bodenklasse 6",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "bodenklasse_7",
+      "variant_key": "bodenklasse_7",
+      "label": "Bodenklasse 7",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    }
+  ]
+}

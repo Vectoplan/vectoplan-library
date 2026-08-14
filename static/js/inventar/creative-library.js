@@ -3,7 +3,7 @@
   "use strict";
 
   var MODULE_NAME = "VectoplanCreativeLibrary";
-  var MODULE_VERSION = "1.5.0";
+  var MODULE_VERSION = "1.6.0";
   var DRAG_MIME = "application/x-vectoplan-vplib-item+json";
   var POINTER_DRAG_START = "vectoplan:creative-pointer-drag-start";
   var POINTER_DRAG_MOVE = "vectoplan:creative-pointer-drag-move";
@@ -15,6 +15,7 @@
   var WORLD_EDIT_STATE_REQUEST = "vectoplan:creative-inventory-request-user-inventory-state";
   var POINTER_DRAG_THRESHOLD = 6;
   var REQUEST_TIMEOUT_MS = 12000;
+  var AUTO_REFRESH_INTERVAL_MS = 10000;
   var SELECTORS = {
     grid: "[data-creative-library-grid]",
     search: "[data-creative-search]",
@@ -26,6 +27,8 @@
   var state = {
     initialized: false,
     loading: false,
+    refreshTimer: 0,
+    itemsSignature: "",
     items: [],
     query: "",
     selectedWorldEditToolId: "",
@@ -1054,6 +1057,18 @@
     } catch (error) { state.errors.push(String(error)); }
   }
 
+  function itemsSignature(items) {
+    return items.map(function (item) {
+      return [
+        first(item.vplib_uid, item.vplibUid, item.family_id, item.familyId, item.id),
+        first(item.runtimeBlockTypeId, item.blockTypeId),
+        (Array.isArray(item.variants) ? item.variants : []).map(function (variant) {
+          return first(variant.variant_id, variant.variantId, variant.id) + ":" + first(variant.revision_hash);
+        }).join(",")
+      ].join("|");
+    }).sort().join(";");
+  }
+
   function updateEmptyState() {
     var grid = document.querySelector(SELECTORS.grid);
     var empty = document.querySelector(SELECTORS.empty);
@@ -1093,6 +1108,7 @@
     items.forEach(function (item) { fragment.appendChild(createCard(item)); });
     grid.appendChild(fragment);
     state.items = items;
+    state.itemsSignature = itemsSignature(items);
     if (state.selectedWorldEditToolId) {
       var selectedTool = findWorldEditTool(state.selectedWorldEditToolId);
       var selectedCard = document.querySelector('[data-world-edit-tool-id="' + state.selectedWorldEditToolId + '"]');
@@ -1161,6 +1177,44 @@
     });
   }
 
+  function refreshInBackground() {
+    var grid = document.querySelector(SELECTORS.grid);
+    if (!grid || state.loading || document.hidden || document.querySelector(".vp-creative-card--dragging")) {
+      return Promise.resolve(state.items);
+    }
+
+    var primaryUrl = clean(grid.dataset.creativeItemsUrl);
+    var fallbackUrl = clean(grid.dataset.publishedItemsUrl);
+    if (!primaryUrl && !fallbackUrl) return Promise.resolve(state.items);
+
+    function requestWithFallback() {
+      if (!primaryUrl) return requestItems(fallbackUrl);
+      return requestItems(primaryUrl).then(function (rawItems) {
+        if (rawItems.length || !fallbackUrl) return rawItems;
+        return requestItems(fallbackUrl);
+      });
+    }
+
+    return requestWithFallback().then(function (rawItems) {
+      var items = uniqueItems(rawItems);
+      if (itemsSignature(items) !== state.itemsSignature) render(items);
+      return items;
+    }).catch(function (error) {
+      state.errors.push(String(error));
+      return state.items;
+    });
+  }
+
+  function startAutoRefresh() {
+    if (state.refreshTimer) return;
+    state.refreshTimer = window.setInterval(function () {
+      void refreshInBackground();
+    }, AUTO_REFRESH_INTERVAL_MS);
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) void refreshInBackground();
+    });
+  }
+
   function bindInventoryToggleKeys() {
     document.addEventListener("keydown", function (event) {
       if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -1209,10 +1263,11 @@
     bindWorldEditActions();
     document.addEventListener("vectoplan:taxonomy-filter-applied", function () { applySearch(); });
     void load();
+    startAutoRefresh();
     postDragMessage(WORLD_EDIT_STATE_REQUEST, null, { reason: "creative-inventory-ready" });
   }
 
-  window[MODULE_NAME] = { init: init, load: load, applySearch: applySearch, getState: function () { return state; } };
+  window[MODULE_NAME] = { init: init, load: load, refresh: refreshInBackground, applySearch: applySearch, getState: function () { return state; } };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();
 })();

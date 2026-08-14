@@ -112,18 +112,18 @@
   data-vp-default-variant-id="{{ _table_default_variant_id }}"
   role="table"
   aria-label="VPLIB Varianten"
->
+ data-i18n-aria-label="server.library.vplib.create.variants.variant_table.div_aria-label.vplib_varianten.4e65174a">
   <div
     class="vp-create-variant-table__head"
     role="row"
     aria-hidden="true"
     data-vp-variant-table-head="true"
   >
-    <span role="columnheader">Status</span>
-    <span role="columnheader">Variante</span>
-    <span role="columnheader">Profil</span>
-    <span role="columnheader">Zusatzfelder</span>
-    <span role="columnheader">Aktion</span>
+    <span role="columnheader" data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.status.51db46d5">Status</span>
+    <span role="columnheader" data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.variante.d3fcf90b">Variante</span>
+    <span role="columnheader" data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.profil.962d5802">Profil</span>
+    <span role="columnheader" data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.zusatzfelder.50c68aa7">Zusatzfelder</span>
+    <span role="columnheader" data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.aktion.5bf75301">Aktion</span>
   </div>
 
   <div
@@ -379,7 +379,7 @@
               class="vp-create-variant-default-pill{% if _row_is_default %} vp-create-variant-default-pill--active{% endif %}"
               data-vp-default-label="true"
             >
-              {% if _row_is_default %}Default{% else %}—{% endif %}
+              {% if _row_is_default %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.default.467f3c97">Default</span>{% else %}—{% endif %}
             </span>
           </div>
 
@@ -394,7 +394,7 @@
                 data-vp-variant-row-display-name="true"
                 data-vp-edit-definition-variant="true"
                 title="Variantenname bearbeiten"
-                >
+                 data-i18n-title="server.library.vplib.create.variants.variant_table.button_title.variantenname_bearbeiten.fda45dd3">
                 {{ _row_variant_label }}
                 </button>
 
@@ -424,14 +424,14 @@
               class="vp-create-definition-profile-pill"
               data-vp-row-profile-pill="true"
             >
-              {% if _row_variant_profile_id %}{{ _row_variant_profile_id }}{% else %}auto{% endif %}
+              {% if _row_variant_profile_id %}{{ _row_variant_profile_id }}{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.auto.12c306de">auto</span>{% endif %}
             </span>
 
             {% if _row_definition_managed %}
               <span
                 class="vp-create-variant-managed-pill"
                 data-vp-row-managed-pill="true"
-              >
+               data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.profil.adcbe7a2">
                 Profil
               </span>
             {% endif %}
@@ -460,7 +460,7 @@
                 data-vp-edit-definition-variant="true"
                 data-vp-variant-action="edit"
                 aria-label="Variante bearbeiten: {{ _row_variant_label }}"
-              >
+               data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.button.bearbeiten.cc16d7d2" data-i18n-aria-label="server.library.vplib.create.variants.variant_table.button_aria-label.variante_bearbeiten.e1c3e812">
                 Bearbeiten
               </button>
 
@@ -473,7 +473,7 @@
                   data-vp-variant-action="locked"
                   aria-disabled="true"
                   title="Die Default-Variante kann nicht entfernt werden."
-                >
+                 data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.button.fix.9dd2af7c" data-i18n-title="server.library.vplib.create.variants.variant_table.button_title.die_default_variante_kann_nicht_entfer.55937ec8">
                   Fix
                 </button>
               {% else %}
@@ -484,7 +484,7 @@
                   data-create-remove-row="true"
                   data-vp-variant-action="remove"
                   aria-label="Variante entfernen: {{ _row_variant_label }}"
-                >
+                 data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.button.entfernen.7a4f3adb" data-i18n-aria-label="server.library.vplib.create.variants.variant_table.button_aria-label.variante_entfernen.5bf18609">
                   Entfernen
                 </button>
               {% endif %}
@@ -607,7 +607,7 @@
           <span
             class="vp-create-variant-default-pill vp-create-variant-default-pill--active"
             data-vp-default-label="true"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.default.3e769644">
             Default
           </span>
         </div>
@@ -623,14 +623,14 @@
               data-vp-variant-row-display-name="true"
               data-vp-edit-definition-variant="true"
               title="Variantenname bearbeiten"
-              >
+               data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.button.standard.2a9d737b" data-i18n-title="server.library.vplib.create.variants.variant_table.button_title.variantenname_bearbeiten.e14bee3f">
               Standard
               </button>
 
             <span
               class="vp-create-variant-row__id"
               data-vp-variant-row-display-id="true"
-            >
+             data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.default.024b83aa">
               default
             </span>
           </div>
@@ -644,7 +644,7 @@
             class="vp-create-definition-profile-pill"
             data-vp-row-profile-pill="true"
           >
-            {% if _table_variant_profile_id %}{{ _table_variant_profile_id }}{% else %}auto{% endif %}
+            {% if _table_variant_profile_id %}{{ _table_variant_profile_id }}{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.auto.97a136ea">auto</span>{% endif %}
           </span>
         </div>
 
@@ -655,7 +655,7 @@
           <div
             class="vp-create-definition-summary"
             data-vp-row-definition-summary="true"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.div.standardvariante.3124b1d4">
             Standardvariante
           </div>
         </div>
@@ -671,7 +671,7 @@
               data-vp-edit-definition-variant="true"
               data-vp-variant-action="edit"
               aria-label="Default-Variante bearbeiten"
-            >
+             data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.button.bearbeiten.d1853f54" data-i18n-aria-label="server.library.vplib.create.variants.variant_table.button_aria-label.default_variante_bearbeiten.09bbd2d7">
               Bearbeiten
             </button>
 
@@ -683,7 +683,7 @@
               data-vp-variant-action="locked"
               aria-disabled="true"
               title="Die Default-Variante kann nicht entfernt werden."
-            >
+             data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.button.fix.56297861" data-i18n-title="server.library.vplib.create.variants.variant_table.button_title.die_default_variante_kann_nicht_entfer.d035d6be">
               Fix
             </button>
           </div>
@@ -823,14 +823,14 @@
             data-vp-variant-row-display-name="true"
             data-vp-edit-definition-variant="true"
             title="Variantenname bearbeiten"
-            >
+             data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.button.variant_label.cfabb2d7" data-i18n-title="server.library.vplib.create.variants.variant_table.button_title.variantenname_bearbeiten.67fdb55c">
             __variant_label__
             </button>
 
           <span
             class="vp-create-variant-row__id"
             data-vp-variant-row-display-id="true"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.variant_id.664a4520">
             __variant_id__
           </span>
         </div>
@@ -849,14 +849,14 @@
         <span
           class="vp-create-definition-profile-pill"
           data-vp-row-profile-pill="true"
-        >
+         data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.variant_profile_id.f32da37a">
           __variant_profile_id__
         </span>
 
         <span
           class="vp-create-variant-managed-pill"
           data-vp-row-managed-pill="true"
-        >
+         data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.profil.05afc1da">
           Profil
         </span>
       </div>
@@ -868,7 +868,7 @@
         <div
           class="vp-create-definition-summary"
           data-vp-row-definition-summary="true"
-        >
+         data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.div.definition_summary.cfbc42e0">
           __definition_summary__
         </div>
       </div>
@@ -883,7 +883,7 @@
             type="button"
             data-vp-edit-definition-variant="true"
             data-vp-variant-action="edit"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.button.bearbeiten.c73e2aaf">
             Bearbeiten
           </button>
 
@@ -893,7 +893,7 @@
             data-vp-remove-definition-variant="true"
             data-create-remove-row="true"
             data-vp-variant-action="remove"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.button.entfernen.9e4288a6">
             Entfernen
           </button>
         </div>
@@ -995,8 +995,8 @@
     data-vp-variant-table-empty="true"
     {% if _table_initial_count > 0 %}hidden{% endif %}
   >
-    <strong>Noch keine Varianten vorhanden.</strong>
-    <span>Lege über „Variante hinzufügen“ eine neue Variante an.</span>
+    <strong data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.strong.noch_keine_varianten_vorhanden.20c73565">Noch keine Varianten vorhanden.</strong>
+    <span data-i18n="vectoplan.server.library.vplib.create.variants.variant_table.span.lege_ber_variante_hinzuf_gen_eine_neue.d3312031">Lege über „Variante hinzufügen“ eine neue Variante an.</span>
   </div>
 </div>
 

@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "9817ac78-d171-5e90-ae4c-f00d1b17311e",
+  "family_id": "vp.hochbau.tragwerk.traeger.stahlbetontraeger",
+  "slug": "stahlbetontraeger",
+  "label": "Stahlbetonträger",
+  "description": "Rechteckiger Stahlbetonträger mit mehreren Standardquerschnitten.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

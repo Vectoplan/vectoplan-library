@@ -393,7 +393,11 @@ VPLIB_DEFAULT_VALIDATION_MODE="${VPLIB_DEFAULT_VALIDATION_MODE:-strict}"
 VECTOPLAN_LIBRARY_SERVICE_ROOT="${VECTOPLAN_LIBRARY_SERVICE_ROOT:-$APP_HOME}"
 VECTOPLAN_LIBRARY_SRC_ROOT="${VECTOPLAN_LIBRARY_SRC_ROOT:-$APP_HOME/src}"
 VECTOPLAN_LIBRARY_PACKAGE_ROOT="${VECTOPLAN_LIBRARY_PACKAGE_ROOT:-$APP_HOME/src/library}"
-VECTOPLAN_LIBRARY_SOURCE_ROOT="${VECTOPLAN_LIBRARY_SOURCE_ROOT:-$APP_HOME/src/library/source}"
+VECTOPLAN_LIBRARY_SOURCE_ROOT="${VECTOPLAN_LIBRARY_SOURCE_ROOT:-$APP_HOME/standard_library/v1/packages}"
+VECTOPLAN_LIBRARY_LOAD_ON_STARTUP="${VECTOPLAN_LIBRARY_LOAD_ON_STARTUP:-true}"
+VECTOPLAN_LIBRARY_DB_SYNC_ON_STARTUP="${VECTOPLAN_LIBRARY_DB_SYNC_ON_STARTUP:-true}"
+VECTOPLAN_LIBRARY_STAGE_SOURCE_ON_STARTUP="${VECTOPLAN_LIBRARY_STAGE_SOURCE_ON_STARTUP:-true}"
+VECTOPLAN_LIBRARY_STAGED_SOURCE_ROOT="${VECTOPLAN_LIBRARY_STAGED_SOURCE_ROOT:-/tmp/vectoplan-standard-library-v1}"
 VECTOPLAN_LIBRARY_CREATIVE_ROOT="${VECTOPLAN_LIBRARY_CREATIVE_ROOT:-$APP_HOME/creative_library}"
 VECTOPLAN_LIBRARY_GENERATED_ROOT="${VECTOPLAN_LIBRARY_GENERATED_ROOT:-$APP_HOME/generated/library}"
 VECTOPLAN_LIBRARY_CACHE_ROOT="${VECTOPLAN_LIBRARY_CACHE_ROOT:-$APP_HOME/generated/library_cache}"
@@ -565,6 +569,10 @@ export VECTOPLAN_LIBRARY_SERVICE_ROOT
 export VECTOPLAN_LIBRARY_SRC_ROOT
 export VECTOPLAN_LIBRARY_PACKAGE_ROOT
 export VECTOPLAN_LIBRARY_SOURCE_ROOT
+export VECTOPLAN_LIBRARY_LOAD_ON_STARTUP
+export VECTOPLAN_LIBRARY_DB_SYNC_ON_STARTUP
+export VECTOPLAN_LIBRARY_STAGE_SOURCE_ON_STARTUP
+export VECTOPLAN_LIBRARY_STAGED_SOURCE_ROOT
 export VECTOPLAN_LIBRARY_CREATIVE_ROOT
 export VECTOPLAN_LIBRARY_GENERATED_ROOT
 export VECTOPLAN_LIBRARY_CACHE_ROOT
@@ -660,6 +668,40 @@ log_info "Python: $(python --version 2>/dev/null || printf '%s' 'unbekannt')"
 # Runtime-Verzeichnisse vorbereiten
 # -----------------------------------------------------------------------------
 
+stage_standard_library_source() {
+  if ! is_true "$VECTOPLAN_LIBRARY_STAGE_SOURCE_ON_STARTUP"; then
+    return 0
+  fi
+
+  source_root="$VECTOPLAN_LIBRARY_SOURCE_ROOT"
+  stage_root="$VECTOPLAN_LIBRARY_STAGED_SOURCE_ROOT"
+
+  if [ ! -d "$source_root" ]; then
+    log_warn "Standard-Library kann nicht lokal bereitgestellt werden; Quellordner fehlt: ${source_root}"
+    return 0
+  fi
+
+  case "$stage_root" in
+    /tmp/vectoplan-standard-library-*) ;;
+    *) die "Unsicherer temporärer Standard-Library-Pfad: ${stage_root}" ;;
+  esac
+
+  if [ "$source_root" = "$stage_root" ]; then
+    return 0
+  fi
+
+  rm -rf -- "$stage_root"
+  mkdir -p "$stage_root"
+  cp -R "$source_root"/. "$stage_root"/
+
+  VECTOPLAN_LIBRARY_SOURCE_ROOT="$stage_root"
+  LIBRARY_SOURCE_ROOT="$stage_root"
+  export VECTOPLAN_LIBRARY_SOURCE_ROOT
+  export LIBRARY_SOURCE_ROOT
+
+  log_info "Standard-Library wurde containerlokal bereitgestellt: ${stage_root}"
+}
+
 prepare_runtime_directories() {
   ensure_dir "$VPLIB_SOURCE_ROOT"
   ensure_dir "$VPLIB_LIBRARY_CATALOG_ROOT"
@@ -717,7 +759,7 @@ run_structure_check() {
   require_dir_any "Creative Library Read Models Package" "./src/library/read_models" || missing=$((missing + 1))
   require_dir_any "Creative Library Services Package" "./src/library/services" || missing=$((missing + 1))
 
-  warn_if_missing_dir_any "Creative Library Source Root" "./src/library/source" "$VECTOPLAN_LIBRARY_SOURCE_ROOT"
+  warn_if_missing_dir_any "Standard Library Source Root" "./standard_library/v1/packages" "$VECTOPLAN_LIBRARY_SOURCE_ROOT"
   warn_if_missing_dir_any "Migrations Directory" "./migrations" "$VECTOPLAN_LIBRARY_MIGRATIONS_DIRECTORY"
 
   if [ "$missing" -gt 0 ]; then
@@ -1118,7 +1160,7 @@ check_and_repair_alembic_state() {
 check_flask_metadata_ready() {
   log_info "Prüfe, ob SQLAlchemy-Modelle in db.metadata sichtbar sind."
 
-  python <<'PY'
+  VECTOPLAN_LIBRARY_LOAD_ON_STARTUP=false python <<'PY'
 import os
 import sys
 
@@ -1171,7 +1213,7 @@ run_flask_db_init_if_needed() {
 
   log_info "Initialisiere Flask-Migrate Umgebung mit 'flask db init'."
 
-  if python -m flask db init; then
+  if VECTOPLAN_LIBRARY_LOAD_ON_STARTUP=false python -m flask db init; then
     log_info "flask db init erfolgreich."
     return 0
   fi
@@ -1204,7 +1246,7 @@ run_flask_db_upgrade_if_enabled() {
 
   log_info "Wende Datenbankmigrationen mit 'flask db upgrade' an. Phase: ${upgrade_phase}"
 
-  if python -m flask db upgrade; then
+  if VECTOPLAN_LIBRARY_LOAD_ON_STARTUP=false python -m flask db upgrade; then
     log_info "flask db upgrade erfolgreich. Phase: ${upgrade_phase}"
     return 0
   fi
@@ -1224,7 +1266,7 @@ run_flask_db_migrate_once() {
   log_info "Starte flask db migrate. Versuch: ${attempt_label}. Versionen vorher: ${before_count}"
 
   set +e
-  python -m flask db migrate -m "$migrate_message" >"$log_file" 2>&1
+  VECTOPLAN_LIBRARY_LOAD_ON_STARTUP=false python -m flask db migrate -m "$migrate_message" >"$log_file" 2>&1
   migrate_exit="$?"
   set -e
 
@@ -1452,7 +1494,7 @@ PY
 run_prestart_check() {
   log_info "Starte Python-Prestart-Check."
 
-  python <<'PY'
+  VECTOPLAN_LIBRARY_LOAD_ON_STARTUP=false python <<'PY'
 import importlib
 import os
 import sys
@@ -1702,6 +1744,49 @@ PY
 
 
 # -----------------------------------------------------------------------------
+# Einmaliger Standard-Library-Sync nach dem Datenbank-Bootstrap
+# -----------------------------------------------------------------------------
+
+run_standard_library_startup_sync() {
+  if ! is_true "$VECTOPLAN_LIBRARY_LOAD_ON_STARTUP"; then
+    log_info "Standard-Library-Startsync ist deaktiviert."
+    return 0
+  fi
+
+  marker_path="${VECTOPLAN_LIBRARY_SOURCE_ROOT}/.vectoplan-startup-sync-complete"
+  if [ -f "$marker_path" ]; then
+    log_info "Standard-Library wurde in diesem Containerstart bereits synchronisiert."
+    return 0
+  fi
+
+  log_info "Starte einmaligen Standard-Library-Sync im Hintergrund."
+
+  (
+  if python <<'PY'
+import os
+
+from app import create_app
+
+config_name = os.getenv("VECTOPLAN_LIBRARY_CONFIG", "production")
+create_app(config_name)
+PY
+  then
+    if [ -f "$marker_path" ]; then
+      log_info "Standard-Library-Startsync erfolgreich abgeschlossen."
+    else
+      log_error "Standard-Library-Startsync wurde ohne Erfolgsmarkierung beendet."
+    fi
+  else
+    log_error "Standard-Library-Startsync konnte nicht ausgeführt werden."
+  fi
+  ) &
+
+  log_info "Standard-Library-Startsync läuft als Hintergrundprozess (PID $!)."
+  return 0
+}
+
+
+# -----------------------------------------------------------------------------
 # Startzusammenfassung
 # -----------------------------------------------------------------------------
 
@@ -1730,7 +1815,7 @@ print_startup_summary() {
 
   log_info "Creative Library Route Prefix: ${VECTOPLAN_LIBRARY_ROUTE_PREFIX}"
   log_info "Creative Library Package Root: ${VECTOPLAN_LIBRARY_PACKAGE_ROOT}"
-  log_info "Creative Library Source Root: ${VECTOPLAN_LIBRARY_SOURCE_ROOT}"
+  log_info "Standard Library Source Root: ${VECTOPLAN_LIBRARY_SOURCE_ROOT}"
   log_info "Creative Library Creative Root: ${VECTOPLAN_LIBRARY_CREATIVE_ROOT}"
   log_info "Creative Library Generated Root: ${VECTOPLAN_LIBRARY_GENERATED_ROOT}"
   log_info "Creative Library Cache Root: ${VECTOPLAN_LIBRARY_CACHE_ROOT}"
@@ -1761,7 +1846,7 @@ start_gunicorn() {
 
   log_info "Starte ${APP_DISPLAY_NAME} über Gunicorn."
 
-  exec gunicorn \
+  VECTOPLAN_LIBRARY_LOAD_ON_STARTUP=false exec gunicorn \
     --bind "${VECTOPLAN_LIBRARY_HOST}:${VECTOPLAN_LIBRARY_PORT}" \
     --workers "${GUNICORN_WORKERS}" \
     --threads "${GUNICORN_THREADS}" \
@@ -1775,7 +1860,7 @@ start_gunicorn() {
 
 start_python_wsgi() {
   log_warn "Starte ${APP_DISPLAY_NAME} im Python-Direktmodus. Dies ist primär für Entwicklung gedacht."
-  exec python ./wsgi.py
+  VECTOPLAN_LIBRARY_LOAD_ON_STARTUP=false exec python ./wsgi.py
 }
 
 
@@ -1784,6 +1869,7 @@ start_python_wsgi() {
 # -----------------------------------------------------------------------------
 
 main() {
+  stage_standard_library_source
   prepare_runtime_directories
   print_startup_summary
 
@@ -1819,6 +1905,8 @@ main() {
     log_info "Benutzerdefiniertes Kommando erkannt. Übergabe an exec: $*"
     exec "$@"
   fi
+
+  run_standard_library_startup_sync
 
   case "$VECTOPLAN_LIBRARY_RUN_MODE" in
     gunicorn)

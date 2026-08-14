@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "b4176b1e-78d9-5a94-8c59-4da7e2a31aca",
+  "family_id": "vp.ingenieurbau.bruecken.kappen_randbalken.brueckenkappe",
+  "slug": "brueckenkappe",
+  "label": "Brückenkappe / Randbalken",
+  "description": "Randbauteil für Brückenkappen und Gesimse.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

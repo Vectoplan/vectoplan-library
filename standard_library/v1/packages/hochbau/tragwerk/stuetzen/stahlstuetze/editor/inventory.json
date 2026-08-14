@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "3a4a2ec4-a8c7-5f3b-8ec2-20fa6ee8e166",
+  "family_id": "vp.hochbau.tragwerk.stuetzen.stahlstuetze",
+  "default_variant_id": "default",
+  "label": "Stahlstütze",
+  "description": "Vereinfachte Stahlstütze für Vorplanung und Kollisionsprüfung.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "tragwerk",
+  "subcategory": "stuetzen",
+  "classification_path": "hochbau/tragwerk/stuetzen",
+  "source_path": "hochbau/tragwerk/stuetzen/stahlstuetze",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Tragwerk",
+    "subcategory": "Stützen"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

@@ -1,6 +1,6 @@
 {# services/vectoplan-library/templates/vplib/create.html #}
 {% set _create_template_version = '1.0.0' %}
-{% set _create_asset_version = '20260803.1' %}
+{% set _create_asset_version = '20260813.3' %}
 <!doctype html>
 <html
   lang="de"
@@ -22,7 +22,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
 
-  <title>VPLIB erstellen · VECTOPLAN Library</title>
+  <title data-i18n="vectoplan.server.library.vplib.create.title.vplib_erstellen_vectoplan_library.7a7e6bee">VPLIB erstellen · VECTOPLAN Library</title>
 
   <script>
     (function () {
@@ -799,6 +799,12 @@
   {% set _material_classes = [] %}
 {% endif %}
 
+{% if _options_data is mapping and 'hatch_patterns' in _options_data and _options_data['hatch_patterns'] is iterable and _options_data['hatch_patterns'] is not string %}
+  {% set _hatch_patterns = _options_data['hatch_patterns'] %}
+{% else %}
+  {% set _hatch_patterns = [] %}
+{% endif %}
+
 {# -----------------------------------------------------------------------------
    5. Status / Version / Source
 ----------------------------------------------------------------------------- #}
@@ -890,24 +896,36 @@
 {% set create_steps = [
   {
     "index": 1,
-    "key": "identity",
-    "label": "Grunddaten",
-    "short_label": "Daten",
-    "description": "Name und Beschreibung",
-    "hint": "Name und Beschreibung des neuen Library-Bausteins festlegen.",
-    "target": "identity"
+    "key": "library-source",
+    "label": "Creative Library",
+    "short_label": "Start",
+    "description": "Bestehend oder neu",
+    "hint": "Bestehenden Library-Baustein auswählen oder eine neue VPLIB beginnen.",
+    "target": "library-source"
   },
   {
     "index": 2,
-    "key": "taxonomy",
-    "label": "Taxonomie",
-    "short_label": "Taxonomie",
-    "description": "Domain, Kategorie und Subkategorie",
-    "hint": "Fachliche Einordnung für Library, Scanner und spätere Navigation auswählen.",
-    "target": "taxonomy"
+    "key": "identity-taxonomy",
+    "alias": "identity",
+    "aliases": ["identity", "taxonomy", "identity-taxonomy"],
+    "label": "Grunddaten & Taxonomie",
+    "short_label": "Grunddaten",
+    "description": "Identität und fachliche Einordnung",
+    "hint": "Name, Beschreibung und fachliche Einordnung gemeinsam festlegen.",
+    "target": "identity-taxonomy"
   },
   {
     "index": 3,
+    "key": "manufacturer",
+    "aliases": ["manufacturer", "distribution", "availability"],
+    "label": "Hersteller & Vertrieb",
+    "short_label": "Vertrieb",
+    "description": "Hersteller, Gebiete und Varianten",
+    "hint": "Hersteller festlegen und Varianten Standorten oder Vertriebsgebieten zuweisen.",
+    "target": "manufacturer"
+  },
+  {
+    "index": 4,
     "key": "variables",
     "alias": "object",
     "aliases": ["object", "object-variants", "variables"],
@@ -918,16 +936,25 @@
     "target": "object-variants"
   },
   {
-    "index": 4,
+    "index": 5,
     "key": "geometry",
     "label": "Geometrie",
     "short_label": "Geometrie",
-    "description": "Form, Maße, Raster und 3D-Upload",
-    "hint": "Primitive Form, reale Maße, Editor-Raster und optionalen 3D-Modellupload vorbereiten.",
+    "description": "Grundform, Maße und Raster",
+    "hint": "Grundform, reale Außenmaße, Texturen und das Editor-Raster definieren.",
     "target": "geometry"
   },
   {
-    "index": 5,
+    "index": 6,
+    "key": "spatial",
+    "label": "Raum & Anschlüsse",
+    "short_label": "Raum",
+    "description": "3D-Modell, Skalierung und Anschlüsse",
+    "hint": "Primärmodell laden, relativ zur Blockgröße skalieren und Verbindungspunkte definieren.",
+    "target": "spatial"
+  },
+  {
+    "index": 7,
     "key": "technical",
     "label": "Technik",
     "short_label": "Technik",
@@ -936,7 +963,17 @@
     "target": "technical"
   },
   {
-    "index": 6,
+    "index": 8,
+    "key": "pricing",
+    "aliases": ["pricing", "prices", "commercial"],
+    "label": "Preise",
+    "short_label": "Preise",
+    "description": "Preis und Produktmenge je Variante",
+    "hint": "Preislogik und ausgegebene Produktmenge für jede Variante definieren.",
+    "target": "pricing"
+  },
+  {
+    "index": 9,
     "key": "actions",
     "alias": "create",
     "aliases": ["create", "actions"],
@@ -1067,6 +1104,26 @@
         autocomplete="off"
         novalidate
       >
+        <header class="vp-create-editorbar" data-vp-create-editorbar>
+          <div class="vp-create-editorbar__brand">
+            <span class="vp-create-editorbar__mark" aria-hidden="true">VP</span>
+            <span>
+              <strong>VPLIB Editor</strong>
+              <small>Creative Library Workspace</small>
+            </span>
+          </div>
+          <div class="vp-create-editorbar__project" aria-label="Aktuelles Projekt">
+            <span class="vp-create-editorbar__crumb">Projekt</span>
+            <strong data-vp-editor-project-name>Neuer Library-Baustein</strong>
+          </div>
+          <div class="vp-create-editorbar__status">
+            <span class="vp-create-editorbar__status-dot" aria-hidden="true"></span>
+            <span>Entwurf</span>
+            <span class="vp-create-editorbar__separator" aria-hidden="true"></span>
+            <span>VPLIB</span>
+          </div>
+        </header>
+
         <div
           class="vplib-create-app__workspace"
           data-create-layout="true"
@@ -1088,13 +1145,13 @@
                 class="vplib-create-step{% if create_initial_step == 1 %} is-active{% else %} is-hidden{% endif %}"
                 data-vp-create-step
                 data-vp-step-index="1"
-                data-vp-step-key="identity"
-                data-vp-step-target="identity"
-                data-vp-step-label="Grunddaten"
-                aria-label="Schritt 1: Grunddaten"
+                data-vp-step-key="library-source"
+                data-vp-step-target="library-source"
+                data-vp-step-label="Creative Library"
+                aria-label="Schritt 1: Creative Library"
                 {% if create_initial_step != 1 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
               >
-                {% include "vplib/create/sections/_identity.html" %}
+                {% include "vplib/create/sections/_library_source.html" %}
               </section>
 
               <section
@@ -1102,13 +1159,14 @@
                 class="vplib-create-step{% if create_initial_step == 2 %} is-active{% else %} is-hidden{% endif %}"
                 data-vp-create-step
                 data-vp-step-index="2"
-                data-vp-step-key="taxonomy"
-                data-vp-step-target="taxonomy"
-                data-vp-step-label="Taxonomie"
-                aria-label="Schritt 2: Taxonomie"
+                data-vp-step-key="identity-taxonomy"
+                data-vp-step-alias="identity"
+                data-vp-step-target="identity-taxonomy"
+                data-vp-step-label="Grunddaten &amp; Taxonomie"
+                aria-label="Schritt 2: Grunddaten und Taxonomie"
                 {% if create_initial_step != 2 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
-              >
-                {% include "vplib/create/sections/_taxonomy.html" %}
+               data-i18n-aria-label="server.library.vplib.create.section_aria-label.schritt_1_grunddaten.666bbaf1">
+                {% include "vplib/create/sections/_identity_taxonomy.html" %}
               </section>
 
               <section
@@ -1116,13 +1174,28 @@
                 class="vplib-create-step{% if create_initial_step == 3 %} is-active{% else %} is-hidden{% endif %}"
                 data-vp-create-step
                 data-vp-step-index="3"
+                data-vp-step-key="manufacturer"
+                data-vp-step-target="manufacturer"
+                data-vp-step-label="Hersteller &amp; Vertrieb"
+                aria-label="Schritt 3: Hersteller und Vertrieb"
+                {% if create_initial_step != 3 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+              >
+                {% include "vplib/create/sections/_manufacturer.html" %}
+              </section>
+
+              <section
+                id="vplib-create-step-4"
+                class="vplib-create-step{% if create_initial_step == 4 %} is-active{% else %} is-hidden{% endif %}"
+                data-vp-create-step
+                data-vp-step-index="4"
                 data-vp-step-key="variables"
                 data-vp-step-alias="object"
                 data-vp-step-target="object-variants"
                 data-vp-step-label="Variablen"
                 data-vp-create-section-alias="variables"
-                aria-label="Schritt 3: Variablen und Varianten"
-                {% if create_initial_step != 3 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+                aria-label="Schritt 4: Variablen und Varianten"
+                {% if create_initial_step != 4 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+               data-i18n-aria-label="server.library.vplib.create.section_aria-label.schritt_3_variablen_und_varianten.4424a098"
               >
                 {% include [
                   "vplib/create/sections/_variables.html",
@@ -1131,31 +1204,17 @@
               </section>
 
               <section
-                id="vplib-create-step-4"
-                class="vplib-create-step{% if create_initial_step == 4 %} is-active{% else %} is-hidden{% endif %}"
-                data-vp-create-step
-                data-vp-step-index="4"
-                data-vp-step-key="geometry"
-                data-vp-step-target="geometry"
-                data-vp-step-label="Geometrie"
-                aria-label="Schritt 4: Geometrie"
-                {% if create_initial_step != 4 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
-              >
-                {% include "vplib/create/sections/_geometry.html" %}
-              </section>
-
-              <section
                 id="vplib-create-step-5"
                 class="vplib-create-step{% if create_initial_step == 5 %} is-active{% else %} is-hidden{% endif %}"
                 data-vp-create-step
                 data-vp-step-index="5"
-                data-vp-step-key="technical"
-                data-vp-step-target="technical"
-                data-vp-step-label="Technik"
-                aria-label="Schritt 5: Technik"
+                data-vp-step-key="geometry"
+                data-vp-step-target="geometry"
+                data-vp-step-label="Geometrie"
+                aria-label="Schritt 5: Geometrie"
                 {% if create_initial_step != 5 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
-              >
-                {% include "vplib/create/sections/_technical.html" %}
+               data-i18n-aria-label="server.library.vplib.create.section_aria-label.schritt_4_geometrie.fe5d54fa">
+                {% include "vplib/create/sections/_geometry.html" %}
               </section>
 
               <section
@@ -1163,13 +1222,55 @@
                 class="vplib-create-step{% if create_initial_step == 6 %} is-active{% else %} is-hidden{% endif %}"
                 data-vp-create-step
                 data-vp-step-index="6"
+                data-vp-step-key="spatial"
+                data-vp-step-target="spatial"
+                data-vp-step-label="Raum &amp; Anschlüsse"
+                aria-label="Schritt 6: Raum und Anschlüsse"
+                {% if create_initial_step != 6 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+              >
+                {% include "vplib/create/sections/_spatial.html" %}
+              </section>
+
+              <section
+                id="vplib-create-step-7"
+                class="vplib-create-step{% if create_initial_step == 7 %} is-active{% else %} is-hidden{% endif %}"
+                data-vp-create-step
+                data-vp-step-index="7"
+                data-vp-step-key="technical"
+                data-vp-step-target="technical"
+                data-vp-step-label="Technik"
+                aria-label="Schritt 7: Technik"
+                {% if create_initial_step != 7 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+               data-i18n-aria-label="server.library.vplib.create.section_aria-label.schritt_5_technik.70433964">
+                {% include "vplib/create/sections/_technical.html" %}
+              </section>
+
+              <section
+                id="vplib-create-step-8"
+                class="vplib-create-step{% if create_initial_step == 8 %} is-active{% else %} is-hidden{% endif %}"
+                data-vp-create-step
+                data-vp-step-index="8"
+                data-vp-step-key="pricing"
+                data-vp-step-target="pricing"
+                data-vp-step-label="Preise"
+                aria-label="Schritt 8: Preise und Mengenumrechnung"
+                {% if create_initial_step != 8 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+              >
+                {% include "vplib/create/sections/_pricing.html" with context %}
+              </section>
+
+              <section
+                id="vplib-create-step-9"
+                class="vplib-create-step{% if create_initial_step == 9 %} is-active{% else %} is-hidden{% endif %}"
+                data-vp-create-step
+                data-vp-step-index="9"
                 data-vp-step-key="actions"
                 data-vp-step-alias="create"
                 data-vp-step-target="actions"
                 data-vp-step-label="Erzeugen"
-                aria-label="Schritt 6: Prüfen und erzeugen"
-                {% if create_initial_step != 6 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
-              >
+                aria-label="Schritt 9: Prüfen und erzeugen"
+                {% if create_initial_step != 9 %}hidden aria-hidden="true"{% else %}aria-hidden="false"{% endif %}
+               data-i18n-aria-label="server.library.vplib.create.section_aria-label.schritt_6_pr_fen_und_erzeugen.96bb24e9">
                 {% include "vplib/create/sections/_actions.html" with context %}
               </section>
             </div>
@@ -1180,7 +1281,7 @@
             data-create-layout-side="true"
             data-vp-create-aside
             aria-label="Vorschau"
-          >
+           data-i18n-aria-label="server.library.vplib.create.aside_aria-label.vorschau.8a6f9d25">
             {% include "vplib/create/_preview_placeholder.html" %}
           </aside>
         </div>
@@ -1202,13 +1303,8 @@
         root.classList.remove("vp-create-js-pending");
         root.classList.add("vp-create-js-ready");
 
-        if (!root.getAttribute("data-theme")) {
-          root.setAttribute("data-theme", "dark");
-        }
-
-        if (!root.getAttribute("data-vp-create-theme")) {
-          root.setAttribute("data-vp-create-theme", root.getAttribute("data-theme") || "light");
-        }
+        root.setAttribute("data-theme", "light");
+        root.setAttribute("data-vp-create-theme", "light");
 
         root.setAttribute("data-vp-create-shell-ready", "true");
         root.setAttribute("data-vp-create-style", "cad-light");
@@ -1341,15 +1437,19 @@
   {%- endmacro %}
 
   {{ vp_create_script('create_core.js', 'create_core') }}
+  {{ vp_create_script('create_library_source.js', 'create_library_source') }}
   {{ vp_create_script('create_theme.js', 'create_theme') }}
+  {{ vp_create_script('create_manufacturer_profile.js', 'create_manufacturer_profile') }}
   {{ vp_create_script('create_wizard.js', 'create_wizard') }}
   {{ vp_create_script('create_preview.js', 'create_preview') }}
   {{ vp_create_script('create_dynamic_rows_legacy.js', 'create_dynamic_rows_legacy') }}
   {{ vp_create_script('create_uploads.js', 'create_uploads') }}
+  {{ vp_create_script('create_spatial_contract.js', 'create_spatial_contract') }}
   {{ vp_create_script('create_definitions.js', 'create_definitions') }}
 
   {{ vp_create_script('create_variant_utils.js', 'create_variant_utils') }}
   {{ vp_create_script('create_variant_state.js', 'create_variant_state') }}
+  {{ vp_create_script('create_manufacturer_products.js', 'create_manufacturer_products') }}
   {{ vp_create_script('create_variant_profiles.js', 'create_variant_profiles') }}
   {{ vp_create_script('create_variant_summary.js', 'create_variant_summary') }}
   {{ vp_create_script('create_variant_field_renderer.js', 'create_variant_field_renderer') }}
@@ -1358,6 +1458,7 @@
   {{ vp_create_script('create_variant_drawer.js', 'create_variant_drawer') }}
   {{ vp_create_script('create_variant_table.js', 'create_variant_table') }}
   {{ vp_create_script('create_technical.js', 'create_technical') }}
+  {{ vp_create_script('create_pricing.js', 'create_pricing') }}
 
   {{ vp_create_script('create_payload.js', 'create_payload') }}
   {{ vp_create_script('create_editor_preview_bridge.js', 'create_editor_preview_bridge') }}

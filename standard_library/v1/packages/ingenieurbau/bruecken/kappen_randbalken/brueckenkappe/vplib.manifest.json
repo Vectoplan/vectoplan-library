@@ -1,0 +1,55 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "b4176b1e-78d9-5a94-8c59-4da7e2a31aca",
+  "package_id": "vplib.vp.ingenieurbau.bruecken.kappen_randbalken.brueckenkappe",
+  "family_id": "vp.ingenieurbau.bruecken.kappen_randbalken.brueckenkappe",
+  "family_slug": "brueckenkappe",
+  "family_name": "Brückenkappe / Randbalken",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "bruecken",
+  "subcategory": "kappen_randbalken",
+  "classification": {
+    "domain": "ingenieurbau",
+    "category": "bruecken",
+    "subcategory": "kappen_randbalken",
+    "classification_path": "ingenieurbau/bruecken/kappen_randbalken",
+    "labels": {
+      "domain": "Ingenieurbau",
+      "category": "Brücken",
+      "subcategory": "Kappen und Randbalken"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "ingenieurbau/bruecken/kappen_randbalken",
+  "source_path": "ingenieurbau/bruecken/kappen_randbalken/brueckenkappe",
+  "default_variant_id": "default",
+  "variant_count": 5,
+  "documents_required": false,
+  "external_assets_required": false,
+  "created_at": "2026-08-11T00:00:00Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.5.0",
+    "mode": "simple_create",
+    "starter_contract": true
+  },
+  "assets": [],
+  "asset_count": 0
+}

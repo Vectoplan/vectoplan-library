@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "8c65cf12-4e9b-5ca2-bd0b-6136e9d4b679",
+  "family_id": "vp.tiefbau.erdbau.planum.frostschutzschicht",
+  "slug": "frostschutzschicht",
+  "label": "Frostschutzschicht",
+  "description": "Ungebundene frostunempfindliche Tragschicht.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

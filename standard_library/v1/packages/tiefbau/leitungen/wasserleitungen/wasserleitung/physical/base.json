@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "0efa81ac-253c-5587-a1c6-118060a484ae",
+  "family_id": "vp.tiefbau.leitungen.wasserleitungen.wasserleitung",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "kunststoff"
+  ]
+}

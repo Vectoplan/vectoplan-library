@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.1.0",
+  "material_classes": [
+    "kunststoff"
+  ],
+  "primary_material_class": "kunststoff",
+  "source": "create_form"
+}

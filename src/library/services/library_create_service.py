@@ -38,7 +38,7 @@ Taxonomy:
     No fallback to hochbau/bloecke/basis is allowed for new packages.
 
 Canonical source path:
-    src/library/source/{domain}/{category}/{subcategory}/{family_slug}
+    standard_library/v1/packages/{domain}/{category}/{subcategory}/{family_slug}
 
 Canonical family_id:
     vp.{domain}.{category}.{subcategory}.{family_slug}
@@ -73,12 +73,27 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
+try:
+    from vplib.spatial_contract import normalize_spatial_contract
+except ImportError:  # pragma: no cover - alternate package root used by some runners
+    from src.vplib.spatial_contract import normalize_spatial_contract  # type: ignore
+
+try:
+    from vplib.manufacturer_profile import normalize_manufacturer_profile
+except ImportError:  # pragma: no cover - alternate package root used by some runners
+    from src.vplib.manufacturer_profile import normalize_manufacturer_profile  # type: ignore
+
+try:
+    from vplib.pricing_contract import normalize_pricing_contract
+except ImportError:  # pragma: no cover - alternate package root used by some runners
+    from src.vplib.pricing_contract import normalize_pricing_contract  # type: ignore
+
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-LIBRARY_CREATE_SERVICE_VERSION = "0.5.0"
+LIBRARY_CREATE_SERVICE_VERSION = "0.8.0"
 ENV_TEXTURE_OPTIMIZATION_ENABLED = "VPLIB_TEXTURE_OPTIMIZATION_ENABLED"
 ENV_TEXTURE_MAX_EDGE = "VPLIB_TEXTURE_MAX_EDGE"
 ENV_TEXTURE_WEBP_QUALITY = "VPLIB_TEXTURE_WEBP_QUALITY"
@@ -398,6 +413,9 @@ class NormalizedCreateDraft:
     editor_cell_size_x: float
     editor_cell_size_y: float
     editor_cell_size_z: float
+    spatial_contract: dict[str, Any]
+    manufacturer_profile: dict[str, Any]
+    pricing_contract: dict[str, Any]
 
     material_class: str
     material_classes: list[str]
@@ -449,7 +467,7 @@ class NormalizedCreateDraft:
             "variants": _json_safe(self.variants),
             "primitive_shape": self.primitive_shape,
             "geometry": {
-                "mode": "primitive",
+                "mode": self.spatial_contract.get("mode", "contained"),
                 "primitive_shape": self.primitive_shape,
                 "dimensions": {
                     "width": self.geometry_width,
@@ -471,6 +489,9 @@ class NormalizedCreateDraft:
                     "unit": self.geometry_unit,
                 },
             },
+            "spatial_contract": _json_safe(self.spatial_contract),
+            "manufacturer_profile": _json_safe(self.manufacturer_profile),
+            "pricing_contract": _json_safe(self.pricing_contract),
             "technical": {
                 "material_class": self.material_class,
                 "material_classes": list(self.material_classes),
@@ -785,6 +806,7 @@ def get_create_options(*, include_definitions: bool = True, user_id: Any = 1) ->
             "primitive_shapes": static_options["primitive_shapes"],
             "units": static_options["units"],
             "material_classes": static_options["material_classes"],
+            "hatch_patterns": static_options["hatch_patterns"],
             "limits": {
                 "max_text_length": MAX_TEXT_LENGTH,
                 "max_slug_length": MAX_SLUG_LENGTH,
@@ -1518,7 +1540,7 @@ def _safe_archive_filename(value: Any) -> str:
 
 def save_package(payload: Any, *, overwrite: bool | None = None) -> CreateResult:
     """
-    Write a validated directory package into src/library/source.
+    Write a validated directory package into the configured standard library source.
 
     Writing is disabled by default. Enable explicitly with:
         VPLIB_CREATE_WRITE_ENABLED=true
@@ -1858,6 +1880,30 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
         "height_mm": _unit_value_to_millimetres(normalized.geometry_height, normalized.geometry_unit),
         "depth_mm": _unit_value_to_millimetres(normalized.geometry_depth, normalized.geometry_unit),
     }
+    spatial_contract = _json_safe(normalized.spatial_contract)
+    spatial_zone = dict(spatial_contract.get("zone") or {})
+    spatial_mode = str(spatial_contract.get("mode") or "contained")
+    connectors = [
+        dict(item)
+        for item in (spatial_contract.get("connectors") or [])
+        if isinstance(item, Mapping)
+    ]
+    manufacturer_profile = _json_safe(normalized.manufacturer_profile)
+    pricing_contract = _json_safe(normalized.pricing_contract)
+    manufacturer_scope = str(manufacturer_profile.get("scope") or "manufacturer")
+    manufacturer_organization = dict(manufacturer_profile.get("organization") or {})
+    manufacturer_availability = dict(manufacturer_profile.get("availability") or {})
+    manufacturer_locations = [
+        dict(item)
+        for item in (manufacturer_availability.get("locations") or [])
+        if isinstance(item, Mapping)
+    ]
+    manufacturer_territories = [
+        dict(item)
+        for item in (manufacturer_availability.get("territories") or [])
+        if isinstance(item, Mapping)
+    ]
+    manufacturer_coverage_mode = str(manufacturer_availability.get("coverage_mode") or "locations")
     starter_contract = (
         normalized.object_kind == DEFAULT_OBJECT_KIND
         and normalized.family_profile_id == STARTER_FAMILY_PROFILE_ID
@@ -1877,12 +1923,16 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
         "editor/placement.json",
         "editor/targeting.json",
         "editor/anchors.json",
+        "editor/spatial.json",
+        "editor/sockets.json",
+        "editor/ports.json",
         "render/render_variants.json",
         "render/bounds.json",
         "physical/base.json",
         "physical/dimensions.json",
         "physical/collision.json",
         "manufacturer/contract.json",
+        "commercial/pricing.json",
         "definitions/profile.json",
     ]
 
@@ -1917,6 +1967,9 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "source_path": normalized.source_path,
             "default_variant_id": normalized.default_variant_id,
             "variant_count": len(normalized.variants),
+            "spatial_mode": spatial_mode,
+            "connector_count": len(connectors),
+            "manufacturer_scope": manufacturer_scope,
             "documents_required": False if starter_contract else None,
             "external_assets_required": False if starter_contract else None,
             "created_at": normalized.created_at,
@@ -1949,6 +2002,7 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                 "analysis": False,
                 "dynamic": normalized.object_kind == "adaptive_system",
                 "manufacturer": True,
+                "commercial": True,
                 "docs": True,
                 "definitions": True,
                 "tests": False,
@@ -1966,13 +2020,14 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                     "analysis": False,
                     "dynamic": normalized.object_kind == "adaptive_system",
                     "manufacturer": True,
+                    "commercial": True,
                     "docs": True,
                     "definitions": True,
                     "tests": False,
                 }.items()
                 if enabled
             ],
-            "required_modules": ["family", "variants", "editor", "render", "physical", "definitions"],
+            "required_modules": ["family", "variants", "editor", "render", "physical", "definitions", "commercial"],
             "optional_modules": ["material", "calculation", "dynamic", "manufacturer", "docs"],
             "excluded_modules": ["analysis", "tests"],
             "module_versions": {
@@ -1982,6 +2037,7 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                 "render": DEFAULT_SCHEMA_VERSION,
                 "physical": DEFAULT_SCHEMA_VERSION,
                 "definitions": DEFAULT_SCHEMA_VERSION,
+                "commercial": DEFAULT_SCHEMA_VERSION,
             },
             "required_documents": required_documents,
         },
@@ -1997,6 +2053,8 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "variant_profile_id": normalized.variant_profile_id,
             "status": "draft",
             "language": "de",
+            "manufacturer_scope": manufacturer_scope,
+            "manufacturer": manufacturer_organization if manufacturer_scope == "manufacturer" else None,
         },
         "family/classification.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
@@ -2095,13 +2153,14 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                 },
                 "dimensions_mm": dimensions_mm,
             },
+            "spatial_zone": spatial_zone,
             "host_rules": _default_host_rules(normalized),
         },
         "editor/targeting.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "enabled": True,
-            "target_type": "grid_cell" if normalized.object_kind == "cell_block" else "object",
-            "selection_mode": "bounds",
+            "target_type": "grid_cell" if spatial_mode == "contained" and normalized.object_kind == "cell_block" else "object_zone",
+            "selection_mode": "model_envelope" if spatial_mode != "contained" else "bounds",
             "placement_profile": normalized.variant_profile_id,
         },
         "editor/anchors.json": {
@@ -2109,15 +2168,29 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "anchors": [
                 {"anchor_id": "center", "type": "center", "enabled": True},
                 {"anchor_id": "bottom_center", "type": "bottom_center", "enabled": True},
+            ] + [
+                {
+                    "anchor_id": connector["connector_id"],
+                    "type": "connection_point",
+                    "enabled": True,
+                    "position": connector.get("position"),
+                    "normal": connector.get("normal"),
+                }
+                for connector in connectors
             ],
         },
+        "editor/spatial.json": spatial_contract,
         "editor/sockets.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
-            "sockets": [],
+            "sockets": connectors,
         },
         "editor/ports.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
-            "ports": [],
+            "ports": [
+                connector
+                for connector in connectors
+                if connector.get("interface_type") in {"pipe", "duct", "cable"}
+            ],
         },
         "render/render_variants.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
@@ -2125,16 +2198,20 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "render_variants": [
                 {
                     "render_variant_id": "default",
-                    "mode": "primitive",
+                    "mode": "primitive" if spatial_mode == "contained" else "model",
                     "primitive_shape": normalized.primitive_shape,
-                    "label": "Default primitive preview",
-                    "source": "generated",
+                    "label": "Default primitive preview" if spatial_mode == "contained" else "Primary model preview",
+                    "source": "generated" if spatial_mode == "contained" else "primary_geometry_asset",
                 }
             ],
         },
         "render/bounds.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
-            "type": "box",
+            "type": spatial_zone.get("shape", "box"),
+            "source": spatial_zone.get("source", "manual_dimensions"),
+            "auto_fit": bool(spatial_zone.get("auto_fit")),
+            "margin": spatial_zone.get("margin", 0),
+            "clearance": spatial_zone.get("clearance", {}),
             "width": normalized.geometry_width,
             "height": normalized.geometry_height,
             "depth": normalized.geometry_depth,
@@ -2154,9 +2231,13 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
         "render/lod.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "levels": [
-                {"lod": 0, "mode": "primitive", "enabled": True},
+                {"lod": 0, "mode": "primitive" if spatial_mode == "contained" else "model", "enabled": True},
             ],
         },
+        "render/cad_patterns.json": _build_cad_patterns_document(
+            normalized.variants,
+            default_variant_id=normalized.default_variant_id,
+        ),
         "physical/base.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "vplib_uid": vplib_uid,
@@ -2164,7 +2245,7 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "object_kind": normalized.object_kind,
             "profiles": profiles,
             "unit": normalized.geometry_unit,
-            "physical_model": "simple_box",
+            "physical_model": "simple_box" if spatial_mode == "contained" else "asset_envelope",
             "material_classes": normalized.material_classes,
         },
         "physical/dimensions.json": {
@@ -2176,29 +2257,48 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "width_mm": dimensions_mm["width_mm"],
             "height_mm": dimensions_mm["height_mm"],
             "depth_mm": dimensions_mm["depth_mm"],
-            "source": "create_form",
+            "source": spatial_zone.get("source", "create_form"),
         },
         "physical/collision.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "collision_enabled": True,
-            "type": "box",
+            "type": spatial_zone.get("shape", "box"),
+            "source": spatial_zone.get("source", "manual_dimensions"),
             "width": normalized.geometry_width,
             "height": normalized.geometry_height,
             "depth": normalized.geometry_depth,
             "unit": normalized.geometry_unit,
             "dimensions_mm": dimensions_mm,
+            "clearance": spatial_zone.get("clearance", {}),
         },
         "manufacturer/contract.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
-            "manufacturer_products_allowed": False,
-            "manufacturer_data_required": False,
+            "profile_schema_version": manufacturer_profile.get("schema_version"),
+            "scope": manufacturer_scope,
+            "manufacturer_bound": manufacturer_scope == "manufacturer",
+            "organization": manufacturer_organization,
+            "availability": {
+                "storage": manufacturer_availability.get("storage", "platform_database_with_package_snapshot"),
+                "coverage_mode": manufacturer_coverage_mode,
+                "location_count": len(manufacturer_locations),
+                "territory_count": len(manufacturer_territories),
+                "locations": manufacturer_locations,
+                "territories": manufacturer_territories,
+            },
+            "manufacturer_products_allowed": True,
+            "manufacturer_data_required": manufacturer_scope == "manufacturer",
             "documents_required": False,
-            "overlay_level": "none",
-            "allowed_overlay_levels": [],
-            "required_fields": [],
-            "override_slots": [],
-            "notes": "Generated by simple create flow. Manufacturer overlays are intentionally disabled in phase 1.",
+            "overlay_level": "family",
+            "allowed_overlay_levels": ["family", "variant", "product"],
+            "required_fields": (
+                ["organization.name", f"availability.{manufacturer_coverage_mode}"]
+                if manufacturer_scope == "manufacturer"
+                else []
+            ),
+            "override_slots": ["product_identity", "availability", "documents"],
+            "notes": "Dynamic platform availability remains database-backed; the package contains a portable snapshot.",
         },
+        "commercial/pricing.json": pricing_contract,
         "definitions/profile.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "object_kind": normalized.object_kind,
@@ -2296,7 +2396,7 @@ def get_source_root(explicit: str | os.PathLike[str] | None = None) -> Path:
         1. explicit argument
         2. VECTOPLAN_LIBRARY_SOURCE_ROOT
         3. VPLIB_CREATE_SOURCE_ROOT
-        4. src/library/source relative to this file
+        4. standard_library/v1/packages relative to the service root
     """
     if explicit:
         return Path(explicit).expanduser().resolve()
@@ -2311,9 +2411,9 @@ def get_source_root(explicit: str | os.PathLike[str] | None = None) -> Path:
 
     try:
         current_file = Path(__file__).resolve()
-        return (current_file.parents[1] / "source").resolve()
+        return (current_file.parents[3] / "standard_library" / "v1" / "packages").resolve()
     except Exception:
-        return (Path.cwd() / "src" / "library" / "source").resolve()
+        return (Path.cwd() / "standard_library" / "v1" / "packages").resolve()
 
 
 def _utc_now() -> str:
@@ -2570,8 +2670,6 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         default_mm=STARTER_DIMENSIONS_MM["dimensions.depth_mm"] if starter_requested else 1000,
     )
 
-    block_count_locked = object_kind in {"cell_block", "adaptive_system"}
-
     editor_cells_x = _safe_int(
         _first_value(payload, ["editor_cells_x", "editorCellsX", ("editor_block", "cells", "x")], 1),
         default=1,
@@ -2591,6 +2689,31 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         maximum=1000,
     )
 
+    spatial_contract = normalize_spatial_contract(
+        payload,
+        dimensions={
+            "width": geometry_width,
+            "height": geometry_height,
+            "depth": geometry_depth,
+        },
+        cells={"x": editor_cells_x, "y": editor_cells_y, "z": editor_cells_z},
+        unit=geometry_unit,
+    )
+    spatial_zone = spatial_contract["zone"]
+    spatial_dimensions = spatial_zone["dimensions"]
+    spatial_cells = spatial_zone["grid"]["cells"]
+    geometry_width = float(spatial_dimensions["width"])
+    geometry_height = float(spatial_dimensions["height"])
+    geometry_depth = float(spatial_dimensions["depth"])
+    geometry_unit = str(spatial_dimensions["unit"])
+    editor_cells_x = int(spatial_cells["x"])
+    editor_cells_y = int(spatial_cells["y"])
+    editor_cells_z = int(spatial_cells["z"])
+
+    block_count_locked = (
+        spatial_contract["mode"] == "contained"
+        and object_kind in {"cell_block", "adaptive_system"}
+    )
     if block_count_locked:
         editor_cells_x = 1
         editor_cells_y = 1
@@ -2626,6 +2749,35 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         minimum=0.0001,
         maximum=10_000.0,
     )
+    spatial_contract["zone"]["dimensions"] = {
+        "width": geometry_width,
+        "height": geometry_height,
+        "depth": geometry_depth,
+        "unit": geometry_unit,
+    }
+    spatial_contract["zone"]["grid"]["cells"] = {
+        "x": editor_cells_x,
+        "y": editor_cells_y,
+        "z": editor_cells_z,
+    }
+    spatial_contract["zone"]["grid"]["cell_size"] = {
+        "x": editor_cell_size_x,
+        "y": editor_cell_size_y,
+        "z": editor_cell_size_z,
+        "unit": geometry_unit,
+    }
+    model_transform = spatial_contract.get("model_transform")
+    if isinstance(model_transform, dict):
+        scale_in_blocks = model_transform.get("scale_in_blocks") or {"x": 1.0, "y": 1.0, "z": 1.0}
+        model_transform["block_reference"] = dict(spatial_contract["zone"]["grid"]["cell_size"])
+        model_transform["resulting_size"] = {
+            "x": editor_cell_size_x * float(scale_in_blocks.get("x") or 1.0),
+            "y": editor_cell_size_y * float(scale_in_blocks.get("y") or 1.0),
+            "z": editor_cell_size_z * float(scale_in_blocks.get("z") or 1.0),
+            "unit": geometry_unit,
+        }
+
+    manufacturer_profile = normalize_manufacturer_profile(payload)
 
     material_class_raw = _first_value(
         payload,
@@ -2678,6 +2830,8 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         starter=starter_requested,
     )
 
+    pricing_contract = normalize_pricing_contract(payload, variants=variants)
+
     variables, variable_warnings = _normalize_variables(payload)
     warnings.extend(variable_warnings)
 
@@ -2697,6 +2851,16 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
             "documents_required": False if starter_requested else None,
         },
     }
+    geometry_uploads = payload.get("geometry_model_uploads") or payload.get("geometry_model_uploads_json")
+    if isinstance(geometry_uploads, Mapping):
+        source_metadata["geometry_model_uploads"] = _json_safe(dict(geometry_uploads))
+    binary_assets = payload.get("_binary_assets")
+    if isinstance(binary_assets, list):
+        source_metadata["binary_asset_kinds"] = [
+            str(item.get("kind") or "")
+            for item in binary_assets
+            if isinstance(item, Mapping)
+        ]
 
     definition_context = payload.get("definition_context")
     if isinstance(definition_context, Mapping):
@@ -2739,6 +2903,9 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
             editor_cell_size_x=editor_cell_size_x,
             editor_cell_size_y=editor_cell_size_y,
             editor_cell_size_z=editor_cell_size_z,
+            spatial_contract=spatial_contract,
+            manufacturer_profile=manufacturer_profile,
+            pricing_contract=pricing_contract,
             material_class=material_class,
             material_classes=material_classes,
             variables=variables,
@@ -3718,7 +3885,7 @@ def _validate_normalized_draft(draft: NormalizedCreateDraft) -> list[CreateIssue
         if value < 1:
             errors.append(_error("invalid_integer", "Rasterbedarf muss mindestens 1 sein.", field=field_name))
 
-    if draft.object_kind == "cell_block" and (
+    if draft.spatial_contract.get("mode") == "contained" and draft.object_kind == "cell_block" and (
         draft.editor_cells_x != 1 or draft.editor_cells_y != 1 or draft.editor_cells_z != 1
     ):
         errors.append(
@@ -3734,9 +3901,164 @@ def _validate_normalized_draft(draft: NormalizedCreateDraft) -> list[CreateIssue
             )
         )
 
+    spatial_mode = str(draft.spatial_contract.get("mode") or "contained")
+    connectors = draft.spatial_contract.get("connectors") or []
+    connector_ids = [
+        str(item.get("connector_id") or "")
+        for item in connectors
+        if isinstance(item, Mapping)
+    ]
+    if len(connector_ids) != len(set(connector_ids)):
+        errors.append(
+            _error(
+                "duplicate_connector_id",
+                "Anschluss-IDs müssen innerhalb einer VPLIB eindeutig sein.",
+                field="spatial_contract.connectors",
+            )
+        )
+
+    if spatial_mode in {"asset_driven", "hybrid"}:
+        uploads = draft.source.get("geometry_model_uploads")
+        upload_count = int(uploads.get("count") or 0) if isinstance(uploads, Mapping) else 0
+        binary_asset_kinds = draft.source.get("binary_asset_kinds") or []
+        has_geometry_asset = upload_count > 0 or "geometry_model" in binary_asset_kinds
+        if not has_geometry_asset:
+            errors.append(
+                _error(
+                    "spatial_primary_model_required",
+                    "Für eine modellgetriebene oder hybride Zone ist ein primäres 3D-Modell erforderlich.",
+                    field="geometry_model_files",
+                )
+            )
+
+    manufacturer_profile = draft.manufacturer_profile or {}
+    if manufacturer_profile.get("scope") == "manufacturer" and manufacturer_profile.get("enforced"):
+        organization = manufacturer_profile.get("organization") or {}
+        availability = manufacturer_profile.get("availability") or {}
+        coverage_mode = str(availability.get("coverage_mode") or "locations")
+        locations = availability.get("locations") or []
+        territories = availability.get("territories") or []
+        known_variant_ids = {
+            str(variant.get("variant_id") or "")
+            for variant in draft.variants
+            if isinstance(variant, Mapping) and variant.get("variant_id")
+        }
+        if not str(organization.get("name") or "").strip():
+            errors.append(
+                _error(
+                    "manufacturer_name_required",
+                    "Bei einer herstellergebundenen VPLIB ist der Herstellername erforderlich.",
+                    field="manufacturer_name",
+                )
+            )
+        if coverage_mode == "locations" and not locations:
+            errors.append(
+                _error(
+                    "manufacturer_location_required",
+                    "Mindestens ein Produktions-, Liefer- oder Vertriebsstandort ist erforderlich.",
+                    field="manufacturer_locations_json",
+                )
+            )
+        if coverage_mode == "territories" and not territories:
+            errors.append(
+                _error(
+                    "manufacturer_territory_required",
+                    "Mindestens ein Vertriebsgebiet ist erforderlich.",
+                    field="manufacturer_territories_json",
+                )
+            )
+
+        def validate_variant_assignment(entry: Mapping[str, Any], field: str, label: str) -> None:
+            applies_to_all = bool(entry.get("applies_to_all_variants"))
+            variant_ids = {
+                str(value)
+                for value in (entry.get("variant_ids") or [])
+                if str(value).strip()
+            }
+            if not applies_to_all and not variant_ids:
+                errors.append(
+                    _error(
+                        "manufacturer_variant_assignment_required",
+                        f"Für {label} muss mindestens eine Variante gewählt werden.",
+                        field=field,
+                    )
+                )
+            unknown = sorted(variant_ids - known_variant_ids) if not applies_to_all else []
+            if unknown:
+                errors.append(
+                    _error(
+                        "manufacturer_variant_reference_invalid",
+                        f"{label} verweist auf unbekannte Varianten: {', '.join(unknown)}.",
+                        field=field,
+                    )
+                )
+        location_ids: list[str] = []
+        for index, location in enumerate(locations):
+            location_id = str(location.get("location_id") or "")
+            if location_id in location_ids:
+                errors.append(
+                    _error(
+                        "duplicate_manufacturer_location_id",
+                        "Standort-IDs müssen innerhalb des Herstellerprofils eindeutig sein.",
+                        field="manufacturer_locations_json",
+                    )
+                )
+            location_ids.append(location_id)
+            if not location.get("roles"):
+                errors.append(
+                    _error(
+                        "manufacturer_location_role_required",
+                        f"Für Standort {index + 1} muss mindestens eine Aufgabe gewählt werden.",
+                        field="manufacturer_locations_json",
+                    )
+                )
+            validate_variant_assignment(location, "manufacturer_locations_json", f"Standort {index + 1}")
+
+        territory_ids: list[str] = []
+        for index, territory in enumerate(territories):
+            territory_id = str(territory.get("territory_id") or "")
+            if territory_id in territory_ids:
+                errors.append(
+                    _error(
+                        "duplicate_manufacturer_territory_id",
+                        "Gebiets-IDs müssen innerhalb des Herstellerprofils eindeutig sein.",
+                        field="manufacturer_territories_json",
+                    )
+                )
+            territory_ids.append(territory_id)
+            if not territory.get("territory_code"):
+                errors.append(
+                    _error(
+                        "manufacturer_territory_code_required",
+                        f"Für Vertriebsgebiet {index + 1} muss ein Gebiet gewählt werden.",
+                        field="manufacturer_territories_json",
+                    )
+                )
+            validate_variant_assignment(territory, "manufacturer_territories_json", f"Vertriebsgebiet {index + 1}")
+
     if not draft.variants:
         errors.append(_error("required", "Mindestens eine Variante ist erforderlich.", field="variants"))
         return errors
+
+    pricing_contract = draft.pricing_contract or {}
+    if pricing_contract.get("enforced"):
+        pricing_rules = {
+            str(rule.get("variant_id") or ""): rule
+            for rule in (pricing_contract.get("rules") or [])
+            if isinstance(rule, Mapping)
+        }
+        for variant in draft.variants:
+            variant_id = str(variant.get("variant_id") or "")
+            rule = pricing_rules.get(variant_id)
+            if not rule or str(rule.get("status") or "") != "complete":
+                errors.append(
+                    _error(
+                        "variant_pricing_incomplete",
+                        f"Für Variante {variant_id or 'unbekannt'} müssen Preis und Produktmenge vollständig definiert sein.",
+                        field="pricing_contract_json",
+                        details={"variant_id": variant_id},
+                    )
+                )
 
     variant_ids: list[str] = []
     default_variants: list[Mapping[str, Any]] = []
@@ -4142,12 +4464,19 @@ def _build_notes_markdown(draft: NormalizedCreateDraft) -> str:
         f"- Family: `{draft.family_id}`\n"
         f"- Package: `{draft.package_id}`\n"
         f"- Object kind: `{draft.object_kind}`\n"
+        f"- Spatial mode: `{draft.spatial_contract.get('mode', 'contained')}`\n"
+        f"- Connectors: `{len(draft.spatial_contract.get('connectors') or [])}`\n"
+        f"- Manufacturer scope: `{draft.manufacturer_profile.get('scope', 'manufacturer')}`\n"
+        f"- Manufacturer locations: `{(draft.manufacturer_profile.get('availability') or {}).get('location_count', 0)}`\n"
+        f"- Manufacturer territories: `{(draft.manufacturer_profile.get('availability') or {}).get('territory_count', 0)}`\n"
+        f"- Pricing rules: `{draft.pricing_contract.get('rule_count', 0)}`\n"
+        f"- Complete pricing rules: `{draft.pricing_contract.get('complete_rule_count', 0)}`\n"
         f"- Taxonomy version: `{draft.taxonomy_version}`\n"
         f"- Classification: `{draft.classification_path}`\n"
         f"- Source path: `{draft.source_path}`\n"
         f"- Generated by: `{LIBRARY_CREATE_SERVICE_COMPONENT}` `{LIBRARY_CREATE_SERVICE_VERSION}`\n\n"
-        "Dieses Package wurde durch den einfachen `/create`-Flow erzeugt.\n"
-        "Es enthält keine ausführbare Logik, keinen Modellupload und keine automatische Veröffentlichung.\n"
+        "Dieses Package wurde durch den `/create`-Editor erzeugt.\n"
+        "Es enthält keine ausführbare Logik und keine automatische Veröffentlichung.\n"
     )
 
 
@@ -4375,6 +4704,12 @@ def _normalize_form_mapping(payload: dict[str, Any]) -> dict[str, Any]:
         "generator_json",
         "documents_json",
         "assets_json",
+        "spatial_contract_json",
+        "manufacturer_profile_json",
+        "manufacturer_locations_json",
+        "manufacturer_territories_json",
+        "pricing_contract_json",
+        "variant_prices_json",
         "draft_json",
     ]:
         if json_key in normalized and isinstance(normalized[json_key], str):
@@ -4482,7 +4817,41 @@ def _static_create_options() -> dict[str, Any]:
             {"value": "kunststoff", "id": "kunststoff", "label": "Kunststoff", "enabled": True},
             {"value": "sonstiges", "id": "sonstiges", "label": "Sonstiges Material", "enabled": True},
         ],
+        "hatch_patterns": _get_hatch_pattern_options(),
     }
+
+
+@lru_cache(maxsize=1)
+def _load_pattern_defaults_module() -> ModuleType:
+    errors: list[str] = []
+    for module_name in (
+        "vplib.defaults.pattern_defaults",
+        "src.vplib.defaults.pattern_defaults",
+    ):
+        try:
+            return importlib.import_module(module_name)
+        except Exception as exc:
+            errors.append(f"{module_name}: {exc}")
+    raise RuntimeError("Could not import VPLIB pattern defaults: " + "; ".join(errors))
+
+
+def _get_hatch_pattern_options() -> list[dict[str, Any]]:
+    module = _load_pattern_defaults_module()
+    return list(module.get_hatch_pattern_options())
+
+
+def _build_cad_patterns_document(
+    variants: Iterable[Any],
+    *,
+    default_variant_id: str,
+) -> dict[str, Any]:
+    module = _load_pattern_defaults_module()
+    return dict(
+        module.build_cad_patterns_document(
+            variants,
+            default_variant_id=default_variant_id,
+        )
+    )
 
 
 def _flatten_taxonomy_options(taxonomy_payload: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
@@ -5231,6 +5600,14 @@ def _attach_assets_to_documents(
 ) -> dict[str, Any]:
     result = {str(path): _json_safe(content) for path, content in documents.items()}
     asset_entries = [_asset_metadata(asset) for asset in binary_assets]
+    spatial = result.get("editor/spatial.json")
+    spatial_mode = str(spatial.get("mode") or "contained") if isinstance(spatial, Mapping) else "contained"
+    primary_geometry = next(
+        (asset for asset in asset_entries if asset["kind"] == "geometry_model"),
+        None,
+    )
+    if primary_geometry is not None:
+        primary_geometry["role"] = "embedded_geometry" if spatial_mode == "contained" else "zone_driver"
     manifest = result.get(MANIFEST_DOCUMENT_PATH)
     if isinstance(manifest, Mapping):
         manifest_payload = dict(manifest)
@@ -5249,6 +5626,17 @@ def _attach_assets_to_documents(
         render_payload["assets"] = [
             asset for asset in asset_entries if asset["kind"] in {"geometry_model", "textures"}
         ]
+        if primary_geometry is not None and spatial_mode != "contained":
+            render_rows = [
+                dict(item)
+                for item in render_payload.get("render_variants", [])
+                if isinstance(item, Mapping)
+            ]
+            if render_rows:
+                render_rows[0]["mode"] = "model"
+                render_rows[0]["source"] = primary_geometry["relative_path"]
+                render_rows[0]["asset_sha256"] = primary_geometry["sha256"]
+                render_payload["render_variants"] = render_rows
         result["render/render_variants.json"] = render_payload
 
     primary_texture = next(

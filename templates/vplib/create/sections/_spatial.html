@@ -1,0 +1,94 @@
+{% if create_initial_draft is defined and create_initial_draft is mapping %}
+  {% set _spatial_draft = create_initial_draft %}
+{% elif _initial_draft is defined and _initial_draft is mapping %}
+  {% set _spatial_draft = _initial_draft %}
+{% elif draft is defined and draft is mapping %}
+  {% set _spatial_draft = draft %}
+{% else %}
+  {% set _spatial_draft = {} %}
+{% endif %}
+
+{% if _spatial_draft.get('geometry_model_uploads_json') %}
+  {% set _spatial_model_uploads_json = _spatial_draft.get('geometry_model_uploads_json') %}
+{% elif _spatial_draft.get('geometry_model_uploads') is mapping %}
+  {% set _spatial_model_uploads_json = _spatial_draft.get('geometry_model_uploads') | tojson %}
+{% else %}
+  {% set _spatial_model_uploads_json = '{"count":0,"files":[]}' %}
+{% endif %}
+
+<div
+  class="vplib-create-step__panel vp-create-card vp-create-section vp-create-section--spatial"
+  data-create-section="spatial"
+  data-vp-create-section="spatial"
+  data-vp-step-panel="spatial"
+  aria-labelledby="vp-create-spatial-title"
+>
+  <header class="vplib-create-step__header">
+    <div class="vplib-create-step__header-main">
+      <p class="vplib-create-step__eyebrow">Step 6 · Modellraum</p>
+      <h2 id="vp-create-spatial-title" class="vplib-create-step__title">Raum &amp; Anschlüsse</h2>
+      <p class="vplib-create-step__description">
+        Primärmodell laden, auf das Editor-Raster abstimmen und Schnittstellen zu weiteren Objekten festlegen.
+      </p>
+    </div>
+    <div class="vplib-create-step__header-aside">
+      <span class="vp-create-status-pill">Objektkoordinaten · lokal</span>
+    </div>
+  </header>
+
+  <div class="vplib-create-step__body vp-create-spatial-step__body">
+    <section
+      class="vp-create-spatial-model"
+      data-vp-upload
+      data-vp-upload-zone
+      data-create-upload-zone
+      data-vp-geometry-upload
+      data-vp-upload-kind="geometry_model"
+      data-vp-upload-purpose="geometry_model"
+      data-vp-upload-backend-enabled="true"
+      data-vp-upload-local-only="false"
+      data-vp-upload-metadata-field="geometry_model_uploads_json"
+      aria-labelledby="vp-create-primary-model-title"
+    >
+      <div class="vp-create-spatial-model__visual" aria-hidden="true">
+        <span class="vp-create-spatial-model__cube"></span>
+      </div>
+      <div class="vp-create-spatial-model__copy">
+        <span class="vp-create-section-eyebrow">Primärgeometrie</span>
+        <h3 id="vp-create-primary-model-title">3D-Modell laden</h3>
+        <p>GLB, GLTF, OBJ, FBX oder STL. Das erste Modell kann die Form und Ausdehnung der VPLIB-Zone bestimmen.</p>
+        <div class="vp-create-spatial-model__actions" data-vp-upload-controls>
+          <label class="vp-create-button vp-create-button--primary vp-create-file-button" for="create-geometry-model-upload">
+            Modell auswählen
+          </label>
+          <input
+            id="create-geometry-model-upload"
+            class="vp-create-file-button__input"
+            type="file"
+            name="geometry_model_files"
+            multiple
+            accept=".glb,.gltf,.obj,.fbx,.stl,.bin,.mtl,.zip"
+            data-vp-upload-input
+            data-vp-geometry-model-upload-input="true"
+            data-vp-upload-kind="geometry_model"
+            data-vp-upload-purpose="geometry_model"
+          />
+          <span class="vp-create-status-pill vp-create-status-pill--muted" data-vp-upload-count-label aria-live="polite">0 Dateien</span>
+        </div>
+        <input
+          id="create-geometry-model-upload-json"
+          type="hidden"
+          name="geometry_model_uploads_json"
+          value="{{ _spatial_model_uploads_json | string | e }}"
+          data-vp-upload-metadata
+          data-vp-geometry-model-upload-metadata="true"
+          data-vp-upload-metadata-kind="geometry_model"
+          data-create-field="geometry_model_uploads_json"
+        />
+        <div class="vp-create-upload__file-list" data-vp-upload-file-list aria-live="polite"></div>
+      </div>
+    </section>
+
+    {% include "vplib/create/sections/_spatial_contract.html" %}
+  </div>
+</div>

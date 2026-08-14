@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "091db680-f062-5c63-833d-96c7ddc97c69",
+  "family_id": "vp.hochbau.boeden.estrich.estrich",
+  "default_variant_id": "default",
+  "label": "Estrich",
+  "description": "Estrichschicht für schwimmende, beheizte und Verbundaufbauten.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "boeden",
+  "subcategory": "estrich",
+  "classification_path": "hochbau/boeden/estrich",
+  "source_path": "hochbau/boeden/estrich/estrich",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Böden",
+    "subcategory": "Estrich"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

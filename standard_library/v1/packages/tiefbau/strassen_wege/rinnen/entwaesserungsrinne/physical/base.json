@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "670627ce-ffe8-5fb1-93f6-14ee840e565a",
+  "family_id": "vp.tiefbau.strassen_wege.rinnen.entwaesserungsrinne",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "beton"
+  ]
+}

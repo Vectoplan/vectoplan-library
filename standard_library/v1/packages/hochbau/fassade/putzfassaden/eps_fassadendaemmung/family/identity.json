@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "de8cc456-c23a-5c4c-9260-e3902de09075",
+  "family_id": "vp.hochbau.fassade.putzfassaden.eps_fassadendaemmung",
+  "slug": "eps_fassadendaemmung",
+  "label": "EPS-Fassadendämmung",
+  "description": "Wärmedämmplatte aus expandiertem Polystyrol für WDVS.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

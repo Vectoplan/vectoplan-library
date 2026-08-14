@@ -435,28 +435,28 @@
       <dl class="vp-creative-card__facts">
         {% if _c.family_id %}
           <div>
-            <dt>Family</dt>
+            <dt data-i18n="vectoplan.server.library.inventar.partials.creative_card.dt.family.38729c34">Family</dt>
             <dd>{{ _c.family_id }}</dd>
           </div>
         {% endif %}
 
         {% if _c.variant_id %}
           <div>
-            <dt>Variante</dt>
+            <dt data-i18n="vectoplan.server.library.inventar.partials.creative_card.dt.variante.34eb29d9">Variante</dt>
             <dd>{{ _c.variant_id }}</dd>
           </div>
         {% endif %}
 
         {% if _c.object_kind %}
           <div>
-            <dt>Objektart</dt>
+            <dt data-i18n="vectoplan.server.library.inventar.partials.creative_card.dt.objektart.1388fb2f">Objektart</dt>
             <dd>{{ _c.object_kind }}</dd>
           </div>
         {% endif %}
 
         {% if _c.domain or _c.category or _c.subcategory %}
           <div>
-            <dt>Taxonomie</dt>
+            <dt data-i18n="vectoplan.server.library.inventar.partials.creative_card.dt.taxonomie.27b77401">Taxonomie</dt>
             <dd>
               {{ _c.domain or "all" }}
               {% if _c.category %} / {{ _c.category }}{% endif %}

@@ -1,0 +1,55 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "a67310e1-72b0-5958-8814-6090d640cfcf",
+  "package_id": "vplib.vp.ingenieurbau.bruecken.lager.brueckenlager",
+  "family_id": "vp.ingenieurbau.bruecken.lager.brueckenlager",
+  "family_slug": "brueckenlager",
+  "family_name": "Brückenlager",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "bruecken",
+  "subcategory": "lager",
+  "classification": {
+    "domain": "ingenieurbau",
+    "category": "bruecken",
+    "subcategory": "lager",
+    "classification_path": "ingenieurbau/bruecken/lager",
+    "labels": {
+      "domain": "Ingenieurbau",
+      "category": "Brücken",
+      "subcategory": "Lager"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "ingenieurbau/bruecken/lager",
+  "source_path": "ingenieurbau/bruecken/lager/brueckenlager",
+  "default_variant_id": "default",
+  "variant_count": 5,
+  "documents_required": false,
+  "external_assets_required": false,
+  "created_at": "2026-08-11T00:00:00Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.5.0",
+    "mode": "simple_create",
+    "starter_contract": true
+  },
+  "assets": [],
+  "asset_count": 0
+}

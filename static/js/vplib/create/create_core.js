@@ -257,21 +257,23 @@
   var DEFAULT_STEPS = [
     {
       index: 1,
-      key: "identity",
-      label: "Grunddaten",
-      short_label: "Daten",
-      shortLabel: "Daten",
-      hint: "Name und Beschreibung des neuen Library-Bausteins festlegen.",
-      target: "identity"
+      key: "library-source",
+      label: "Creative Library",
+      short_label: "Start",
+      shortLabel: "Start",
+      hint: "Bestehenden Baustein auswählen oder eine neue VPLIB beginnen.",
+      target: "library-source"
     },
     {
       index: 2,
-      key: "taxonomy",
-      label: "Taxonomie",
-      short_label: "Taxonomie",
-      shortLabel: "Taxonomie",
-      hint: "Fachliche Einordnung auswählen.",
-      target: "taxonomy"
+      key: "identity-taxonomy",
+      alias: "identity",
+      aliases: ["identity", "taxonomy", "identity-taxonomy"],
+      label: "Grunddaten & Taxonomie",
+      short_label: "Grunddaten",
+      shortLabel: "Grunddaten",
+      hint: "Name, Beschreibung und fachliche Einordnung gemeinsam festlegen.",
+      target: "identity-taxonomy"
     },
     {
       index: 3,
@@ -286,15 +288,34 @@
     },
     {
       index: 4,
+      key: "manufacturer",
+      aliases: ["manufacturer", "distribution", "availability"],
+      label: "Hersteller & Vertrieb",
+      short_label: "Vertrieb",
+      shortLabel: "Vertrieb",
+      hint: "Hersteller festlegen und Varianten Standorten oder Vertriebsgebieten zuweisen.",
+      target: "manufacturer"
+    },
+    {
+      index: 5,
       key: "geometry",
       label: "Geometrie",
       short_label: "Geometrie",
       shortLabel: "Geometrie",
-      hint: "Form, Maße, Editor-Raster und optionales 3D-Modell definieren.",
+      hint: "Grundform, reale Maße, Texturen und Raster definieren.",
       target: "geometry"
     },
     {
-      index: 5,
+      index: 6,
+      key: "spatial",
+      label: "Raum & Anschlüsse",
+      short_label: "Raum",
+      shortLabel: "Raum",
+      hint: "Primärmodell laden, zur Blockgröße skalieren und Anschlüsse definieren.",
+      target: "spatial"
+    },
+    {
+      index: 7,
       key: "technical",
       label: "Technik",
       short_label: "Technik",
@@ -303,7 +324,7 @@
       target: "technical"
     },
     {
-      index: 6,
+      index: 8,
       key: "actions",
       alias: "create",
       label: "Erzeugen",
@@ -387,7 +408,7 @@
     variantIndex: 1,
     variableIndex: 1,
 
-    theme: "dark",
+    theme: "light",
     previewUpdateTimer: null,
 
     locks: previousState.locks && typeof previousState.locks === "object" ? previousState.locks : {},
@@ -2034,7 +2055,7 @@
       var key = step.key || "step-" + stepIndex;
       var target = step.target || step.panel || key || "step-" + stepIndex;
 
-      if (stepIndex === 3 && (key === "object" || key === "variables" || target === "object-variants" || target === "variables")) {
+      if (stepIndex === 4 && (key === "object" || key === "variables" || target === "object-variants" || target === "variables")) {
         return {
           index: stepIndex,
           key: "variables",
@@ -2049,7 +2070,7 @@
         };
       }
 
-      if (stepIndex === 6 && (key === "create" || key === "actions" || target === "actions")) {
+      if (stepIndex === 9 && (key === "create" || key === "actions" || target === "actions")) {
         return {
           index: stepIndex,
           key: "actions",
@@ -2814,17 +2835,7 @@
   }
 
   function normalizeTheme(value) {
-    try {
-      var text = String(value || "").trim().toLowerCase();
-
-      if (text === "dark" || text === "light" || text === "system" || text === "black") {
-        return text === "black" ? "dark" : text;
-      }
-
-      return "dark";
-    } catch (err) {
-      return "dark";
-    }
+    return "light";
   }
 
   function normalizeDecimalDisplay(value) {
@@ -3791,6 +3802,17 @@
   window[GLOBAL_NAME] = api;
 
   onReady(function () {
+    var familyNameField = document.querySelector('[name="family_name"]');
+    var projectName = document.querySelector("[data-vp-editor-project-name]");
+    if (familyNameField && projectName) {
+      var syncProjectName = function () {
+        projectName.textContent = String(familyNameField.value || "").trim() || "Neuer Library-Baustein";
+      };
+      familyNameField.addEventListener("input", syncProjectName);
+      familyNameField.addEventListener("change", syncProjectName);
+      syncProjectName();
+    }
+
     bootstrapCore({
       source: "dom_ready",
       rejectOnError: false

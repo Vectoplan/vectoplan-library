@@ -1,0 +1,238 @@
+{
+  "schema_version": "vplib.render.cad_patterns.v1",
+  "catalog_version": "1.0.0",
+  "units": "mm_paper",
+  "default_variant_id": "default",
+  "pattern_ids": [
+    "concrete_plain",
+    "concrete_reinforced"
+  ],
+  "patterns": [
+    {
+      "id": "concrete_plain",
+      "label": "Beton unbewehrt",
+      "category": "concrete",
+      "category_label": "Beton und Estrich",
+      "description": "Zufällige Zuschlagspunkte und kurze Kanten für unbewehrten Beton.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 300,
+      "tags": [
+        "concrete",
+        "plain"
+      ],
+      "definition": {
+        "tile_mm": [
+          10,
+          10
+        ],
+        "line_families": [],
+        "primitives": [
+          {
+            "type": "dot",
+            "at_mm": [
+              2,
+              2
+            ],
+            "radius_mm": 0.18
+          },
+          {
+            "type": "dot",
+            "at_mm": [
+              7,
+              4
+            ],
+            "radius_mm": 0.15
+          },
+          {
+            "type": "dot",
+            "at_mm": [
+              4,
+              8
+            ],
+            "radius_mm": 0.12
+          },
+          {
+            "type": "segment",
+            "from_mm": [
+              1,
+              6
+            ],
+            "to_mm": [
+              2.5,
+              7
+            ]
+          },
+          {
+            "type": "segment",
+            "from_mm": [
+              7,
+              8
+            ],
+            "to_mm": [
+              9,
+              7
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "concrete_reinforced",
+      "label": "Stahlbeton",
+      "category": "concrete",
+      "category_label": "Beton und Estrich",
+      "description": "Betonmuster mit dichterer Zuschlagsstruktur für Stahlbetonbauteile.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 310,
+      "tags": [
+        "concrete",
+        "reinforced",
+        "stahlbeton"
+      ],
+      "definition": {
+        "tile_mm": [
+          8,
+          8
+        ],
+        "line_families": [],
+        "primitives": [
+          {
+            "type": "dot",
+            "at_mm": [
+              1.5,
+              1.5
+            ],
+            "radius_mm": 0.18
+          },
+          {
+            "type": "dot",
+            "at_mm": [
+              5.5,
+              2.5
+            ],
+            "radius_mm": 0.14
+          },
+          {
+            "type": "dot",
+            "at_mm": [
+              3,
+              6
+            ],
+            "radius_mm": 0.16
+          },
+          {
+            "type": "segment",
+            "from_mm": [
+              0.8,
+              4
+            ],
+            "to_mm": [
+              2.4,
+              5.2
+            ]
+          },
+          {
+            "type": "segment",
+            "from_mm": [
+              5.2,
+              6.8
+            ],
+            "to_mm": [
+              7.2,
+              5.7
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "variant_id": "default",
+      "cut": {
+        "pattern_id": "concrete_reinforced",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "concrete_plain",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "800_1000_mm",
+      "cut": {
+        "pattern_id": "concrete_reinforced",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "concrete_plain",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "1000_1200_mm",
+      "cut": {
+        "pattern_id": "concrete_reinforced",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "concrete_plain",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "1200_1500_mm",
+      "cut": {
+        "pattern_id": "concrete_reinforced",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "concrete_plain",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "1500_1800_mm",
+      "cut": {
+        "pattern_id": "concrete_reinforced",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "concrete_plain",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "a870e6f1-e91a-5464-b37a-6f667121511d",
+  "family_id": "vp.tiefbau.strassen_wege.asphalt.asphaltdeckschicht",
+  "default_variant_id": "default",
+  "label": "Asphaltdeckschicht",
+  "description": "Deckschicht für Straßen und Verkehrsflächen.",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "strassen_wege",
+  "subcategory": "asphalt",
+  "classification_path": "tiefbau/strassen_wege/asphalt",
+  "source_path": "tiefbau/strassen_wege/asphalt/asphaltdeckschicht",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Straßen und Wege",
+    "subcategory": "Asphalt"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

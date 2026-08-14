@@ -4,7 +4,7 @@
 
   Zweck:
   - Zentrale Workspace-Shell für definition-managed Varianten/Variablen.
-  - Eingebunden in Step 3 "Variablen und Varianten".
+  - Eingebunden in Step 4 "Variablen und Varianten".
   - Bindet Variant Table und Variant Drawer als Subtemplates ein.
   - Hält Hidden-State für definition_variants_json und Default-Variant.
   - Keine API-Aufrufe, keine Package-Erzeugung, kein fachliches Field-Rendering.
@@ -280,7 +280,7 @@
       <h3
         id="{{ _variant_workspace_id }}-title"
         class="vp-create-variant-workspace__title"
-      >
+       data-i18n="vectoplan.server.library.vplib.create.variants.variant_workspace.h3.varianten_und_variablen.a9219058">
         Varianten und Variablen
       </h3>
 
@@ -293,19 +293,19 @@
           class="vp-create-variant-workspace__status-pill {% if _variant_workspace_definitions_available %}vp-create-variant-workspace__status-pill--ready{% else %}vp-create-variant-workspace__status-pill--warning{% endif %}"
           data-vp-variant-workspace-status-pill="true"
         >
-          {% if _variant_workspace_definitions_available %}
+          {% if _variant_workspace_definitions_available %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_workspace.span.bereit.8ef9fe22">
             bereit
-          {% else %}
+          </span>{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_workspace.span.fehlt.070a605e">
             fehlt
-          {% endif %}
+          </span>{% endif %}
         </span>
 
         <span data-vp-variant-count-label="true">
-          {% if _variant_workspace_initial_count == 1 %}
+          {% if _variant_workspace_initial_count == 1 %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_workspace.span.1_variante.c09b045f">
             1 Variante
-          {% else %}
-            {{ _variant_workspace_initial_count }} Varianten
-          {% endif %}
+          </span>{% else %}
+            {{ _variant_workspace_initial_count }}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_workspace.span.varianten.dfd4b8f2"> Varianten
+          </span>{% endif %}
         </span>
       </p>
     </div>
@@ -323,7 +323,7 @@
           data-vp-action-disabled-reason="definitions_unavailable"
           aria-disabled="true"
         {% endif %}
-      >
+       data-i18n="vectoplan.server.library.vplib.create.variants.variant_workspace.button.variante_hinzuf_gen.c1952223">
         Variante hinzufügen
       </button>
     </div>
@@ -334,7 +334,7 @@
     data-vp-variant-workspace-status-text="true"
     role="status"
     {% if _variant_workspace_definitions_available %}hidden{% endif %}
-  >
+   data-i18n="vectoplan.server.library.vplib.create.variants.variant_workspace.p.varianten_k_nnen_erst_vollst_ndig_erst.c6bb8c8c">
     Varianten können erst vollständig erstellt werden, wenn die Backend-Definitionsdaten geladen sind.
   </p>
 
@@ -408,6 +408,8 @@
     ] ignore missing with context %}
   </div>
 
+  {% include "vplib/create/variants/_manufacturer_product.html" %}
+
   <div
     id="{{ _variant_drawer_slot_id }}"
     class="vp-create-variant-workspace__drawer-slot"
@@ -434,8 +436,8 @@
 
   <template data-vp-variant-workspace-fallback-message-template="true">
     <div class="vp-create-variant-workspace__fallback" data-vp-variant-workspace-fallback="true">
-      <strong>Variantenkomponente nicht vollständig geladen.</strong>
-      <span>Bitte prüfen, ob Variant Table, Variant Editor und die zugehörigen JavaScript-Module eingebunden sind.</span>
+      <strong data-i18n="vectoplan.server.library.vplib.create.variants.variant_workspace.strong.variantenkomponente_nicht_vollst_ndig_.4802db0f">Variantenkomponente nicht vollständig geladen.</strong>
+      <span data-i18n="vectoplan.server.library.vplib.create.variants.variant_workspace.span.bitte_pr_fen_ob_variant_table_variant_.d5fcac3f">Bitte prüfen, ob Variant Table, Variant Editor und die zugehörigen JavaScript-Module eingebunden sind.</span>
     </div>
   </template>
 </section>
@@ -1056,6 +1058,13 @@
         });
 
         document.addEventListener("vectoplan:create:definitions-unavailable", function (event) {
+          var runtime = window.VectoplanCreateDefinitionsRuntime;
+          var contextReady = document.documentElement.getAttribute("data-vp-create-definitions-ready") === "true";
+          var runtimeReady = !!(runtime && runtime.state && runtime.state.ready);
+          if (contextReady || runtimeReady || cache.root.getAttribute("data-vp-definitions-available") === "true") {
+            setStatus(cache, true, "canonical_definitions_available");
+            return;
+          }
           setStatus(cache, false, event && event.detail && event.detail.reason ? event.detail.reason : "definitions_unavailable");
         });
 

@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "16ebf459-26a5-533d-b52a-2fdaf65fa803",
+  "family_id": "vp.ingenieurbau.bruecken.pfeiler.brueckenpfeiler",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "stahlbeton"
+  ]
+}

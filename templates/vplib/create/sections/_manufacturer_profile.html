@@ -1,0 +1,173 @@
+{% if create_initial_draft is defined and create_initial_draft is mapping %}
+  {% set _manufacturer_draft = create_initial_draft %}
+{% elif _initial_draft is defined and _initial_draft is mapping %}
+  {% set _manufacturer_draft = _initial_draft %}
+{% elif draft is defined and draft is mapping %}
+  {% set _manufacturer_draft = draft %}
+{% else %}
+  {% set _manufacturer_draft = {} %}
+{% endif %}
+{% set _manufacturer_profile = _manufacturer_draft.get('manufacturer_profile', {}) if _manufacturer_draft.get('manufacturer_profile', {}) is mapping else {} %}
+{% set _manufacturer_org = _manufacturer_profile.get('organization', {}) if _manufacturer_profile.get('organization', {}) is mapping else {} %}
+{% set _manufacturer_availability = _manufacturer_profile.get('availability', {}) if _manufacturer_profile.get('availability', {}) is mapping else {} %}
+{% set _manufacturer_locations = _manufacturer_availability.get('locations', []) if _manufacturer_availability.get('locations', []) is iterable and _manufacturer_availability.get('locations', []) is not string else [] %}
+
+<div
+  class="vp-create-manufacturer-profile"
+  data-vp-manufacturer-profile-root="true"
+  data-vp-manufacturer-scope="manufacturer"
+  data-vp-manufacturer-coverage-mode="locations"
+  data-vp-manufacturer-api="/api/v1/vplib/manufacturer-products/manufacturers"
+  data-vp-manufacturer-geocode-api="/api/v1/vplib/manufacturer-products/geocode"
+  aria-labelledby="vp-create-manufacturer-profile-title"
+>
+  <section class="vp-create-manufacturer-registry" aria-labelledby="vp-create-manufacturer-profile-title">
+    <aside class="vp-create-manufacturer-registry__browser">
+      <header>
+        <span class="vp-create-section-eyebrow">Herstellerregister</span>
+        <h3 id="vp-create-manufacturer-profile-title">Hersteller auswählen</h3>
+        <p>Bereits gepflegte Unternehmen übernehmen Standorte und Vertriebsgebiete automatisch.</p>
+      </header>
+      <label class="vp-create-field vp-create-manufacturer-search">
+        <span class="vp-create-field__label">Hersteller suchen</span>
+        <input class="vp-create-input" type="search" placeholder="z. B. Schlagmann" data-vp-manufacturer-search />
+      </label>
+      <div class="vp-create-manufacturer-registry__toolbar">
+        <button class="vp-create-button vp-create-button--secondary" type="button" data-vp-manufacturer-show-family>Für dieses Objekt</button>
+        <button class="vp-create-button vp-create-button--ghost" type="button" data-vp-manufacturer-show-all>Alle Hersteller</button>
+      </div>
+      <div class="vp-create-manufacturer-registry__list" data-vp-manufacturer-list role="listbox" aria-label="Hersteller"></div>
+      <p class="vp-create-manufacturer-registry__status" data-vp-manufacturer-registry-status role="status">Hersteller werden geladen …</p>
+      <button class="vp-create-button vp-create-button--primary vp-create-manufacturer-registry__new" type="button" data-vp-manufacturer-new>
+        + Neuen Hersteller anlegen
+      </button>
+    </aside>
+
+    <div class="vp-create-manufacturer-registry__editor" data-vp-manufacturer-editor>
+      <header class="vp-create-manufacturer-profile__header">
+        <div>
+          <span class="vp-create-section-eyebrow">Unternehmen &amp; Verfügbarkeit</span>
+          <h3 data-vp-manufacturer-editor-title>Herstellerdaten</h3>
+          <p>Stammdaten gelten für alle VPLIBs. Nur Produkt- und Variantenzuordnungen werden je technischer Familie gepflegt.</p>
+        </div>
+        <span class="vp-create-status-pill" data-vp-manufacturer-profile-summary>Hersteller auswählen</span>
+      </header>
+
+      <div class="vp-create-manufacturer-profile__organization">
+        <label class="vp-create-field">
+          <span class="vp-create-field__label">Herstellername *</span>
+          <input class="vp-create-input" name="manufacturer_name" value="{{ _manufacturer_org.get('name', '') }}" placeholder="z. B. Schlagmann Poroton" data-vp-manufacturer-profile-field="name" required />
+        </label>
+        <label class="vp-create-field">
+          <span class="vp-create-field__label">Marke</span>
+          <input class="vp-create-input" name="manufacturer_brand" value="{{ _manufacturer_org.get('brand', '') }}" placeholder="z. B. POROTON" data-vp-manufacturer-profile-field="brand" />
+        </label>
+        <label class="vp-create-field">
+          <span class="vp-create-field__label">Webseite</span>
+          <input class="vp-create-input" type="url" name="manufacturer_website" value="{{ _manufacturer_org.get('website', '') }}" placeholder="https://…" data-vp-manufacturer-profile-field="website" />
+        </label>
+        <label class="vp-create-field">
+          <span class="vp-create-field__label">Land</span>
+          <input class="vp-create-input" name="manufacturer_country_code" value="{{ _manufacturer_org.get('country_code', 'DE') }}" maxlength="2" data-vp-manufacturer-profile-field="country_code" />
+        </label>
+      </div>
+
+      <section class="vp-create-manufacturer-locations" aria-labelledby="vp-create-manufacturer-locations-title">
+        <header class="vp-create-manufacturer-locations__header">
+          <div>
+            <h3 id="vp-create-manufacturer-locations-title">Standorte und Vertriebsabdeckung</h3>
+            <p>Adresse in einer Zeile suchen. Mapbox-Koordinaten werden gespeichert; pro Standort gilt Radius, Bundeslandauswahl oder ganz Deutschland.</p>
+          </div>
+          <button class="vp-create-button vp-create-button--secondary" type="button" data-vp-add-manufacturer-location>+ Standort</button>
+        </header>
+        <div class="vp-create-manufacturer-locations__rows" data-vp-manufacturer-location-rows></div>
+      </section>
+
+      <section class="vp-create-manufacturer-transfer" data-vp-manufacturer-transfer-panel hidden>
+        <div>
+          <span class="vp-create-section-eyebrow">Eigentümer übertragen</span>
+          <h3>Verwaltung an Hersteller übergeben</h3>
+          <p>Der Ziel-Account erhält die Herstellerrolle und verwaltet diesen Datensatz. Plattform-Admins behalten dauerhaft Zugriff.</p>
+        </div>
+        <label class="vp-create-field">
+          <span class="vp-create-field__label">Auth Account-ID</span>
+          <input class="vp-create-input" data-vp-manufacturer-transfer-account placeholder="Account-ID des Herstellers" />
+        </label>
+        <button class="vp-create-button vp-create-button--secondary" type="button" data-vp-manufacturer-transfer>Übertragen</button>
+      </section>
+
+      <footer class="vp-create-manufacturer-editor__footer">
+        <p data-vp-manufacturer-save-status role="status">Wähle einen Hersteller oder lege einen neuen an.</p>
+        <button class="vp-create-button vp-create-button--primary" type="button" data-vp-manufacturer-save>Hersteller speichern &amp; Objekt zuordnen</button>
+      </footer>
+    </div>
+  </section>
+
+  <input type="hidden" name="manufacturer_scope" value="manufacturer" />
+  <input type="hidden" name="manufacturer_org_id" value="{{ _manufacturer_org.get('organization_id', '') }}" data-vp-manufacturer-profile-field="organization_id" />
+  <input type="hidden" name="manufacturer_coverage_mode" value="locations" />
+  <input type="hidden" name="manufacturer_profile_json" value="{{ _manufacturer_profile | tojson | forceescape }}" data-vp-manufacturer-profile-json />
+  <input type="hidden" name="manufacturer_locations_json" value="{{ _manufacturer_locations | tojson | forceescape }}" data-vp-manufacturer-locations-json />
+  <input type="hidden" name="manufacturer_territories_json" value="[]" data-vp-manufacturer-territories-json />
+
+  <template data-vp-manufacturer-location-template>
+    <article class="vp-create-manufacturer-location" data-vp-manufacturer-location-row>
+      <header class="vp-create-manufacturer-location__header">
+        <strong data-vp-manufacturer-location-label>Standort</strong>
+        <button type="button" class="vp-create-row-action" data-vp-remove-manufacturer-location>Entfernen</button>
+      </header>
+      <div class="vp-create-manufacturer-location__grid">
+        <label class="vp-create-field">
+          <span class="vp-create-field__label">Standortname *</span>
+          <input class="vp-create-input" placeholder="Werk, Lager oder Niederlassung" data-vp-manufacturer-location-field="name" />
+        </label>
+        <div class="vp-create-field vp-create-manufacturer-location__roles">
+          <span class="vp-create-field__label">Funktion *</span>
+          <div class="vp-create-manufacturer-location__role-options">
+            <label><input type="checkbox" value="production" data-vp-manufacturer-location-role /> Produktion</label>
+            <label><input type="checkbox" value="warehouse" data-vp-manufacturer-location-role /> Lager</label>
+            <label><input type="checkbox" value="delivery" data-vp-manufacturer-location-role /> Lieferung</label>
+            <label><input type="checkbox" value="distribution" data-vp-manufacturer-location-role /> Vertrieb</label>
+          </div>
+        </div>
+        <div class="vp-create-field vp-create-field--wide vp-create-manufacturer-geocoder">
+          <label>
+            <span class="vp-create-field__label">Adresse *</span>
+            <input class="vp-create-input" autocomplete="off" placeholder="Straße, Hausnummer, PLZ, Ort" data-vp-manufacturer-location-field="address" data-vp-manufacturer-address />
+          </label>
+          <div class="vp-create-manufacturer-geocoder__suggestions" data-vp-manufacturer-address-suggestions hidden></div>
+          <small data-vp-manufacturer-address-status>Adresse eingeben und einen Mapbox-Treffer auswählen.</small>
+          <input type="hidden" data-vp-manufacturer-location-field="formatted_address" />
+          <input type="hidden" data-vp-manufacturer-location-field="mapbox_feature_id" />
+          <input type="hidden" data-vp-manufacturer-location-field="latitude" />
+          <input type="hidden" data-vp-manufacturer-location-field="longitude" />
+          <input type="hidden" data-vp-manufacturer-location-field="country_code" value="DE" />
+        </div>
+        <fieldset class="vp-create-field vp-create-field--wide vp-create-manufacturer-coverage">
+          <legend class="vp-create-field__label">Vertriebsabdeckung *</legend>
+          <div class="vp-create-manufacturer-coverage__modes">
+            <label><input type="radio" value="radius" data-vp-manufacturer-coverage-mode /> Radius um Standort</label>
+            <label><input type="radio" value="territories" data-vp-manufacturer-coverage-mode /> Bundesländer</label>
+            <label><input type="radio" value="country" data-vp-manufacturer-coverage-mode /> Ganz Deutschland</label>
+          </div>
+          <label class="vp-create-manufacturer-radius" data-vp-manufacturer-radius-field>
+            <span>Radius</span>
+            <input class="vp-create-input" type="number" min="0" max="2500" step="1" value="100" data-vp-manufacturer-location-field="radius_km" />
+            <span>km</span>
+          </label>
+          <div class="vp-create-manufacturer-states" data-vp-manufacturer-state-fields hidden>
+            {% for code, label in [('DE-BW','Baden-Württemberg'),('DE-BY','Bayern'),('DE-BE','Berlin'),('DE-BB','Brandenburg'),('DE-HB','Bremen'),('DE-HH','Hamburg'),('DE-HE','Hessen'),('DE-MV','Mecklenburg-Vorpommern'),('DE-NI','Niedersachsen'),('DE-NW','Nordrhein-Westfalen'),('DE-RP','Rheinland-Pfalz'),('DE-SL','Saarland'),('DE-SN','Sachsen'),('DE-ST','Sachsen-Anhalt'),('DE-SH','Schleswig-Holstein'),('DE-TH','Thüringen')] %}
+              <label><input type="checkbox" value="{{ code }}" data-vp-manufacturer-state /> {{ label }}</label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <div class="vp-create-field vp-create-field--wide vp-create-manufacturer-variant-assignment">
+          <span class="vp-create-field__label">Hier verfügbare Produkte / Varianten</span>
+          <label class="vp-create-manufacturer-all-variants"><input type="checkbox" data-vp-manufacturer-all-variants /> Alle Varianten</label>
+          <div class="vp-create-manufacturer-variant-options" data-vp-manufacturer-variant-options></div>
+          <small>Varianten werden nach Schritt 4 automatisch ergänzt. Du kannst anschließend hierher zurückkehren.</small>
+        </div>
+      </div>
+    </article>
+  </template>
+</div>

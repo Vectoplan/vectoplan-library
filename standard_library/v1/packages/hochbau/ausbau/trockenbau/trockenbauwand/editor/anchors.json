@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "anchors": [
+    {
+      "anchor_id": "center",
+      "type": "center",
+      "enabled": true
+    },
+    {
+      "anchor_id": "bottom_center",
+      "type": "bottom_center",
+      "enabled": true
+    }
+  ]
+}

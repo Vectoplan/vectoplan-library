@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "type": "box",
+  "width": 0.5,
+  "height": 6.0,
+  "depth": 0.5,
+  "unit": "m",
+  "dimensions_mm": {
+    "width_mm": 500,
+    "height_mm": 6000,
+    "depth_mm": 500
+  }
+}

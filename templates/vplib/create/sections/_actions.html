@@ -1,6 +1,6 @@
 {# services/vectoplan-library/templates/vplib/create/sections/_actions.html #}
 {# -----------------------------------------------------------------------------
-  VECTOPLAN Library · VPLIB Create Wizard · Step 6: Actions
+  VECTOPLAN Library · VPLIB Create Wizard · Step 9: Actions
 
   Zweck:
   - Finaler Wizard-Schritt für die /create-Oberfläche.
@@ -205,20 +205,20 @@
       <h2
         id="vp-create-actions-title"
         class="vplib-create-step__title"
-      >
+       data-i18n="vectoplan.server.library.vplib.create.sections.actions.h2.pr_fen_und_erzeugen.3589b838">
         Prüfen und erzeugen
       </h2>
 
-      <p class="vplib-create-step__description">
-        Erzeuge eine neue <code>.vplib</code> als Draft, Plan, Download oder kontrollierten Library-Save.
-      </p>
+      <p class="vplib-create-step__description"><span data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.erzeuge_eine_neue.9c7fd30f">
+        Erzeuge eine neue </span><code>.vplib</code><span data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.als_draft_plan_download_oder_kontrolli.43bf08cd"> als Draft, Plan, Download oder kontrollierten Library-Save.
+      </span></p>
     </div>
 
     <span
       class="vplib-create-step__badge"
       data-vp-step-final-badge
       aria-label="Finaler Schritt"
-    >
+     data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.final.ea5e053e" data-i18n-aria-label="server.library.vplib.create.sections.actions.span_aria-label.finaler_schritt.9db749d5">
       Final
     </span>
   </header>
@@ -233,7 +233,7 @@
         data-create-action-stack="true"
         data-vp-action-stack
         aria-label="Create-Aktionen"
-      >
+       data-i18n-aria-label="server.library.vplib.create.sections.actions.div_aria-label.create_aktionen.1e26dc2f">
         <button
           class="vp-create-button vp-create-button--secondary vp-create-action-button"
           type="button"
@@ -245,11 +245,11 @@
           data-vp-actions-inline-bridge="true"
           onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
-          <span class="vp-create-button__label">
+          <span class="vp-create-button__label" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.draft_bauen.728fa81f">
             Draft bauen
           </span>
 
-          <span class="vp-create-button__hint">
+          <span class="vp-create-button__hint" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.payload_normalisieren_und_draft_vorsch.63f5b22b">
             Payload normalisieren und Draft-Vorschau erzeugen
           </span>
         </button>
@@ -265,11 +265,11 @@
           data-vp-actions-inline-bridge="true"
           onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
-          <span class="vp-create-button__label">
+          <span class="vp-create-button__label" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.validieren.86985f7b">
             Validieren
           </span>
 
-          <span class="vp-create-button__hint">
+          <span class="vp-create-button__hint" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.pflichtfelder_definitionen_und_package.ffc5092e">
             Pflichtfelder, Definitionen und Package-Struktur prüfen
           </span>
         </button>
@@ -285,11 +285,11 @@
           data-vp-actions-inline-bridge="true"
           onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
-          <span class="vp-create-button__label">
+          <span class="vp-create-button__label" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.package_plan.44408454">
             Package-Plan
           </span>
 
-          <span class="vp-create-button__hint">
+          <span class="vp-create-button__hint" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.geplante_dateien_und_manifest_struktur.b4794064">
             Geplante Dateien und Manifest-Struktur ansehen
           </span>
         </button>
@@ -305,11 +305,11 @@
           data-vp-actions-inline-bridge="true"
           onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
-          <span class="vp-create-button__label">
+          <span class="vp-create-button__label" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.vplib_downloaden.d6bc0c65">
             VPLIB downloaden
           </span>
 
-          <span class="vp-create-button__hint">
+          <span class="vp-create-button__hint" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.backend_erzeugt_archiv_ohne_source_sav.b923742f">
             Backend erzeugt Archiv, ohne Source-Save
           </span>
         </button>
@@ -325,11 +325,11 @@
           data-vp-actions-inline-bridge="true"
           onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
-          <span class="vp-create-button__label">
+          <span class="vp-create-button__label" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.draft_speichern.1613d563">
             Draft speichern
           </span>
 
-          <span class="vp-create-button__hint">
+          <span class="vp-create-button__hint" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.arbeitsstand_als_persistenten_draft_vo.ec41fa95">
             Arbeitsstand als persistenten Draft vorbereiten
           </span>
         </button>
@@ -345,11 +345,11 @@
           data-vp-actions-inline-bridge="true"
           onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
         >
-          <span class="vp-create-button__label">
+          <span class="vp-create-button__label" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.publish_vorbereiten.1ee5fa3d">
             Publish vorbereiten
           </span>
 
-          <span class="vp-create-button__hint">
+          <span class="vp-create-button__hint" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.bundle_publish_payload_pr_fen.333e15bb">
             Bundle-/Publish-Payload prüfen
           </span>
         </button>
@@ -367,16 +367,16 @@
           onclick="return window.vpRunCreateAction ? window.vpRunCreateAction(event, this) : false;"
           {% if not _actions_write_enabled %}disabled aria-disabled="true"{% else %}aria-disabled="false"{% endif %}
         >
-          <span class="vp-create-button__label">
+          <span class="vp-create-button__label" data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.in_library_speichern.be4dbc49">
             In Library speichern
           </span>
 
           <span class="vp-create-button__hint">
             {% if _actions_write_enabled %}
               {{ _save_hint }}
-            {% else %}
+            {% else %}<span data-i18n="vectoplan.server.library.vplib.create.sections.actions.span.write_flag_nicht_aktiv.b04d675a">
               Write-Flag nicht aktiv
-            {% endif %}
+            </span>{% endif %}
           </span>
         </button>
       </div>

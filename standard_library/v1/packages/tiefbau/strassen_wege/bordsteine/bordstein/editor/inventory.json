@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "b8be12a8-8290-5217-912f-fe7e42fa8518",
+  "family_id": "vp.tiefbau.strassen_wege.bordsteine.bordstein",
+  "default_variant_id": "default",
+  "label": "Bordstein",
+  "description": "Vereinfachter Bordstein in gebräuchlichen Profilgrößen.",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "strassen_wege",
+  "subcategory": "bordsteine",
+  "classification_path": "tiefbau/strassen_wege/bordsteine",
+  "source_path": "tiefbau/strassen_wege/bordsteine/bordstein",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Straßen und Wege",
+    "subcategory": "Bordsteine"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

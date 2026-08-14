@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "b3062e3d-f6c3-507c-bf4a-7935cc260a3d",
+  "family_id": "vp.hochbau.decken.holzdecken.holzbalkendecke",
+  "default_variant_id": "default",
+  "label": "Holzbalkendecke",
+  "description": "Vereinfachte Holzbalkendecke für frühe Planung und Mengenermittlung.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "decken",
+  "subcategory": "holzdecken",
+  "classification_path": "hochbau/decken/holzdecken",
+  "source_path": "hochbau/decken/holzdecken/holzbalkendecke",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Decken",
+    "subcategory": "Holzdecken"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

@@ -199,7 +199,7 @@
     aria-label="{{ _slot_count }} User-Inventar-Slots"
     aria-orientation="horizontal"
     data-user-inventory-slots="true"
-  >
+   data-i18n-aria-label="server.library.inventar.partials.user_hotbar.div_aria-label.user_inventar_slots.5a56a4ea">
     {% for _slot_index in range(1, _slot_count + 1) %}
       {# --------------------------------------------------------------------
          Slot-Daten für aktuellen Index finden.
@@ -403,7 +403,7 @@
 
         <div class="vp-user-slot__content">
           {% if _is_empty %}
-            <span class="vp-user-slot__placeholder">
+            <span class="vp-user-slot__placeholder" data-i18n="vectoplan.server.library.inventar.partials.user_hotbar.span.leer.89e0fc61">
               Leer
             </span>
           {% else %}

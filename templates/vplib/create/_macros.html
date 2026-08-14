@@ -237,7 +237,7 @@
       {% if _description %}data-description="{{ _description }}"{% endif %}
       data-option-enabled="{% if _enabled %}true{% else %}false{% endif %}"
       data-option-default="{% if _is_default %}true{% else %}false{% endif %}"
-    >{{ _label }}{% if not _enabled %} · deaktiviert{% endif %}</option>
+    >{{ _label }}{% if not _enabled %} {{ t('vectoplan.server.library.option.disabled', fallback='· deaktiviert') }}{% endif %}</option>
   {% endif %}
 {%- endmacro %}
 

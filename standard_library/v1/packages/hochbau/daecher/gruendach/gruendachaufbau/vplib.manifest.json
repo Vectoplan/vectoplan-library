@@ -1,0 +1,55 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "2b275d32-d4ca-574c-918e-26edcba8677c",
+  "package_id": "vplib.vp.hochbau.daecher.gruendach.gruendachaufbau",
+  "family_id": "vp.hochbau.daecher.gruendach.gruendachaufbau",
+  "family_slug": "gruendachaufbau",
+  "family_name": "Gründachaufbau",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "daecher",
+  "subcategory": "gruendach",
+  "classification": {
+    "domain": "hochbau",
+    "category": "daecher",
+    "subcategory": "gruendach",
+    "classification_path": "hochbau/daecher/gruendach",
+    "labels": {
+      "domain": "Hochbau",
+      "category": "Dächer",
+      "subcategory": "Gründächer"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "hochbau/daecher/gruendach",
+  "source_path": "hochbau/daecher/gruendach/gruendachaufbau",
+  "default_variant_id": "default",
+  "variant_count": 8,
+  "documents_required": false,
+  "external_assets_required": false,
+  "created_at": "2026-08-11T00:00:00Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.5.0",
+    "mode": "simple_create",
+    "starter_contract": true
+  },
+  "assets": [],
+  "asset_count": 0
+}

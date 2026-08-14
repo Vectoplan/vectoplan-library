@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
 
-  <title>Creative-Inventar · VECTOPLAN</title>
+  <title data-i18n="vectoplan.server.library.inventar.creative_inventar.title.creative_inventar_vectoplan.34b16b7a">Creative-Inventar · VECTOPLAN</title>
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css', v='20260809.3') }}">
 </head>
@@ -98,12 +98,12 @@
     data-card-selection-enabled="false"
     data-suspend-during-create-embed="true"
     data-cache-enabled="true"
-  >
+   data-i18n-aria-label="server.library.inventar.creative_inventar.main_aria-label.creative_inventar.d58ebd5c">
     <section
       class="vp-creative-library"
       aria-label="Creative Library"
       data-creative-library="true"
-    >
+     data-i18n-aria-label="server.library.inventar.creative_inventar.section_aria-label.creative_library.b8304575">
       <div
         id="vp-creative-taxonomy-status"
         class="vp-creative-taxonomy-status"
@@ -116,14 +116,14 @@
         class="vp-creative-tabs-bar"
         aria-label="Creative Library Navigation"
         data-create-embed-tabs-bar="true"
-      >
+       data-i18n-aria-label="server.library.inventar.creative_inventar.div_aria-label.creative_library_navigation.4ec3d3ce">
         <nav
           id="vp-creative-taxonomy-tabs"
           class="vp-creative-tabs"
           aria-label="Creative Library Reiter"
           data-taxonomy-tabs="true"
-        >
-          <button class="vp-creative-tab vp-creative-tab--active" type="button" disabled>
+         data-i18n-aria-label="server.library.inventar.creative_inventar.nav_aria-label.creative_library_reiter.20f8d420">
+          <button class="vp-creative-tab vp-creative-tab--active" type="button" disabled data-i18n="vectoplan.server.library.inventar.creative_inventar.button.taxonomie_l_dt.7479afd5">
             Taxonomie lädt
           </button>
         </nav>
@@ -131,7 +131,7 @@
         <div
           class="vp-creative-create-action vp-creative-create-action--tabs"
           aria-label="Neues Element"
-        >
+         data-i18n-aria-label="server.library.inventar.creative_inventar.div_aria-label.neues_element.475e2781">
           <button
             id="vp-create-embed-toggle"
             class="vp-creative-create-button"
@@ -144,7 +144,7 @@
             aria-expanded="false"
           >
             <span class="vp-creative-create-button__icon" aria-hidden="true">+</span>
-            <span class="vp-creative-create-button__label" data-create-embed-toggle-label="true">
+            <span class="vp-creative-create-button__label" data-create-embed-toggle-label="true" data-i18n="vectoplan.server.library.inventar.creative_inventar.span.neues_element_hinzuf_gen.9d6c4112">
               Neues Element hinzufügen
             </span>
           </button>
@@ -157,15 +157,15 @@
           aria-label="Creative Library Kategorien"
           data-create-embed-taxonomy-bar="true"
           data-create-embed-filter-area="true"
-        >
+         data-i18n-aria-label="server.library.inventar.creative_inventar.div_aria-label.creative_library_kategorien.d3a1e1e6">
           <nav
             id="vp-creative-taxonomy-filters"
             class="vp-creative-filters"
             aria-label="Creative Library Kategorien"
             data-taxonomy-filters="true"
-          >
+           data-i18n-aria-label="server.library.inventar.creative_inventar.nav_aria-label.creative_library_kategorien.a9653de3">
             <button class="vp-creative-filter vp-creative-filter--active" type="button" disabled>
-              <span>Kategorien werden geladen</span>
+              <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.kategorien_werden_geladen.32a0a07a">Kategorien werden geladen</span>
               <strong>...</strong>
             </button>
           </nav>
@@ -180,7 +180,7 @@
               data-taxonomy-subfilters="true"
               data-create-embed-subfilter-area="true"
               hidden
-            ></nav>
+             data-i18n-aria-label="server.library.inventar.creative_inventar.nav_aria-label.creative_library_subkategorien.3663287e"></nav>
 
             <label class="vp-creative-search" for="vp-creative-search-input">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
@@ -192,8 +192,8 @@
                 placeholder="Objekte und VPLIB durchsuchen"
                 aria-label="Creative-Inventar durchsuchen"
                 data-creative-search="true"
-              >
-              <kbd>F</kbd>
+               data-i18n-aria-label="server.library.inventar.creative_inventar.input_aria-label.creative_inventar_durchsuchen.a67e8391" data-i18n-placeholder="server.library.inventar.creative_inventar.input_placeholder.objekte_und_vplib_durchsuchen.b1f0f1cd">
+              <kbd data-i18n="vectoplan.server.library.inventar.creative_inventar.kbd.f.0a14fbc6">F</kbd>
             </label>
           </div>
 
@@ -203,7 +203,7 @@
             aria-label="Neues VPLIB-Element erstellen"
             data-create-embed-panel="true"
             hidden
-          >
+           data-i18n-aria-label="server.library.inventar.creative_inventar.section_aria-label.neues_vplib_element_erstellen.46011e32">
             <iframe
               id="vp-create-embed-frame"
               class="vp-create-embed-frame"
@@ -224,7 +224,7 @@
             data-create-embed-library-area="true"
             data-creative-items-url="/api/v1/vplib/creative-library/items?compact=true"
             data-published-items-url="/api/v1/vplib/library/items?visible_only=true&amp;active_only=true&amp;include_current_revision=false&amp;include_variants=true&amp;limit=250"
-          >
+           data-i18n-aria-label="server.library.inventar.creative_inventar.section_aria-label.creative_library_items.b214ea80">
             {% for item in _creative_items %}
               {% set creative_card_item = item %}
               {% include "inventar/partials/_creative-card.html" with context %}
@@ -233,169 +233,169 @@
 
           <div class="vp-creative-empty" data-creative-empty="true" role="status" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>
-            <strong>Keine verwendbaren Objekte vorhanden</strong>
-            <span>Hier erscheinen ausschließlich veröffentlichte VPLIB-Objekte mit gültiger Platzierung.</span>
+            <strong data-i18n="vectoplan.server.library.inventar.creative_inventar.strong.keine_verwendbaren_objekte_vorhanden.77879f5b">Keine verwendbaren Objekte vorhanden</strong>
+            <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.hier_erscheinen_ausschlie_lich_ver_ffe.dd9478d5">Hier erscheinen ausschließlich veröffentlichte VPLIB-Objekte mit gültiger Platzierung.</span>
           </div>
         </div>
       </div>
     </section>
 
-    <aside class="vp-creative-tools" aria-label="Creative Mode Tools">
+    <aside class="vp-creative-tools" aria-label="Creative Mode Tools" data-i18n-aria-label="server.library.inventar.creative_inventar.aside_aria-label.creative_mode_tools.952b9c12">
       <section class="vp-creative-tools__panel">
         <header class="vp-creative-tools__header">
           <span class="vp-creative-tools__gear" aria-hidden="true">&#9881;</span>
           <div>
-            <h2 class="vp-creative-tools__title" data-creative-tools-title>Creative Mode</h2>
-            <p class="vp-creative-tools__subtitle" data-creative-tools-subtitle>Schnelleinstellungen</p>
+            <h2 class="vp-creative-tools__title" data-creative-tools-title data-i18n="vectoplan.server.library.inventar.creative_inventar.h2.creative_mode.5fb487d7">Creative Mode</h2>
+            <p class="vp-creative-tools__subtitle" data-creative-tools-subtitle data-i18n="vectoplan.server.library.inventar.creative_inventar.p.schnelleinstellungen.438412d6">Schnelleinstellungen</p>
           </div>
           <kbd class="vp-creative-tools__key">&#8649;</kbd>
         </header>
 
         <section class="vp-world-edit-config" data-world-edit-tool-config hidden>
-          <span class="vp-world-edit-config__eyebrow">World Edit</span>
-          <p data-world-edit-config-description>Werkzeug in der Creative Library ausw&auml;hlen.</p>
+          <span class="vp-world-edit-config__eyebrow" data-i18n="vectoplan.server.library.inventar.creative_inventar.span.world_edit.24e48193">World Edit</span>
+          <p data-world-edit-config-description><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.werkzeug_in_der_creative_library_ausw.9fdc3e1c">Werkzeug in der Creative Library ausw</span>&auml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.hlen.61413d56">hlen.</span></p>
           <div class="vp-world-edit-config__status" data-world-edit-config-status></div>
 
           <label class="vp-world-edit-config__field" data-world-edit-operation-field>
-            <span>Modus</span>
-            <select data-world-edit-config-operation aria-label="World Edit Modus">
-              <option value="set">Setzen</option>
-              <option value="wall">W&auml;nde</option>
-              <option value="fill">Nur Luft f&uuml;llen</option>
-              <option value="replace">Ersetzen</option>
-              <option value="clear">Leeren</option>
+            <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.modus.7c71c15a">Modus</span>
+            <select data-world-edit-config-operation aria-label="World Edit Modus" data-i18n-aria-label="server.library.inventar.creative_inventar.select_aria-label.world_edit_modus.ebcf185a">
+              <option value="set" data-i18n="vectoplan.server.library.inventar.creative_inventar.option.setzen.85164df8">Setzen</option>
+              <option value="wall" data-i18n="vectoplan.server.library.inventar.creative_inventar.option.w.02089335">W&auml;nde</option>
+              <option value="fill" data-i18n="vectoplan.server.library.inventar.creative_inventar.option.nur_luft_f.07c019ee">Nur Luft f&uuml;llen</option>
+              <option value="replace" data-i18n="vectoplan.server.library.inventar.creative_inventar.option.ersetzen.e876fb00">Ersetzen</option>
+              <option value="clear" data-i18n="vectoplan.server.library.inventar.creative_inventar.option.leeren.badbf859">Leeren</option>
             </select>
           </label>
 
           <section class="vp-world-edit-config__selection" data-world-edit-selection-settings>
-            <h4>Auswahl erstellen</h4>
+            <h4 data-i18n="vectoplan.server.library.inventar.creative_inventar.h4.auswahl_erstellen.1382639b">Auswahl erstellen</h4>
             <ol class="vp-world-edit-legend">
-              <li><kbd>Linksklick halten</kbd><span>Punkt A im 3D-Fenster setzen</span></li>
-              <li><kbd>Kamera ziehen</kbd><span>Punkt B und H&ouml;he bestimmen, dann loslassen</span></li>
-              <li><kbd>Links / Rechts</kbd><span>Farbigen Fl&auml;chenpunkt vergr&ouml;&szlig;ern oder verkleinern</span></li>
+              <li><kbd data-i18n="vectoplan.server.library.inventar.creative_inventar.kbd.linksklick_halten.bec5d676">Linksklick halten</kbd><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.punkt_a_im_3d_fenster_setzen.0c7b31b0">Punkt A im 3D-Fenster setzen</span></li>
+              <li><kbd data-i18n="vectoplan.server.library.inventar.creative_inventar.kbd.kamera_ziehen.7e4281c1">Kamera ziehen</kbd><span><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.punkt_b_und_h.367a8c36">Punkt B und H</span>&ouml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.he_bestimmen_dann_loslassen.da4abfde">he bestimmen, dann loslassen</span></span></li>
+              <li><kbd data-i18n="vectoplan.server.library.inventar.creative_inventar.kbd.links_rechts.c48b90b6">Links / Rechts</kbd><span><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.farbigen_fl.9c4a92a1">Farbigen Fl</span>&auml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.chenpunkt_vergr.e186f846">chenpunkt vergr</span>&ouml;&szlig;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.ern_oder_verkleinern.83fecd1e">ern oder verkleinern</span></span></li>
             </ol>
             <div class="vp-world-edit-config__selection-state">
-              <span>Punkt A</span><strong data-world-edit-runtime-first>im 3D-Fenster</strong>
-              <span>Punkt B</span><strong data-world-edit-runtime-second>im 3D-Fenster</strong>
+              <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.punkt_a.de19f5d6">Punkt A</span><strong data-world-edit-runtime-first data-i18n="vectoplan.server.library.inventar.creative_inventar.strong.im_3d_fenster.d7ffe08f">im 3D-Fenster</strong>
+              <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.punkt_b.1b498fdd">Punkt B</span><strong data-world-edit-runtime-second data-i18n="vectoplan.server.library.inventar.creative_inventar.strong.im_3d_fenster.93f792e4">im 3D-Fenster</strong>
             </div>
           </section>
 
           <section class="vp-world-edit-config__selection" data-world-edit-utility-settings hidden>
-            <h4 data-world-edit-utility-title>Werkzeug</h4>
-            <p data-world-edit-utility-text>Werkzeugeinstellungen werden im 3D-Editor angezeigt.</p>
+            <h4 data-world-edit-utility-title data-i18n="vectoplan.server.library.inventar.creative_inventar.h4.werkzeug.6989ed9e">Werkzeug</h4>
+            <p data-world-edit-utility-text data-i18n="vectoplan.server.library.inventar.creative_inventar.p.werkzeugeinstellungen_werden_im_3d_edi.e6f83dce">Werkzeugeinstellungen werden im 3D-Editor angezeigt.</p>
           </section>
 
           <section class="vp-world-edit-config__brush" data-world-edit-parcel-grid-settings hidden>
-            <h4>Bauachse</h4>
+            <h4 data-i18n="vectoplan.server.library.inventar.creative_inventar.h4.bauachse.97c014de">Bauachse</h4>
             <label class="vp-world-edit-config__field">
-              <span>Ausrichtung</span>
-              <select data-world-edit-config-parcel-grid-mode aria-label="Grundst&uuml;cksraster-Modus">
-                <option value="boundary">Direkt an Grenze</option>
-                <option value="setback">Mit Grenzabstand</option>
+              <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.ausrichtung.9beab340">Ausrichtung</span>
+              <select data-world-edit-config-parcel-grid-mode aria-label="Grundst&uuml;cksraster-Modus" data-i18n-aria-label="server.library.inventar.creative_inventar.select_aria-label.grundst_cksraster_modus.9cea4232">
+                <option value="boundary" data-i18n="vectoplan.server.library.inventar.creative_inventar.option.direkt_an_grenze.3fbeea2b">Direkt an Grenze</option>
+                <option value="setback" data-i18n="vectoplan.server.library.inventar.creative_inventar.option.mit_grenzabstand.020bb407">Mit Grenzabstand</option>
               </select>
             </label>
             <label class="vp-world-edit-config__range">
-              <span>Abstand</span>
+              <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.abstand.e27eaad0">Abstand</span>
               <input type="range" min="0" max="20" step="0.5" value="0" data-world-edit-config-setback>
-              <output data-world-edit-config-setback-output>0 m</output>
+              <output data-world-edit-config-setback-output data-i18n="vectoplan.server.library.inventar.creative_inventar.output.0_m.156464a0">0 m</output>
             </label>
             <label class="vp-world-edit-config__range">
-              <span>Innere Schr&auml;glinie</span>
+              <span><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.innere_schr.6eca02a9">Innere Schr</span>&auml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.glinie.458d78d4">glinie</span></span>
               <input type="range" min="1" max="6" step="1" value="3" data-world-edit-config-influence>
-              <output data-world-edit-config-influence-output>3 m</output>
+              <output data-world-edit-config-influence-output data-i18n="vectoplan.server.library.inventar.creative_inventar.output.3_m.e5912fbd">3 m</output>
             </label>
-            <p class="vp-world-edit-config__hint">Kante mit Linksklick w&auml;hlen. Erneuter Linksklick verschiebt die innere Linie nach innen, Rechtsklick nach au&szlig;en. Zwischenfl&auml;chen werden mittig geteilt und mit den benachbarten Rasterbl&ouml;cken verbunden.</p>
+            <p class="vp-world-edit-config__hint"><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.kante_mit_linksklick_w.fe3ebfa1">Kante mit Linksklick w</span>&auml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.hlen_erneuter_linksklick_verschiebt_di.e006d820">hlen. Erneuter Linksklick verschiebt die innere Linie nach innen, Rechtsklick nach au</span>&szlig;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.en_zwischenfl.14f16af5">en. Zwischenfl</span>&auml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.chen_werden_mittig_geteilt_und_mit_den.7642616a">chen werden mittig geteilt und mit den benachbarten Rasterbl</span>&ouml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.cken_verbunden.0850ccda">cken verbunden.</span></p>
           </section>
 
           <section class="vp-world-edit-config__brush" data-world-edit-brush-settings hidden>
-            <h4>Pinsel</h4>
+            <h4 data-i18n="vectoplan.server.library.inventar.creative_inventar.h4.pinsel.626e8fe7">Pinsel</h4>
             <label class="vp-world-edit-config__field">
-              <span>Form</span>
-              <select data-world-edit-config-shape aria-label="Pinsel-Form">
-                <option value="sphere">Kugel</option>
-                <option value="box">Quader</option>
-                <option value="cylinder">Zylinder</option>
+              <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.form.366c6368">Form</span>
+              <select data-world-edit-config-shape aria-label="Pinsel-Form" data-i18n-aria-label="server.library.inventar.creative_inventar.select_aria-label.pinsel_form.4fd31afc">
+                <option value="sphere" data-i18n="vectoplan.server.library.inventar.creative_inventar.option.kugel.42f5ae29">Kugel</option>
+                <option value="box" data-i18n="vectoplan.server.library.inventar.creative_inventar.option.quader.a3926d74">Quader</option>
+                <option value="cylinder" data-i18n="vectoplan.server.library.inventar.creative_inventar.option.zylinder.73bc1624">Zylinder</option>
               </select>
             </label>
             <label class="vp-world-edit-config__range">
-              <span>Radius</span>
+              <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.radius.e924f170">Radius</span>
               <input type="range" min="1" max="12" value="2" data-world-edit-config-radius>
               <output data-world-edit-config-radius-output>2</output>
             </label>
             <label class="vp-world-edit-config__range">
-              <span>Dichte</span>
+              <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.dichte.e54e539b">Dichte</span>
               <input type="range" min="10" max="100" value="100" data-world-edit-config-density>
               <output data-world-edit-config-density-output>100%</output>
             </label>
             <label class="vp-world-edit-config__range">
-              <span>Wandst&auml;rke</span>
+              <span><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.wandst.4a607873">Wandst</span>&auml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.rke.fd11e8c0">rke</span></span>
               <input type="range" min="0" max="6" value="0" data-world-edit-config-wall>
               <output data-world-edit-config-wall-output>0</output>
             </label>
             <ol class="vp-world-edit-legend vp-world-edit-legend--brush">
-              <li><kbd>Linksklick</kbd><span>Pinsel anwenden</span></li>
-              <li><kbd>Rechtsklick</kbd><span>Mit gleicher Form entfernen</span></li>
+              <li><kbd data-i18n="vectoplan.server.library.inventar.creative_inventar.kbd.linksklick.1d900ae9">Linksklick</kbd><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.pinsel_anwenden.b8862477">Pinsel anwenden</span></li>
+              <li><kbd data-i18n="vectoplan.server.library.inventar.creative_inventar.kbd.rechtsklick.d7ecbc82">Rechtsklick</kbd><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.mit_gleicher_form_entfernen.8f7cf8bf">Mit gleicher Form entfernen</span></li>
             </ol>
           </section>
 
           <label class="vp-world-edit-config__mask">
             <input type="checkbox" data-world-edit-config-parcel-mask checked>
-            <span>Auf ausgew&auml;hlte Grundst&uuml;cke begrenzen</span>
+            <span><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.auf_ausgew.d7d57199">Auf ausgew</span>&auml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.hlte_grundst.edb7f27f">hlte Grundst</span>&uuml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.cke_begrenzen.6433c52f">cke begrenzen</span></span>
           </label>
           <div class="vp-world-edit-config__actions" data-world-edit-config-actions hidden>
-            <button type="button" data-world-edit-config-action="reset">Auswahl l&ouml;schen</button>
-            <button type="button" class="is-primary" data-world-edit-config-action="execute">Ausf&uuml;hren</button>
+            <button type="button" data-world-edit-config-action="reset"><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.auswahl_l.f9aca876">Auswahl l</span>&ouml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.schen.049bc62d">schen</span></button>
+            <button type="button" class="is-primary" data-world-edit-config-action="execute"><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.ausf.b899fb13">Ausf</span>&uuml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.hren.987d3c1a">hren</span></button>
           </div>
-          <p class="vp-world-edit-config__note">Die Einstellungen werden direkt f&uuml;r das aktive Werkzeug im 3D-Editor &uuml;bernommen.</p>
+          <p class="vp-world-edit-config__note"><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.die_einstellungen_werden_direkt_f.07c8d10a">Die Einstellungen werden direkt f</span>&uuml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.r_das_aktive_werkzeug_im_3d_editor.03b58958">r das aktive Werkzeug im 3D-Editor </span>&uuml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.bernommen.d95ed6de">bernommen.</span></p>
         </section>
 
         <section class="vp-tool-group">
-          <h3 class="vp-tool-group__title">Bewegung &amp; Flug</h3>
+          <h3 class="vp-tool-group__title"><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.bewegung.d9d240a9">Bewegung </span>&amp;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.flug.d7f21ebc"> Flug</span></h3>
           <div class="vp-tool-setting vp-tool-setting--value">
-            <span>Flugmodus</span>
-            <kbd>Leertaste &times; 2</kbd>
+            <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.flugmodus.ff425b32">Flugmodus</span>
+            <kbd data-i18n="vectoplan.server.library.inventar.creative_inventar.kbd.leertaste.0b28ede9">Leertaste &times; 2</kbd>
           </div>
           <label class="vp-tool-setting">
-            <span>Keine Kollision</span>
-            <input type="checkbox" aria-label="Keine Kollision">
+            <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.keine_kollision.642ce5c0">Keine Kollision</span>
+            <input type="checkbox" aria-label="Keine Kollision" data-i18n-aria-label="server.library.inventar.creative_inventar.input_aria-label.keine_kollision.16e95eec">
           </label>
           <label class="vp-tool-range">
-            <span>Flug-Tr&auml;gheit</span>
-            <input type="range" min="0" max="100" value="40" aria-label="Flug-Tr&auml;gheit">
+            <span><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.flug_tr.a63f5460">Flug-Tr</span>&auml;<span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.gheit.8927c2d6">gheit</span></span>
+            <input type="range" min="0" max="100" value="40" aria-label="Flug-Tr&auml;gheit" data-i18n-aria-label="server.library.inventar.creative_inventar.input_aria-label.flug_tr_gheit.5f89bcd7">
             <output>40</output>
           </label>
           <label class="vp-tool-range">
-            <span>Geschwindigkeit</span>
-            <input type="range" min="1" max="10" value="5" aria-label="Geschwindigkeit">
+            <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.geschwindigkeit.a42e8c9f">Geschwindigkeit</span>
+            <input type="range" min="1" max="10" value="5" aria-label="Geschwindigkeit" data-i18n-aria-label="server.library.inventar.creative_inventar.input_aria-label.geschwindigkeit.5a1932db">
             <output>5</output>
           </label>
         </section>
 
         <section class="vp-tool-group">
-          <h3 class="vp-tool-group__title">Platzierung</h3>
+          <h3 class="vp-tool-group__title" data-i18n="vectoplan.server.library.inventar.creative_inventar.h3.platzierung.cc042be1">Platzierung</h3>
           <label class="vp-tool-setting">
-            <span>Luftplatzierung</span>
-            <input type="checkbox" aria-label="Luftplatzierung">
+            <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.luftplatzierung.14247c47">Luftplatzierung</span>
+            <input type="checkbox" aria-label="Luftplatzierung" data-i18n-aria-label="server.library.inventar.creative_inventar.input_aria-label.luftplatzierung.f8122882">
           </label>
           <label class="vp-tool-setting">
-            <span>Rasterfang</span>
-            <input type="checkbox" aria-label="Rasterfang" checked>
+            <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.rasterfang.f161d11b">Rasterfang</span>
+            <input type="checkbox" aria-label="Rasterfang" checked data-i18n-aria-label="server.library.inventar.creative_inventar.input_aria-label.rasterfang.4db9cea1">
           </label>
         </section>
 
         <section class="vp-tool-group">
-          <h3 class="vp-tool-group__title">Werkzeug</h3>
+          <h3 class="vp-tool-group__title" data-i18n="vectoplan.server.library.inventar.creative_inventar.h3.werkzeug.8a7998bc">Werkzeug</h3>
           <label class="vp-tool-range">
-            <span>Reichweite</span>
-            <input type="range" min="1" max="32" value="12" aria-label="Werkzeug-Reichweite">
+            <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.reichweite.3199209c">Reichweite</span>
+            <input type="range" min="1" max="32" value="12" aria-label="Werkzeug-Reichweite" data-i18n-aria-label="server.library.inventar.creative_inventar.input_aria-label.werkzeug_reichweite.3b5b6a91">
             <output>12</output>
           </label>
           <label class="vp-tool-range">
-            <span>Block-Radius</span>
-            <input type="range" min="1" max="8" value="1" aria-label="Block-Radius">
+            <span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.block_radius.37df562f">Block-Radius</span>
+            <input type="range" min="1" max="8" value="1" aria-label="Block-Radius" data-i18n-aria-label="server.library.inventar.creative_inventar.input_aria-label.block_radius.6e9aae28">
             <output>1</output>
           </label>
-          <button class="vp-creative-tools__reset" type="button">
+          <button class="vp-creative-tools__reset" type="button" data-i18n="vectoplan.server.library.inventar.creative_inventar.button.standardwerte.b7e2713f">
             Standardwerte
           </button>
         </section>
@@ -418,7 +418,7 @@
 
 
   <script
-    src="{{ url_for('static', filename='js/inventar/creative-library.js', v='20260809.3') }}"
+    src="{{ url_for('static', filename='js/inventar/creative-library.js', v='20260812.4') }}"
     defer
   ></script>
 </body>

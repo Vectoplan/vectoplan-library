@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "e417b515-11ae-5ff5-b080-be0aea265060",
+  "family_id": "vp.hochbau.tragwerk.stuetzen.stahlbetonstuetze",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "stahlbeton"
+  ]
+}

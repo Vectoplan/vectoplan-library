@@ -1,0 +1,133 @@
+<section
+  class="vp-create-manufacturer-product"
+  data-vp-manufacturer-product-root="true"
+  data-vp-manufacturer-products-url="/api/v1/vplib/manufacturer-products"
+  aria-labelledby="vp-create-manufacturer-product-title"
+  hidden
+>
+  <header class="vp-create-manufacturer-product__header">
+    <div>
+      <p class="vp-create-eyebrow">Herstellerkatalog</p>
+      <h3 id="vp-create-manufacturer-product-title">Produktvariante zur Familie</h3>
+      <p>
+        Artikel- und Vertriebsdaten liegen separat in der Datenbank. Die technische VPLIB wird nur referenziert und bleibt dadurch schlank.
+      </p>
+    </div>
+    <span class="vp-create-status-pill vp-create-status-pill--muted" data-vp-manufacturer-permission-status>
+      Familie auswählen
+    </span>
+  </header>
+
+  <input type="hidden" value="{}" data-vp-manufacturer-product-json />
+  <input type="hidden" value="[]" data-vp-distribution-locations-json />
+
+  <div class="vp-create-manufacturer-product__grid">
+    <label class="vp-create-field">
+      <span class="vp-create-field__label">Hersteller / Organisation <span class="vp-create-field__required">*</span></span>
+      <input class="vp-create-input" data-vp-manufacturer-field="manufacturer_org_id" placeholder="Organisations-ID" data-vp-manufacturer-required />
+      <span class="vp-create-field__hint">Wird auf der Plattform normalerweise aus dem angemeldeten Herstellerkonto übernommen.</span>
+    </label>
+
+    <label class="vp-create-field">
+      <span class="vp-create-field__label">Marke</span>
+      <input class="vp-create-input" data-vp-manufacturer-field="manufacturer_brand" placeholder="z. B. VECTOBRICK" />
+    </label>
+
+    <label class="vp-create-field">
+      <span class="vp-create-field__label">Produktname <span class="vp-create-field__required">*</span></span>
+      <input class="vp-create-input" data-vp-manufacturer-field="manufacturer_product_name" placeholder="z. B. ThermoPlan T12" data-vp-manufacturer-required />
+    </label>
+
+    <label class="vp-create-field">
+      <span class="vp-create-field__label">Artikelnummer / SKU <span class="vp-create-field__required">*</span></span>
+      <input class="vp-create-input" data-vp-manufacturer-field="manufacturer_sku" placeholder="z. B. VP-T12-365" data-vp-manufacturer-required />
+    </label>
+
+    <label class="vp-create-field">
+      <span class="vp-create-field__label">GTIN / EAN</span>
+      <input class="vp-create-input" data-vp-manufacturer-field="manufacturer_gtin" inputmode="numeric" placeholder="Optional" />
+    </label>
+
+    <label class="vp-create-field">
+      <span class="vp-create-field__label">Technische Basisvariante</span>
+      <select class="vp-create-select" data-vp-manufacturer-field="manufacturer_base_variant_id" data-vp-manufacturer-base-variant>
+        <option value="default">Standard</option>
+      </select>
+    </label>
+  </div>
+
+  <section class="vp-create-distribution" data-vp-distribution-root>
+    <header class="vp-create-distribution__header">
+      <div>
+        <h4>Verfügbarkeit und Vertriebsstandorte</h4>
+        <p>Je Standort werden Herkunft bzw. Verkaufsstelle und der abgedeckte Radius gespeichert.</p>
+      </div>
+      <button class="vp-create-button vp-create-button--secondary" type="button" data-vp-add-distribution-location>
+        + Standort
+      </button>
+    </header>
+
+    <div class="vp-create-distribution__rows" data-vp-distribution-rows></div>
+
+    <template data-vp-distribution-row-template>
+      <article class="vp-create-distribution__row" data-vp-distribution-row>
+        <div class="vp-create-distribution__row-head">
+          <strong data-vp-distribution-row-label>Standort</strong>
+          <button class="vp-create-row-action" type="button" data-vp-remove-distribution-location aria-label="Standort entfernen">Entfernen</button>
+        </div>
+        <div class="vp-create-distribution__row-grid">
+          <label class="vp-create-field">
+            <span class="vp-create-field__label">Standortname *</span>
+            <input class="vp-create-input" placeholder="Werk, Lager oder Händler" data-vp-location-field="name" />
+          </label>
+          <label class="vp-create-field">
+            <span class="vp-create-field__label">Vertriebskanal</span>
+            <select class="vp-create-select" data-vp-location-field="channel">
+              <option value="factory">Werk / Abholung</option>
+              <option value="dealer">Fachhandel</option>
+              <option value="delivery">Liefergebiet</option>
+              <option value="online">Online</option>
+            </select>
+          </label>
+          <label class="vp-create-field vp-create-field--wide">
+            <span class="vp-create-field__label">Straße und Hausnummer</span>
+            <input class="vp-create-input" placeholder="Musterstraße 12" data-vp-location-field="address" />
+          </label>
+          <label class="vp-create-field">
+            <span class="vp-create-field__label">PLZ *</span>
+            <input class="vp-create-input" placeholder="10115" data-vp-location-field="postal_code" />
+          </label>
+          <label class="vp-create-field">
+            <span class="vp-create-field__label">Ort *</span>
+            <input class="vp-create-input" placeholder="Berlin" data-vp-location-field="city" />
+          </label>
+          <label class="vp-create-field">
+            <span class="vp-create-field__label">Land *</span>
+            <input class="vp-create-input" value="DE" maxlength="2" data-vp-location-field="country_code" />
+          </label>
+          <label class="vp-create-field">
+            <span class="vp-create-field__label">Radius (km) *</span>
+            <input class="vp-create-input" type="number" min="0" max="2500" step="1" value="100" data-vp-location-field="radius_km" />
+          </label>
+          <label class="vp-create-field">
+            <span class="vp-create-field__label">Breitengrad</span>
+            <input class="vp-create-input" type="number" min="-90" max="90" step="0.000001" placeholder="52.520008" data-vp-location-field="latitude" />
+          </label>
+          <label class="vp-create-field">
+            <span class="vp-create-field__label">Längengrad</span>
+            <input class="vp-create-input" type="number" min="-180" max="180" step="0.000001" placeholder="13.404954" data-vp-location-field="longitude" />
+          </label>
+        </div>
+      </article>
+    </template>
+  </section>
+
+  <footer class="vp-create-manufacturer-product__footer">
+    <p data-vp-manufacturer-product-status role="status" aria-live="polite">
+      Bei einer bestehenden Familie wird die Produktvariante unabhängig vom VPLIB-Paket gespeichert.
+    </p>
+    <button class="vp-create-button vp-create-button--primary" type="button" data-vp-save-manufacturer-product disabled>
+      Produktvariante einreichen
+    </button>
+  </footer>
+</section>

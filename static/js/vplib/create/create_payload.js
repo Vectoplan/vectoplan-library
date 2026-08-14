@@ -31,6 +31,20 @@
   var OPTIONAL_EMPTY_PAYLOAD_KEYS = [
     "family_description",
     "familyDescription",
+    "manufacturer_scope",
+    "manufacturerScope",
+    "manufacturer_coverage_mode",
+    "manufacturerCoverageMode",
+    "manufacturer_name",
+    "manufacturerName",
+    "manufacturer_brand",
+    "manufacturerBrand",
+    "manufacturer_org_id",
+    "manufacturerOrgId",
+    "manufacturer_website",
+    "manufacturerWebsite",
+    "manufacturer_country_code",
+    "manufacturerCountryCode",
     "material_class",
     "materialClass",
     "generator_context_uid",
@@ -136,6 +150,20 @@
     "definitionVariantsJson",
     "geometry_model_uploads_json",
     "geometryModelUploadsJson",
+    "spatial_contract_json",
+    "spatialContractJson",
+    "connection_points_json",
+    "connectionPointsJson",
+    "manufacturer_profile_json",
+    "manufacturerProfileJson",
+    "manufacturer_locations_json",
+    "manufacturerLocationsJson",
+    "manufacturer_territories_json",
+    "manufacturerTerritoriesJson",
+    "pricing_contract_json",
+    "pricingContractJson",
+    "variant_prices_json",
+    "variantPricesJson",
     "technical_document_uploads_json",
     "technicalDocumentUploadsJson",
     "variant_document_uploads_json",
@@ -1881,6 +1909,9 @@
       var defaultVariantId = String(
         firstScalar(source.default_variant_id || source.defaultVariantId) || ""
       ).trim();
+      var pricingContract = source.pricing_contract && typeof source.pricing_contract === "object"
+        ? source.pricing_contract
+        : safeJsonParse(source.pricing_contract_json, {});
 
       [
         ["domain", source.domain],
@@ -1904,6 +1935,23 @@
           code: "family_name_missing",
           field: "family_name",
           message: "A family name is required before the create action."
+        });
+      }
+
+      if (pricingContract && pricingContract.enforced === true) {
+        var pricingRules = Array.isArray(pricingContract.rules) ? pricingContract.rules : [];
+        variants.forEach(function (variant) {
+          var variantId = String(variant && (variant.variant_id || variant.variantId) || "");
+          var rule = pricingRules.filter(function (item) { return String(item && item.variant_id || "") === variantId; })[0];
+          if (!rule || rule.status !== "complete" || Number(rule.price && rule.price.amount || 0) <= 0 || Number(rule.output && rule.output.quantity || 0) <= 0) {
+            errors.push({
+              severity: "error",
+              code: "variant_pricing_incomplete",
+              field: "pricing_contract_json",
+              variant_id: variantId,
+              message: "Für jede Variante müssen Preis und Produktmenge vollständig definiert sein."
+            });
+          }
         });
       }
 

@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "9e0ebfe3-3a5e-53f3-b06a-8dcd8960624d",
+  "family_id": "vp.hochbau.tragwerk.fundamente.streifenfundament",
+  "slug": "streifenfundament",
+  "label": "Streifenfundament",
+  "description": "Durchlaufendes Stahlbetonfundament unter Wänden.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

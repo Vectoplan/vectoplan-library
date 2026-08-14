@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "fc121492-1219-5290-a833-64459e0de7d7",
+  "family_id": "vp.ingenieurbau.bruecken.ueberbau.brueckenplatte",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "stahlbeton"
+  ]
+}

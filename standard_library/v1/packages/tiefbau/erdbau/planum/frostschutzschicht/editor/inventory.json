@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "8c65cf12-4e9b-5ca2-bd0b-6136e9d4b679",
+  "family_id": "vp.tiefbau.erdbau.planum.frostschutzschicht",
+  "default_variant_id": "default",
+  "label": "Frostschutzschicht",
+  "description": "Ungebundene frostunempfindliche Tragschicht.",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "erdbau",
+  "subcategory": "planum",
+  "classification_path": "tiefbau/erdbau/planum",
+  "source_path": "tiefbau/erdbau/planum/frostschutzschicht",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Erdbau",
+    "subcategory": "Planum"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

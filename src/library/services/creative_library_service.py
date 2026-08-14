@@ -1160,8 +1160,13 @@ class CreativeLibraryService:
 
         scan_run_id = None
         if scan_run_ref is not None:
-            scan_run = self.repository.get_scan_run(scan_run_ref)
-            scan_run_id = getattr(scan_run, "id", None) if scan_run is not None else None
+            # Der DB-Sync übergibt bereits den numerischen Primärschlüssel.
+            # Ein erneutes ORM-Laden des ScanRun triggert dessen umfangreiche
+            # eager Relationships und erzeugt pro VPLIB eine riesige Query.
+            scan_run_id = normalize_int(scan_run_ref, default=None, minimum=1)
+            if scan_run_id is None:
+                scan_run = self.repository.get_scan_run(scan_run_ref)
+                scan_run_id = getattr(scan_run, "id", None) if scan_run is not None else None
 
         return compact_payload(
             {

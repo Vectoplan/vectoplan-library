@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "b6860baa-3d6b-5cfd-8b5a-12f0afbbbac2",
+  "family_id": "vp.ingenieurbau.stuetzbauwerke.spundwaende.spundwandprofil",
+  "default_variant_id": "default",
+  "label": "Spundwandprofil",
+  "description": "Vereinfachtes Stahlspundwandprofil in mehreren Profilgrößen.",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "stuetzbauwerke",
+  "subcategory": "spundwaende",
+  "classification_path": "ingenieurbau/stuetzbauwerke/spundwaende",
+  "source_path": "ingenieurbau/stuetzbauwerke/spundwaende/spundwandprofil",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Stützbauwerke",
+    "subcategory": "Spundwände"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

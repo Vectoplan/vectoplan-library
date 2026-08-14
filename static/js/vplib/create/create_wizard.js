@@ -4,7 +4,7 @@
 
   var GLOBAL_NAME = "VectoplanCreateWizard";
   var MODULE_NAME = "wizard";
-  var WIZARD_VERSION = "0.7.0";
+  var WIZARD_VERSION = "0.8.0";
   var CORE_NAME = "VectoplanCreateCore";
   var BOOT_RETRY_MS = 40;
   var BOOT_MAX_ATTEMPTS = 80;
@@ -87,24 +87,36 @@
   var DEFAULT_STEPS = [
     {
       index: 1,
-      key: "identity",
-      label: "Grunddaten",
-      short_label: "Daten",
-      shortLabel: "Daten",
-      hint: "Name und Beschreibung des neuen Library-Bausteins festlegen.",
-      target: "identity"
+      key: "library-source",
+      label: "Creative Library",
+      short_label: "Start",
+      shortLabel: "Start",
+      hint: "Bestehenden Baustein auswählen oder eine neue VPLIB beginnen.",
+      target: "library-source"
     },
     {
       index: 2,
-      key: "taxonomy",
-      label: "Taxonomie",
-      short_label: "Taxonomie",
-      shortLabel: "Taxonomie",
-      hint: "Fachliche Einordnung für Library, Scanner und spätere Navigation auswählen.",
-      target: "taxonomy"
+      key: "identity-taxonomy",
+      alias: "identity",
+      aliases: ["identity", "taxonomy", "identity-taxonomy"],
+      label: "Grunddaten & Taxonomie",
+      short_label: "Grunddaten",
+      shortLabel: "Grunddaten",
+      hint: "Name, Beschreibung und fachliche Einordnung gemeinsam festlegen.",
+      target: "identity-taxonomy"
     },
     {
       index: 3,
+      key: "manufacturer",
+      aliases: ["manufacturer", "distribution", "availability"],
+      label: "Hersteller & Vertrieb",
+      short_label: "Vertrieb",
+      shortLabel: "Vertrieb",
+      hint: "Hersteller festlegen und Varianten Standorten oder Vertriebsgebieten zuweisen.",
+      target: "manufacturer"
+    },
+    {
+      index: 4,
       key: "variables",
       alias: "object",
       aliases: ["object", "object-variants", "variables"],
@@ -115,16 +127,25 @@
       target: "object-variants"
     },
     {
-      index: 4,
+      index: 5,
       key: "geometry",
       label: "Geometrie",
       short_label: "Geometrie",
       shortLabel: "Geometrie",
-      hint: "Primitive Form, reale Maße, Editor-Raster und optionales 3D-Modell definieren.",
+      hint: "Grundform, reale Maße, Texturen und Raster definieren.",
       target: "geometry"
     },
     {
-      index: 5,
+      index: 6,
+      key: "spatial",
+      label: "Raum & Anschlüsse",
+      short_label: "Raum",
+      shortLabel: "Raum",
+      hint: "Primärmodell laden, zur Blockgröße skalieren und Anschlüsse definieren.",
+      target: "spatial"
+    },
+    {
+      index: 7,
       key: "technical",
       label: "Technik",
       short_label: "Technik",
@@ -133,7 +154,17 @@
       target: "technical"
     },
     {
-      index: 6,
+      index: 8,
+      key: "pricing",
+      aliases: ["pricing", "prices", "commercial"],
+      label: "Preise",
+      short_label: "Preise",
+      shortLabel: "Preise",
+      hint: "Preis und ausgegebene Produktmenge für jede Variante definieren.",
+      target: "pricing"
+    },
+    {
+      index: 9,
       key: "actions",
       alias: "create",
       aliases: ["create", "actions"],
@@ -154,7 +185,7 @@
     version: WIZARD_VERSION,
     initialized: false,
     currentStep: 1,
-    stepCount: 6,
+    stepCount: 9,
     maxReachedStep: 1,
     steps: DEFAULT_STEPS.slice(),
     lastNavigation: null,
@@ -1062,6 +1093,7 @@
       var config = options || {};
       var panel = findPanel(stepIndex);
       var invalid = [];
+      var checkedGroups = {};
 
       if (!panel) {
         return true;
@@ -1072,6 +1104,31 @@
       qsa(SELECTORS.requiredField, panel).forEach(function (field) {
         try {
           if (!field || field.disabled || field.type === "hidden" || isHidden(field)) {
+            return;
+          }
+
+          if (field.type === "radio") {
+            var groupName = field.name || "__unnamed_radio__";
+            if (checkedGroups[groupName]) {
+              return;
+            }
+            checkedGroups[groupName] = true;
+            var group = qsa("input[type='radio'][name='" + cssEscape(groupName) + "']", panel);
+            var selected = group.some(function (candidate) {
+              return candidate.checked && !candidate.disabled;
+            });
+            if (!selected) {
+              invalid.push(field);
+              markInvalid(field);
+            }
+            return;
+          }
+
+          if (field.type === "checkbox") {
+            if (!field.checked) {
+              invalid.push(field);
+              markInvalid(field);
+            }
             return;
           }
 
@@ -1368,9 +1425,9 @@
       var alias = step.alias || "";
       var aliases = Array.isArray(step.aliases) ? step.aliases.slice() : [];
 
-      if (stepIndex === 3 && (key === "object" || key === "variables" || target === "object-variants" || target === "variables" || alias === "variables")) {
+      if (stepIndex === 4 && (key === "object" || key === "variables" || target === "object-variants" || target === "variables" || alias === "variables")) {
         return {
-          index: 3,
+          index: 4,
           key: "variables",
           alias: "object",
           aliases: uniqueArray(["object", "object-variants", "variables"].concat(aliases)),
@@ -1383,9 +1440,9 @@
         };
       }
 
-      if (stepIndex === 6 && (key === "create" || key === "actions" || target === "actions" || alias === "create")) {
+      if (stepIndex === 9 && (key === "create" || key === "actions" || target === "actions" || alias === "create")) {
         return {
-          index: 6,
+          index: 9,
           key: "actions",
           alias: "create",
           aliases: uniqueArray(["create", "actions"].concat(aliases)),

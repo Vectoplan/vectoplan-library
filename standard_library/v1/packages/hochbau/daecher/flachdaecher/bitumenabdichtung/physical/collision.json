@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.1.0",
+  "collision_enabled": true,
+  "type": "box",
+  "width": 1.0,
+  "height": 0.004,
+  "depth": 1.0,
+  "unit": "m",
+  "dimensions_mm": {
+    "width_mm": 1000,
+    "height_mm": 4,
+    "depth_mm": 1000
+  }
+}

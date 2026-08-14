@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "b0277671-7aca-5d9e-aa92-b55809bfcd7f",
+  "family_id": "vp.ingenieurbau.spezialtiefbau.schlitzwaende.schlitzwand",
+  "slug": "schlitzwand",
+  "label": "Schlitzwand",
+  "description": "Schlitzwandelement für Baugruben und unterirdische Bauwerke.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

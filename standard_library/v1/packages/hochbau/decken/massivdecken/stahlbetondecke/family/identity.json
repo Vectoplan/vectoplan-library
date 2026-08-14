@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "431c2667-2144-5cd0-b886-7ef4c0a95969",
+  "family_id": "vp.hochbau.decken.massivdecken.stahlbetondecke",
+  "slug": "stahlbetondecke",
+  "label": "Stahlbetondecke",
+  "description": "Massive Geschossdecke aus Stahlbeton.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

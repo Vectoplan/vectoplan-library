@@ -319,6 +319,19 @@ _SYMBOL_TO_MODULE: Final[dict[str, str]] = {
     "validate_render_variants_document": "render_defaults",
 
     # ---------------------------------------------------------------------
+    # pattern_defaults.py
+    # ---------------------------------------------------------------------
+    "CAD_PATTERNS_DOCUMENT_SCHEMA_VERSION": "pattern_defaults",
+    "CAD_PATTERN_VALUE_KEYS": "pattern_defaults",
+    "PatternDefaultsError": "pattern_defaults",
+    "build_cad_patterns_document": "pattern_defaults",
+    "cad_pattern_document_from_create_request": "pattern_defaults",
+    "get_hatch_pattern_catalog_path": "pattern_defaults",
+    "get_hatch_pattern_options": "pattern_defaults",
+    "load_hatch_pattern_catalog": "pattern_defaults",
+    "validate_cad_patterns_document": "pattern_defaults",
+
+    # ---------------------------------------------------------------------
     # physical_defaults.py
     # ---------------------------------------------------------------------
     "PHYSICAL_DEFAULTS_SCHEMA_VERSION": "physical_defaults",

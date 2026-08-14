@@ -1,0 +1,75 @@
+{
+  "schema_version": "0.1.0",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "default_variant_id": "default",
+  "variant_count": 6,
+  "variants": [
+    {
+      "variant_id": "default",
+      "variant_key": "default",
+      "label": "4 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": true,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "5_mm",
+      "variant_key": "5_mm",
+      "label": "5 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "6_mm",
+      "variant_key": "6_mm",
+      "label": "6 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "8_mm",
+      "variant_key": "8_mm",
+      "label": "8 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "10_mm",
+      "variant_key": "10_mm",
+      "label": "10 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "12_mm",
+      "variant_key": "12_mm",
+      "label": "12 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    }
+  ]
+}

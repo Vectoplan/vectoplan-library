@@ -136,7 +136,7 @@ SRC_ROOT: Final[Path] = SERVICE_ROOT / "src"
 MODELS_ROOT: Final[Path] = SERVICE_ROOT / "models"
 MIGRATIONS_ROOT: Final[Path] = SERVICE_ROOT / _DEFAULT_MIGRATIONS_DIRECTORY
 LIBRARY_ROOT: Final[Path] = SRC_ROOT / "library"
-LIBRARY_SOURCE_ROOT: Final[Path] = LIBRARY_ROOT / "source"
+LIBRARY_SOURCE_ROOT: Final[Path] = SERVICE_ROOT / "standard_library" / "v1" / "packages"
 
 
 @lru_cache(maxsize=1)
@@ -556,7 +556,7 @@ def _resolve_library_source_root() -> Path:
     Ermittelt Creative-Library-Source-Root.
 
     Standard:
-        SERVICE_ROOT/src/library/source
+        SERVICE_ROOT/standard_library/v1/packages
     """
     raw = _read_first_env(
         "VECTOPLAN_LIBRARY_SOURCE_ROOT",

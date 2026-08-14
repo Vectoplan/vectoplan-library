@@ -1830,6 +1830,161 @@
       "metadata": {
         "document_type": "installation_manual"
       }
+    },
+    {
+      "key": "cad.cut_pattern_id",
+      "label": "Schnittschraffur",
+      "description": "Kanonische Vektor-Schraffur für geschnittene CAD-Flächen.",
+      "active": true,
+      "sort_order": 2370,
+      "value_type": "string",
+      "widget": "select",
+      "required_default": false,
+      "default_value": "solid",
+      "group": "cad",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "metadata": {
+        "references_dataset": "hatch_patterns",
+        "render_role": "cut"
+      }
+    },
+    {
+      "key": "cad.surface_pattern_id",
+      "label": "Oberflächenmuster",
+      "description": "Kanonisches Vektor-Muster für ungeschnittene CAD-Oberflächen.",
+      "active": true,
+      "sort_order": 2380,
+      "value_type": "string",
+      "widget": "select",
+      "required_default": false,
+      "default_value": "none",
+      "group": "cad",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "metadata": {
+        "references_dataset": "hatch_patterns",
+        "render_role": "surface"
+      }
+    },
+    {
+      "key": "cad.pattern_scale",
+      "label": "Mustermaßstab",
+      "description": "Skalierungsfaktor für Schnitt- und Oberflächenmuster.",
+      "active": true,
+      "sort_order": 2390,
+      "value_type": "number",
+      "widget": "number",
+      "required_default": false,
+      "default_value": 1.0,
+      "group": "cad",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "metadata": {
+        "minimum": 0.01,
+        "maximum": 1000.0
+      }
+    },
+    {
+      "key": "cad.pattern_rotation_deg",
+      "label": "Musterdrehung",
+      "description": "Drehwinkel der CAD-Schraffur relativ zum Bauteil in Grad.",
+      "active": true,
+      "sort_order": 2400,
+      "value_type": "number",
+      "widget": "number",
+      "required_default": false,
+      "default_value": 0.0,
+      "group": "cad",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "metadata": {
+        "unit": "deg",
+        "minimum": -360.0,
+        "maximum": 360.0
+      }
+    },
+    {
+      "key": "cad.pattern_foreground_color",
+      "label": "Muster-Vordergrundfarbe",
+      "description": "Linien- und Vordergrundfarbe der CAD-Schraffur als Hex-Farbwert.",
+      "active": true,
+      "sort_order": 2410,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "#202020",
+      "group": "cad",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "metadata": {
+        "format": "hex-color"
+      }
+    },
+    {
+      "key": "cad.pattern_background_color",
+      "label": "Muster-Hintergrundfarbe",
+      "description": "Hintergrundfarbe der CAD-Schraffur als Hex-Farbwert.",
+      "active": true,
+      "sort_order": 2420,
+      "value_type": "string",
+      "widget": "input",
+      "required_default": false,
+      "default_value": "#FFFFFF",
+      "group": "cad",
+      "applies_to": [
+        "simple_cell_block.v1",
+        "wall_masonry_product.v1",
+        "concrete_structural_part.v1",
+        "road_pavement_block.v1",
+        "multi_cell_module.v1",
+        "catalog_object.v1",
+        "sanitary_faucet_catalog.v1",
+        "adaptive_system.v1"
+      ],
+      "metadata": {
+        "format": "hex-color"
+      }
     }
   ]
 }

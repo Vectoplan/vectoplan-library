@@ -406,6 +406,8 @@ __version__ = "1.0.0"
 ENV_SYNC_ENABLED = "VPLIB_LIBRARY_SYNC_ENABLED"
 ENV_SYNC_STRICT = "VPLIB_LIBRARY_SYNC_STRICT"
 ENV_SYNC_AUTOCOMMIT = "VPLIB_LIBRARY_SYNC_AUTOCOMMIT"
+ENV_SYNC_COMMIT_EACH_CANDIDATE = "VPLIB_LIBRARY_SYNC_COMMIT_EACH_CANDIDATE"
+ENV_SYNC_DIRECT_REPOSITORY_PUBLISH = "VPLIB_LIBRARY_SYNC_DIRECT_REPOSITORY_PUBLISH"
 ENV_SYNC_MARK_MISSING_DELETED = "VPLIB_LIBRARY_SYNC_MARK_MISSING_DELETED"
 ENV_SYNC_CONTINUE_ON_CANDIDATE_ERROR = "VPLIB_LIBRARY_SYNC_CONTINUE_ON_CANDIDATE_ERROR"
 ENV_SYNC_INCLUDE_RAW_DOCUMENTS = "VPLIB_LIBRARY_SYNC_INCLUDE_RAW_DOCUMENTS"
@@ -542,6 +544,8 @@ class LibraryDbSyncServiceConfig:
     enabled: bool = DEFAULT_SYNC_ENABLED
     strict: bool = DEFAULT_SYNC_STRICT
     autocommit: bool = DEFAULT_SYNC_AUTOCOMMIT
+    commit_each_candidate: bool = False
+    direct_repository_publish: bool = True
     mark_missing_deleted: bool = DEFAULT_SYNC_MARK_MISSING_DELETED
     continue_on_candidate_error: bool = DEFAULT_SYNC_CONTINUE_ON_CANDIDATE_ERROR
     include_raw_documents: bool = DEFAULT_SYNC_INCLUDE_RAW_DOCUMENTS
@@ -558,6 +562,8 @@ class LibraryDbSyncServiceConfig:
         object.__setattr__(self, "enabled", safe_bool(self.enabled, DEFAULT_SYNC_ENABLED))
         object.__setattr__(self, "strict", safe_bool(self.strict, DEFAULT_SYNC_STRICT))
         object.__setattr__(self, "autocommit", safe_bool(self.autocommit, DEFAULT_SYNC_AUTOCOMMIT))
+        object.__setattr__(self, "commit_each_candidate", safe_bool(self.commit_each_candidate, False))
+        object.__setattr__(self, "direct_repository_publish", safe_bool(self.direct_repository_publish, True))
         object.__setattr__(self, "mark_missing_deleted", safe_bool(self.mark_missing_deleted, DEFAULT_SYNC_MARK_MISSING_DELETED))
         object.__setattr__(
             self,
@@ -1656,6 +1662,30 @@ def candidate_is_valid(value: Any) -> bool:
     return error_count == 0 and fatal_count == 0
 
 
+def build_validation_snapshot(value: Any) -> dict[str, Any]:
+    """Persistiert nur stabile Validierungswerte, keine rekursiven Scan-Modelle."""
+    validation = extract_validation_payload(value)
+    valid = candidate_is_valid(value)
+    return {
+        "schema_version": "library_db_sync_service.validation_snapshot.v1",
+        "valid": valid,
+        "status": first_non_empty(
+            validation.get("status"),
+            validation.get("validation_status"),
+            "valid" if valid else "invalid",
+        ),
+        "error_count": safe_int(
+            first_non_empty(validation.get("error_count"), validation.get("errors_count")),
+            0,
+        ),
+        "warning_count": safe_int(
+            first_non_empty(validation.get("warning_count"), validation.get("warnings_count")),
+            0,
+        ),
+        "fatal_count": safe_int(validation.get("fatal_count"), 0),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Payload builders
 # ---------------------------------------------------------------------------
@@ -1815,27 +1845,33 @@ def build_family_upsert_payload(value: Any) -> dict[str, Any]:
             "manifest": manifest,
             "source": LIBRARY_DB_SYNC_SERVICE_NAME,
         },
-        "summary_payload": json_safe(
-            {
-                **summary,
-                "vplib_uid": uid,
-                "family_id": family_id,
-                "package_id": package_id,
-                "family_slug": family_slug,
-                "label": label,
-                "object_kind": first_non_empty(
-                    data.get("object_kind"),
-                    summary.get("object_kind"),
-                    manifest.get("object_kind"),
-                    identity.get("object_kind"),
-                    inventory.get("object_kind"),
-                ),
-                "domain": domain,
-                "category": category,
-                "subcategory": subcategory,
-            }
-        ),
-        "payload": json_safe(data),
+        "summary_payload": {
+            "schema_version": "library_db_sync_service.family_summary.v1",
+            "vplib_uid": uid,
+            "family_id": family_id,
+            "package_id": package_id,
+            "family_slug": family_slug,
+            "label": label,
+            "object_kind": first_non_empty(
+                data.get("object_kind"),
+                summary.get("object_kind"),
+                manifest.get("object_kind"),
+                identity.get("object_kind"),
+                inventory.get("object_kind"),
+            ),
+            "domain": domain,
+            "category": category,
+            "subcategory": subcategory,
+            "default_variant_id": default_variant_id,
+            "variant_count": len(variant_ids),
+        },
+        "payload": {
+            "schema_version": "library_db_sync_service.family_payload.v1",
+            "source": LIBRARY_DB_SYNC_SERVICE_NAME,
+            "vplib_uid": uid,
+            "family_id": family_id,
+            "package_id": package_id,
+        },
     }
 
 
@@ -1895,8 +1931,19 @@ def build_revision_upsert_payload(value: Any, *, scan_run_id: Any = None) -> dic
         "modules_payload": modules,
         "family_payload": identity,
         "classification_payload": classification,
-        "summary_payload": json_safe(summary),
-        "detail_payload": json_safe(detail_payload),
+        "summary_payload": {
+            "schema_version": "library_db_sync_service.revision_summary.v1",
+            "vplib_uid": extract_vplib_uid(value, documents),
+            "family_id": extract_family_id(value, documents),
+            "package_id": extract_package_id(value, documents),
+            "revision_hash": revision_hash,
+            "source_path": extract_source_path(value, documents),
+            "document_count": len(documents),
+        },
+        "detail_payload": {
+            "schema_version": "library_db_sync_service.revision_detail.v1",
+            "document_count": len(documents),
+        },
         "raw_documents": json_safe(documents),
         "documents": json_safe(documents),
         "document_bundle": {
@@ -1906,14 +1953,21 @@ def build_revision_upsert_payload(value: Any, *, scan_run_id: Any = None) -> dic
             "classification": classification,
             "documents": documents,
         },
-        "validation_payload": json_safe(validation),
+        "validation_payload": build_validation_snapshot(value),
         "metadata": {
             "source": LIBRARY_DB_SYNC_SERVICE_NAME,
             "document_count": len(documents),
             "manifest": manifest,
             "revision_hash": revision_hash,
         },
-        "payload": json_safe(data),
+        "payload": {
+            "schema_version": "library_db_sync_service.revision_payload.v1",
+            "source": LIBRARY_DB_SYNC_SERVICE_NAME,
+            "vplib_uid": extract_vplib_uid(value, documents),
+            "family_id": extract_family_id(value, documents),
+            "package_id": extract_package_id(value, documents),
+            "revision_hash": revision_hash,
+        },
     }
 
 
@@ -2236,6 +2290,22 @@ def build_publish_payload_from_candidate(candidate: Any) -> dict[str, Any]:
     variants = extract_variant_payloads(candidate)
     assets = extract_asset_payloads(candidate)
     document_rows = extract_document_payloads(candidate)
+    candidate_snapshot = {
+        "schema_version": "library_db_sync_service.candidate_snapshot.v1",
+        "vplib_uid": family_payload.get("vplib_uid"),
+        "family_id": family_payload.get("family_id"),
+        "package_id": family_payload.get("package_id"),
+        "label": family_payload.get("label"),
+        "object_kind": family_payload.get("object_kind"),
+        "classification_path": family_payload.get("classification_path"),
+        "source_path": family_payload.get("source_path"),
+        "package_root": family_payload.get("package_root"),
+        "revision_hash": revision_payload.get("revision_hash"),
+        "valid": candidate_is_valid(candidate),
+        "variant_count": len(variants),
+        "asset_count": len(assets),
+        "document_count": len(document_rows),
+    }
 
     return {
         "schema_version": "library_db_sync_service.publish_payload.v1",
@@ -2263,9 +2333,9 @@ def build_publish_payload_from_candidate(candidate: Any) -> dict[str, Any]:
         "generator_payload": {
             "component": LIBRARY_DB_SYNC_SERVICE_NAME,
             "version": __version__,
-            "candidate_summary": json_safe(extract_summary_payload(candidate)),
+            "candidate_summary": candidate_snapshot,
         },
-        "validation_payload": extract_validation_payload(candidate),
+        "validation_payload": build_validation_snapshot(candidate),
         "variants": variants,
         "assets": assets,
         "documents": document_rows,
@@ -2279,7 +2349,10 @@ def build_publish_payload_from_candidate(candidate: Any) -> dict[str, Any]:
             "assets": assets,
         },
         "payload": {
-            "candidate": json_safe(candidate),
+            # Der komplette Scan-Kandidat kann zyklische bzw. stark redundante
+            # Read-Model-Strukturen enthalten. Alle fachlichen Dokumente stehen
+            # bereits im document_bundle; hier reicht eine stabile Referenz.
+            "candidate": candidate_snapshot,
             "family": family_payload,
             "revision": revision_payload,
         },
@@ -2378,6 +2451,8 @@ class LibraryDbSyncService:
                 enabled=env_bool(ENV_SYNC_ENABLED, DEFAULT_SYNC_ENABLED),
                 strict=env_bool(ENV_SYNC_STRICT, DEFAULT_SYNC_STRICT),
                 autocommit=env_bool(ENV_SYNC_AUTOCOMMIT, DEFAULT_SYNC_AUTOCOMMIT),
+                commit_each_candidate=env_bool(ENV_SYNC_COMMIT_EACH_CANDIDATE, False),
+                direct_repository_publish=env_bool(ENV_SYNC_DIRECT_REPOSITORY_PUBLISH, True),
                 mark_missing_deleted=env_bool(
                     ENV_SYNC_MARK_MISSING_DELETED,
                     DEFAULT_SYNC_MARK_MISSING_DELETED,
@@ -2646,6 +2721,9 @@ class LibraryDbSyncService:
                     active_vplib_uids.append(candidate_result.vplib_uid)
 
                 result.add_candidate(candidate_result)
+
+                if self.config.autocommit and self.config.commit_each_candidate:
+                    self._commit(repository)
 
             except Exception as exc:
                 issue = exception_to_issue(
@@ -2947,6 +3025,9 @@ class LibraryDbSyncService:
         scan_run: Any = None,
     ) -> dict[str, Any]:
         """Publishes using CreativeLibraryService if available, otherwise repository fallback."""
+        if self.config.direct_repository_publish:
+            return self._publish_with_repository(repository, publish_payload, scan_run=scan_run)
+
         service = self.get_creative_service(repository=repository)
 
         if service is not None:
@@ -3016,12 +3097,21 @@ class LibraryDbSyncService:
             "payload": {
                 "created": item_created,
                 "updated": not item_created,
-                "item": json_safe(item),
-                "revision": json_safe(revision),
+                # ORM-Objekte nie rekursiv serialisieren: geladene Relationships
+                # können auf Item/Revision zurückzeigen und den Import aufblasen.
+                "item": {
+                    "id": self._get_object_id(item),
+                    "vplib_uid": publish_payload.get("vplib_uid"),
+                    "family_id": publish_payload.get("family_id"),
+                },
+                "revision": {
+                    "id": self._get_object_id(revision),
+                    "revision_hash": publish_payload.get("revision_hash"),
+                },
                 "children": {
-                    "variants": [json_safe(value) for value in variants],
-                    "assets": [json_safe(value) for value in assets],
-                    "documents": [json_safe(value) for value in documents],
+                    "variants": [{"id": self._get_object_id(value)} for value in variants],
+                    "assets": [{"id": self._get_object_id(value)} for value in assets],
+                    "documents": [{"id": self._get_object_id(value)} for value in documents],
                     "counts": {
                         "variant_count": len(variants),
                         "asset_count": len(assets),
@@ -3053,7 +3143,14 @@ class LibraryDbSyncService:
             "visible": True,
             "manifest_payload": publish_payload.get("manifest_payload") or {},
             "classification_payload": publish_payload.get("classification_payload") or {},
-            "payload": json_safe(dict(publish_payload)),
+            "payload": {
+                "schema_version": "library_db_sync_service.repository_item.v1",
+                "source": LIBRARY_DB_SYNC_SERVICE_NAME,
+                "vplib_uid": publish_payload.get("vplib_uid"),
+                "family_id": publish_payload.get("family_id"),
+                "package_id": publish_payload.get("package_id"),
+                "revision_hash": publish_payload.get("revision_hash"),
+            },
             "metadata": {
                 "source": LIBRARY_DB_SYNC_SERVICE_NAME,
                 "revision_hash": publish_payload.get("revision_hash"),
@@ -3077,7 +3174,14 @@ class LibraryDbSyncService:
             "document_bundle": publish_payload.get("document_bundle") or {},
             "generator_payload": publish_payload.get("generator_payload") or {},
             "validation_payload": publish_payload.get("validation_payload") or {},
-            "payload": json_safe(dict(publish_payload)),
+            "payload": {
+                "schema_version": "library_db_sync_service.repository_revision.v1",
+                "source": LIBRARY_DB_SYNC_SERVICE_NAME,
+                "vplib_uid": publish_payload.get("vplib_uid"),
+                "family_id": publish_payload.get("family_id"),
+                "package_id": publish_payload.get("package_id"),
+                "revision_hash": publish_payload.get("revision_hash"),
+            },
             "metadata": {
                 "source": LIBRARY_DB_SYNC_SERVICE_NAME,
                 "revision_hash": publish_payload.get("revision_hash"),
@@ -3105,8 +3209,6 @@ class LibraryDbSyncService:
                     or "Creative Library publish failed."
                 )
             raise LibraryDbSyncCandidateError(message)
-        candidate_result.metadata["publish_result"] = json_safe(data)
-
         created = safe_bool(payload.get("created"), False)
         updated = safe_bool(payload.get("updated"), False)
 
@@ -3134,6 +3236,17 @@ class LibraryDbSyncService:
         candidate_result.variant_count = safe_int(counts.get("variant_count"), 0)
         candidate_result.asset_count = safe_int(counts.get("asset_count"), 0)
         candidate_result.document_count = safe_int(counts.get("document_count"), 0)
+        candidate_result.metadata["publish_result"] = {
+            "ok": safe_bool(data.get("ok"), True),
+            "status": first_non_empty(data.get("status"), "ok"),
+            "created": created,
+            "updated": updated,
+            "item_id": candidate_result.item_db_id,
+            "revision_id": candidate_result.revision_db_id,
+            "variant_count": candidate_result.variant_count,
+            "asset_count": candidate_result.asset_count,
+            "document_count": candidate_result.document_count,
+        }
 
         item_operation_status = (
             LibrarySyncCandidateStatus.INSERTED.value
@@ -3283,8 +3396,7 @@ class LibraryDbSyncService:
     def _create_revision(self, repository: Any, item: Any, payload: Mapping[str, Any]) -> Any:
         method = getattr(repository, "create_revision", None)
         if callable(method):
-            item_ref = self._get_object_id(item)
-            return method(item_ref, payload, mark_current=True, commit=False)
+            return method(item, payload, mark_current=True, commit=False)
 
         legacy = getattr(repository, "upsert_revision_if_changed", None)
         if callable(legacy):
@@ -3298,8 +3410,8 @@ class LibraryDbSyncService:
         if callable(method):
             result = method(
                 payload,
-                item_ref=self._get_object_id(item),
-                revision_ref=self._get_object_id(revision),
+                item_ref=item,
+                revision_ref=revision,
                 commit=False,
             )
             if isinstance(result, tuple):
@@ -3318,8 +3430,8 @@ class LibraryDbSyncService:
         if callable(method):
             return method(
                 payload,
-                item_ref=self._get_object_id(item),
-                revision_ref=self._get_object_id(revision),
+                item_ref=item,
+                revision_ref=revision,
                 commit=False,
             )
 
@@ -3335,8 +3447,8 @@ class LibraryDbSyncService:
         if callable(method):
             return method(
                 payload,
-                item_ref=self._get_object_id(item),
-                revision_ref=self._get_object_id(revision),
+                item_ref=item,
+                revision_ref=revision,
                 commit=False,
             )
 
@@ -3571,6 +3683,7 @@ class LibraryDbSyncService:
                 "enabled": self.config.enabled,
                 "strict": self.config.strict,
                 "autocommit": self.config.autocommit,
+                "commit_each_candidate": self.config.commit_each_candidate,
                 "mark_missing_deleted": self.config.mark_missing_deleted,
                 "continue_on_candidate_error": self.config.continue_on_candidate_error,
                 "include_raw_documents": self.config.include_raw_documents,
@@ -3816,6 +3929,7 @@ __all__ = [
     "ENV_SYNC_ENABLED",
     "ENV_SYNC_STRICT",
     "ENV_SYNC_AUTOCOMMIT",
+    "ENV_SYNC_COMMIT_EACH_CANDIDATE",
     "ENV_SYNC_MARK_MISSING_DELETED",
     "ENV_SYNC_CONTINUE_ON_CANDIDATE_ERROR",
     "ENV_SYNC_INCLUDE_RAW_DOCUMENTS",

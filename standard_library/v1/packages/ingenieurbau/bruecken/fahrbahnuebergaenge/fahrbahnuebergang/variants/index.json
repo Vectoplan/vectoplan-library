@@ -1,0 +1,64 @@
+{
+  "schema_version": "0.1.0",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "default_variant_id": "default",
+  "variant_count": 5,
+  "variants": [
+    {
+      "variant_id": "default",
+      "variant_key": "default",
+      "label": "Bewegung 80 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": true,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "bewegung_160_mm",
+      "variant_key": "bewegung_160_mm",
+      "label": "Bewegung 160 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "bewegung_240_mm",
+      "variant_key": "bewegung_240_mm",
+      "label": "Bewegung 240 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "bewegung_320_mm",
+      "variant_key": "bewegung_320_mm",
+      "label": "Bewegung 320 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "bewegung_480_mm",
+      "variant_key": "bewegung_480_mm",
+      "label": "Bewegung 480 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    }
+  ]
+}

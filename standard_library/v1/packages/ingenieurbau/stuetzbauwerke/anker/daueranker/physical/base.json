@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "598d25c8-6f28-516e-ab92-80bfbb6e51d9",
+  "family_id": "vp.ingenieurbau.stuetzbauwerke.anker.daueranker",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "stahl"
+  ]
+}

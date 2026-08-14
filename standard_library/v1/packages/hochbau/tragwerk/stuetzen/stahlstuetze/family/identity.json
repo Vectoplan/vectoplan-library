@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "3a4a2ec4-a8c7-5f3b-8ec2-20fa6ee8e166",
+  "family_id": "vp.hochbau.tragwerk.stuetzen.stahlstuetze",
+  "slug": "stahlstuetze",
+  "label": "Stahlstütze",
+  "description": "Vereinfachte Stahlstütze für Vorplanung und Kollisionsprüfung.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
 
-  <title>User-Inventar · VECTOPLAN</title>
+  <title data-i18n="vectoplan.server.library.inventar.user_inventar.title.user_inventar_vectoplan.3a379148">User-Inventar · VECTOPLAN</title>
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css', v='20260809.3') }}">
 </head>
@@ -80,7 +80,7 @@
     data-wheel-navigation-enabled="{{ 'true' if _wheel_navigation_enabled else 'false' }}"
     data-keyboard-navigation-enabled="{{ 'true' if _keyboard_navigation_enabled else 'false' }}"
     data-cache-enabled="{{ 'true' if _cache_enabled else 'false' }}"
-  >
+   data-i18n-aria-label="server.library.inventar.user_inventar.main_aria-label.user_inventar.e0345efb">
     {% set user_inventory_hotbar_variant = "overlay" %}
     {% set user_inventory_hotbar_id = "vp-user-hotbar" %}
     {% set user_inventory_hotbar_label = "Aktuelles User-Inventar" %}

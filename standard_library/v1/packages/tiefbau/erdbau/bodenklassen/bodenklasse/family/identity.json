@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "e6894c83-3725-5c6d-ac41-89fc3784a2f4",
+  "family_id": "vp.tiefbau.erdbau.bodenklassen.bodenklasse",
+  "slug": "bodenklasse",
+  "label": "Bodenklasse",
+  "description": "Generische Bodenvolumen für frühe Erdbau- und Massenermittlung.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

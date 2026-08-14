@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "0db51e36-55c8-59e0-9da8-b36eb0d580a6",
+  "family_id": "vp.ingenieurbau.brueckentragwerk.traeger.spannbetontraeger",
+  "slug": "spannbetontraeger",
+  "label": "Spannbetonträger",
+  "description": "Vereinfachter Spannbeton-Fertigteilträger für Variantenstudien.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

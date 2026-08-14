@@ -1,9 +1,9 @@
-/* VPLIB Create · Step 5: exact per-variant CAD dimensions. */
+/* VPLIB Create · Step 7: exact per-variant CAD dimensions. */
 (function () {
   "use strict";
 
   var GLOBAL_NAME = "VectoplanCreateTechnical";
-  var VERSION = "2.0.0";
+  var VERSION = "3.0.0";
   var ROOT_SELECTOR = "[data-vp-technical-controller='dimensions']";
   var DIMENSION_FIELDS = [
     {
@@ -43,6 +43,52 @@
     }
   ];
   var DIMENSION_KEYS = DIMENSION_FIELDS.map(function (field) { return field.key; });
+  var PATTERN_FIELDS = [
+    {
+      key: "cad.cut_pattern_id",
+      label: "Schnittschraffur",
+      description: "Vektor-Schraffur für geschnittene Bauteilflächen.",
+      valueType: "string",
+      defaultValue: "solid"
+    },
+    {
+      key: "cad.surface_pattern_id",
+      label: "Oberflächenmuster",
+      description: "Vektor-Muster für ungeschnittene Oberflächen.",
+      valueType: "string",
+      defaultValue: "none"
+    },
+    {
+      key: "cad.pattern_scale",
+      label: "Mustermaßstab",
+      description: "Skalierungsfaktor für Schnitt- und Oberflächenmuster.",
+      valueType: "number",
+      defaultValue: 1
+    },
+    {
+      key: "cad.pattern_rotation_deg",
+      label: "Musterdrehung",
+      description: "Drehwinkel des Musters in Grad relativ zum Bauteil.",
+      valueType: "number",
+      defaultValue: 0
+    },
+    {
+      key: "cad.pattern_foreground_color",
+      label: "Muster-Vordergrundfarbe",
+      description: "Vordergrundfarbe der CAD-Schraffur als Hex-Farbwert.",
+      valueType: "string",
+      defaultValue: "#202020"
+    },
+    {
+      key: "cad.pattern_background_color",
+      label: "Muster-Hintergrundfarbe",
+      description: "Hintergrundfarbe der CAD-Schraffur als Hex-Farbwert.",
+      valueType: "string",
+      defaultValue: "#FFFFFF"
+    }
+  ];
+  var PATTERN_KEYS = PATTERN_FIELDS.map(function (field) { return field.key; });
+  var MANAGED_KEYS = DIMENSION_KEYS.concat(PATTERN_KEYS);
 
   var state = {
     root: null,
@@ -175,7 +221,7 @@
       keys = [];
     }
     return Array.from(new Set(keys.map(clean).filter(function (key) {
-      return key && DIMENSION_KEYS.indexOf(key) === -1;
+      return key && MANAGED_KEYS.indexOf(key) === -1;
     })));
   }
 
@@ -237,6 +283,11 @@
       variantId: id,
       values: clone(values, {})
     });
+    dispatch("vectoplan:create:technical-patterns-changed", {
+      source: "technical_dimensions",
+      variantId: id,
+      values: clone(values, {})
+    });
   }
 
   function numberValue(rawValue) {
@@ -277,6 +328,32 @@
     }
     units[key] = clean(unit) || "mm";
     values["technical.units"] = units;
+    persistVariant(variant, values);
+  }
+
+  function patternField(key) {
+    return PATTERN_FIELDS.find(function (field) { return field.key === key; }) || null;
+  }
+
+  function patternValue(field, rawValue) {
+    if (!field) {
+      return null;
+    }
+    if (field.valueType === "number") {
+      var parsed = Number(String(rawValue).replace(",", "."));
+      return Number.isFinite(parsed) ? parsed : field.defaultValue;
+    }
+    return clean(rawValue) || field.defaultValue;
+  }
+
+  function setPatternValue(key, rawValue) {
+    var variant = selectedVariant();
+    var field = patternField(key);
+    if (!variant || !field) {
+      return;
+    }
+    var values = variantValues(variant);
+    values[key] = patternValue(field, rawValue);
     persistVariant(variant, values);
   }
 
@@ -396,6 +473,20 @@
     }
   }
 
+  function renderPatternControls(values) {
+    PATTERN_FIELDS.forEach(function (field) {
+      var input = query("[data-vp-technical-pattern-value='" + field.key + "']", state.root);
+      if (!input) {
+        return;
+      }
+      var value = values[field.key];
+      if (value === null || typeof value === "undefined" || value === "") {
+        value = field.defaultValue;
+      }
+      input.value = String(value);
+    });
+  }
+
   function renderPayloadFields() {
     var container = query("[data-vp-technical-payload-fields]", state.root);
     if (!container) {
@@ -431,6 +522,29 @@
         });
         index += 1;
       });
+      PATTERN_FIELDS.forEach(function (field) {
+        var value = values[field.key];
+        if (value === null || typeof value === "undefined" || value === "") {
+          value = field.defaultValue;
+        }
+        var fields = {
+          key: field.key,
+          value: value,
+          unit: field.key === "cad.pattern_rotation_deg" ? "deg" : "",
+          description: field.description,
+          value_type: field.valueType,
+          scope: "variant",
+          variant_id: variantId(variant)
+        };
+        Object.keys(fields).forEach(function (fieldName) {
+          var input = document.createElement("input");
+          input.type = "hidden";
+          input.name = "variables[" + index + "][" + fieldName + "]";
+          input.value = String(fields[fieldName]);
+          container.appendChild(input);
+        });
+        index += 1;
+      });
     });
     container.setAttribute("data-vp-technical-payload-count", String(index));
   }
@@ -440,14 +554,16 @@
     if (!status) {
       return;
     }
-    status.textContent = DIMENSION_FIELDS.length + " feste CAD-Maße";
+    status.textContent = DIMENSION_FIELDS.length + " CAD-Maße · " + PATTERN_FIELDS.length + " Musterwerte";
     status.setAttribute("data-vp-technical-status", "ready");
     state.root.setAttribute("data-vp-technical-ready", "true");
   }
 
   function renderVariant() {
     populateVariantSelect();
-    renderRows(variantValues(selectedVariant()));
+    var values = variantValues(selectedVariant());
+    renderRows(values);
+    renderPatternControls(values);
     renderPayloadFields();
     updateStatus();
   }
@@ -470,13 +586,18 @@
     var unitKey = clean(target.getAttribute("data-vp-technical-dimension-unit"));
     if (unitKey) {
       setUnit(unitKey, target.value);
+      return;
+    }
+    var patternKey = clean(target.getAttribute("data-vp-technical-pattern-value"));
+    if (patternKey) {
+      setPatternValue(patternKey, target.value);
     }
   }
 
   function bindEvents() {
     state.root.addEventListener("change", onChange);
     state.root.addEventListener("input", function (event) {
-      if (event.target && event.target.matches("[data-vp-technical-dimension-value]")) {
+      if (event.target && event.target.matches("[data-vp-technical-dimension-value], [data-vp-technical-pattern-value]")) {
         onChange(event);
       }
     });
@@ -510,6 +631,7 @@
       component: GLOBAL_NAME,
       version: VERSION,
       dimensionCount: DIMENSION_FIELDS.length,
+      patternFieldCount: PATTERN_FIELDS.length,
       unitCount: lengthUnits().length
     });
     return true;
@@ -524,6 +646,8 @@
         currentVariantId: state.currentVariantId,
         dimensionCount: DIMENSION_FIELDS.length,
         dimensionKeys: DIMENSION_KEYS.slice(),
+        patternFieldCount: PATTERN_FIELDS.length,
+        patternKeys: PATTERN_KEYS.slice(),
         unitCount: lengthUnits().length
       };
     }

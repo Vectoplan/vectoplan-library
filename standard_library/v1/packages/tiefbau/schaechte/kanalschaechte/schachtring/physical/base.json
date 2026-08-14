@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "cd095d75-ac53-5b1b-a4eb-993db8d2789d",
+  "family_id": "vp.tiefbau.schaechte.kanalschaechte.schachtring",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "beton"
+  ]
+}

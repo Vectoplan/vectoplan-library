@@ -106,6 +106,212 @@ def test_package_plan_exposes_binary_asset_metadata_without_bytes() -> None:
     assert manifest["assets"][0]["embedded"] is True
 
 
+def test_manufacturer_profile_is_written_as_portable_vplib_contract() -> None:
+    payload = minimal_payload()
+    payload["manufacturer_profile"] = {
+        "scope": "manufacturer",
+        "organization": {
+            "organization_id": "org:vectobrick",
+            "name": "VECTOBRICK GmbH",
+            "brand": "VECTOBRICK",
+            "website": "https://example.com",
+            "country_code": "DE",
+        },
+        "availability": {
+            "coverage_mode": "locations",
+            "locations": [
+                {
+                    "location_id": "werk_nord",
+                    "name": "Werk Nord",
+                    "roles": ["production", "delivery", "distribution"],
+                    "postal_code": "10115",
+                    "city": "Berlin",
+                    "country_code": "DE",
+                    "delivery_radius_km": 180,
+                    "sales_regions": ["Berlin", "Brandenburg"],
+                    "applies_to_all_variants": True,
+                    "variant_ids": ["default"],
+                }
+            ]
+        },
+    }
+
+    result = create_service().build_package_plan(payload)
+
+    assert result.ok, [issue.to_dict() for issue in result.errors]
+    documents = result.data["documents"]
+    contract = documents["manufacturer/contract.json"]
+    identity = documents["family/identity.json"]
+    assert contract["manufacturer_bound"] is True
+    assert contract["organization"]["name"] == "VECTOBRICK GmbH"
+    assert contract["availability"]["storage"] == "platform_database_with_package_snapshot"
+    assert contract["availability"]["coverage_mode"] == "locations"
+    assert contract["availability"]["location_count"] == 1
+    assert contract["availability"]["locations"][0]["roles"] == [
+        "production",
+        "delivery",
+        "distribution",
+    ]
+    assert contract["availability"]["locations"][0]["delivery_radius_km"] == 180
+    assert contract["availability"]["locations"][0]["variant_ids"] == ["default"]
+    assert identity["manufacturer_scope"] == "manufacturer"
+    assert identity["manufacturer"]["organization_id"] == "org:vectobrick"
+
+
+def test_manufacturer_bound_vplib_requires_name_location_and_location_role() -> None:
+    payload = minimal_payload()
+    payload["manufacturer_profile"] = {
+        "scope": "manufacturer",
+        "organization": {"name": ""},
+        "availability": {
+            "locations": [
+                {
+                    "location_id": "werk_nord",
+                    "name": "Werk Nord",
+                    "roles": [],
+                    "country_code": "DE",
+                }
+            ]
+        },
+    }
+
+    result = create_service().build_package_plan(payload)
+
+    assert result.ok is False
+    codes = {issue.code for issue in result.errors}
+    assert "manufacturer_name_required" in codes
+    assert "manufacturer_location_role_required" in codes
+
+
+def test_manufacturer_territory_can_cover_germany_or_a_state_per_variant() -> None:
+    payload = minimal_payload()
+    payload["definition_variants"] = [
+        {
+            "variant_id": "default",
+            "label": "Standard",
+            "is_default": True,
+            "definition_values": {},
+        },
+        {
+            "variant_id": "premium",
+            "label": "Premium",
+            "is_default": False,
+            "definition_values": {},
+        },
+    ]
+    payload["manufacturer_profile"] = {
+        "scope": "manufacturer",
+        "organization": {"name": "VECTOBRICK GmbH", "country_code": "DE"},
+        "availability": {
+            "coverage_mode": "territories",
+            "territories": [
+                {
+                    "territory_id": "de_all",
+                    "territory_code": "DE",
+                    "label": "Ganz Deutschland",
+                    "channels": ["distribution"],
+                    "applies_to_all_variants": False,
+                    "variant_ids": ["default"],
+                },
+                {
+                    "territory_id": "de_by",
+                    "territory_code": "DE-BY",
+                    "label": "Bayern",
+                    "channels": ["delivery", "distribution"],
+                    "applies_to_all_variants": False,
+                    "variant_ids": ["premium"],
+                },
+            ],
+        },
+    }
+
+    result = create_service().build_package_plan(payload)
+
+    assert result.ok, [issue.to_dict() for issue in result.errors]
+    availability = result.data["documents"]["manufacturer/contract.json"]["availability"]
+    assert availability["coverage_mode"] == "territories"
+    assert availability["location_count"] == 0
+    assert availability["territory_count"] == 2
+    assert availability["territories"][0]["territory_type"] == "country"
+    assert availability["territories"][0]["variant_ids"] == ["default"]
+    assert availability["territories"][1]["territory_type"] == "subdivision"
+    assert availability["territories"][1]["territory_code"] == "DE-BY"
+    assert availability["territories"][1]["variant_ids"] == ["premium"]
+
+
+def test_pricing_contract_requires_one_complete_rule_per_variant() -> None:
+    payload = minimal_payload()
+    payload["definition_variants"].append(
+        {
+            "variant_id": "premium",
+            "label": "Premium",
+            "is_default": False,
+            "definition_values": {},
+        }
+    )
+    payload["pricing_contract"] = {
+        "enforced": True,
+        "rules": [
+            {
+                "variant_id": "default",
+                "pricing_basis": "per_m2",
+                "price": {"amount": 79.5, "currency": "EUR", "vat_percent": 19},
+                "output": {"quantity": 16, "unit": "Steine"},
+            },
+            {
+                "variant_id": "premium",
+                "pricing_basis": "per_package",
+                "price": {"amount": 129, "currency": "EUR", "vat_percent": 19},
+                "output": {"quantity": 24, "unit": "Steine"},
+            },
+        ],
+    }
+
+    result = create_service().build_package_plan(payload)
+
+    assert result.ok, [issue.to_dict() for issue in result.errors]
+    pricing = result.data["documents"]["commercial/pricing.json"]
+    assert pricing["rule_count"] == 2
+    assert pricing["complete_rule_count"] == 2
+    assert pricing["rules"][0]["pricing_basis"] == "per_m2"
+    assert pricing["rules"][0]["output"] == {"quantity": 16.0, "unit": "Steine"}
+
+
+def test_pricing_contract_rejects_an_unpriced_variant() -> None:
+    payload = minimal_payload()
+    payload["pricing_contract"] = {"enforced": True, "rules": []}
+
+    result = create_service().build_package_plan(payload)
+
+    assert result.ok is False
+    assert "variant_pricing_incomplete" in {issue.code for issue in result.errors}
+
+
+def test_spatial_contract_keeps_directional_safety_clearances() -> None:
+    payload = minimal_payload()
+    payload["spatial_contract"] = {
+        "mode": "contained",
+        "zone": {
+            "source": "manual_dimensions",
+            "shape": "box",
+            "clearance": {
+                "left": {"enabled": True, "distance": 1.5},
+                "right": {"enabled": False, "distance": 4},
+                "front": {"enabled": True, "distance": 3},
+            },
+        },
+    }
+
+    result = create_service().build_package_plan(payload)
+
+    assert result.ok, [issue.to_dict() for issue in result.errors]
+    spatial = result.data["documents"]["editor/spatial.json"]
+    assert spatial["zone"]["margin"] == 3.0
+    assert spatial["zone"]["clearance"]["left"]["distance"] == 1.5
+    assert spatial["zone"]["clearance"]["right"]["distance"] == 0.0
+    assert spatial["zone"]["clearance"]["front"]["enabled"] is True
+
+
 def valid_texture_png(width: int = 1600, height: int = 900) -> bytes:
     from PIL import Image
 
@@ -526,13 +732,15 @@ def test_library_export_import_routes_roundtrip(tmp_path: Path, monkeypatch: pyt
 
 def test_create_ui_has_texture_upload_and_no_global_step3_documents() -> None:
     geometry = (SERVICE_ROOT / "templates/vplib/create/sections/_geometry.html").read_text(encoding="utf-8")
+    spatial = (SERVICE_ROOT / "templates/vplib/create/sections/_spatial.html").read_text(encoding="utf-8")
     variant_table = (SERVICE_ROOT / "templates/vplib/create/variants/_variant_table.html").read_text(encoding="utf-8")
     variant_table_js = (SERVICE_ROOT / "static/js/vplib/create/create_variant_table.js").read_text(encoding="utf-8")
     variables = (SERVICE_ROOT / "templates/vplib/create/sections/_variables.html").read_text(encoding="utf-8")
     drawer = (SERVICE_ROOT / "templates/vplib/create/variants/_variant_drawer_shell.html").read_text(encoding="utf-8")
     actions = (SERVICE_ROOT / "static/js/vplib/create/create_actions.js").read_text(encoding="utf-8")
     assert 'name="texture_files"' in geometry
-    assert 'name="geometry_model_files"' in geometry
+    assert 'name="geometry_model_files"' not in geometry
+    assert 'name="geometry_model_files"' in spatial
     assert "Backend-Upload folgt später" not in geometry
     assert 'name="technical_document_files"' not in variables
     assert "PDF, Tabellen, Bilder oder ZIPs werden hier nur als lokale Metadaten" not in variables
@@ -577,7 +785,7 @@ def test_wizard_click_capture_does_not_treat_step_panels_as_buttons() -> None:
     )
     assert "if (!nextButton && !prevButton && !stepButton)" in wizard
     assert "data-vp-create-step" in create_template
-    assert 'data-vp-step-target="identity"' in create_template
+    assert 'data-vp-step-target="identity-taxonomy"' in create_template
 
 
 
@@ -587,6 +795,7 @@ def test_create_ui_exposes_full_width_variants_and_functional_technical_inputs()
     technical = (SERVICE_ROOT / "templates/vplib/create/sections/_technical_cad.html").read_text(encoding="utf-8")
     technical_js = (SERVICE_ROOT / "static/js/vplib/create/create_technical.js").read_text(encoding="utf-8")
     geometry = (SERVICE_ROOT / "templates/vplib/create/sections/_geometry.html").read_text(encoding="utf-8")
+    spatial = (SERVICE_ROOT / "templates/vplib/create/sections/_spatial.html").read_text(encoding="utf-8")
     variant_table = (SERVICE_ROOT / "templates/vplib/create/variants/_variant_table.html").read_text(encoding="utf-8")
     variant_table_js = (SERVICE_ROOT / "static/js/vplib/create/create_variant_table.js").read_text(encoding="utf-8")
     variant_drawer = (SERVICE_ROOT / "templates/vplib/create/variants/_variant_drawer_shell.html").read_text(encoding="utf-8")
@@ -613,14 +822,15 @@ def test_create_ui_exposes_full_width_variants_and_functional_technical_inputs()
     assert 'variant_id: variantId(variant)' in technical_js
     assert 'class="vp-create-variant-row__name-button"' in variant_table
     assert 'data-vp-edit-definition-variant="true"' in variant_table
-    assert '<span role="columnheader">Zusatzfelder</span>' in variant_table
+    assert '>Zusatzfelder</span>' in variant_table
     assert 'U().createElement("button", {' in variant_table_js
     assert 'createProfileCell' not in variant_table_js
     assert 'text: getSummary(variant)' not in variant_table_js
     assert 'data-vp-variant-drawer-name-input="true"' in variant_drawer
     assert 'name="definition_values[variant.label]"' in variant_drawer
     assert 'values["variant.label"] = String(cache.nameInput.value || "").trim()' in variant_drawer_js
-    assert 'name="geometry_model_files"' in geometry
+    assert 'name="geometry_model_files"' not in geometry
+    assert 'name="geometry_model_files"' in spatial
     assert 'name="texture_files"' in geometry
     assert "direkt in das VPLIB eingebettet" in geometry
 
@@ -945,10 +1155,10 @@ def _selected_value(html: str, name: str) -> str:
 def test_rendered_generator_uses_fresh_assets_and_one_operational_variant_state() -> None:
     app, html = _rendered_create_page()
     assert app
-    assert "/static/css/vplib/create.css?v=20260803.1" in html
-    assert "/static/js/vplib/create/create_uploads.js?v=20260803.1" in html
-    assert "/static/js/vplib/create/create_variant_drawer.js?v=20260803.1" in html
-    assert "/static/js/vplib/create/create_actions.js?v=20260803.1" in html
+    assert "/static/css/vplib/create.css?v=20260813.3" in html
+    assert "/static/js/vplib/create/create_uploads.js?v=20260813.3" in html
+    assert "/static/js/vplib/create/create_variant_drawer.js?v=20260813.3" in html
+    assert "/static/js/vplib/create/create_actions.js?v=20260813.3" in html
 
     for name in (
         "object_kind",
@@ -982,10 +1192,10 @@ def test_rendered_generator_embeds_isolated_editor_preview() -> None:
     assert 'data-vp-editor-generator-preview-frame' in html
     assert 'data-editor-preview-contract="vectoplan-generator-preview.v1"' in html
     assert 'data-vp-preview-render-enabled="false"' in html
-    assert "http://127.0.0.1:5100/editor/test-generator" in html
+    assert "http://localhost:5100/editor/test-generator" in html
     assert "parentOrigin=http%3A%2F%2Flocalhost" in html
     assert (
-        "/static/js/vplib/create/create_editor_preview_bridge.js?v=20260803.1"
+        "/static/js/vplib/create/create_editor_preview_bridge.js?v=20260813.3"
         in html
     )
     assert 'data-vp-preview-mode="dev-empty"' not in html
@@ -1001,6 +1211,8 @@ def test_editor_preview_bridge_deduplicates_equivalent_updates() -> None:
     assert 'root.dataset.editorPreviewLastReason = "duplicate-skipped"' in bridge
     assert "file.lastModified" in bridge
     assert "/_uploads_json$/i.test(element.name)" in bridge
+    assert "spatialContract.model_transform" in bridge
+    assert "spatialZone.dimensions" in bridge
 
 
 def test_rendered_generator_lists_complete_dependent_taxonomy() -> None:
@@ -1100,3 +1312,69 @@ def test_single_native_variant_and_nested_geometry_survive_normalization_roundtr
         "depth": 0.365,
         "unit": "m",
     }
+
+
+def test_asset_driven_zone_and_connectors_become_package_documents() -> None:
+    payload = payload_with_assets()
+    payload["object_kind"] = "multi_cell_module"
+    payload["spatial_contract"] = {
+        "mode": "asset_driven",
+        "model_transform": {
+            "uniform": True,
+            "scale_in_blocks": {"x": 2.5, "y": 7, "z": 9},
+        },
+        "zone": {
+            "source": "primary_model_hull",
+            "shape": "convex_hull",
+            "margin": 0.1,
+            "dimensions": {"width": 8, "height": 4, "depth": 3, "unit": "m"},
+            "grid": {"cells": {"x": 8, "y": 4, "z": 3}},
+        },
+        "connectors": [
+            {
+                "connector_id": "deck_bearing",
+                "label": "Auflager Fahrbahnplatte",
+                "interface_type": "structural_bearing",
+                "role": "support",
+                "position": {"x": 0, "y": 4, "z": 0},
+                "normal": {"x": 0, "y": 1, "z": 0},
+                "compatible_types": ["road_deck", "bridge_bearing"],
+            }
+        ],
+    }
+
+    draft_result = create_service().build_draft(payload)
+    assert draft_result.ok, [issue.to_dict() for issue in draft_result.errors]
+    draft = draft_result.data["draft"]
+    assert draft["spatial_contract"]["mode"] == "asset_driven"
+    assert draft["editor_block"]["cells"] == {"x": 8, "y": 4, "z": 3}
+    assert draft["spatial_contract"]["model_transform"]["scale_in_blocks"] == {
+        "x": 2.5,
+        "y": 2.5,
+        "z": 2.5,
+    }
+    assert draft["spatial_contract"]["model_transform"]["resulting_size"] == {
+        "x": 2.5,
+        "y": 2.5,
+        "z": 2.5,
+        "unit": "m",
+    }
+
+    documents = create_service().build_package_documents(draft)
+    assert documents["editor/spatial.json"]["zone"]["source"] == "primary_model_hull"
+    assert documents["editor/sockets.json"]["sockets"][0]["connector_id"] == "deck_bearing"
+    assert documents["editor/anchors.json"]["anchors"][-1]["type"] == "connection_point"
+    assert documents["render/bounds.json"]["type"] == "convex_hull"
+    assert documents["physical/base.json"]["physical_model"] == "asset_envelope"
+
+
+def test_asset_driven_zone_requires_primary_model() -> None:
+    payload = minimal_payload()
+    payload["object_kind"] = "multi_cell_module"
+    payload["spatial_contract"] = {
+        "mode": "asset_driven",
+        "zone": {"source": "primary_model_bounds", "shape": "box"},
+    }
+    result = create_service().validate_draft(payload)
+    assert result.ok is False
+    assert any(issue.code == "spatial_primary_model_required" for issue in result.errors)

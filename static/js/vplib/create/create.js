@@ -610,11 +610,11 @@
         return normalized;
       }
 
-      return "dark";
+      return "light";
     } catch (error) {
       state.lastError = normalizeError(error);
       warn("setTheme failed.", error);
-      return "dark";
+      return "light";
     }
   }
 
@@ -628,7 +628,7 @@
         }, options || {}));
       }
 
-      return setTheme("dark", options || {});
+      return setTheme("light", options || {});
     } catch (error) {
       state.lastError = normalizeError(error);
       warn("cycleTheme failed.", error);
@@ -1089,9 +1089,9 @@
       return document.documentElement.getAttribute("data-vp-create-theme") ||
         document.documentElement.getAttribute("data-vp-theme") ||
         document.documentElement.getAttribute("data-theme") ||
-        "dark";
+        "light";
     } catch (error) {
-      return "dark";
+      return "light";
     }
   }
 

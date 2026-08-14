@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "fassade",
+  "subcategory": "putzfassaden",
+  "classification_path": "hochbau/fassade/putzfassaden",
+  "source_path": "hochbau/fassade/putzfassaden/eps_fassadendaemmung",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Fassade",
+    "subcategory": "Putzfassaden"
+  },
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  }
+}

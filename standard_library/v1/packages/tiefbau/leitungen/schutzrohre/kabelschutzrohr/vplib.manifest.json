@@ -1,0 +1,55 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "36a91dea-e67d-5867-8a90-cf0b2da36548",
+  "package_id": "vplib.vp.tiefbau.leitungen.schutzrohre.kabelschutzrohr",
+  "family_id": "vp.tiefbau.leitungen.schutzrohre.kabelschutzrohr",
+  "family_slug": "kabelschutzrohr",
+  "family_name": "Kabelschutzrohr",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "leitungen",
+  "subcategory": "schutzrohre",
+  "classification": {
+    "domain": "tiefbau",
+    "category": "leitungen",
+    "subcategory": "schutzrohre",
+    "classification_path": "tiefbau/leitungen/schutzrohre",
+    "labels": {
+      "domain": "Tiefbau",
+      "category": "Leitungen",
+      "subcategory": "Schutzrohre"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "tiefbau/leitungen/schutzrohre",
+  "source_path": "tiefbau/leitungen/schutzrohre/kabelschutzrohr",
+  "default_variant_id": "default",
+  "variant_count": 9,
+  "documents_required": false,
+  "external_assets_required": false,
+  "created_at": "2026-08-11T00:00:00Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.5.0",
+    "mode": "simple_create",
+    "starter_contract": true
+  },
+  "assets": [],
+  "asset_count": 0
+}

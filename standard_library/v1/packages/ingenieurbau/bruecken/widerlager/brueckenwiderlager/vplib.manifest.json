@@ -1,0 +1,55 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "1c000b3f-eb03-54f2-a908-b5a81668ed21",
+  "package_id": "vplib.vp.ingenieurbau.bruecken.widerlager.brueckenwiderlager",
+  "family_id": "vp.ingenieurbau.bruecken.widerlager.brueckenwiderlager",
+  "family_slug": "brueckenwiderlager",
+  "family_name": "Brückenwiderlager",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "bruecken",
+  "subcategory": "widerlager",
+  "classification": {
+    "domain": "ingenieurbau",
+    "category": "bruecken",
+    "subcategory": "widerlager",
+    "classification_path": "ingenieurbau/bruecken/widerlager",
+    "labels": {
+      "domain": "Ingenieurbau",
+      "category": "Brücken",
+      "subcategory": "Widerlager"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "ingenieurbau/bruecken/widerlager",
+  "source_path": "ingenieurbau/bruecken/widerlager/brueckenwiderlager",
+  "default_variant_id": "default",
+  "variant_count": 6,
+  "documents_required": false,
+  "external_assets_required": false,
+  "created_at": "2026-08-11T00:00:00Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.5.0",
+    "mode": "simple_create",
+    "starter_contract": true
+  },
+  "assets": [],
+  "asset_count": 0
+}

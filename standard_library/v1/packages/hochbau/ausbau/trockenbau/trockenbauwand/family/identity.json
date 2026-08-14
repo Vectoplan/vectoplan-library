@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "97977d40-d33d-5d5b-8794-969b6cb57caa",
+  "family_id": "vp.hochbau.ausbau.trockenbau.trockenbauwand",
+  "slug": "trockenbauwand",
+  "label": "Trockenbauwand",
+  "description": "Leichte Metallständerwand mit Gipskartonbekleidung.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

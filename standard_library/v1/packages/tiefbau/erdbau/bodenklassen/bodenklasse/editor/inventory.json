@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "e6894c83-3725-5c6d-ac41-89fc3784a2f4",
+  "family_id": "vp.tiefbau.erdbau.bodenklassen.bodenklasse",
+  "default_variant_id": "default",
+  "label": "Bodenklasse",
+  "description": "Generische Bodenvolumen für frühe Erdbau- und Massenermittlung.",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "erdbau",
+  "subcategory": "bodenklassen",
+  "classification_path": "tiefbau/erdbau/bodenklassen",
+  "source_path": "tiefbau/erdbau/bodenklassen/bodenklasse",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Erdbau",
+    "subcategory": "Bodenklassen"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

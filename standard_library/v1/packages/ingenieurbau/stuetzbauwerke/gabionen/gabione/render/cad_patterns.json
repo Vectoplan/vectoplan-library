@@ -1,0 +1,200 @@
+{
+  "schema_version": "vplib.render.cad_patterns.v1",
+  "catalog_version": "1.0.0",
+  "units": "mm_paper",
+  "default_variant_id": "default",
+  "pattern_ids": [
+    "grid_coarse",
+    "rubble_stone"
+  ],
+  "patterns": [
+    {
+      "id": "grid_coarse",
+      "label": "Raster grob",
+      "category": "line",
+      "category_label": "Linien und Raster",
+      "description": "Grobes orthogonales Raster.",
+      "kind": "cross",
+      "active": true,
+      "sort_order": 170,
+      "tags": [
+        "grid",
+        "coarse"
+      ],
+      "definition": {
+        "line_families": [
+          {
+            "angle_deg": 0,
+            "spacing_mm": 8,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": []
+          },
+          {
+            "angle_deg": 90,
+            "spacing_mm": 8,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "rubble_stone",
+      "label": "Bruchstein",
+      "category": "masonry",
+      "category_label": "Mauerwerk und Stein",
+      "description": "Grobe unregelmäßige Bruchsteinstruktur.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 250,
+      "tags": [
+        "stone",
+        "rubble"
+      ],
+      "definition": {
+        "tile_mm": [
+          18,
+          14
+        ],
+        "line_families": [
+          {
+            "angle_deg": 12,
+            "spacing_mm": 6,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": [
+              6,
+              2,
+              2,
+              2
+            ]
+          },
+          {
+            "angle_deg": 102,
+            "spacing_mm": 9,
+            "offset_mm": [
+              3,
+              1
+            ],
+            "dash_mm": [
+              3,
+              4
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "variant_id": "default",
+      "cut": {
+        "pattern_id": "rubble_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_coarse",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "500_1000_mm",
+      "cut": {
+        "pattern_id": "rubble_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_coarse",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "1000_500_mm",
+      "cut": {
+        "pattern_id": "rubble_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_coarse",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "1000_1000_mm",
+      "cut": {
+        "pattern_id": "rubble_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_coarse",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "1500_1000_mm",
+      "cut": {
+        "pattern_id": "rubble_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_coarse",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "2000_1000_mm",
+      "cut": {
+        "pattern_id": "rubble_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_coarse",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    }
+  ]
+}

@@ -859,10 +859,18 @@ class BaseConfig:
         "VECTOPLAN_LIBRARY_SOURCE_ROOT",
         "VPLIB_CREATE_SOURCE_ROOT",
         "LIBRARY_SOURCE_ROOT",
-        default=_build_path("src", "library", "source"),
+        default=_build_path("standard_library", "v1", "packages"),
     )
 
     VPLIB_CREATE_SOURCE_ROOT = VECTOPLAN_LIBRARY_SOURCE_ROOT
+    VECTOPLAN_LIBRARY_LOAD_ON_STARTUP = _read_bool_env(
+        "VECTOPLAN_LIBRARY_LOAD_ON_STARTUP",
+        default=True,
+    )
+    VECTOPLAN_LIBRARY_DB_SYNC_ON_STARTUP = _read_bool_env(
+        "VECTOPLAN_LIBRARY_DB_SYNC_ON_STARTUP",
+        default=True,
+    )
 
     # -------------------------------------------------------------------------
     # VPLIB-Routen

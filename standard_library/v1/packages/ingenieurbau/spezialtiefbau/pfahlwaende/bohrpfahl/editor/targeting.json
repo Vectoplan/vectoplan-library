@@ -1,0 +1,7 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "target_type": "grid_cell",
+  "selection_mode": "bounds",
+  "placement_profile": "simple_cell_block.v1"
+}

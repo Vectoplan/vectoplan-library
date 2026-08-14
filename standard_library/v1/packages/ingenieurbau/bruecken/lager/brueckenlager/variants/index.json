@@ -1,0 +1,64 @@
+{
+  "schema_version": "0.1.0",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "default_variant_id": "default",
+  "variant_count": 5,
+  "variants": [
+    {
+      "variant_id": "default",
+      "variant_key": "default",
+      "label": "200 × 250 × 50",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": true,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "300_400_70",
+      "variant_key": "300_400_70",
+      "label": "300 × 400 × 70",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "400_500_90",
+      "variant_key": "400_500_90",
+      "label": "400 × 500 × 90",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "500_600_110",
+      "variant_key": "500_600_110",
+      "label": "500 × 600 × 110",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "600_700_140",
+      "variant_key": "600_700_140",
+      "label": "600 × 700 × 140",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    }
+  ]
+}

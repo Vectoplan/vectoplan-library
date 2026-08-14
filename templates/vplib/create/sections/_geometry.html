@@ -1,6 +1,6 @@
 {# services/vectoplan-library/templates/vplib/create/sections/_geometry.html #}
 {# -----------------------------------------------------------------------------
-  VECTOPLAN Library · VPLIB Create Wizard · Step 4: Geometry
+  VECTOPLAN Library · VPLIB Create Wizard · Step 5: Geometry
 
   Zweck:
   - Erfasst technische Objektart, primitive Form, sichtbare Maße, Editor-Raster
@@ -257,11 +257,11 @@
       <h2
         id="vp-create-geometry-title"
         class="vplib-create-step__title"
-      >
+       data-i18n="vectoplan.server.library.vplib.create.sections.geometry.h2.geometrie.171b76a4">
         Geometrie
       </h2>
 
-      <p class="vplib-create-step__description">
+      <p class="vplib-create-step__description" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.p.definiere_typ_form_ma_e_und_rasterbeda.1203ce31">
         Definiere Typ, Form, Maße und Rasterbedarf.
       </p>
     </div>
@@ -275,7 +275,7 @@
           for="create-geometry-object-kind"
           data-vp-field-wrapper="object_kind"
         >
-          <span class="vp-create-field__label">Typ</span>
+          <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.typ.73303213">Typ</span>
 
           <select
             id="create-geometry-object-kind"
@@ -290,28 +290,28 @@
             <option
               value="cell_block"
               {% if _selected_object_kind == 'cell_block' %}selected{% endif %}
-            >
+             data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.raster_bauteil.74ad59e0">
               Raster-Bauteil
             </option>
 
             <option
               value="multi_cell_module"
               {% if _selected_object_kind == 'multi_cell_module' %}selected{% endif %}
-            >
+             data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.mehrblock_modul.5ad739d4">
               Mehrblock-Modul
             </option>
 
             <option
               value="catalog_object"
               {% if _selected_object_kind == 'catalog_object' %}selected{% endif %}
-            >
+             data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.katalogelement.7705131c">
               Katalogelement
             </option>
 
             <option
               value="adaptive_system"
               {% if _selected_object_kind == 'adaptive_system' %}selected{% endif %}
-            >
+             data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.adaptives_system.0ac54d7a">
               Adaptives System
             </option>
 
@@ -325,7 +325,7 @@
           <span
             id="create-geometry-object-kind-hint"
             class="vp-create-field__hint"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.mehrblock_modul_entsperrt_das_editor_r.7a8688f6">
             Mehrblock-Modul entsperrt das Editor-Raster.
           </span>
         </label>
@@ -337,7 +337,7 @@
           for="create-primitive-shape"
           data-vp-field-wrapper="primitive_shape"
         >
-          <span class="vp-create-field__label">Form</span>
+          <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.form.6107934a">Form</span>
 
           <select
             id="create-primitive-shape"
@@ -352,7 +352,7 @@
             {% if not _has_shapes %}disabled aria-disabled="true"{% endif %}
           >
             {% if _has_shapes %}
-              <option value="" disabled{% if not _selected_shape %} selected{% endif %}>
+              <option value="" disabled{% if not _selected_shape %} selected{% endif %} data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.form_w_hlen.68d8460e">
                 Form wählen
               </option>
 
@@ -424,7 +424,7 @@
           for="create-geometry-unit"
           data-vp-field-wrapper="geometry_unit"
         >
-          <span class="vp-create-field__label">Einheit</span>
+          <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.einheit.09d1dba0">Einheit</span>
 
           <select
             id="create-geometry-unit"
@@ -439,7 +439,7 @@
             {% if not _has_units %}disabled aria-disabled="true"{% endif %}
           >
             {% if _has_units %}
-              <option value="" disabled{% if not _geometry_unit %} selected{% endif %}>
+              <option value="" disabled{% if not _geometry_unit %} selected{% endif %} data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.einheit_w_hlen.01168745">
                 Einheit wählen
               </option>
 
@@ -506,73 +506,6 @@
       </div>
 
       <div
-        class="vplib-create-step__field vplib-create-step__field--full vp-create-upload vp-create-upload--geometry vp-create-geometry-model-strip"
-        data-vp-upload
-        data-vp-upload-zone
-        data-create-upload-zone
-        data-vp-geometry-upload
-        data-vp-upload-kind="geometry_model"
-        data-vp-upload-purpose="geometry_model"
-        data-vp-upload-backend-enabled="true"
-        data-vp-upload-local-only="false"
-        data-vp-upload-metadata-field="geometry_model_uploads_json"
-      >
-        <div class="vp-create-upload__header" data-vp-upload-header>
-          <div>
-            <strong class="vp-create-upload__title">
-              3D-Modell
-            </strong>
-
-            <p class="vp-create-upload__hint">
-              Optionales 3D-Modell auswählen. Die Datei wird direkt in das VPLIB eingebettet.
-            </p>
-          </div>
-
-          <span
-            class="vp-create-status-pill vp-create-status-pill--muted"
-            data-vp-upload-count-label
-            aria-live="polite"
-          >
-            0 Dateien
-          </span>
-        </div>
-
-        <div class="vp-create-upload__controls" data-vp-upload-controls>
-          <input
-            id="create-geometry-model-upload"
-            type="file"
-            name="geometry_model_files"
-            multiple
-            accept=".glb,.gltf,.obj,.fbx,.stl,.bin,.mtl,.zip"
-            data-vp-upload-input
-            data-vp-geometry-model-upload-input="true"
-            data-vp-upload-kind="geometry_model"
-            data-vp-upload-purpose="geometry_model"
-            aria-describedby="create-geometry-model-upload-hint"
-          />
-
-          <input
-            id="create-geometry-model-upload-json"
-            type="hidden"
-            name="geometry_model_uploads_json"
-            value="{{ _geometry_model_uploads_json | string | e }}"
-            data-vp-upload-metadata
-            data-vp-geometry-model-upload-metadata="true"
-            data-vp-upload-metadata-kind="geometry_model"
-            data-create-field="geometry_model_uploads_json"
-          />
-
-
-
-          <div
-            class="vp-create-upload__file-list"
-            data-vp-upload-file-list
-            aria-live="polite"
-          ></div>
-        </div>
-      </div>
-
-      <div
         class="vplib-create-step__field vplib-create-step__field--full vp-create-upload vp-create-upload--textures"
         data-vp-upload
         data-vp-upload-zone
@@ -585,12 +518,12 @@
       >
         <div class="vp-create-upload__header" data-vp-upload-header>
           <div>
-            <strong class="vp-create-upload__title">Texturen</strong>
-            <p class="vp-create-upload__hint">
+            <strong class="vp-create-upload__title" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.strong.texturen.b760cf98">Texturen</strong>
+            <p class="vp-create-upload__hint" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.p.png_jpg_webp_tga_bmp_oder_ktx2_ausw_hl.0b6dfae5">
               PNG, JPG, WebP, TGA, BMP oder KTX2 auswählen. Rastertexturen werden automatisch auf maximal 1024 px begrenzt, als WebP komprimiert und mit Mipmaps wiederverwendbar eingebettet.
             </p>
           </div>
-          <span class="vp-create-status-pill vp-create-status-pill--muted" data-vp-upload-count-label aria-live="polite">
+          <span class="vp-create-status-pill vp-create-status-pill--muted" data-vp-upload-count-label aria-live="polite" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.0_dateien.bc12cb7c">
             0 Dateien
           </span>
         </div>
@@ -614,7 +547,7 @@
             data-vp-upload-metadata-kind="textures"
             data-create-field="texture_uploads_json"
           />
-          <p class="vp-create-upload__empty" data-vp-upload-empty>
+          <p class="vp-create-upload__empty" data-vp-upload-empty data-i18n="vectoplan.server.library.vplib.create.sections.geometry.p.noch_keine_textur_ausgew_hlt.cf03f8ed">
             Noch keine Textur ausgewählt.
           </p>
           <div class="vp-create-upload__file-list" data-vp-upload-file-list aria-live="polite"></div>
@@ -626,11 +559,11 @@
         data-create-visible-size-section="true"
       >
         <div class="vp-create-compact-subheader">
-          <h3 class="vp-create-compact-subheader__title">
+          <h3 class="vp-create-compact-subheader__title" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.h3.sichtbare_gr_e.834700b2">
             Sichtbare Größe
           </h3>
 
-          <p class="vp-create-compact-subheader__text">
+          <p class="vp-create-compact-subheader__text" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.p.primitive_au_enma_e_nicht_zwingend_all.dda5541c">
             Primitive Außenmaße, nicht zwingend alle späteren Fachmaße.
           </p>
         </div>
@@ -642,7 +575,7 @@
               for="create-geometry-width"
               data-vp-field-wrapper="geometry_width"
             >
-              <span class="vp-create-field__label">Breite</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.breite.57b55afd">Breite</span>
 
               <input
                 id="create-geometry-width"
@@ -671,7 +604,7 @@
               for="create-geometry-height"
               data-vp-field-wrapper="geometry_height"
             >
-              <span class="vp-create-field__label">Höhe</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.h_he.1d6d282a">Höhe</span>
 
               <input
                 id="create-geometry-height"
@@ -700,7 +633,7 @@
               for="create-geometry-depth"
               data-vp-field-wrapper="geometry_depth"
             >
-              <span class="vp-create-field__label">Tiefe</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.tiefe.84f9b101">Tiefe</span>
 
               <input
                 id="create-geometry-depth"
@@ -722,7 +655,7 @@
               <span
                 id="create-geometry-depth-hint"
                 class="vp-create-field__hint"
-              >
+               data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.sichtbare_tiefe.17a126cd">
                 Sichtbare Tiefe.
               </span>
             </label>
@@ -735,11 +668,11 @@
         data-create-editor-block-section="true"
       >
         <div class="vp-create-compact-subheader">
-          <h3 class="vp-create-compact-subheader__title">
+          <h3 class="vp-create-compact-subheader__title" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.h3.editor_raster.e379489d">
             Editor-Raster
           </h3>
 
-          <p class="vp-create-compact-subheader__text">
+          <p class="vp-create-compact-subheader__text" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.p.bei_raster_bauteil_und_adaptivem_syste.047bdc37">
             Bei Raster-Bauteil und Adaptivem System automatisch 1 × 1 × 1. Mehrblock-Modul ist frei editierbar.
           </p>
         </div>
@@ -751,7 +684,7 @@
               for="create-editor-cells-x"
               data-vp-field-wrapper="editor_cells_x"
             >
-              <span class="vp-create-field__label">Blöcke Breite</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.bl_cke_breite.5aa28820">Blöcke Breite</span>
 
               <input
                 id="create-editor-cells-x"
@@ -780,7 +713,7 @@
               for="create-editor-cells-y"
               data-vp-field-wrapper="editor_cells_y"
             >
-              <span class="vp-create-field__label">Blöcke Höhe</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.bl_cke_h_he.48304ef5">Blöcke Höhe</span>
 
               <input
                 id="create-editor-cells-y"
@@ -809,7 +742,7 @@
               for="create-editor-cells-z"
               data-vp-field-wrapper="editor_cells_z"
             >
-              <span class="vp-create-field__label">Blöcke Tiefe</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.bl_cke_tiefe.f2d26c99">Blöcke Tiefe</span>
 
               <input
                 id="create-editor-cells-z"
@@ -841,9 +774,9 @@
           data-vp-inline-warning="geometry"
           role="status"
         >
-          <strong>Geometrie-Optionen unvollständig.</strong>
+          <strong data-i18n="vectoplan.server.library.vplib.create.sections.geometry.strong.geometrie_optionen_unvollst_ndig.314d3f62">Geometrie-Optionen unvollständig.</strong><span data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.formen_oder_einheiten_fehlen_im_option.a4ca35ab">
           Formen oder Einheiten fehlen im Options-Payload. Fallback-Werte werden als Hidden Fields weitergegeben.
-        </div>
+        </span></div>
       {% endif %}
     </div>
   </div>

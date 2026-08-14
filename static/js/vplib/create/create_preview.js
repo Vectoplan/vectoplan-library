@@ -715,9 +715,9 @@
         getNested(coreState.context, ["library", "source_root"], "") ||
         getNested(coreState.context, ["library", "sourceRoot"], "");
 
-      return String(fromContext || "src/library/source").replace(/\/+$/, "");
+      return String(fromContext || "standard_library/v1/packages").replace(/\/+$/, "");
     } catch (error) {
-      return "src/library/source";
+      return "standard_library/v1/packages";
     }
   }
 

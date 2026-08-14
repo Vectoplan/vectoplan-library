@@ -102,6 +102,9 @@ DEFAULT_CREATIVE_LIBRARY_DRAFT_BLUEPRINT_ATTRIBUTE: Final[str] = "creative_libra
 DEFAULT_CREATE_ROUTE_MODULE: Final[str] = "routes.create"
 DEFAULT_CREATE_BLUEPRINT_ATTRIBUTE: Final[str] = "create_bp"
 
+DEFAULT_MANUFACTURER_PRODUCTS_ROUTE_MODULE: Final[str] = "routes.manufacturer_products"
+DEFAULT_MANUFACTURER_PRODUCTS_BLUEPRINT_ATTRIBUTE: Final[str] = "manufacturer_products_bp"
+
 DEFAULT_INVENTAR_ROUTE_MODULE: Final[str] = "routes.inventar"
 DEFAULT_INVENTAR_BLUEPRINT_ATTRIBUTE: Final[str] = "inventar_bp"
 
@@ -121,6 +124,7 @@ DEFAULT_OPTIONAL_BLUEPRINTS: Final[tuple[str, ...]] = (
     f"{DEFAULT_CREATIVE_LIBRARY_USER_ROUTE_MODULE}:{DEFAULT_CREATIVE_LIBRARY_USER_BLUEPRINT_ATTRIBUTE}",
     f"{DEFAULT_CREATIVE_LIBRARY_DRAFT_ROUTE_MODULE}:{DEFAULT_CREATIVE_LIBRARY_DRAFT_BLUEPRINT_ATTRIBUTE}",
     f"{DEFAULT_CREATE_ROUTE_MODULE}:{DEFAULT_CREATE_BLUEPRINT_ATTRIBUTE}",
+    f"{DEFAULT_MANUFACTURER_PRODUCTS_ROUTE_MODULE}:{DEFAULT_MANUFACTURER_PRODUCTS_BLUEPRINT_ATTRIBUTE}",
     f"{DEFAULT_INVENTAR_ROUTE_MODULE}:{DEFAULT_INVENTAR_BLUEPRINT_ATTRIBUTE}",
     f"{DEFAULT_INVENTAR_USER_ROUTE_MODULE}:{DEFAULT_INVENTAR_USER_BLUEPRINT_ATTRIBUTE}",
 )
@@ -612,6 +616,13 @@ def get_blueprint_specs() -> tuple[BlueprintSpec, ...]:
             attribute_name=DEFAULT_CREATE_BLUEPRINT_ATTRIBUTE,
             required=False,
             description="Create frontend and create API routes.",
+            attribute_aliases=("bp", "blueprint"),
+        ).normalized(),
+        BlueprintSpec(
+            module_name=DEFAULT_MANUFACTURER_PRODUCTS_ROUTE_MODULE,
+            attribute_name=DEFAULT_MANUFACTURER_PRODUCTS_BLUEPRINT_ATTRIBUTE,
+            required=False,
+            description="Manufacturer products, distribution coverage and Library permission grants.",
             attribute_aliases=("bp", "blueprint"),
         ).normalized(),
         BlueprintSpec(
@@ -1108,6 +1119,8 @@ __all__: Final[list[str]] = [
     "DEFAULT_API_ROUTE_MODULE",
     "DEFAULT_CREATE_BLUEPRINT_ATTRIBUTE",
     "DEFAULT_CREATE_ROUTE_MODULE",
+    "DEFAULT_MANUFACTURER_PRODUCTS_BLUEPRINT_ATTRIBUTE",
+    "DEFAULT_MANUFACTURER_PRODUCTS_ROUTE_MODULE",
     "DEFAULT_CREATIVE_LIBRARY_DRAFT_BLUEPRINT_ATTRIBUTE",
     "DEFAULT_CREATIVE_LIBRARY_DRAFT_ROUTE_MODULE",
     "DEFAULT_CREATIVE_LIBRARY_USER_BLUEPRINT_ATTRIBUTE",

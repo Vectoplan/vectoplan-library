@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "598d25c8-6f28-516e-ab92-80bfbb6e51d9",
+  "family_id": "vp.ingenieurbau.stuetzbauwerke.anker.daueranker",
+  "slug": "daueranker",
+  "label": "Daueranker",
+  "description": "Vereinfachter Boden- und Felsanker nach Zugkraftklassen.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de"
+}

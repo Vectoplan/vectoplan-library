@@ -1,0 +1,55 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "43f2abf9-dabd-5b98-b185-d259382f5fd1",
+  "package_id": "vplib.vp.ingenieurbau.stuetzbauwerke.kopfbalken.pfeilerkopfbalken",
+  "family_id": "vp.ingenieurbau.stuetzbauwerke.kopfbalken.pfeilerkopfbalken",
+  "family_slug": "pfeilerkopfbalken",
+  "family_name": "Pfeilerkopfbalken",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "stuetzbauwerke",
+  "subcategory": "kopfbalken",
+  "classification": {
+    "domain": "ingenieurbau",
+    "category": "stuetzbauwerke",
+    "subcategory": "kopfbalken",
+    "classification_path": "ingenieurbau/stuetzbauwerke/kopfbalken",
+    "labels": {
+      "domain": "Ingenieurbau",
+      "category": "Stützbauwerke",
+      "subcategory": "Kopfbalken"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "ingenieurbau/stuetzbauwerke/kopfbalken",
+  "source_path": "ingenieurbau/stuetzbauwerke/kopfbalken/pfeilerkopfbalken",
+  "default_variant_id": "default",
+  "variant_count": 5,
+  "documents_required": false,
+  "external_assets_required": false,
+  "created_at": "2026-08-11T00:00:00Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.5.0",
+    "mode": "simple_create",
+    "starter_contract": true
+  },
+  "assets": [],
+  "asset_count": 0
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "de8cc456-c23a-5c4c-9260-e3902de09075",
+  "family_id": "vp.hochbau.fassade.putzfassaden.eps_fassadendaemmung",
+  "default_variant_id": "default",
+  "label": "EPS-Fassadendämmung",
+  "description": "Wärmedämmplatte aus expandiertem Polystyrol für WDVS.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "fassade",
+  "subcategory": "putzfassaden",
+  "classification_path": "hochbau/fassade/putzfassaden",
+  "source_path": "hochbau/fassade/putzfassaden/eps_fassadendaemmung",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Fassade",
+    "subcategory": "Putzfassaden"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

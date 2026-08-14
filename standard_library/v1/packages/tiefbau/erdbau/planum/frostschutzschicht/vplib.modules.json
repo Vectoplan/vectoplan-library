@@ -1,0 +1,80 @@
+{
+  "schema_version": "0.1.0",
+  "profile_key": "simple_cell_block.v1",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "modules": {
+    "family": true,
+    "variants": true,
+    "editor": true,
+    "render": true,
+    "physical": true,
+    "material": true,
+    "calculation": false,
+    "analysis": false,
+    "dynamic": false,
+    "manufacturer": true,
+    "docs": true,
+    "definitions": true,
+    "tests": false
+  },
+  "active_modules": [
+    "family",
+    "variants",
+    "editor",
+    "render",
+    "physical",
+    "material",
+    "manufacturer",
+    "docs",
+    "definitions"
+  ],
+  "required_modules": [
+    "family",
+    "variants",
+    "editor",
+    "render",
+    "physical",
+    "definitions"
+  ],
+  "optional_modules": [
+    "material",
+    "calculation",
+    "dynamic",
+    "manufacturer",
+    "docs"
+  ],
+  "excluded_modules": [
+    "analysis",
+    "tests"
+  ],
+  "module_versions": {
+    "family": "0.1.0",
+    "variants": "0.1.0",
+    "editor": "0.1.0",
+    "render": "0.1.0",
+    "physical": "0.1.0",
+    "definitions": "0.1.0"
+  },
+  "required_documents": [
+    "vplib.manifest.json",
+    "vplib.modules.json",
+    "family/identity.json",
+    "family/classification.json",
+    "family/lifecycle.json",
+    "family/metadata.json",
+    "variants/index.json",
+    "variants/default.json",
+    "editor/inventory.json",
+    "editor/placement.json",
+    "editor/targeting.json",
+    "editor/anchors.json",
+    "render/render_variants.json",
+    "render/bounds.json",
+    "physical/base.json",
+    "physical/dimensions.json",
+    "physical/collision.json",
+    "manufacturer/contract.json",
+    "definitions/profile.json"
+  ]
+}

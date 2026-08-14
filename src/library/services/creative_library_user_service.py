@@ -560,7 +560,41 @@ def compact_creative_library_item(item: Mapping[str, Any]) -> dict[str, Any]:
     )
 
     compact = select(data, item_keys)
-    compact["payload"] = select(normalize_json_mapping(data.get("payload")), payload_keys)
+    compact_payload = select(normalize_json_mapping(data.get("payload")), payload_keys)
+
+    runtime_block_type_id = next(
+        (
+            str(value).strip()
+            for value in (
+                data.get("runtimeBlockTypeId"),
+                data.get("runtime_block_type_id"),
+                data.get("blockTypeId"),
+                compact_payload.get("runtimeBlockTypeId"),
+                compact_payload.get("runtime_block_type_id"),
+                compact_payload.get("blockTypeId"),
+                data.get("family_id"),
+                compact_payload.get("family_id"),
+            )
+            if value is not None and str(value).strip()
+        ),
+        "",
+    )
+    placeable = bool(runtime_block_type_id and (data.get("family_id") or data.get("vplib_uid")))
+    placement = normalize_json_mapping(data.get("placement") or compact_payload.get("placement"))
+    if runtime_block_type_id:
+        placement.setdefault("runtimeBlockTypeId", runtime_block_type_id)
+        placement.setdefault("blockTypeId", runtime_block_type_id)
+    placement["placeable"] = placeable
+
+    compact["runtimeBlockTypeId"] = runtime_block_type_id
+    compact["blockTypeId"] = runtime_block_type_id
+    compact["placeable"] = placeable
+    compact["placement"] = placement
+    compact_payload["runtimeBlockTypeId"] = runtime_block_type_id
+    compact_payload["blockTypeId"] = runtime_block_type_id
+    compact_payload["placeable"] = placeable
+    compact_payload["placement"] = placement
+    compact["payload"] = compact_payload
     compact["variants"] = [
         select(variant, variant_keys)
         for variant in normalize_json_list(data.get("variants"))

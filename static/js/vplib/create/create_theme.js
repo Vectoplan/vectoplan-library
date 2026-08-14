@@ -28,9 +28,9 @@
   };
 
   var THEME_NEXT = {
-    system: "dark",
+    system: "light",
     dark: "light",
-    light: "system"
+    light: "light"
   };
 
   var THEME_META_COLORS = {
@@ -489,14 +489,14 @@
     } catch (error) {
       localState.lastError = normalizeError(error);
       safeError("Set theme failed.", error);
-      return localState.theme || THEMES.dark;
+      return THEMES.light;
     }
   }
 
   function cycleTheme(options) {
     try {
       var current = normalizeTheme(localState.theme || getTheme());
-      var next = THEME_NEXT[current] || THEMES.dark;
+      var next = THEME_NEXT[current] || THEMES.light;
 
       return setTheme(next, {
         persist: true,
@@ -505,7 +505,7 @@
     } catch (error) {
       localState.lastError = normalizeError(error);
       safeError("Theme cycle failed.", error);
-      return localState.theme || THEMES.dark;
+      return THEMES.light;
     }
   }
 
@@ -523,7 +523,7 @@
     } catch (error) {
       localState.lastError = normalizeError(error);
       safeError("Reset theme failed.", error);
-      return localState.theme || THEMES.dark;
+      return THEMES.light;
     }
   }
 
@@ -554,9 +554,9 @@
       root.setAttribute("data-vp-create-theme-mode", normalized);
       root.setAttribute("data-vp-create-theme-effective", effective);
       root.setAttribute("data-vp-create-color-scheme", effective);
-      root.setAttribute("data-vp-create-style", effective === THEMES.dark ? "black" : "cad-light");
+      root.setAttribute("data-vp-create-style", "cad-light");
 
-      root.style.colorScheme = effective === THEMES.dark ? "dark" : "light";
+      root.style.colorScheme = "light";
 
       if (body) {
         body.setAttribute("data-theme", normalized);
@@ -599,8 +599,8 @@
 
   function updateThemeMetaColor(effectiveTheme) {
     try {
-      var effective = effectiveTheme === THEMES.light ? THEMES.light : THEMES.dark;
-      var color = THEME_META_COLORS[effective] || THEME_META_COLORS.dark;
+      var effective = THEMES.light;
+      var color = THEME_META_COLORS.light;
       var meta = document.querySelector("meta[name='theme-color']");
 
       if (!meta) {
@@ -619,10 +619,10 @@
 
   function updateControls() {
     try {
-      var theme = normalizeTheme(localState.theme || THEMES.dark);
+      var theme = THEMES.light;
       var effective = resolveEffectiveTheme(theme);
-      var label = THEME_LABELS[theme] || THEME_LABELS.dark;
-      var title = THEME_TITLES[theme] || THEME_TITLES.dark;
+      var label = THEME_LABELS.light;
+      var title = THEME_TITLES.light;
 
       queryAll(selectorFor("themeToggle")).forEach(function (toggle) {
         try {
@@ -699,19 +699,15 @@
         return "◐";
       }
 
-      if (effectiveTheme === THEMES.dark) {
-        return "●";
-      }
-
       return "○";
     } catch (error) {
-      return "●";
+      return "○";
     }
   }
 
   function getTheme() {
     try {
-      return normalizeTheme(localState.theme || (core && core.state ? core.state.theme : "") || THEMES.dark);
+      return normalizeTheme(localState.theme || (core && core.state ? core.state.theme : "") || THEMES.light);
     } catch (error) {
       return THEMES.light;
     }
@@ -726,59 +722,11 @@
   }
 
   function resolveEffectiveTheme(theme) {
-    try {
-      var normalized = normalizeTheme(theme);
-
-      if (normalized === THEMES.dark || normalized === THEMES.light) {
-        return normalized;
-      }
-
-      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        return THEMES.dark;
-      }
-
-      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
-        return THEMES.light;
-      }
-
-      return THEMES.light;
-    } catch (error) {
-      return THEMES.light;
-    }
+    return THEMES.light;
   }
 
   function normalizeTheme(value) {
-    try {
-      if (core && typeof core.normalizeTheme === "function") {
-        var coreTheme = core.normalizeTheme(value);
-
-        if (coreTheme === "black") {
-          return THEMES.dark;
-        }
-
-        if (coreTheme === THEMES.dark || coreTheme === THEMES.light || coreTheme === THEMES.system) {
-          return coreTheme;
-        }
-      }
-
-      var text = String(value || "").trim().toLowerCase();
-
-      if (text === "black" || text === "night" || text === "dunkel") {
-        return THEMES.dark;
-      }
-
-      if (text === "hell") {
-        return THEMES.light;
-      }
-
-      if (text === THEMES.dark || text === THEMES.light || text === THEMES.system) {
-        return text;
-      }
-
-      return THEMES.light;
-    } catch (error) {
-      return THEMES.light;
-    }
+    return THEMES.light;
   }
 
   function queryAll(selector) {
@@ -1059,15 +1007,7 @@
         dispatch: dispatch,
         bindOnce: bindOnce,
         registerModule: function () {},
-        normalizeTheme: function (value) {
-          var text = String(value || "").trim().toLowerCase();
-
-          if (text === "light" || text === "system") {
-            return text;
-          }
-
-          return "dark";
-        },
+        normalizeTheme: function () { return "light"; },
         getNested: getNested,
         safeLocalStorageGet: safeLocalStorageGet,
         safeLocalStorageSet: safeLocalStorageSet,

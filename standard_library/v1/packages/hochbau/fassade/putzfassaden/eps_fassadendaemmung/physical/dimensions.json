@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1.0",
+  "width": 1.0,
+  "height": 3.0,
+  "depth": 0.06,
+  "unit": "m",
+  "width_mm": 1000,
+  "height_mm": 3000,
+  "depth_mm": 60,
+  "source": "create_form"
+}

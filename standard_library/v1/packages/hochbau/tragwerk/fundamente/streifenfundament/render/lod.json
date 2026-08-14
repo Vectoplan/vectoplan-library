@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1.0",
+  "levels": [
+    {
+      "lod": 0,
+      "mode": "primitive",
+      "enabled": true
+    }
+  ]
+}

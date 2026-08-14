@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "16ebf459-26a5-533d-b52a-2fdaf65fa803",
+  "family_id": "vp.ingenieurbau.bruecken.pfeiler.brueckenpfeiler",
+  "default_variant_id": "default",
+  "label": "Brückenpfeiler",
+  "description": "Massiver Brückenpfeiler in gestaffelten Querschnitten.",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "bruecken",
+  "subcategory": "pfeiler",
+  "classification_path": "ingenieurbau/bruecken/pfeiler",
+  "source_path": "ingenieurbau/bruecken/pfeiler/brueckenpfeiler",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Brücken",
+    "subcategory": "Pfeiler"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

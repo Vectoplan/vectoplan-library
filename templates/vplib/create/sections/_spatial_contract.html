@@ -1,0 +1,223 @@
+{% if _spatial_draft is not defined %}
+  {% if create_initial_draft is defined and create_initial_draft is mapping %}
+    {% set _spatial_draft = create_initial_draft %}
+  {% elif _initial_draft is defined and _initial_draft is mapping %}
+    {% set _spatial_draft = _initial_draft %}
+  {% elif draft is defined and draft is mapping %}
+    {% set _spatial_draft = draft %}
+  {% else %}
+    {% set _spatial_draft = {} %}
+  {% endif %}
+{% endif %}
+
+{% if _spatial_draft is mapping and 'spatial_contract' in _spatial_draft and _spatial_draft['spatial_contract'] is mapping %}
+  {% set _spatial_values = _spatial_draft['spatial_contract'] %}
+{% elif _spatial_draft is mapping and 'spatial_contract_json' in _spatial_draft and _spatial_draft['spatial_contract_json'] is mapping %}
+  {% set _spatial_values = _spatial_draft['spatial_contract_json'] %}
+{% else %}
+  {% set _spatial_values = {} %}
+{% endif %}
+
+{% set _spatial_mode = _spatial_values.get('mode', 'contained') %}
+{% set _zone_values = _spatial_values.get('zone', {}) if _spatial_values.get('zone', {}) is mapping else {} %}
+{% set _zone_source = _zone_values.get('source', 'manual_dimensions') %}
+{% set _zone_shape = _zone_values.get('shape', 'box') %}
+{% set _zone_margin = _zone_values.get('margin', 0) %}
+{% set _zone_margin_number = _zone_margin | float %}
+{% set _zone_clearance = _zone_values.get('clearance', {}) if _zone_values.get('clearance', {}) is mapping else {} %}
+{% set _connectors = _spatial_values.get('connectors', []) if _spatial_values.get('connectors', []) is iterable and _spatial_values.get('connectors', []) is not string else [] %}
+{% set _model_transform = _spatial_values.get('model_transform', {}) if _spatial_values.get('model_transform', {}) is mapping else {} %}
+{% set _scale_blocks = _model_transform.get('scale_in_blocks', {}) if _model_transform.get('scale_in_blocks', {}) is mapping else {} %}
+{% set _scale_x = _scale_blocks.get('x', 1) %}
+{% set _scale_y = _scale_blocks.get('y', 1) %}
+{% set _scale_z = _scale_blocks.get('z', 1) %}
+{% set _scale_uniform = _model_transform.get('uniform', true) %}
+
+<div
+  class="vplib-create-step__field vplib-create-step__field--full vp-create-subsection vp-create-spatial"
+  data-vp-spatial-root
+  data-vp-spatial-mode="{{ _spatial_mode }}"
+>
+  <div class="vp-create-compact-subheader vp-create-spatial__header">
+    <div>
+      <span class="vp-create-section-eyebrow">Räumlicher Vertrag</span>
+      <h3 class="vp-create-compact-subheader__title">Wie belegt das Objekt den Raum?</h3>
+      <p class="vp-create-compact-subheader__text">
+        Die Zone kann ein Rasterblock sein, aus dem 3D-Modell abgeleitet werden oder Modell und Regelgeometrie kombinieren.
+      </p>
+    </div>
+    <span class="vp-create-status-pill" data-vp-spatial-summary>1 × 1 × 1 · Blockzone</span>
+  </div>
+
+  <div class="vp-create-spatial__modes" role="radiogroup" aria-label="Räumlichen Modus wählen">
+    <label class="vp-create-spatial-mode">
+      <input type="radio" name="spatial_mode" value="contained" {% if _spatial_mode == 'contained' %}checked{% endif %} />
+      <span class="vp-create-spatial-mode__icon" aria-hidden="true">▣</span>
+      <span><strong>In Zone eingebettet</strong><small>Klassischer Block: Modell liegt innerhalb der definierten Zone.</small></span>
+    </label>
+    <label class="vp-create-spatial-mode">
+      <input type="radio" name="spatial_mode" value="asset_driven" {% if _spatial_mode == 'asset_driven' %}checked{% endif %} />
+      <span class="vp-create-spatial-mode__icon" aria-hidden="true">◇</span>
+      <span><strong>Modell bestimmt Zone</strong><small>Bounds oder Hülle des Primärmodells formen die Zone über mehrere Rasterzellen.</small></span>
+    </label>
+    <label class="vp-create-spatial-mode">
+      <input type="radio" name="spatial_mode" value="hybrid" {% if _spatial_mode == 'hybrid' %}checked{% endif %} />
+      <span class="vp-create-spatial-mode__icon" aria-hidden="true">⌁</span>
+      <span><strong>Hybrid / komplex</strong><small>Modellhülle, manuelle Reserve und Anschlüsse bilden gemeinsam das Bauteil.</small></span>
+    </label>
+  </div>
+
+  <section class="vp-create-model-scale" aria-labelledby="vp-create-model-scale-title">
+    <div class="vp-create-model-scale__header">
+      <div>
+        <span class="vp-create-section-eyebrow">Modellmaßstab</span>
+        <h4 id="vp-create-model-scale-title">Größe relativ zu einem Rasterblock</h4>
+        <p>1,00 entspricht genau einer Blockgröße der jeweiligen Achse. Die Achsen bleiben standardmäßig gekoppelt.</p>
+      </div>
+      <label class="vp-create-model-scale__link">
+        <input type="checkbox" name="model_scale_uniform" value="true" data-vp-scale-uniform {% if _scale_uniform %}checked{% endif %} />
+        <span aria-hidden="true">⛓</span>
+        Achsen koppeln
+      </label>
+    </div>
+
+    <div class="vp-create-model-scale__axes">
+      <label class="vp-create-model-scale__axis vp-create-model-scale__axis--x">
+        <span class="vp-create-model-scale__axis-head"><strong>X · Breite</strong><output data-vp-scale-output="x">{{ _scale_x }} × Block</output></span>
+        <input type="range" name="model_scale_x" min="0.1" max="32" step="0.1" value="{{ _scale_x }}" data-vp-model-scale="x" />
+      </label>
+      <label class="vp-create-model-scale__axis vp-create-model-scale__axis--y">
+        <span class="vp-create-model-scale__axis-head"><strong>Y · Höhe</strong><output data-vp-scale-output="y">{{ _scale_y }} × Block</output></span>
+        <input type="range" name="model_scale_y" min="0.1" max="32" step="0.1" value="{{ _scale_y }}" data-vp-model-scale="y" />
+      </label>
+      <label class="vp-create-model-scale__axis vp-create-model-scale__axis--z">
+        <span class="vp-create-model-scale__axis-head"><strong>Z · Tiefe</strong><output data-vp-scale-output="z">{{ _scale_z }} × Block</output></span>
+        <input type="range" name="model_scale_z" min="0.1" max="32" step="0.1" value="{{ _scale_z }}" data-vp-model-scale="z" />
+      </label>
+    </div>
+  </section>
+
+  <div class="vp-create-spatial__zone" data-vp-spatial-zone>
+    <label class="vp-create-field">
+      <span class="vp-create-field__label">Quelle der Zone</span>
+      <select class="vp-create-select" name="zone_source" data-vp-zone-source>
+        <option value="manual_dimensions" {% if _zone_source == 'manual_dimensions' %}selected{% endif %}>Manuelle Außenmaße</option>
+        <option value="primary_model_bounds" {% if _zone_source == 'primary_model_bounds' %}selected{% endif %}>3D-Modell · Bounding Box</option>
+        <option value="primary_model_hull" {% if _zone_source == 'primary_model_hull' %}selected{% endif %}>3D-Modell · konvexe Hülle</option>
+        <option value="primary_model_mesh" {% if _zone_source == 'primary_model_mesh' %}selected{% endif %}>3D-Modell · exakte Hülle</option>
+      </select>
+    </label>
+    <label class="vp-create-field">
+      <span class="vp-create-field__label">Zonenform</span>
+      <select class="vp-create-select" name="zone_shape" data-vp-zone-shape>
+        <option value="box" {% if _zone_shape == 'box' %}selected{% endif %}>Achsparalleler Quader</option>
+        <option value="oriented_box" {% if _zone_shape == 'oriented_box' %}selected{% endif %}>Gedrehter Quader</option>
+        <option value="convex_hull" {% if _zone_shape == 'convex_hull' %}selected{% endif %}>Konvexe Hülle</option>
+        <option value="mesh_envelope" {% if _zone_shape == 'mesh_envelope' %}selected{% endif %}>Exakte Modellhülle</option>
+      </select>
+    </label>
+    <fieldset class="vp-create-clearance vp-create-field--wide">
+      <legend>Sicherheitsabstände je Seite</legend>
+      <p>Aktiviere nur die Seiten, an denen tatsächlich ein freier Wartungs-, Montage- oder Schutzraum nötig ist.</p>
+      <div class="vp-create-clearance__grid">
+        {% for side, label in [('left', 'Links'), ('right', 'Rechts'), ('front', 'Vorne'), ('rear', 'Hinten'), ('top', 'Oben'), ('bottom', 'Unten')] %}
+          {% set side_value = _zone_clearance.get(side, {}) if _zone_clearance.get(side, {}) is mapping else {} %}
+          {% set side_enabled = side_value.get('enabled', _zone_margin_number > 0) %}
+          {% set side_distance = side_value.get('distance', _zone_margin_number if side_enabled else 0) %}
+          <label class="vp-create-clearance__side" data-vp-clearance-side="{{ side }}">
+            <span class="vp-create-clearance__toggle"><input type="checkbox" name="clearance_{{ side }}_enabled" value="true" data-vp-clearance-enabled {% if side_enabled %}checked{% endif %} /> {{ label }}</span>
+            <span class="vp-create-input-group">
+              <input class="vp-create-input" type="number" name="clearance_{{ side }}" value="{{ side_distance }}" min="0" step="0.01" data-vp-clearance-value />
+              <span class="vp-create-input-group__suffix" data-vp-zone-unit>m</span>
+            </span>
+          </label>
+        {% endfor %}
+      </div>
+      <input type="hidden" name="zone_margin" value="{{ _zone_margin }}" data-vp-zone-margin />
+    </fieldset>
+  </div>
+
+  <div class="vp-create-spatial__note">
+    <strong>Mehrere Blöcke sind erlaubt.</strong>
+    Die Rasterbelegung unten beschreibt die belegten Zellen. Bei modellgetriebenen Zonen kann der Editor sie nach dem Modellimport automatisch berechnen und anschließend manuell korrigieren.
+  </div>
+
+  <section class="vp-create-connectors" aria-labelledby="vp-create-connectors-title">
+    <div class="vp-create-connectors__header">
+      <div>
+        <h4 id="vp-create-connectors-title">Anschlusspunkte</h4>
+        <p>Lokale Position, Richtung und kompatible Schnittstelle für Fahrbahnplatten, Leitungen, Stützen oder beliebige Folgeobjekte.</p>
+      </div>
+      <button class="vp-create-button vp-create-button--secondary" type="button" data-vp-connector-add>
+        + Anschluss hinzufügen
+      </button>
+    </div>
+
+    <div class="vp-create-connectors__list" data-vp-connector-list></div>
+    <div class="vp-create-connectors__empty" data-vp-connector-empty>
+      <strong>Noch keine Verbindung definiert.</strong>
+      <span>Beispiel: Auflagerfläche oben am Widerlager als „Tragender Anschluss“.</span>
+    </div>
+  </section>
+
+  <input type="hidden" name="connection_points_json" value='{{ _connectors | tojson | forceescape }}' data-vp-connection-points-json />
+  <input type="hidden" name="spatial_contract_json" value='{{ _spatial_values | tojson | forceescape }}' data-vp-spatial-contract-json />
+</div>
+
+<template data-vp-connector-template>
+  <article class="vp-create-connector" data-vp-connector-row>
+    <div class="vp-create-connector__top">
+      <span class="vp-create-connector__number" data-vp-connector-number>Anschluss</span>
+      <button class="vp-create-button vp-create-button--ghost" type="button" data-vp-connector-remove aria-label="Anschluss entfernen">Entfernen</button>
+    </div>
+    <div class="vp-create-connector__grid">
+      <label class="vp-create-field vp-create-connector__wide">
+        <span class="vp-create-field__label">Bezeichnung</span>
+        <input class="vp-create-input" type="text" data-vp-connector-field="label" placeholder="z. B. Auflager Fahrbahnplatte" />
+      </label>
+      <label class="vp-create-field">
+        <span class="vp-create-field__label">Schnittstelle</span>
+        <select class="vp-create-select" data-vp-connector-field="interface_type">
+          <option value="generic">Allgemein</option>
+          <option value="structural_bearing">Tragendes Auflager</option>
+          <option value="surface">Anschlussfläche</option>
+          <option value="pipe">Rohr</option>
+          <option value="duct">Kanal</option>
+          <option value="cable">Kabel</option>
+          <option value="road_deck">Fahrbahnplatte</option>
+          <option value="rail">Schiene</option>
+        </select>
+      </label>
+      <label class="vp-create-field">
+        <span class="vp-create-field__label">Rolle</span>
+        <select class="vp-create-select" data-vp-connector-field="role">
+          <option value="bidirectional">Beidseitig</option>
+          <option value="support">Trägt / stützt</option>
+          <option value="supported">Wird getragen</option>
+          <option value="source">Quelle</option>
+          <option value="target">Ziel</option>
+        </select>
+      </label>
+      <fieldset class="vp-create-connector__vector vp-create-connector__wide">
+        <legend>Position im lokalen Objektkoordinatensystem</legend>
+        <label><span>X</span><input class="vp-create-input" type="number" step="0.001" value="0" data-vp-connector-field="position_x" /></label>
+        <label><span>Y</span><input class="vp-create-input" type="number" step="0.001" value="0" data-vp-connector-field="position_y" /></label>
+        <label><span>Z</span><input class="vp-create-input" type="number" step="0.001" value="0" data-vp-connector-field="position_z" /></label>
+      </fieldset>
+      <fieldset class="vp-create-connector__vector vp-create-connector__wide">
+        <legend>Anschlussrichtung / Normale</legend>
+        <label><span>X</span><input class="vp-create-input" type="number" step="0.001" value="0" data-vp-connector-field="normal_x" /></label>
+        <label><span>Y</span><input class="vp-create-input" type="number" step="0.001" value="1" data-vp-connector-field="normal_y" /></label>
+        <label><span>Z</span><input class="vp-create-input" type="number" step="0.001" value="0" data-vp-connector-field="normal_z" /></label>
+      </fieldset>
+      <label class="vp-create-field">
+        <span class="vp-create-field__label">Fangradius</span>
+        <input class="vp-create-input" type="number" min="0" step="0.001" value="0.05" data-vp-connector-field="snap_radius" />
+      </label>
+      <label class="vp-create-field vp-create-connector__wide">
+        <span class="vp-create-field__label">Kompatible Typen</span>
+        <input class="vp-create-input" type="text" data-vp-connector-field="compatible_types" placeholder="z. B. road_deck, bridge_bearing" />
+      </label>
+    </div>
+  </article>
+</template>

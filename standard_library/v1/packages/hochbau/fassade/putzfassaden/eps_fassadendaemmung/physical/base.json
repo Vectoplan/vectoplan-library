@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "de8cc456-c23a-5c4c-9260-e3902de09075",
+  "family_id": "vp.hochbau.fassade.putzfassaden.eps_fassadendaemmung",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "kunststoff"
+  ]
+}

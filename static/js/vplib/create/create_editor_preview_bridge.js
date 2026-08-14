@@ -103,12 +103,30 @@
     return result;
   }
 
+  function parseJsonField(form, name, fallback) {
+    try {
+      var value = readValue(form, name, "");
+      var parsed = value ? JSON.parse(value) : fallback;
+      return parsed && typeof parsed === "object" ? parsed : fallback;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
   function buildPayload(form) {
     var legacy = readLegacyState();
     var raw = collectRawValues(form);
     var width = asNumber(readValue(form, "geometry_width", legacy.width || "1"), 1, 0.0001, 10_000);
     var height = asNumber(readValue(form, "geometry_height", legacy.height || "1"), 1, 0.0001, 10_000);
     var depth = asNumber(readValue(form, "geometry_depth", legacy.depth || "1"), 1, 0.0001, 10_000);
+    var spatialContract = parseJsonField(form, "spatial_contract_json", {});
+    var spatialZone = spatialContract.zone && typeof spatialContract.zone === "object" ? spatialContract.zone : {};
+    var spatialDimensions = spatialZone.dimensions && typeof spatialZone.dimensions === "object" ? spatialZone.dimensions : {};
+    var spatialGrid = spatialZone.grid && typeof spatialZone.grid === "object" ? spatialZone.grid : {};
+    var spatialCells = spatialGrid.cells && typeof spatialGrid.cells === "object" ? spatialGrid.cells : {};
+    var modelTransform = spatialContract.model_transform && typeof spatialContract.model_transform === "object"
+      ? spatialContract.model_transform
+      : {};
 
     return {
       familyName: readValue(form, "family_name", "Library-Baustein"),
@@ -121,14 +139,18 @@
         readValue(form, "color_hint", ""),
       geometry: {
         shape: readValue(form, "primitive_shape", legacy.shape || "block"),
-        width: width,
-        height: height,
-        depth: depth,
-        unit: readValue(form, "geometry_unit", legacy.unit || "m"),
-        cellsX: asInteger(readValue(form, "editor_cells_x", legacy.cellsX || "1"), 1, 1, 1_024),
-        cellsY: asInteger(readValue(form, "editor_cells_y", legacy.cellsY || "1"), 1, 1, 1_024),
-        cellsZ: asInteger(readValue(form, "editor_cells_z", legacy.cellsZ || "1"), 1, 1, 1_024),
+        width: asNumber(spatialDimensions.width, width, 0.0001, 10_000),
+        height: asNumber(spatialDimensions.height, height, 0.0001, 10_000),
+        depth: asNumber(spatialDimensions.depth, depth, 0.0001, 10_000),
+        unit: spatialDimensions.unit || readValue(form, "geometry_unit", legacy.unit || "m"),
+        cellsX: asInteger(spatialCells.x, asInteger(readValue(form, "editor_cells_x", legacy.cellsX || "1"), 1, 1, 1_024), 1, 1_024),
+        cellsY: asInteger(spatialCells.y, asInteger(readValue(form, "editor_cells_y", legacy.cellsY || "1"), 1, 1, 1_024), 1, 1_024),
+        cellsZ: asInteger(spatialCells.z, asInteger(readValue(form, "editor_cells_z", legacy.cellsZ || "1"), 1, 1, 1_024), 1, 1_024),
       },
+      spatialContract: spatialContract,
+      modelTransform: modelTransform,
+      spatialMode: spatialContract.mode || readValue(form, "spatial_mode", "contained"),
+      connectionPoints: Array.isArray(spatialContract.connectors) ? spatialContract.connectors : [],
       raw: raw,
     };
   }
@@ -156,6 +178,8 @@
     var destroyed = false;
     var debounceTimer = 0;
     var readyTimer = 0;
+    var probeTimer = 0;
+    var probeAttempts = 0;
     var queuedReason = "initial";
     var lastFingerprint = "";
 
@@ -167,9 +191,9 @@
       }
     }
 
-    function publish(reason) {
+    function publish(reason, force) {
       queuedReason = reason || "form-change";
-      if (!ready || destroyed || !frame.contentWindow) {
+      if ((!ready && !force) || destroyed || !frame.contentWindow) {
         return false;
       }
       var nextPayload = buildPayload(form);
@@ -180,7 +204,7 @@
           return [file.name, file.size, file.type, file.lastModified];
         }),
       });
-      if (queuedReason !== "editor-ready" && fingerprint === lastFingerprint) {
+      if (!force && queuedReason !== "editor-ready" && fingerprint === lastFingerprint) {
         root.dataset.editorPreviewLastReason = "duplicate-skipped";
         return false;
       }
@@ -200,6 +224,16 @@
       root.dataset.editorPreviewSequence = String(sequence);
       root.dataset.editorPreviewLastReason = queuedReason;
       return true;
+    }
+
+    function probeEditor() {
+      if (destroyed || ready || probeAttempts >= 6) {
+        return;
+      }
+      probeAttempts += 1;
+      publish("editor-probe-" + probeAttempts, true);
+      window.clearTimeout(probeTimer);
+      probeTimer = window.setTimeout(probeEditor, 2_000);
     }
 
     function schedule(reason, delay) {
@@ -223,12 +257,17 @@
       if (event.data.type === READY_MESSAGE) {
         ready = true;
         window.clearTimeout(readyTimer);
+        window.clearTimeout(probeTimer);
         root.dataset.editorPreviewReady = "true";
         setStatus("Editor-Vorschau verbunden", "ready");
         publish("editor-ready");
         return;
       }
       if (event.data.type === RESULT_MESSAGE) {
+        ready = true;
+        window.clearTimeout(readyTimer);
+        window.clearTimeout(probeTimer);
+        root.dataset.editorPreviewReady = "true";
         setStatus(
           event.data.renderer === "uploaded-model"
             ? "3D-Modell im Editor geladen"
@@ -257,8 +296,11 @@
 
     frame.addEventListener("load", function () {
       ready = false;
+      probeAttempts = 0;
       root.dataset.editorPreviewReady = "false";
       setStatus("Editor-Vorschau wird verbunden …", "loading");
+      window.clearTimeout(probeTimer);
+      probeTimer = window.setTimeout(probeEditor, 250);
     });
     form.addEventListener("input", onFormEvent);
     form.addEventListener("change", onFormEvent);
@@ -267,6 +309,7 @@
       "vectoplan:create:preview-updated",
       "vectoplan:create:upload-changed",
       "vectoplan:create:variant-changed",
+      "vectoplan:create:spatial-contract-changed",
       "vp:create:preview-updated",
       "vp:create:upload-changed",
       "vp:create:variant-changed",
@@ -279,6 +322,7 @@
         setStatus("Editor nicht erreichbar – Service auf Port 5100 prüfen", "error");
       }
     }, 12_000);
+    probeTimer = window.setTimeout(probeEditor, 350);
 
     window.VectoplanCreateEditorPreviewBridge = {
       contract: CONTRACT,
@@ -298,6 +342,7 @@
         destroyed = true;
         window.clearTimeout(debounceTimer);
         window.clearTimeout(readyTimer);
+        window.clearTimeout(probeTimer);
         form.removeEventListener("input", onFormEvent);
         form.removeEventListener("change", onFormEvent);
         window.removeEventListener("message", onMessage);
