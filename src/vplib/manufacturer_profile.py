@@ -11,7 +11,7 @@ from typing import Any
 MANUFACTURER_SCHEMA_VERSION = "vplib.manufacturer.v2"
 MAX_LOCATIONS = 128
 MAX_TERRITORIES = 64
-ALLOWED_SCOPES = {"manufacturer"}
+ALLOWED_SCOPES = {"generic", "manufacturer"}
 ALLOWED_COVERAGE_MODES = {"locations", "territories"}
 ALLOWED_LOCATION_ROLES = {
     "production",
@@ -216,19 +216,6 @@ def normalize_manufacturer_profile(payload: Mapping[str, Any]) -> dict[str, Any]
     )
     organization = _mapping(raw.get("organization"))
     availability = _mapping(raw.get("availability"))
-    enforced = bool(raw) or any(
-        _text(payload.get(field))
-        for field in (
-            "manufacturer_name",
-            "manufacturer_org_id",
-            "manufacturer_locations_json",
-            "manufacturer_territories_json",
-        )
-    )
-    scope = _token(raw.get("scope") or payload.get("manufacturer_scope"), "manufacturer")
-    if scope not in ALLOWED_SCOPES:
-        scope = "manufacturer"
-
     raw_locations = (
         availability.get("locations")
         or raw.get("locations")
@@ -257,6 +244,48 @@ def normalize_manufacturer_profile(payload: Mapping[str, Any]) -> dict[str, Any]
         if territory is not None:
             territories.append(territory)
 
+    organization_values = {
+        "organization_id": _text(
+            organization.get("organization_id")
+            or organization.get("organizationId")
+            or payload.get("manufacturer_org_id"),
+            maximum=160,
+        ),
+        "name": _text(organization.get("name") or payload.get("manufacturer_name"), maximum=200),
+        "brand": _text(organization.get("brand") or payload.get("manufacturer_brand"), maximum=160),
+        "website": _text(organization.get("website") or payload.get("manufacturer_website"), maximum=512),
+        "country_code": _text(
+            organization.get("country_code")
+            or organization.get("countryCode")
+            or payload.get("manufacturer_country_code")
+            or "DE",
+            maximum=2,
+        ).upper(),
+    }
+    has_organization = any(
+        organization_values.get(field)
+        for field in ("organization_id", "name", "brand", "website")
+    )
+
+    # Empty JSON shells (for example ``{}`` and ``[]`` emitted by the
+    # browser form) must describe a generic VPLIB.  Treating their mere
+    # presence as manufacturer data made an untouched optional step fail at
+    # package validation and produced contradictory contracts that required a
+    # manufacturer while containing none.
+    requested_scope = _token(raw.get("scope") or payload.get("manufacturer_scope"), "generic")
+    if requested_scope not in ALLOWED_SCOPES:
+        requested_scope = "generic"
+    explicit_manufacturer_scope = requested_scope == "manufacturer" and (
+        "scope" in raw or "manufacturer_scope" in payload
+    )
+    enforced = bool(
+        has_organization
+        or locations
+        or territories
+        or explicit_manufacturer_scope
+    )
+    scope = "manufacturer" if enforced else "generic"
+
     coverage_mode = _token(
         availability.get("coverage_mode")
         or availability.get("coverageMode")
@@ -275,24 +304,7 @@ def normalize_manufacturer_profile(payload: Mapping[str, Any]) -> dict[str, Any]
         "enforced": enforced,
         "scope": scope,
         "manufacturer_bound": scope == "manufacturer",
-        "organization": {
-            "organization_id": _text(
-                organization.get("organization_id")
-                or organization.get("organizationId")
-                or payload.get("manufacturer_org_id"),
-                maximum=160,
-            ),
-            "name": _text(organization.get("name") or payload.get("manufacturer_name"), maximum=200),
-            "brand": _text(organization.get("brand") or payload.get("manufacturer_brand"), maximum=160),
-            "website": _text(organization.get("website") or payload.get("manufacturer_website"), maximum=512),
-            "country_code": _text(
-                organization.get("country_code")
-                or organization.get("countryCode")
-                or payload.get("manufacturer_country_code")
-                or "DE",
-                maximum=2,
-            ).upper(),
-        },
+        "organization": organization_values,
         "availability": {
             "storage": "platform_database_with_package_snapshot",
             "coverage_mode": coverage_mode,

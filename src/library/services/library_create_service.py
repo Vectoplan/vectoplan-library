@@ -63,6 +63,7 @@ import io
 import json
 import os
 import re
+import time
 import traceback
 import uuid
 import zipfile
@@ -160,7 +161,30 @@ ALLOWED_PRIMITIVE_SHAPES = {
     "slab",
     "cylinder",
     "pipe",
+    "frame",
+    "conveyor",
+    "stairs",
+    "composite",
 }
+ALLOWED_GEOMETRY_PROFILES = {
+    "block",
+    "half_block",
+    "slab",
+    "wall_segment",
+    "beam",
+    "column",
+    "vertical_cylinder",
+    "pipe_segment",
+    "thin_window",
+    "hinged_door",
+    "conveyor_segment",
+    "stair_run",
+    "composite_parts",
+}
+ALLOWED_GEOMETRY_AXES = {"x", "y", "z"}
+ALLOWED_BLOCK_HEIGHT_MODES = {"full", "half", "dimensions"}
+ALLOWED_INTERACTION_KINDS = {"none", "swing_door", "toggle", "rotate", "slide"}
+ALLOWED_GEOMETRY_PART_SHAPES = {"box", "cylinder", "pipe", "frame", "wedge"}
 DEFAULT_TEXTURE_MAX_EDGE = 1024
 DEFAULT_TEXTURE_WEBP_QUALITY = 82
 TEXTURE_RASTER_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".tga", ".bmp"}
@@ -402,6 +426,14 @@ class NormalizedCreateDraft:
     variants: list[dict[str, Any]]
 
     primitive_shape: str
+    geometry_profile_id: str
+    geometry_axis: str
+    geometry_parts: list[dict[str, Any]]
+    block_height_mode: str
+    height_fraction: float
+    interaction_kind: str
+    interaction_openable: bool
+    interaction_default_state: str
     geometry_width: float
     geometry_height: float
     geometry_depth: float
@@ -469,6 +501,11 @@ class NormalizedCreateDraft:
             "geometry": {
                 "mode": self.spatial_contract.get("mode", "contained"),
                 "primitive_shape": self.primitive_shape,
+                "profile_id": self.geometry_profile_id,
+                "axis": self.geometry_axis,
+                "parts": _json_safe(self.geometry_parts),
+                "height_mode": self.block_height_mode,
+                "height_fraction": self.height_fraction,
                 "dimensions": {
                     "width": self.geometry_width,
                     "height": self.geometry_height,
@@ -477,6 +514,8 @@ class NormalizedCreateDraft:
                 },
             },
             "editor_block": {
+                "height_mode": self.block_height_mode,
+                "height_fraction": self.height_fraction,
                 "cells": {
                     "x": self.editor_cells_x,
                     "y": self.editor_cells_y,
@@ -488,6 +527,11 @@ class NormalizedCreateDraft:
                     "z": self.editor_cell_size_z,
                     "unit": self.geometry_unit,
                 },
+            },
+            "interaction": {
+                "kind": self.interaction_kind,
+                "openable": self.interaction_openable,
+                "default_state": self.interaction_default_state,
             },
             "spatial_contract": _json_safe(self.spatial_contract),
             "manufacturer_profile": _json_safe(self.manufacturer_profile),
@@ -1890,7 +1934,7 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
     ]
     manufacturer_profile = _json_safe(normalized.manufacturer_profile)
     pricing_contract = _json_safe(normalized.pricing_contract)
-    manufacturer_scope = str(manufacturer_profile.get("scope") or "manufacturer")
+    manufacturer_scope = str(manufacturer_profile.get("scope") or "generic")
     manufacturer_organization = dict(manufacturer_profile.get("organization") or {})
     manufacturer_availability = dict(manufacturer_profile.get("availability") or {})
     manufacturer_locations = [
@@ -1926,11 +1970,13 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
         "editor/spatial.json",
         "editor/sockets.json",
         "editor/ports.json",
+        "render/geometry.json",
         "render/render_variants.json",
         "render/bounds.json",
         "physical/base.json",
         "physical/dimensions.json",
         "physical/collision.json",
+        "dynamic/interactions.json",
         "manufacturer/contract.json",
         "commercial/pricing.json",
         "definitions/profile.json",
@@ -2000,7 +2046,7 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                 "material": bool(normalized.material_classes),
                 "calculation": bool(normalized.variables),
                 "analysis": False,
-                "dynamic": normalized.object_kind == "adaptive_system",
+                "dynamic": normalized.object_kind == "adaptive_system" or normalized.interaction_kind != "none",
                 "manufacturer": True,
                 "commercial": True,
                 "docs": True,
@@ -2018,7 +2064,7 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                     "material": bool(normalized.material_classes),
                     "calculation": bool(normalized.variables),
                     "analysis": False,
-                    "dynamic": normalized.object_kind == "adaptive_system",
+                    "dynamic": normalized.object_kind == "adaptive_system" or normalized.interaction_kind != "none",
                     "manufacturer": True,
                     "commercial": True,
                     "docs": True,
@@ -2140,6 +2186,9 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "scale_policy": "fixed",
             "editor_block": {
                 "placement_truth": "editor_block",
+                "height_mode": normalized.block_height_mode,
+                "height_fraction": normalized.height_fraction,
+                "geometry_profile_id": normalized.geometry_profile_id,
                 "cells": {
                     "x": normalized.editor_cells_x,
                     "y": normalized.editor_cells_y,
@@ -2192,6 +2241,18 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                 if connector.get("interface_type") in {"pipe", "duct", "cable"}
             ],
         },
+        "render/geometry.json": {
+            "schema_version": "2.0.0",
+            "contract": "vplib.declarative_geometry",
+            "profile_id": normalized.geometry_profile_id,
+            "primitive_shape": normalized.primitive_shape,
+            "axis": normalized.geometry_axis,
+            "fit_mode": "grid_footprint",
+            "height_mode": normalized.block_height_mode,
+            "height_fraction": normalized.height_fraction,
+            "parts": _json_safe(normalized.geometry_parts),
+            "dimensions_mm": dimensions_mm,
+        },
         "render/render_variants.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "default_render_variant_id": "default",
@@ -2200,6 +2261,8 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                     "render_variant_id": "default",
                     "mode": "primitive" if spatial_mode == "contained" else "model",
                     "primitive_shape": normalized.primitive_shape,
+                    "geometry_profile_id": normalized.geometry_profile_id,
+                    "geometry_document": "render/geometry.json",
                     "label": "Default primitive preview" if spatial_mode == "contained" else "Primary model preview",
                     "source": "generated" if spatial_mode == "contained" else "primary_geometry_asset",
                 }
@@ -2270,6 +2333,14 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "unit": normalized.geometry_unit,
             "dimensions_mm": dimensions_mm,
             "clearance": spatial_zone.get("clearance", {}),
+        },
+        "dynamic/interactions.json": {
+            "schema_version": "1.0.0",
+            "kind": normalized.interaction_kind,
+            "enabled": normalized.interaction_kind != "none",
+            "openable": normalized.interaction_openable,
+            "default_state": normalized.interaction_default_state,
+            "states": ["closed", "open"] if normalized.interaction_openable else [normalized.interaction_default_state],
         },
         "manufacturer/contract.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
@@ -2626,6 +2697,66 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         )
         primitive_shape = DEFAULT_PRIMITIVE_SHAPE
 
+    inferred_semantics = _semantic_geometry_defaults(
+        primitive_shape=primitive_shape,
+        category=category,
+        subcategory=subcategory,
+        family_slug=family_slug,
+    )
+    geometry_profile_id = _normalize_slug_token(
+        _first_value(
+            payload,
+            ["geometry_profile_id", "geometryProfileId", ("geometry", "profile_id")],
+            inferred_semantics["geometry.profile_id"],
+        )
+    )
+    if geometry_profile_id not in ALLOWED_GEOMETRY_PROFILES:
+        warnings.append(
+            _warning(
+                "unknown_geometry_profile_fallback",
+                "Das Geometrieprofil wurde auf das passende Standardprofil zurückgesetzt.",
+                field="geometry_profile_id",
+                details={"received": geometry_profile_id},
+            )
+        )
+        geometry_profile_id = str(inferred_semantics["geometry.profile_id"])
+    geometry_axis = _normalize_slug_token(
+        _first_value(payload, ["geometry_axis", "geometryAxis", ("geometry", "axis")], inferred_semantics["geometry.axis"])
+    )
+    if geometry_axis not in ALLOWED_GEOMETRY_AXES:
+        geometry_axis = "x"
+    block_height_mode = _normalize_slug_token(
+        _first_value(payload, ["block_height_mode", "blockHeightMode", ("geometry", "height_mode")], "full")
+    )
+    if block_height_mode not in ALLOWED_BLOCK_HEIGHT_MODES:
+        block_height_mode = "dimensions"
+    height_fraction_default = 0.5 if block_height_mode == "half" else 1.0
+    height_fraction = _safe_float(
+        _first_value(payload, ["height_fraction", "heightFraction", ("geometry", "height_fraction")], height_fraction_default),
+        default=height_fraction_default,
+        minimum=0.01,
+        maximum=32.0,
+    )
+    if block_height_mode == "half":
+        height_fraction = 0.5
+    elif block_height_mode == "full":
+        height_fraction = 1.0
+    geometry_parts = _normalize_geometry_parts(
+        _first_value(payload, ["geometry_parts", "geometryParts", "geometry_parts_json", ("geometry", "parts")], [])
+    )
+    interaction_kind = _normalize_slug_token(
+        _first_value(payload, ["interaction_kind", "interactionKind", ("interaction", "kind")], inferred_semantics["interaction.kind"])
+    )
+    if interaction_kind not in ALLOWED_INTERACTION_KINDS:
+        interaction_kind = "none"
+    interaction_openable = _safe_bool(
+        _first_value(payload, ["interaction_openable", "interactionOpenable", ("interaction", "openable")], interaction_kind == "swing_door"),
+        default=interaction_kind == "swing_door",
+    )
+    interaction_default_state = _normalize_slug_token(
+        _first_value(payload, ["interaction_default_state", "interactionDefaultState", ("interaction", "default_state")], "closed")
+    ) or "closed"
+
     geometry_unit = _normalize_unit(
         _first_value(
             payload,
@@ -2718,6 +2849,14 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         editor_cells_x = 1
         editor_cells_y = 1
         editor_cells_z = 1
+
+    # These profiles have an intentional, stable Minecraft-style footprint.
+    if geometry_profile_id == "hinged_door":
+        editor_cells_x, editor_cells_y, editor_cells_z = 1, 2, 1
+        interaction_kind = "swing_door"
+        interaction_openable = True
+    elif geometry_profile_id == "thin_window":
+        editor_cells_x, editor_cells_y, editor_cells_z = 1, 1, 1
 
     editor_cell_size_x = _safe_float(
         _first_value(
@@ -2829,6 +2968,36 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         geometry_unit=geometry_unit,
         starter=starter_requested,
     )
+    semantic_defaults = _semantic_geometry_defaults(
+        primitive_shape=primitive_shape,
+        category=category,
+        subcategory=subcategory,
+        family_slug=family_slug,
+        geometry_profile_id=geometry_profile_id,
+        geometry_axis=geometry_axis,
+        geometry_parts=geometry_parts,
+        block_height_mode=block_height_mode,
+        height_fraction=height_fraction,
+        interaction_kind=interaction_kind,
+        interaction_openable=interaction_openable,
+        interaction_default_state=interaction_default_state,
+    )
+    for variant in variants:
+        definition_values = variant.get("definition_values")
+        if not isinstance(definition_values, dict):
+            definition_values = dict(definition_values or {})
+        for key, value in semantic_defaults.items():
+            definition_values.setdefault(key, value)
+        definition_values.setdefault(
+            "dimensions.length_mm",
+            definition_values.get(
+                "dimensions.width_mm",
+                _unit_value_to_millimetres(geometry_width, geometry_unit),
+            ),
+        )
+        variant["definition_values"] = definition_values
+        variant["definitionValues"] = definition_values
+        variant["overrides"] = definition_values
 
     pricing_contract = normalize_pricing_contract(payload, variants=variants)
 
@@ -2893,6 +3062,14 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
             default_variant_id=default_variant_id,
             variants=variants,
             primitive_shape=primitive_shape,
+            geometry_profile_id=geometry_profile_id,
+            geometry_axis=geometry_axis,
+            geometry_parts=geometry_parts,
+            block_height_mode=block_height_mode,
+            height_fraction=height_fraction,
+            interaction_kind=interaction_kind,
+            interaction_openable=interaction_openable,
+            interaction_default_state=interaction_default_state,
             geometry_width=geometry_width,
             geometry_height=geometry_height,
             geometry_depth=geometry_depth,
@@ -3075,6 +3252,128 @@ def _millimetres_to_unit(value_mm: float, unit: str) -> float:
 def _unit_value_to_millimetres(value: float, unit: str) -> int:
     factor = {"m": 1000.0, "cm": 10.0, "mm": 1.0}.get(unit, 1000.0)
     return max(1, int(round(float(value) * factor)))
+
+
+def _normalize_geometry_parts(value: Any) -> list[dict[str, Any]]:
+    """Normalize the small, declarative part format consumed by the editor."""
+    raw = value
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return []
+        try:
+            raw = json.loads(text)
+        except (TypeError, ValueError):
+            return []
+    if isinstance(raw, Mapping):
+        raw = raw.get("parts")
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes, bytearray)):
+        return []
+
+    result: list[dict[str, Any]] = []
+    for index, candidate in enumerate(list(raw)[:64]):
+        if not isinstance(candidate, Mapping):
+            continue
+        shape = _normalize_slug_token(candidate.get("shape") or candidate.get("type") or "box")
+        if shape not in ALLOWED_GEOMETRY_PART_SHAPES:
+            shape = "box"
+
+        def vector(key: str, fallback: tuple[float, float, float]) -> list[float]:
+            source = candidate.get(key)
+            if isinstance(source, Mapping):
+                values = [source.get("x"), source.get("y"), source.get("z")]
+            elif isinstance(source, Sequence) and not isinstance(source, (str, bytes, bytearray)):
+                values = list(source)[:3]
+            else:
+                values = []
+            values += list(fallback[len(values):])
+            return [
+                _safe_float(values[0], default=fallback[0], minimum=-1000.0, maximum=1000.0),
+                _safe_float(values[1], default=fallback[1], minimum=-1000.0, maximum=1000.0),
+                _safe_float(values[2], default=fallback[2], minimum=-1000.0, maximum=1000.0),
+            ]
+
+        size = vector("size", (1.0, 1.0, 1.0))
+        size = [max(0.001, abs(component)) for component in size]
+        opacity = _safe_float(candidate.get("opacity"), default=1.0, minimum=0.0, maximum=1.0)
+        color = str(candidate.get("color") or "#9ca3af").strip()
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            color = "#9ca3af"
+        result.append(
+            {
+                "part_id": _safe_segment(_slugify(candidate.get("part_id") or candidate.get("id") or f"part_{index + 1}")),
+                "shape": shape,
+                "size": size,
+                "position": vector("position", (0.0, 0.0, 0.0)),
+                "rotation": vector("rotation", (0.0, 0.0, 0.0)),
+                "color": color.lower(),
+                "opacity": opacity,
+                "collision": _safe_bool(candidate.get("collision"), default=True),
+            }
+        )
+    return result
+
+
+def _semantic_geometry_defaults(
+    *,
+    primitive_shape: str,
+    category: str,
+    subcategory: str,
+    family_slug: str,
+    geometry_profile_id: str = "",
+    geometry_axis: str = "",
+    geometry_parts: Sequence[Mapping[str, Any]] = (),
+    block_height_mode: str = "full",
+    height_fraction: float = 1.0,
+    interaction_kind: str = "",
+    interaction_openable: bool = False,
+    interaction_default_state: str = "closed",
+) -> dict[str, Any]:
+    """Return editor-readable geometry semantics for generated VPLIB variants."""
+    haystack = " ".join((primitive_shape, category, subcategory, family_slug)).lower()
+    profile_id = geometry_profile_id or primitive_shape
+    axis = geometry_axis or "x"
+    icon_kind = primitive_shape
+    resolved_interaction_kind = interaction_kind or "none"
+    sort_order = 500
+    if not geometry_profile_id:
+        if any(token in haystack for token in ("fenster", "window")):
+            profile_id, icon_kind, sort_order = "thin_window", "window", 120
+        elif any(token in haystack for token in ("tuer", "tueren", "door")):
+            profile_id, icon_kind, resolved_interaction_kind, sort_order = "hinged_door", "door", "swing_door", 110
+        elif primitive_shape == "pipe" or any(token in haystack for token in ("rohr", "leitung", "conduit")):
+            profile_id, icon_kind, sort_order = "pipe_segment", "pipe", 210
+        elif primitive_shape == "cylinder":
+            profile_id, axis, icon_kind, sort_order = "vertical_cylinder", "y", "cylinder", 220
+    if profile_id == "thin_window":
+        icon_kind, sort_order = "window", 120
+    elif profile_id == "hinged_door":
+        icon_kind, resolved_interaction_kind, sort_order = "door", "swing_door", 110
+    elif profile_id == "pipe_segment":
+        icon_kind, sort_order = "pipe", 210
+    elif profile_id == "vertical_cylinder":
+        icon_kind, sort_order = "cylinder", 220
+    result: dict[str, Any] = {
+        "geometry.primitive_shape": primitive_shape,
+        "geometry.profile_id": profile_id,
+        "geometry.axis": axis,
+        "geometry.fit_mode": "grid_footprint",
+        "geometry.height_mode": block_height_mode,
+        "geometry.height_fraction": round(height_fraction, 4),
+        "interaction.kind": resolved_interaction_kind,
+        "interaction.openable": interaction_openable or resolved_interaction_kind == "swing_door",
+        "interaction.default_state": interaction_default_state,
+        "inventory.icon_kind": icon_kind,
+        "inventory.sort_order": sort_order,
+    }
+    if geometry_parts:
+        result["geometry.parts_json"] = json.dumps(
+            list(geometry_parts),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    return result
 
 
 def _materialize_variant_contract(
@@ -3863,6 +4162,28 @@ def _validate_normalized_draft(draft: NormalizedCreateDraft) -> list[CreateIssue
     if draft.primitive_shape not in ALLOWED_PRIMITIVE_SHAPES:
         errors.append(_error("invalid_choice", "Ungültige primitive Form.", field="primitive_shape"))
 
+    if draft.geometry_profile_id not in ALLOWED_GEOMETRY_PROFILES:
+        errors.append(_error("invalid_choice", "Ungültiges Geometrieprofil.", field="geometry_profile_id"))
+
+    if draft.geometry_axis not in ALLOWED_GEOMETRY_AXES:
+        errors.append(_error("invalid_choice", "Ungültige Geometrieachse.", field="geometry_axis"))
+
+    if draft.block_height_mode not in ALLOWED_BLOCK_HEIGHT_MODES:
+        errors.append(_error("invalid_choice", "Ungültiger Höhenmodus.", field="block_height_mode"))
+
+    if draft.interaction_kind not in ALLOWED_INTERACTION_KINDS:
+        errors.append(_error("invalid_choice", "Ungültige Interaktion.", field="interaction_kind"))
+
+    if draft.geometry_profile_id == "hinged_door" and (
+        draft.editor_cells_x != 1 or draft.editor_cells_y != 2 or draft.editor_cells_z != 1
+    ):
+        errors.append(_error("door_grid_invalid", "Eine Tür muss genau 1 × 2 × 1 Rasterzellen belegen.", field="editor_block.cells"))
+
+    if draft.geometry_profile_id == "thin_window" and (
+        draft.editor_cells_x != 1 or draft.editor_cells_y != 1 or draft.editor_cells_z != 1
+    ):
+        errors.append(_error("window_grid_invalid", "Ein Fenster muss genau 1 × 1 × 1 Rasterzellen belegen.", field="editor_block.cells"))
+
     if draft.geometry_unit not in ALLOWED_UNITS:
         errors.append(_error("invalid_choice", "Ungültige Einheit.", field="geometry_unit"))
 
@@ -4466,7 +4787,7 @@ def _build_notes_markdown(draft: NormalizedCreateDraft) -> str:
         f"- Object kind: `{draft.object_kind}`\n"
         f"- Spatial mode: `{draft.spatial_contract.get('mode', 'contained')}`\n"
         f"- Connectors: `{len(draft.spatial_contract.get('connectors') or [])}`\n"
-        f"- Manufacturer scope: `{draft.manufacturer_profile.get('scope', 'manufacturer')}`\n"
+        f"- Manufacturer scope: `{draft.manufacturer_profile.get('scope', 'generic')}`\n"
         f"- Manufacturer locations: `{(draft.manufacturer_profile.get('availability') or {}).get('location_count', 0)}`\n"
         f"- Manufacturer territories: `{(draft.manufacturer_profile.get('availability') or {}).get('territory_count', 0)}`\n"
         f"- Pricing rules: `{draft.pricing_contract.get('rule_count', 0)}`\n"
@@ -4800,6 +5121,10 @@ def _static_create_options() -> dict[str, Any]:
             {"value": "slab", "id": "slab", "label": "Decke / Platte liegend", "enabled": True},
             {"value": "cylinder", "id": "cylinder", "label": "Zylinder", "enabled": True},
             {"value": "pipe", "id": "pipe", "label": "Rohr / liegender Zylinder", "enabled": True},
+            {"value": "frame", "id": "frame", "label": "Rahmen / Fenster", "enabled": True},
+            {"value": "conveyor", "id": "conveyor", "label": "Förderband", "enabled": True},
+            {"value": "stairs", "id": "stairs", "label": "Treppe", "enabled": True},
+            {"value": "composite", "id": "composite", "label": "Zusammengesetzte Geometrie", "enabled": True},
         ],
         "units": [
             {"value": "m", "id": "m", "label": "Meter", "enabled": True, "default": True},
@@ -5684,11 +6009,29 @@ def _serialize_document(relative_path: str, content: Any) -> str:
     return str(content) + "\n"
 
 
+def _replace_file_with_retry(temp_file: Path, target_file: Path) -> None:
+    """Replace a package file despite short-lived Windows scanner locks."""
+    delays = (0.0, 0.02, 0.05, 0.1, 0.2)
+    for attempt, delay in enumerate(delays):
+        if delay:
+            time.sleep(delay)
+        try:
+            temp_file.replace(target_file)
+            return
+        except PermissionError:
+            if attempt == len(delays) - 1:
+                raise
+
+
+def _atomic_temp_file(target_file: Path) -> Path:
+    return target_file.with_name(f".{target_file.name}.{uuid.uuid4().hex}.tmp")
+
+
 def _write_text_atomic(target_file: Path, content: str) -> None:
-    temp_file = target_file.with_name(f".{target_file.name}.tmp")
+    temp_file = _atomic_temp_file(target_file)
     try:
         temp_file.write_text(content, encoding="utf-8")
-        temp_file.replace(target_file)
+        _replace_file_with_retry(temp_file, target_file)
     except Exception:
         try:
             if temp_file.exists():
@@ -5699,10 +6042,10 @@ def _write_text_atomic(target_file: Path, content: str) -> None:
 
 
 def _write_bytes_atomic(target_file: Path, content: bytes) -> None:
-    temp_file = target_file.with_name(f".{target_file.name}.tmp")
+    temp_file = _atomic_temp_file(target_file)
     try:
         temp_file.write_bytes(content)
-        temp_file.replace(target_file)
+        _replace_file_with_retry(temp_file, target_file)
     except Exception:
         try:
             if temp_file.exists():

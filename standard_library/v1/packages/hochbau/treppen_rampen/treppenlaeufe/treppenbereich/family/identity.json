@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "aa7cd770-64f9-55b7-8165-43736dfa9671",
+  "family_id": "vp.hochbau.treppen_rampen.treppenlaeufe.treppenbereich",
+  "slug": "treppenbereich",
+  "label": "Treppenbereich",
+  "description": "Semantischer Treppenbereich als Grundrisszone; die Treppenlogik wird spaeter ergaenzt.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

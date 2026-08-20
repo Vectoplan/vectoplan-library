@@ -3076,6 +3076,53 @@ class LibraryDbSyncService:
             publish_payload,
             scan_run_id=self._get_object_id(scan_run),
         )
+        requested_revision_hash = normalize_string(revision_payload.get("revision_hash"))
+        current_revision_hash = normalize_string(
+            getattr(item, "current_revision_hash", None)
+        )
+        if (
+            not item_created
+            and requested_revision_hash
+            and requested_revision_hash == current_revision_hash
+        ):
+            # Direct repository publishing is the production default.  Keep it
+            # just as idempotent as CreativeLibraryService.publish_bundle(): a
+            # container restart must not attempt to insert an already-published
+            # (vplib_uid, revision_hash) pair again.
+            variant_count = safe_int(getattr(item, "variant_count", 0), 0)
+            asset_count = safe_int(getattr(item, "asset_count", 0), 0)
+            document_count = safe_int(getattr(item, "document_count", 0), 0)
+            return {
+                "ok": True,
+                "status": "ok",
+                "payload": {
+                    "created": False,
+                    "updated": False,
+                    "unchanged": True,
+                    "revision_created": False,
+                    "item": {
+                        "id": self._get_object_id(item),
+                        "vplib_uid": publish_payload.get("vplib_uid"),
+                        "family_id": publish_payload.get("family_id"),
+                    },
+                    "revision": {
+                        "id": getattr(item, "current_revision_id", None),
+                        "revision_hash": current_revision_hash,
+                    },
+                    "children": {
+                        "variants": [],
+                        "assets": [],
+                        "documents": [],
+                        "counts": {
+                            "variant_count": variant_count,
+                            "asset_count": asset_count,
+                            "document_count": document_count,
+                        },
+                    },
+                    "vplib_uid": publish_payload.get("vplib_uid"),
+                },
+            }
+
         revision = self._create_revision(repository, item, revision_payload)
 
         variants = []
@@ -3097,6 +3144,7 @@ class LibraryDbSyncService:
             "payload": {
                 "created": item_created,
                 "updated": not item_created,
+                "revision_created": True,
                 # ORM-Objekte nie rekursiv serialisieren: geladene Relationships
                 # können auf Item/Revision zurückzeigen und den Import aufblasen.
                 "item": {

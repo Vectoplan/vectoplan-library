@@ -6,6 +6,9 @@
   "scale_policy": "fixed",
   "editor_block": {
     "placement_truth": "editor_block",
+    "height_mode": "dimensions",
+    "height_fraction": 1.0,
+    "geometry_profile_id": "beam",
     "cells": {
       "x": 1,
       "y": 1,
@@ -21,6 +24,65 @@
       "width_mm": 1000,
       "height_mm": 600,
       "depth_mm": 400
+    }
+  },
+  "spatial_zone": {
+    "source": "manual_dimensions",
+    "shape": "box",
+    "auto_fit": false,
+    "margin": 0.0,
+    "clearance": {
+      "left": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      },
+      "right": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      },
+      "front": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      },
+      "rear": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      },
+      "top": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      },
+      "bottom": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      }
+    },
+    "unit": "m",
+    "dimensions": {
+      "width": 1.0,
+      "height": 0.6,
+      "depth": 0.4,
+      "unit": "m"
+    },
+    "grid": {
+      "occupancy": "rectangular_span",
+      "cells": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "cell_size": {
+        "x": 1.0,
+        "y": 0.6,
+        "z": 0.4,
+        "unit": "m"
+      }
     }
   },
   "host_rules": []

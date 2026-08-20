@@ -1,11 +1,14 @@
 {
   "schema_version": "0.1.0",
-  "placement_mode": "grid",
+  "placement_mode": "host_context",
   "snap_mode": "grid",
   "rotation_mode": "orthogonal",
   "scale_policy": "fixed",
   "editor_block": {
     "placement_truth": "editor_block",
+    "height_mode": "dimensions",
+    "height_fraction": 1.0,
+    "geometry_profile_id": "pipe_segment",
     "cells": {
       "x": 1,
       "y": 1,
@@ -23,5 +26,73 @@
       "depth_mm": 32
     }
   },
-  "host_rules": []
+  "spatial_zone": {
+    "source": "manual_dimensions",
+    "shape": "box",
+    "auto_fit": false,
+    "margin": 0.0,
+    "clearance": {
+      "left": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      },
+      "right": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      },
+      "front": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      },
+      "rear": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      },
+      "top": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      },
+      "bottom": {
+        "enabled": false,
+        "distance": 0.0,
+        "unit": "m"
+      }
+    },
+    "unit": "m",
+    "dimensions": {
+      "width": 6.0,
+      "height": 0.032,
+      "depth": 0.032,
+      "unit": "m"
+    },
+    "grid": {
+      "occupancy": "rectangular_span",
+      "cells": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "cell_size": {
+        "x": 6.0,
+        "y": 0.032,
+        "z": 0.032,
+        "unit": "m"
+      }
+    }
+  },
+  "host_rules": [
+    {
+      "type": "host_compatibility",
+      "host_class": "custom_later",
+      "host_anchor": "auto",
+      "snap_policy": "auto_on_host",
+      "required": true,
+      "placeholder": true
+    }
+  ]
 }

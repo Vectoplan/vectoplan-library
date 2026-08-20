@@ -18,7 +18,7 @@
     "category": "Schächte",
     "subcategory": "Kanalschächte"
   },
-  "object_kind": "cell_block",
+  "object_kind": "multi_cell_module",
   "family_profile_id": "simple_cell_block",
   "variant_profile_id": "simple_cell_block.v1",
   "tags": []

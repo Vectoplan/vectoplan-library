@@ -1,0 +1,16 @@
+{
+  "schema_version": "2.0.0",
+  "contract": "vplib.declarative_geometry",
+  "profile_id": "thin_window",
+  "primitive_shape": "block",
+  "axis": "x",
+  "fit_mode": "grid_footprint",
+  "height_mode": "dimensions",
+  "height_fraction": 1.0,
+  "parts": [],
+  "dimensions_mm": {
+    "width_mm": 760,
+    "height_mm": 760,
+    "depth_mm": 120
+  }
+}

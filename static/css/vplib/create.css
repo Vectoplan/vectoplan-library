@@ -1108,6 +1108,58 @@
     transform: translate(18%, 18%);
   }
 
+  .vp-create-preview-cube--half_block,
+  .vp-create-preview-cube--slab {
+    transform: rotateX(58deg) rotateZ(42deg) scaleY(0.5);
+  }
+
+  .vp-create-preview-cube--wall_segment,
+  .vp-create-preview-cube--wall,
+  .vp-create-preview-cube--hinged_door {
+    border-radius: 4px;
+    transform: rotateX(58deg) rotateZ(42deg) scaleX(0.38) scaleY(1.25);
+  }
+
+  .vp-create-preview-cube--thin_window,
+  .vp-create-preview-cube--frame {
+    border: 12px solid rgba(226, 232, 240, 0.9);
+    border-radius: 3px;
+    background: rgba(125, 211, 252, 0.38);
+    box-shadow: inset 0 0 0 2px rgba(14, 116, 144, 0.75);
+    transform: rotateX(58deg) rotateZ(42deg) scaleX(0.72) scaleY(1.05);
+  }
+
+  .vp-create-preview-cube--pipe,
+  .vp-create-preview-cube--pipe_segment,
+  .vp-create-preview-cube--cylinder,
+  .vp-create-preview-cube--column {
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(226, 232, 240, 0.88), rgba(71, 85, 105, 0.78));
+    transform: rotateX(58deg) rotateZ(42deg) scaleY(0.32);
+  }
+
+  .vp-create-preview-cube--beam {
+    border-radius: 4px;
+    transform: rotateX(58deg) rotateZ(42deg) scaleY(0.28) scaleX(1.35);
+  }
+
+  .vp-create-preview-cube--conveyor_segment {
+    border-color: rgba(148, 163, 184, 0.95);
+    background: repeating-linear-gradient(90deg, #334155 0 12px, #64748b 12px 18px);
+    transform: rotateX(58deg) rotateZ(42deg) scaleY(0.46) scaleX(1.3);
+  }
+
+  .vp-create-preview-cube--stair_run {
+    clip-path: polygon(0 75%, 18% 75%, 18% 58%, 38% 58%, 38% 40%, 60% 40%, 60% 22%, 82% 22%, 82% 4%, 100% 4%, 100% 100%, 0 100%);
+    border-radius: 0;
+  }
+
+  .vp-create-preview-cube--composite_parts {
+    border-style: dashed;
+    background:
+      linear-gradient(90deg, rgba(56, 189, 248, 0.48) 0 28%, transparent 28% 38%, rgba(248, 113, 113, 0.48) 38% 70%, transparent 70% 78%, rgba(167, 139, 250, 0.48) 78%);
+  }
+
   .vp-create-preview-stage__overlay {
     display: none;
   }
@@ -6133,6 +6185,22 @@ body[data-vp-create-current-step="1"] .vplib-create-step__panel {
 
 .vp-create-identity-taxonomy__body {
   overflow: auto;
+}
+
+.vp-create-library-source__identity-lock {
+  margin: 0 0 0.85rem;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a5f;
+}
+
+[data-vp-existing-source-locked="true"] input:not([type="hidden"]),
+[data-vp-existing-source-locked="true"] select,
+[data-vp-existing-source-locked="true"] textarea {
+  cursor: not-allowed;
+  pointer-events: none;
+  background-color: #f1f5f9;
+  color: #475569;
 }
 
 .vp-create-section--identity-taxonomy .vp-create-section--identity,

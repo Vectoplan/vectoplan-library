@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "vplib_uid": "36a91dea-e67d-5867-8a90-cf0b2da36548",
   "family_id": "vp.tiefbau.leitungen.schutzrohre.kabelschutzrohr",
-  "object_kind": "cell_block",
+  "object_kind": "adaptive_system",
   "profiles": {
     "family_profile_id": "simple_cell_block",
     "variant_profile_id": "simple_cell_block.v1"

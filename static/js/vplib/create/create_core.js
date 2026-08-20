@@ -148,6 +148,7 @@
     objectKindNoteText: "[data-create-object-kind-note-text='true']",
 
     primitiveShapeSelect: "[data-create-field='primitive_shape'], [name='primitive_shape']",
+    geometryProfileSelect: "[data-create-field='geometry_profile_id'], [name='geometry_profile_id']",
     geometryUnit: "[data-create-field='geometry_unit'], [name='geometry_unit']",
     geometryWidth: "[data-create-field='geometry_width'], [name='geometry_width']",
     geometryHeight: "[data-create-field='geometry_height'], [name='geometry_height']",
@@ -221,6 +222,17 @@
     "vp-create-preview-cube--plate",
     "vp-create-preview-cube--cylinder",
     "vp-create-preview-cube--pipe",
+    "vp-create-preview-cube--frame",
+    "vp-create-preview-cube--half_block",
+    "vp-create-preview-cube--thin_window",
+    "vp-create-preview-cube--hinged_door",
+    "vp-create-preview-cube--pipe_segment",
+    "vp-create-preview-cube--conveyor_segment",
+    "vp-create-preview-cube--stair_run",
+    "vp-create-preview-cube--composite_parts",
+    "vp-create-preview-cube--wall_segment",
+    "vp-create-preview-cube--beam",
+    "vp-create-preview-cube--column",
     "vp-create-preview-cube--sphere"
   ];
 

@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1.0",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "default_variant_id": "default",
+  "variant_count": 3,
+  "variants": [
+    {
+      "variant_id": "default",
+      "variant_key": "default",
+      "label": "1000 x 2500 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": true,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "1200_x_3000_mm",
+      "variant_key": "1200_x_3000_mm",
+      "label": "1200 x 3000 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    },
+    {
+      "variant_id": "1500_x_3500_mm",
+      "variant_key": "1500_x_3500_mm",
+      "label": "1500 x 3500 mm",
+      "description": "",
+      "family_profile_id": "simple_cell_block",
+      "variant_profile_id": "simple_cell_block.v1",
+      "is_default": false,
+      "active": true,
+      "visible": true
+    }
+  ]
+}

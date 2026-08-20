@@ -6,6 +6,8 @@
       "render_variant_id": "default",
       "mode": "primitive",
       "primitive_shape": "pipe",
+      "geometry_profile_id": "pipe_segment",
+      "geometry_document": "render/geometry.json",
       "label": "Default primitive preview",
       "source": "generated"
     }

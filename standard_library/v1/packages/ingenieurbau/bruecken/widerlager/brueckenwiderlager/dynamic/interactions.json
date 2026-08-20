@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "none",
+  "enabled": false,
+  "openable": false,
+  "default_state": "closed",
+  "states": [
+    "closed"
+  ]
+}

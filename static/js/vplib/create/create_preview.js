@@ -77,6 +77,7 @@
     objectKindNoteLabel: "[data-create-object-kind-note-label='true']",
     objectKindNoteText: "[data-create-object-kind-note-text='true']",
     primitiveShapeSelect: "[data-create-field='primitive_shape'], [name='primitive_shape']",
+    geometryProfileSelect: "[data-create-field='geometry_profile_id'], [name='geometry_profile_id']",
     geometryUnit: "[data-create-field='geometry_unit'], [name='geometry_unit']",
     geometryWidth: "[data-create-field='geometry_width'], [name='geometry_width']",
     geometryHeight: "[data-create-field='geometry_height'], [name='geometry_height']",
@@ -115,6 +116,17 @@
     plate: "Platte",
     cylinder: "Zylinder",
     pipe: "Rohr",
+    frame: "Rahmen",
+    half_block: "Halber Block",
+    thin_window: "Fenster",
+    hinged_door: "Tür · aufklappbar",
+    pipe_segment: "Rohrsegment",
+    conveyor_segment: "Förderbandsegment",
+    stair_run: "Treppenlauf",
+    composite_parts: "Eigene Teilgeometrie",
+    wall_segment: "Wandsegment",
+    beam: "Träger",
+    column: "Stütze",
     sphere: "Kugel"
   };
 
@@ -869,6 +881,8 @@
       var context = getContext(safeForm);
       var objectKind = context.object_kind;
       var shape = normalizeToken(getFieldValue(safeForm, "primitive_shape") || "block", "block");
+      var geometryProfile = normalizeToken(getFieldValue(safeForm, "geometry_profile_id") || "", "");
+      var previewShape = geometryProfile || shape;
       var width = normalizeDecimalDisplay(getFieldValue(safeForm, "geometry_width") || "1.00");
       var height = normalizeDecimalDisplay(getFieldValue(safeForm, "geometry_height") || "1.00");
       var depth = normalizeDecimalDisplay(getFieldValue(safeForm, "geometry_depth") || "1.00");
@@ -886,6 +900,7 @@
           : "empty-dev";
         placeholder.setAttribute("data-vp-preview-mode", previewMode);
         placeholder.setAttribute("data-create-preview-primitive-shape", shape);
+        placeholder.setAttribute("data-create-preview-geometry-profile", geometryProfile);
         placeholder.setAttribute("data-create-preview-object-kind-value", objectKind);
         placeholder.setAttribute("data-create-preview-unit-value", unit);
         placeholder.setAttribute("data-create-preview-width-value", width);
@@ -920,7 +935,7 @@
         updateVisualPreview(safeForm, placeholder, {
           context: context,
           objectKind: objectKind,
-          shape: shape,
+          shape: previewShape,
           width: width,
           height: height,
           depth: depth,
@@ -940,7 +955,7 @@
           ? "editor-iframe"
           : "empty-dev",
         objectKind: objectKind,
-        shape: shape,
+        shape: previewShape,
         dimensionsText: width + " × " + height + " × " + depth + " " + unit,
         cellsText: cellsX + " × " + cellsY + " × " + cellsZ,
         visualEnabled: isVisualPreviewEnabled(placeholder),
@@ -966,7 +981,8 @@
     try {
       var safeForm = resolveForm(form);
       var safeData = data || {};
-      var shapeSelect = qs(selectorFor("primitiveShapeSelect"), safeForm);
+      var shapeSelect = qs(selectorFor("geometryProfileSelect"), safeForm)
+        || qs(selectorFor("primitiveShapeSelect"), safeForm);
       var objectKindSelect = qs(selectorFor("objectKindSelect"), safeForm);
       var shapeLabel = selectedOptionLabel(shapeSelect, safeData.shape) || shapeLabelFallback(safeData.shape);
       var objectKindLabel = selectedOptionLabel(objectKindSelect, safeData.objectKind) || objectKindLabelFallback(safeData.objectKind);
@@ -1206,6 +1222,17 @@
         value === "plate" ||
         value === "cylinder" ||
         value === "pipe" ||
+        value === "frame" ||
+        value === "half_block" ||
+        value === "thin_window" ||
+        value === "hinged_door" ||
+        value === "pipe_segment" ||
+        value === "conveyor_segment" ||
+        value === "stair_run" ||
+        value === "composite_parts" ||
+        value === "wall_segment" ||
+        value === "beam" ||
+        value === "column" ||
         value === "sphere"
       ) {
         return value;
@@ -2069,6 +2096,17 @@
           "vp-create-preview-cube--plate",
           "vp-create-preview-cube--cylinder",
           "vp-create-preview-cube--pipe",
+          "vp-create-preview-cube--frame",
+          "vp-create-preview-cube--half_block",
+          "vp-create-preview-cube--thin_window",
+          "vp-create-preview-cube--hinged_door",
+          "vp-create-preview-cube--pipe_segment",
+          "vp-create-preview-cube--conveyor_segment",
+          "vp-create-preview-cube--stair_run",
+          "vp-create-preview-cube--composite_parts",
+          "vp-create-preview-cube--wall_segment",
+          "vp-create-preview-cube--beam",
+          "vp-create-preview-cube--column",
           "vp-create-preview-cube--sphere"
         ],
         qs: function (selector, root) {

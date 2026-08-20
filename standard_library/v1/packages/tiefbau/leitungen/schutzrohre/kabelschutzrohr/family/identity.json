@@ -5,9 +5,11 @@
   "slug": "kabelschutzrohr",
   "label": "Kabelschutzrohr",
   "description": "Schutzrohr für Strom- und Datenkabel.",
-  "object_kind": "cell_block",
+  "object_kind": "adaptive_system",
   "family_profile_id": "simple_cell_block",
   "variant_profile_id": "simple_cell_block.v1",
   "status": "draft",
-  "language": "de"
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
 }

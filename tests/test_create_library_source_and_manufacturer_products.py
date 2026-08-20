@@ -41,11 +41,11 @@ def test_create_page_has_nine_step_editor_with_manufacturer_before_variables() -
     assert 'name="create_mode"' in html
     assert 'value="existing"' in html
     assert 'value="new"' in html
-    assert 'create_library_source.js?v=20260813.3' in html
-    assert 'create_manufacturer_products.js?v=20260813.3' in html
-    assert 'create_manufacturer_profile.js?v=20260813.3' in html
-    assert 'create_spatial_contract.js?v=20260813.3' in html
-    assert 'create_pricing.js?v=20260813.3' in html
+    assert 'create_library_source.js?v=20260815.1' in html
+    assert 'create_manufacturer_products.js?v=20260815.1' in html
+    assert 'create_manufacturer_profile.js?v=20260815.1' in html
+    assert 'create_spatial_contract.js?v=20260815.1' in html
+    assert 'create_pricing.js?v=20260815.1' in html
     assert 'name="spatial_contract_json"' in html
     assert 'name="connection_points_json"' in html
     assert 'name="model_scale_uniform"' in html
@@ -55,6 +55,7 @@ def test_create_page_has_nine_step_editor_with_manufacturer_before_variables() -
     assert 'name="pricing_contract_json"' in html
     assert 'data-vp-manufacturer-profile-root="true"' in html
     assert 'name="manufacturer_scope"' in html
+    assert 'name="manufacturer_scope" value="generic"' in html
     assert 'name="manufacturer_name"' in html
     assert 'name="manufacturer_profile_json"' in html
     assert 'name="manufacturer_locations_json"' in html
@@ -78,6 +79,18 @@ def test_create_page_has_nine_step_editor_with_manufacturer_before_variables() -
         html,
         flags=re.DOTALL,
     )
+
+
+def test_existing_library_source_prefills_and_locks_master_data_for_non_admins() -> None:
+    runtime = (SERVICE_ROOT / "static/js/vplib/create/create_library_source.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "mapping(summary.payload)" in runtime
+    assert 'replace(/-/g, "_") === "system_admin"' in runtime
+    assert "setIdentityTaxonomyLocked(!isSystemAdmin(results[1]))" in runtime
+    assert "Nur System-Admins dürfen diese Stammdaten ändern." in runtime
+    assert "setIdentityTaxonomyLocked(false)" in runtime
 
 
 def test_create_editor_shell_uses_panel_scrolling_instead_of_page_scrolling() -> None:

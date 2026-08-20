@@ -8,7 +8,7 @@
   "family_slug": "schachtring",
   "family_name": "Schachtring",
   "package_version": "0.1.0",
-  "object_kind": "cell_block",
+  "object_kind": "multi_cell_module",
   "family_profile_id": "simple_cell_block",
   "variant_profile_id": "simple_cell_block.v1",
   "profiles": {
@@ -29,14 +29,17 @@
       "category": "Schächte",
       "subcategory": "Kanalschächte"
     },
-    "object_kind": "cell_block"
+    "object_kind": "multi_cell_module"
   },
   "classification_path": "tiefbau/schaechte/kanalschaechte",
   "source_path": "tiefbau/schaechte/kanalschaechte/schachtring",
   "default_variant_id": "default",
   "variant_count": 6,
-  "documents_required": false,
-  "external_assets_required": false,
+  "spatial_mode": "contained",
+  "connector_count": 0,
+  "manufacturer_scope": "generic",
+  "documents_required": null,
+  "external_assets_required": null,
   "created_at": "2026-08-11T00:00:00Z",
   "created_by": "library-create-service",
   "lifecycle": {
@@ -46,9 +49,9 @@
   },
   "generator": {
     "component": "library-create-service",
-    "version": "0.5.0",
+    "version": "0.8.0",
     "mode": "simple_create",
-    "starter_contract": true
+    "starter_contract": false
   },
   "assets": [],
   "asset_count": 0

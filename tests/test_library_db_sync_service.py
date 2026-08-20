@@ -644,6 +644,58 @@ def test_publish_bundle_is_idempotent_for_current_revision_hash() -> None:
     )
 
 
+def test_direct_repository_publish_is_idempotent_for_current_revision_hash() -> None:
+    module = db_sync_module()
+
+    class Entity:
+        id = 23
+        current_revision_id = 41
+        current_revision_hash = "current-hash"
+        variant_count = 3
+        asset_count = 2
+        document_count = 28
+
+    class Repository:
+        def upsert_item(self, payload: Any, *, commit: bool) -> tuple[Any, bool]:
+            return Entity(), False
+
+        def create_revision(self, *args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("current revision must not be inserted again")
+
+        def upsert_variant(self, *args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("children must not be replaced for an unchanged revision")
+
+        def create_asset(self, *args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("children must not be replaced for an unchanged revision")
+
+        def create_document(self, *args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("children must not be replaced for an unchanged revision")
+
+    service = module.LibraryDbSyncService(repository=Repository())
+    result = service._publish_with_repository(
+        service.get_repository(),
+        {
+            "vplib_uid": "11111111-1111-4111-8111-111111111111",
+            "family_id": "vp.hochbau.waende.test",
+            "package_id": "vplib.vp.hochbau.waende.test",
+            "revision_hash": Entity.current_revision_hash,
+            "variants": [{"variant_id": "default"}],
+            "assets": [{"asset_id": "preview"}],
+            "documents": [{"document_id": "manifest"}],
+        },
+    )
+
+    assert result["ok"] is True
+    assert result["payload"]["unchanged"] is True
+    assert result["payload"]["revision_created"] is False
+    assert result["payload"]["revision"]["id"] == Entity.current_revision_id
+    assert result["payload"]["children"]["counts"] == {
+        "variant_count": 3,
+        "asset_count": 2,
+        "document_count": 28,
+    }
+
+
 def test_unset_current_revisions_uses_bulk_update_without_loading_graph() -> None:
     module = importlib.import_module(
         "library.repositories.creative_library_repository"

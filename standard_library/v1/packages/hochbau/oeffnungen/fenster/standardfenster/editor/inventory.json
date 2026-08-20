@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "642520ac-a7ff-57ac-86e4-67177af9b377",
+  "family_id": "vp.hochbau.oeffnungen.fenster.standardfenster",
+  "default_variant_id": "default",
+  "label": "Standardfenster",
+  "description": "Fensterfamilie mit üblichen Rohbaumaßen für 2D- und 3D-Platzierung.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "oeffnungen",
+  "subcategory": "fenster",
+  "classification_path": "hochbau/oeffnungen/fenster",
+  "source_path": "hochbau/oeffnungen/fenster/standardfenster",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Öffnungen",
+    "subcategory": "Fenster"
+  },
+  "object_kind": "catalog_object",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

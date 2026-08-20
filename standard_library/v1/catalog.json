@@ -1,8 +1,9 @@
 {
   "catalog_version": "1.0.0",
+  "content_revision": "ff7f89ec43515b462b47b5e8c100e6d510dd7f24492849ff62b86b1fd0971a02",
   "created_at": "2026-08-11T00:00:00Z",
   "domain_counts": {
-    "hochbau": 16,
+    "hochbau": 22,
     "ingenieurbau": 16,
     "tiefbau": 16
   },
@@ -37,6 +38,20 @@
     },
     {
       "category": "boeden",
+      "cut_pattern_id": "wood_general",
+      "domain": "hochbau",
+      "embedded_pattern_count": 2,
+      "family_id": "vp.hochbau.boeden.bodenbelaege.holzbohlen",
+      "family_slug": "holzbohlen",
+      "name": "Holzbohlen",
+      "source_path": "hochbau/boeden/bodenbelaege/holzbohlen",
+      "subcategory": "bodenbelaege",
+      "surface_pattern_id": "timber_longitudinal",
+      "variant_count": 5,
+      "vplib_uid": "6ab8b76b-f308-543b-9d51-1217a32634b9"
+    },
+    {
+      "category": "boeden",
       "cut_pattern_id": "ceramic_tile",
       "domain": "hochbau",
       "embedded_pattern_count": 2,
@@ -48,6 +63,20 @@
       "surface_pattern_id": "grid_fine",
       "variant_count": 7,
       "vplib_uid": "0956d2a5-5301-5553-bea1-769dd51f0191"
+    },
+    {
+      "category": "boeden",
+      "cut_pattern_id": "wood_general",
+      "domain": "hochbau",
+      "embedded_pattern_count": 2,
+      "family_id": "vp.hochbau.boeden.bodenbelaege.laminat",
+      "family_slug": "laminat",
+      "name": "Laminat",
+      "source_path": "hochbau/boeden/bodenbelaege/laminat",
+      "subcategory": "bodenbelaege",
+      "surface_pattern_id": "timber_longitudinal",
+      "variant_count": 5,
+      "vplib_uid": "321ef10c-be58-5321-a703-a6d5a3cd9f82"
     },
     {
       "category": "boeden",
@@ -148,6 +177,48 @@
       "vplib_uid": "de8cc456-c23a-5c4c-9260-e3902de09075"
     },
     {
+      "category": "oeffnungen",
+      "cut_pattern_id": "wood_general",
+      "domain": "hochbau",
+      "embedded_pattern_count": 2,
+      "family_id": "vp.hochbau.oeffnungen.aussentueren.aussentuer",
+      "family_slug": "aussentuer",
+      "name": "Außentür",
+      "source_path": "hochbau/oeffnungen/aussentueren/aussentuer",
+      "subcategory": "aussentueren",
+      "surface_pattern_id": "timber_longitudinal",
+      "variant_count": 4,
+      "vplib_uid": "0ce9dfd5-4f99-5db2-8af3-b6097946b47e"
+    },
+    {
+      "category": "oeffnungen",
+      "cut_pattern_id": "glass",
+      "domain": "hochbau",
+      "embedded_pattern_count": 2,
+      "family_id": "vp.hochbau.oeffnungen.fenster.standardfenster",
+      "family_slug": "standardfenster",
+      "name": "Standardfenster",
+      "source_path": "hochbau/oeffnungen/fenster/standardfenster",
+      "subcategory": "fenster",
+      "surface_pattern_id": "grid_fine",
+      "variant_count": 5,
+      "vplib_uid": "642520ac-a7ff-57ac-86e4-67177af9b377"
+    },
+    {
+      "category": "oeffnungen",
+      "cut_pattern_id": "wood_general",
+      "domain": "hochbau",
+      "embedded_pattern_count": 2,
+      "family_id": "vp.hochbau.oeffnungen.innentueren.innentuer",
+      "family_slug": "innentuer",
+      "name": "Innentür",
+      "source_path": "hochbau/oeffnungen/innentueren/innentuer",
+      "subcategory": "innentueren",
+      "surface_pattern_id": "timber_longitudinal",
+      "variant_count": 5,
+      "vplib_uid": "55ce3d03-18a9-55bc-94ca-102d755dc762"
+    },
+    {
       "category": "tragwerk",
       "cut_pattern_id": "concrete_reinforced",
       "domain": "hochbau",
@@ -202,6 +273,20 @@
       "surface_pattern_id": "concrete_plain",
       "variant_count": 6,
       "vplib_uid": "9817ac78-d171-5e90-ae4c-f00d1b17311e"
+    },
+    {
+      "category": "treppen_rampen",
+      "cut_pattern_id": "line_diagonal_45",
+      "domain": "hochbau",
+      "embedded_pattern_count": 2,
+      "family_id": "vp.hochbau.treppen_rampen.treppenlaeufe.treppenbereich",
+      "family_slug": "treppenbereich",
+      "name": "Treppenbereich",
+      "source_path": "hochbau/treppen_rampen/treppenlaeufe/treppenbereich",
+      "subcategory": "treppenlaeufe",
+      "surface_pattern_id": "grid_fine",
+      "variant_count": 3,
+      "vplib_uid": "aa7cd770-64f9-55b7-8165-43736dfa9671"
     },
     {
       "category": "waende",
@@ -680,9 +765,9 @@
       "vplib_uid": "670627ce-ffe8-5fb1-93f6-14ee840e565a"
     }
   ],
-  "family_count": 48,
+  "family_count": 54,
   "generator": "scripts/build_standard_library_v1.py",
   "schema_version": "vectoplan.standard_library.catalog.v1",
   "source_root": "standard_library/v1/packages",
-  "variant_count": 332
+  "variant_count": 359
 }

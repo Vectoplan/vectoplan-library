@@ -7,5 +7,5 @@
   "width_mm": 1000,
   "height_mm": 10000,
   "depth_mm": 400,
-  "source": "create_form"
+  "source": "manual_dimensions"
 }

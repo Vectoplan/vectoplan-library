@@ -665,7 +665,12 @@ def inventory_payload_from_snapshot(snapshot: Any) -> dict[str, Any]:
 def enrich_slots_with_published_assets(
     slots: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Hydrates legacy slot snapshots from the current published item revision."""
+    """Hydrate legacy slots with assets and the current semantic VPLIB variant.
+
+    Editor rendering depends on definition values such as ``geometry.profile_id``.
+    Older hotbar snapshots only contain an icon/asset, so stopping after assets
+    silently turns doors, windows, pipes and slabs back into cubes.
+    """
 
     service: Any | None = None
     item_cache: dict[str, dict[str, Any] | None] = {}
@@ -676,9 +681,6 @@ def enrich_slots_with_published_assets(
         result.append(slot)
         if normalize_bool(slot.get("empty"), default=True):
             continue
-        if normalize_json_list(slot.get("assets")):
-            continue
-
         item_ref = slot.get("item_db_id") or slot.get("vplib_uid")
         if item_ref in (None, ""):
             continue
@@ -691,7 +693,7 @@ def enrich_slots_with_published_assets(
                     item_ref,
                     include_current_revision=False,
                     include_revisions=False,
-                    include_variants=False,
+                    include_variants=True,
                     include_assets=True,
                     include_documents=False,
                 )
@@ -702,22 +704,82 @@ def enrich_slots_with_published_assets(
                 item_cache[cache_key] = None
 
         published_item = item_cache[cache_key]
+        try:
+            from .standard_library_source_service import overlay_standard_library_source_items
+        except ImportError:
+            from library.services.standard_library_source_service import overlay_standard_library_source_items
+        try:
+            overlaid_items = overlay_standard_library_source_items([published_item] if published_item else [])
+            identity = str(slot.get("vplib_uid") or item_ref)
+            published_item = next(
+                (
+                    item for item in overlaid_items
+                    if identity in {
+                        str(item.get("vplib_uid") or ""),
+                        str(item.get("family_id") or ""),
+                        str(item.get("package_id") or ""),
+                    }
+                ),
+                published_item,
+            )
+        except Exception:
+            pass
         if not published_item:
             continue
         published_assets = normalize_json_list(published_item.get("assets"))
-        if not published_assets:
-            continue
-
-        slot["assets"] = published_assets
+        if published_assets:
+            slot["assets"] = published_assets
         slot["metadata"] = {
             **normalize_json_mapping(published_item.get("metadata")),
             **normalize_json_mapping(slot.get("metadata")),
         }
         payload = normalize_json_mapping(slot.get("payload"))
-        payload["assets"] = published_assets
+        if published_assets:
+            payload["assets"] = published_assets
+
+        variants = [
+            normalize_json_mapping(variant)
+            for variant in normalize_json_list(published_item.get("variants"))
+        ]
+        selected_variant_id = str(
+            slot.get("variant_id")
+            or published_item.get("default_variant_id")
+            or published_item.get("variant_id")
+            or ""
+        )
+        selected_variant = next(
+            (
+                variant for variant in variants
+                if str(variant.get("variant_id") or variant.get("variantId") or variant.get("variant_key") or "")
+                == selected_variant_id
+            ),
+            variants[0] if variants else {},
+        )
+        if selected_variant:
+            existing_variant = normalize_json_mapping(slot.get("variant"))
+            definition_values = {
+                **normalize_json_mapping(existing_variant.get("definition_values") or existing_variant.get("definitionValues")),
+                **normalize_json_mapping(selected_variant.get("definition_values") or selected_variant.get("definitionValues") or selected_variant.get("overrides")),
+            }
+            hydrated_variant = {**existing_variant, **selected_variant}
+            hydrated_variant["definition_values"] = definition_values
+            hydrated_variant["definitionValues"] = definition_values
+            hydrated_variant["overrides"] = definition_values
+            slot["variant"] = hydrated_variant
+            slot["variant_id"] = selected_variant_id or hydrated_variant.get("variant_id")
+            metadata = normalize_json_mapping(slot.get("metadata"))
+            metadata["definition_values"] = {
+                **normalize_json_mapping(metadata.get("definition_values")),
+                **definition_values,
+            }
+            slot["metadata"] = metadata
+            payload["variant"] = hydrated_variant
+            payload["selected_variant"] = hydrated_variant
+        if variants:
+            payload["variants"] = variants
         slot["payload"] = payload
 
-        if not normalize_json_mapping(slot.get("preview")):
+        if published_assets and not normalize_json_mapping(slot.get("preview")):
             for asset in published_assets:
                 asset_payload = normalize_json_mapping(asset)
                 uri = asset_payload.get("uri") or asset_payload.get("url")

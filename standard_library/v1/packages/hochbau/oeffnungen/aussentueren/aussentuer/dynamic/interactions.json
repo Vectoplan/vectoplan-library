@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "swing_door",
+  "enabled": true,
+  "openable": true,
+  "default_state": "closed",
+  "states": [
+    "closed",
+    "open"
+  ]
+}

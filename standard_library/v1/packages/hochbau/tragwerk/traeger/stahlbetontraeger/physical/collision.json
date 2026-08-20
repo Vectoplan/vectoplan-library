@@ -2,6 +2,7 @@
   "schema_version": "0.1.0",
   "collision_enabled": true,
   "type": "box",
+  "source": "manual_dimensions",
   "width": 1.0,
   "height": 0.4,
   "depth": 0.2,
@@ -10,5 +11,37 @@
     "width_mm": 1000,
     "height_mm": 400,
     "depth_mm": 200
+  },
+  "clearance": {
+    "left": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "right": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "front": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "rear": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "top": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "bottom": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    }
   }
 }

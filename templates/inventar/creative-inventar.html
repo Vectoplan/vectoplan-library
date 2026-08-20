@@ -8,7 +8,7 @@
 
   <title data-i18n="vectoplan.server.library.inventar.creative_inventar.title.creative_inventar_vectoplan.34b16b7a">Creative-Inventar · VECTOPLAN</title>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css', v='20260809.3') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css', v='20260815.4') }}">
 </head>
 
 <body class="vp-inventar-page vp-creative-inventar-page">
@@ -285,6 +285,29 @@
             <p data-world-edit-utility-text data-i18n="vectoplan.server.library.inventar.creative_inventar.p.werkzeugeinstellungen_werden_im_3d_edi.e6f83dce">Werkzeugeinstellungen werden im 3D-Editor angezeigt.</p>
           </section>
 
+          <section class="vp-world-edit-config__selection" data-world-edit-room-settings hidden>
+            <h4>Raum &amp; Energiezone</h4>
+            <p>Der markierte X/Y/Z-Bereich bleibt geometrisch unsichtbar. Am Boden erscheinen eine grüne Fläche, die Bezeichnung und die automatisch ermittelte Fläche.</p>
+            <label class="vp-world-edit-config__field">
+              <span>Raumart</span>
+              <select data-world-edit-config-room-type aria-label="Raumart">
+                <option value="wohnen">Wohnen</option>
+                <option value="schlafen">Schlafen</option>
+                <option value="kueche">Küche</option>
+                <option value="bad">Bad</option>
+                <option value="flur">Flur</option>
+                <option value="buero">Büro</option>
+                <option value="technik">Technik</option>
+                <option value="lager">Lager</option>
+                <option value="sonstige">Sonstige</option>
+              </select>
+            </label>
+            <label class="vp-world-edit-config__field">
+              <span>Bezeichnung</span>
+              <input type="text" maxlength="80" value="Raum" data-world-edit-config-room-label>
+            </label>
+          </section>
+
           <section class="vp-world-edit-config__brush" data-world-edit-parcel-grid-settings hidden>
             <h4 data-i18n="vectoplan.server.library.inventar.creative_inventar.h4.bauachse.97c014de">Bauachse</h4>
             <label class="vp-world-edit-config__field">
@@ -416,9 +439,13 @@
     data-create-url="{{ _create_url | e }}"
   ></script>
 
+  <script
+    src="{{ url_for('static', filename='js/inventar/vectoplan-library-icons.js', v='20260815.4') }}"
+    defer
+  ></script>
 
   <script
-    src="{{ url_for('static', filename='js/inventar/creative-library.js', v='20260812.4') }}"
+    src="{{ url_for('static', filename='js/inventar/creative-library.js', v='20260815.5') }}"
     defer
   ></script>
 </body>

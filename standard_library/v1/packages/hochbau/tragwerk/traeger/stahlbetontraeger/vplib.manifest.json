@@ -35,6 +35,9 @@
   "source_path": "hochbau/tragwerk/traeger/stahlbetontraeger",
   "default_variant_id": "default",
   "variant_count": 6,
+  "spatial_mode": "contained",
+  "connector_count": 0,
+  "manufacturer_scope": "generic",
   "documents_required": false,
   "external_assets_required": false,
   "created_at": "2026-08-11T00:00:00Z",
@@ -46,7 +49,7 @@
   },
   "generator": {
     "component": "library-create-service",
-    "version": "0.5.0",
+    "version": "0.8.0",
     "mode": "simple_create",
     "starter_contract": true
   },

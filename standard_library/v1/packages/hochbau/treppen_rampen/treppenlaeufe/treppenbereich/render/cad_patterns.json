@@ -1,0 +1,129 @@
+{
+  "schema_version": "vplib.render.cad_patterns.v1",
+  "catalog_version": "1.0.0",
+  "units": "mm_paper",
+  "default_variant_id": "default",
+  "pattern_ids": [
+    "grid_fine",
+    "line_diagonal_45"
+  ],
+  "patterns": [
+    {
+      "id": "grid_fine",
+      "label": "Raster fein",
+      "category": "line",
+      "category_label": "Linien und Raster",
+      "description": "Feines orthogonales Raster.",
+      "kind": "cross",
+      "active": true,
+      "sort_order": 160,
+      "tags": [
+        "grid",
+        "fine"
+      ],
+      "definition": {
+        "line_families": [
+          {
+            "angle_deg": 0,
+            "spacing_mm": 1.5,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": []
+          },
+          {
+            "angle_deg": 90,
+            "spacing_mm": 1.5,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "line_diagonal_45",
+      "label": "Diagonal 45°",
+      "category": "line",
+      "category_label": "Linien und Raster",
+      "description": "Parallele Linien mit 45 Grad.",
+      "kind": "line",
+      "active": true,
+      "sort_order": 120,
+      "tags": [
+        "line",
+        "diagonal",
+        "45"
+      ],
+      "definition": {
+        "line_families": [
+          {
+            "angle_deg": 45,
+            "spacing_mm": 3,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": []
+          }
+        ]
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "variant_id": "default",
+      "cut": {
+        "pattern_id": "line_diagonal_45",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_fine",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "1200_x_3000_mm",
+      "cut": {
+        "pattern_id": "line_diagonal_45",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_fine",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "1500_x_3500_mm",
+      "cut": {
+        "pattern_id": "line_diagonal_45",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_fine",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    }
+  ]
+}

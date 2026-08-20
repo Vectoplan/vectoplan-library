@@ -1,0 +1,131 @@
+{
+  "schema_version": "vplib.pricing.v1",
+  "currency": "EUR",
+  "enforced": false,
+  "rule_count": 6,
+  "complete_rule_count": 0,
+  "incomplete_variant_ids": [
+    "default",
+    "t_800",
+    "t_1000",
+    "t_1200",
+    "t_1500",
+    "t_1800"
+  ],
+  "rules": [
+    {
+      "variant_id": "default",
+      "variant_label": "T 600",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "t_800",
+      "variant_label": "T 800",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "t_1000",
+      "variant_label": "T 1000",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "t_1200",
+      "variant_label": "T 1200",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "t_1500",
+      "variant_label": "T 1500",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "t_1800",
+      "variant_label": "T 1800",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    }
+  ]
+}

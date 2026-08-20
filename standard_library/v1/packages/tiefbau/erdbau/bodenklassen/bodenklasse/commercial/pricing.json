@@ -1,0 +1,151 @@
+{
+  "schema_version": "vplib.pricing.v1",
+  "currency": "EUR",
+  "enforced": false,
+  "rule_count": 7,
+  "complete_rule_count": 0,
+  "incomplete_variant_ids": [
+    "default",
+    "bodenklasse_2",
+    "bodenklasse_3",
+    "bodenklasse_4",
+    "bodenklasse_5",
+    "bodenklasse_6",
+    "bodenklasse_7"
+  ],
+  "rules": [
+    {
+      "variant_id": "default",
+      "variant_label": "Bodenklasse 1",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "bodenklasse_2",
+      "variant_label": "Bodenklasse 2",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "bodenklasse_3",
+      "variant_label": "Bodenklasse 3",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "bodenklasse_4",
+      "variant_label": "Bodenklasse 4",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "bodenklasse_5",
+      "variant_label": "Bodenklasse 5",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "bodenklasse_6",
+      "variant_label": "Bodenklasse 6",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "bodenklasse_7",
+      "variant_label": "Bodenklasse 7",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    }
+  ]
+}

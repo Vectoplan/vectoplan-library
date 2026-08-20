@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "55ce3d03-18a9-55bc-94ca-102d755dc762",
+  "family_id": "vp.hochbau.oeffnungen.innentueren.innentuer",
+  "default_variant_id": "default",
+  "label": "Innentür",
+  "description": "Türfamilie mit üblichen Rohbaumaßen für 2D- und 3D-Platzierung.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "oeffnungen",
+  "subcategory": "innentueren",
+  "classification_path": "hochbau/oeffnungen/innentueren",
+  "source_path": "hochbau/oeffnungen/innentueren/innentuer",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Öffnungen",
+    "subcategory": "Innentüren"
+  },
+  "object_kind": "catalog_object",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

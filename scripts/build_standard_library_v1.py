@@ -8,6 +8,7 @@ variant IDs make the generated source tree reviewable and safe to rebuild.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -57,6 +58,15 @@ def wall_variants(thicknesses: Iterable[int], *, height: int = 3000) -> list[dic
     )
 
 
+def opening_variants(
+    sizes: Iterable[tuple[str, int, int]], *, depth: int = 120
+) -> list[dict[str, Any]]:
+    return _variants(
+        (label, width, height, depth, depth)
+        for label, width, height in sizes
+    )
+
+
 def layer_variants(thicknesses: Iterable[int], *, size: int = 1000) -> list[dict[str, Any]]:
     return _variants(
         (f"{value} mm", size, value, size, value)
@@ -85,6 +95,40 @@ def section_variants(rows: Iterable[tuple[str, int, int]]) -> list[dict[str, Any
     )
 
 
+def _default_geometry_profile(
+    *,
+    category: str,
+    subcategory: str,
+    slug: str,
+    material_subtype: str,
+    primitive_shape: str,
+) -> str:
+    haystack = " ".join((category, subcategory, slug, material_subtype, primitive_shape)).lower()
+    if primitive_shape == "pipe":
+        return "pipe_segment"
+    if primitive_shape == "cylinder":
+        return "vertical_cylinder"
+    if any(token in haystack for token in ("fenster", "window")):
+        return "thin_window"
+    if any(token in haystack for token in ("tuer", "door")):
+        return "hinged_door"
+    if any(token in haystack for token in ("treppe", "stair")):
+        return "stair_run"
+    if any(token in haystack for token in ("traeger", "balken", "beam", "girder", "schwelle", "anker")):
+        return "beam"
+    if any(token in haystack for token in ("stuetze", "pfeiler", "pfahl", "column", "pier")):
+        return "column"
+    if any(token in haystack for token in ("wand", "wall", "fassade", "lining")):
+        return "wall_segment"
+    if any(token in haystack for token in (
+        "decke", "platte", "schicht", "estrich", "fliese", "belag", "pflaster",
+        "asphalt", "gravel", "abdichtung", "membrane", "roof", "slab", "course",
+        "schotter", "aufschuettung",
+    )):
+        return "slab"
+    return "block"
+
+
 def spec(
     domain: str,
     category: str,
@@ -99,9 +143,25 @@ def spec(
     surface_pattern: str,
     variants: list[dict[str, Any]],
     *,
-    primitive_shape: str = "box",
+    primitive_shape: str = "block",
+    object_kind: str = "cell_block",
+    geometry_axis: str = "x",
+    geometry_profile: str | None = None,
+    interaction_kind: str = "none",
+    inventory_icon_kind: str | None = None,
+    inventory_sort_order: int = 500,
     color: str = "#9CA3AF",
 ) -> dict[str, Any]:
+    resolved_profile = geometry_profile or _default_geometry_profile(
+        category=category,
+        subcategory=subcategory,
+        slug=slug,
+        material_subtype=material_subtype,
+        primitive_shape=primitive_shape,
+    )
+    height_mode = "half" if material_subtype in {"screed", "ceramic_tile", "wood_planks", "laminate"} else (
+        "dimensions" if resolved_profile != "block" else "full"
+    )
     return {
         "domain": domain,
         "category": category,
@@ -116,6 +176,13 @@ def spec(
         "surface_pattern": surface_pattern,
         "variants": variants,
         "primitive_shape": primitive_shape,
+        "object_kind": object_kind,
+        "geometry_axis": geometry_axis,
+        "geometry_profile": resolved_profile,
+        "height_mode": height_mode,
+        "interaction_kind": interaction_kind,
+        "inventory_icon_kind": inventory_icon_kind or resolved_profile,
+        "inventory_sort_order": inventory_sort_order,
         "color": color,
     }
 
@@ -125,6 +192,104 @@ FAMILY_SPECS: list[dict[str, Any]] = [
     spec("hochbau", "waende", "mauerwerkswaende", "mauerwerkswand", "Mauerwerkswand", "Allgemeine Mauerwerkswand in üblichen Wandstärken.", "mauerwerk", "brick", "masonry_general", "masonry_general", "brick_running_bond", wall_variants([115, 175, 240, 300, 365, 425]), color="#B7794A"),
     spec("hochbau", "waende", "tragende_waende", "stahlbetonwand", "Stahlbetonwand", "Tragende Stahlbetonwand für Hochbaugrundrisse und Schnitte.", "stahlbeton", "reinforced_concrete", "cast_in_place", "concrete_reinforced", "concrete_plain", wall_variants([160, 180, 200, 240, 250, 300]), color="#A8ADB4"),
     spec("hochbau", "ausbau", "trockenbau", "trockenbauwand", "Trockenbauwand", "Leichte Metallständerwand mit Gipskartonbekleidung.", "sonstiges", "composite", "gypsum_board_partition", "gypsum_board", "line_horizontal", wall_variants([75, 100, 125, 150, 175]), color="#E8E2D0"),
+    spec(
+        "hochbau",
+        "oeffnungen",
+        "fenster",
+        "standardfenster",
+        "Standardfenster",
+        "Fensterfamilie mit üblichen Rohbaumaßen für 2D- und 3D-Platzierung.",
+        "kunststoff",
+        "composite",
+        "window",
+        "glass",
+        "grid_fine",
+        opening_variants([
+            ("760 × 760 mm", 760, 760),
+            ("1000 × 1200 mm", 1000, 1200),
+            ("1250 × 1350 mm", 1250, 1350),
+            ("1500 × 1350 mm", 1500, 1350),
+            ("2000 × 1350 mm", 2000, 1350),
+        ]),
+        object_kind="catalog_object",
+        geometry_axis="x",
+        geometry_profile="thin_window",
+        inventory_icon_kind="window",
+        inventory_sort_order=120,
+        color="#A7D8EA",
+    ),
+    spec(
+        "hochbau",
+        "oeffnungen",
+        "innentueren",
+        "innentuer",
+        "Innentür",
+        "Türfamilie mit üblichen Rohbaumaßen für 2D- und 3D-Platzierung.",
+        "holz",
+        "composite",
+        "interior_door",
+        "wood_general",
+        "timber_longitudinal",
+        opening_variants([
+            ("635 × 2010 mm", 635, 2010),
+            ("760 × 2010 mm", 760, 2010),
+            ("885 × 2010 mm", 885, 2010),
+            ("1010 × 2135 mm", 1010, 2135),
+            ("1260 × 2135 mm", 1260, 2135),
+        ]),
+        object_kind="catalog_object",
+        geometry_axis="x",
+        geometry_profile="hinged_door",
+        interaction_kind="swing_door",
+        inventory_icon_kind="door",
+        inventory_sort_order=110,
+        color="#B98555",
+    ),
+    spec(
+        "hochbau",
+        "oeffnungen",
+        "aussentueren",
+        "aussentuer",
+        "Außentür",
+        "Robuste, öffnungsfähige Außentür mit üblichen Rohbaumaßen.",
+        "holz",
+        "composite",
+        "exterior_door",
+        "wood_general",
+        "timber_longitudinal",
+        opening_variants([
+            ("885 × 2010 mm", 885, 2010),
+            ("1010 × 2135 mm", 1010, 2135),
+            ("1260 × 2135 mm", 1260, 2135),
+            ("1510 × 2135 mm", 1510, 2135),
+        ], depth=160),
+        object_kind="catalog_object",
+        geometry_axis="x",
+        geometry_profile="hinged_door",
+        interaction_kind="swing_door",
+        inventory_icon_kind="door_exterior",
+        inventory_sort_order=111,
+        color="#7C5135",
+    ),
+    spec(
+        "hochbau",
+        "treppen_rampen",
+        "treppenlaeufe",
+        "treppenbereich",
+        "Treppenbereich",
+        "Semantischer Treppenbereich als Grundrisszone; die Treppenlogik wird spaeter ergaenzt.",
+        "sonstiges",
+        "generic",
+        "stair_zone",
+        "line_diagonal_45",
+        "grid_fine",
+        _variants([
+            ("1000 x 2500 mm", 1000, 3000, 2500, 0),
+            ("1200 x 3000 mm", 1200, 3000, 3000, 0),
+            ("1500 x 3500 mm", 1500, 3000, 3500, 0),
+        ]),
+        color="#CBD5E1",
+    ),
     spec("hochbau", "ausbau", "wandbelaege", "mineralwolldaemmung", "Mineralwolldämmung", "Nichtbrennbare Dämmstofflage für Wand, Decke und Dach.", "sonstiges", "composite", "mineral_wool", "mineral_wool", "insulation_batt", wall_variants([40, 60, 80, 100, 120, 140, 160, 200, 240]), color="#D7C58A"),
     spec("hochbau", "fassade", "putzfassaden", "eps_fassadendaemmung", "EPS-Fassadendämmung", "Wärmedämmplatte aus expandiertem Polystyrol für WDVS.", "kunststoff", "plastic", "eps_insulation", "eps", "rigid_foam", wall_variants([60, 80, 100, 120, 140, 160, 180, 200, 240]), color="#F3F0CF"),
     spec("hochbau", "decken", "massivdecken", "stahlbetondecke", "Stahlbetondecke", "Massive Geschossdecke aus Stahlbeton.", "stahlbeton", "reinforced_concrete", "cast_in_place_slab", "concrete_reinforced", "concrete_plain", layer_variants([160, 180, 200, 220, 240, 250, 280, 300]), color="#A8ADB4"),
@@ -132,6 +297,8 @@ FAMILY_SPECS: list[dict[str, Any]] = [
     spec("hochbau", "decken", "holzdecken", "brettsperrholzdecke", "Brettsperrholzdecke", "Massive CLT-Deckenplatte in gängigen Aufbauten.", "holz", "wood", "cross_laminated_timber", "cross_laminated_timber", "wood_general", layer_variants([80, 100, 120, 140, 160, 180, 200, 240]), color="#C49361"),
     spec("hochbau", "boeden", "estrich", "estrich", "Estrich", "Estrichschicht für schwimmende, beheizte und Verbundaufbauten.", "sonstiges", "composite", "screed", "screed", "line_horizontal", layer_variants([35, 40, 45, 50, 55, 60, 65, 70, 80]), color="#C8C3B8"),
     spec("hochbau", "boeden", "bodenbelaege", "keramikfliese", "Keramikfliese", "Keramischer Boden- oder Wandbelag mit mehreren Plattenstärken.", "sonstiges", "ceramic", "ceramic_tile", "ceramic_tile", "grid_fine", layer_variants([8, 10, 12, 15, 20, 25, 30]), color="#D7C0A5"),
+    spec("hochbau", "boeden", "bodenbelaege", "holzbohlen", "Holzbohlen", "Massive Holzbohlen als platzierbarer halber Block für Bodenaufbauten.", "holz", "wood", "wood_planks", "wood_general", "timber_longitudinal", layer_variants([20, 24, 28, 32, 40]), geometry_profile="half_block", color="#B98555"),
+    spec("hochbau", "boeden", "bodenbelaege", "laminat", "Laminat", "Laminatbelag als platzierbarer halber Block mit mehreren Aufbauhöhen.", "holz", "composite", "laminate", "wood_general", "timber_longitudinal", layer_variants([7, 8, 10, 12, 15]), geometry_profile="half_block", color="#C99A63"),
     spec("hochbau", "daecher", "flachdaecher", "bitumenabdichtung", "Bitumenabdichtung", "Mehrlagig nutzbare Bitumenbahn für Flachdachabdichtungen.", "sonstiges", "composite", "bitumen_membrane", "bitumen_membrane", "waterproofing", layer_variants([4, 5, 6, 8, 10, 12]), color="#3F4145"),
     spec("hochbau", "daecher", "gruendach", "gruendachaufbau", "Gründachaufbau", "Vegetations- und Substrataufbau für extensive bis intensive Begrünung.", "sonstiges", "composite", "green_roof_system", "green_roof", "earth", layer_variants([80, 100, 120, 150, 200, 250, 300, 400]), color="#6F8F55"),
     spec("hochbau", "tragwerk", "stuetzen", "stahlbetonstuetze", "Stahlbetonstütze", "Quadratische Stahlbetonstütze in typischen Querschnitten.", "stahlbeton", "reinforced_concrete", "column", "concrete_reinforced", "concrete_plain", square_variants([200, 240, 250, 300, 350, 400, 450, 500]), color="#A8ADB4"),
@@ -150,10 +317,10 @@ FAMILY_SPECS: list[dict[str, Any]] = [
     spec("tiefbau", "strassen_wege", "rinnen", "entwaesserungsrinne", "Entwässerungsrinne", "Linienentwässerung für Verkehrs- und Freiflächen.", "beton", "concrete", "drainage_channel", "precast_concrete", "grid_fine", section_variants([("NW 100", 130, 150), ("NW 150", 180, 210), ("NW 200", 240, 280), ("NW 300", 350, 400), ("NW 400", 460, 520)]), color="#AEB2B4"),
     spec("tiefbau", "erdbau", "aufschuettung", "verdichtete_aufschuettung", "Verdichtete Aufschüttung", "Modellkörper für lagenweise verdichtete Erd- und Füllstoffe.", "sonstiges", "generic", "compacted_fill", "earth", "line_horizontal", layer_variants([200, 300, 400, 500, 750, 1000, 1500, 2000]), color="#A57D55"),
     spec("tiefbau", "erdbau", "bodenklassen", "bodenklasse", "Bodenklasse", "Generische Bodenvolumen für frühe Erdbau- und Massenermittlung.", "sonstiges", "generic", "soil", "earth", "sand", _variants([(f"Bodenklasse {value}", 1000, 1000, 1000, 1000) for value in range(1, 8)]), color="#9B7653"),
-    spec("tiefbau", "leitungen", "abwasserleitungen", "kanalrohr", "Kanalrohr", "Abwasserrohr als vereinfachter Rohrkörper in gängigen Nennweiten.", "kunststoff", "plastic", "sewer_pipe", "solid", "line_diagonal_45", pipe_variants([100, 125, 150, 200, 250, 300, 400, 500, 600, 800]), primitive_shape="pipe", color="#A76A3F"),
-    spec("tiefbau", "leitungen", "wasserleitungen", "wasserleitung", "Wasserleitung", "Druckrohr für Trink- und Betriebswasser.", "kunststoff", "plastic", "water_pressure_pipe", "solid", "line_horizontal", pipe_variants([25, 32, 40, 50, 63, 75, 90, 110, 160, 225]), primitive_shape="pipe", color="#3C82C4"),
-    spec("tiefbau", "leitungen", "schutzrohre", "kabelschutzrohr", "Kabelschutzrohr", "Schutzrohr für Strom- und Datenkabel.", "kunststoff", "plastic", "cable_conduit", "solid", "line_vertical", pipe_variants([40, 50, 63, 75, 90, 110, 125, 160, 200]), primitive_shape="pipe", color="#D65C53"),
-    spec("tiefbau", "schaechte", "kanalschaechte", "schachtring", "Schachtring", "Runder Fertigteil-Schachtring in Standardnennweiten und Bauhöhen.", "beton", "concrete", "manhole_ring", "precast_concrete", "concrete_plain", _variants([("DN 800 / H 500", 800, 500, 800, 100), ("DN 1000 / H 500", 1000, 500, 1000, 120), ("DN 1000 / H 1000", 1000, 1000, 1000, 120), ("DN 1200 / H 500", 1200, 500, 1200, 140), ("DN 1200 / H 1000", 1200, 1000, 1200, 140), ("DN 1500 / H 1000", 1500, 1000, 1500, 160)]), primitive_shape="cylinder", color="#AEB2B4"),
+    spec("tiefbau", "leitungen", "abwasserleitungen", "kanalrohr", "Kanalrohr", "Abwasserrohr als vereinfachter Rohrkörper in gängigen Nennweiten.", "kunststoff", "plastic", "sewer_pipe", "solid", "line_diagonal_45", pipe_variants([100, 125, 150, 200, 250, 300, 400, 500, 600, 800]), primitive_shape="pipe", object_kind="adaptive_system", geometry_axis="x", geometry_profile="pipe_segment", inventory_icon_kind="sewer_pipe", inventory_sort_order=210, color="#A76A3F"),
+    spec("tiefbau", "leitungen", "wasserleitungen", "wasserleitung", "Wasserleitung", "Druckrohr für Trink- und Betriebswasser.", "kunststoff", "plastic", "water_pressure_pipe", "solid", "line_horizontal", pipe_variants([25, 32, 40, 50, 63, 75, 90, 110, 160, 225]), primitive_shape="pipe", object_kind="adaptive_system", geometry_axis="x", geometry_profile="pipe_segment", inventory_icon_kind="water_pipe", inventory_sort_order=211, color="#3C82C4"),
+    spec("tiefbau", "leitungen", "schutzrohre", "kabelschutzrohr", "Kabelschutzrohr", "Schutzrohr für Strom- und Datenkabel.", "kunststoff", "plastic", "cable_conduit", "solid", "line_vertical", pipe_variants([40, 50, 63, 75, 90, 110, 125, 160, 200]), primitive_shape="pipe", object_kind="adaptive_system", geometry_axis="x", geometry_profile="pipe_segment", inventory_icon_kind="cable_conduit", inventory_sort_order=212, color="#D65C53"),
+    spec("tiefbau", "schaechte", "kanalschaechte", "schachtring", "Schachtring", "Runder Fertigteil-Schachtring in Standardnennweiten und Bauhöhen.", "beton", "concrete", "manhole_ring", "precast_concrete", "concrete_plain", _variants([("DN 800 / H 500", 800, 500, 800, 100), ("DN 1000 / H 500", 1000, 500, 1000, 120), ("DN 1000 / H 1000", 1000, 1000, 1000, 120), ("DN 1200 / H 500", 1200, 500, 1200, 140), ("DN 1200 / H 1000", 1200, 1000, 1200, 140), ("DN 1500 / H 1000", 1500, 1000, 1500, 160)]), primitive_shape="cylinder", object_kind="multi_cell_module", geometry_axis="y", geometry_profile="vertical_cylinder", inventory_icon_kind="manhole_ring", inventory_sort_order=220, color="#AEB2B4"),
     spec("tiefbau", "bahninfrastruktur", "gleise", "gleisschotter", "Gleisschotter", "Schotterbett für vereinfachte Bahntrassenmodelle.", "sonstiges", "natural_stone", "rail_ballast", "rail_ballast", "crushed_stone", layer_variants([250, 300, 350, 400, 450, 500]), color="#8E877F"),
     spec("tiefbau", "bahninfrastruktur", "schwellen", "bahnschwelle", "Bahnschwelle", "Vereinfachte Beton- und Holzschwellen mit typischen Abmessungen.", "beton", "concrete", "railway_sleeper", "precast_concrete", "line_horizontal", _variants([("Beton 2400", 2400, 180, 280, 180), ("Beton 2500", 2500, 200, 300, 200), ("Beton 2600", 2600, 220, 320, 220), ("Holz 2500", 2500, 160, 260, 160), ("Holz 2700", 2700, 180, 280, 180)]), color="#9C9386"),
 
@@ -170,8 +337,8 @@ FAMILY_SPECS: list[dict[str, Any]] = [
     spec("ingenieurbau", "tunnel", "tunnelschalen", "tunnelschale", "Tunnelschale", "Stahlbeton-Tunnelschale als vereinfachtes Segmentbauteil.", "stahlbeton", "reinforced_concrete", "tunnel_lining", "concrete_reinforced", "concrete_plain", wall_variants([250, 300, 350, 400, 450, 500, 600, 800], height=5000), color="#A8ADB4"),
     spec("ingenieurbau", "spezialtiefbau", "schlitzwaende", "schlitzwand", "Schlitzwand", "Schlitzwandelement für Baugruben und unterirdische Bauwerke.", "stahlbeton", "reinforced_concrete", "diaphragm_wall", "concrete_reinforced", "concrete_plain", wall_variants([400, 500, 600, 800, 1000, 1200, 1500], height=10000), color="#9EA4AA"),
     spec("ingenieurbau", "stuetzbauwerke", "spundwaende", "spundwandprofil", "Spundwandprofil", "Vereinfachtes Stahlspundwandprofil in mehreren Profilgrößen.", "stahl", "steel", "sheet_pile", "steel", "line_vertical", section_variants([("Leicht 400", 120, 400), ("Leicht 500", 140, 500), ("Mittel 600", 160, 600), ("Mittel 700", 180, 700), ("Schwer 800", 220, 800), ("Schwer 900", 260, 900)]), color="#64717B"),
-    spec("ingenieurbau", "stuetzbauwerke", "anker", "daueranker", "Daueranker", "Vereinfachter Boden- und Felsanker nach Zugkraftklassen.", "stahl", "steel", "ground_anchor", "steel", "line_horizontal", pipe_variants([32, 40, 50, 63, 75, 90, 110], length=6000), primitive_shape="cylinder", color="#5C6871"),
-    spec("ingenieurbau", "spezialtiefbau", "pfahlwaende", "bohrpfahl", "Bohrpfahl", "Runder Stahlbeton-Bohrpfahl in typischen Durchmessern.", "stahlbeton", "reinforced_concrete", "bored_pile", "concrete_reinforced", "concrete_plain", _variants([(f"Ø {diameter} mm", diameter, 10000, diameter, diameter) for diameter in [300, 400, 500, 600, 800, 1000, 1200, 1500]]), primitive_shape="cylinder", color="#A8ADB4"),
+    spec("ingenieurbau", "stuetzbauwerke", "anker", "daueranker", "Daueranker", "Vereinfachter Boden- und Felsanker nach Zugkraftklassen.", "stahl", "steel", "ground_anchor", "steel", "line_horizontal", pipe_variants([32, 40, 50, 63, 75, 90, 110], length=6000), primitive_shape="pipe", object_kind="adaptive_system", geometry_axis="x", geometry_profile="pipe_segment", color="#5C6871"),
+    spec("ingenieurbau", "spezialtiefbau", "pfahlwaende", "bohrpfahl", "Bohrpfahl", "Runder Stahlbeton-Bohrpfahl in typischen Durchmessern.", "stahlbeton", "reinforced_concrete", "bored_pile", "concrete_reinforced", "concrete_plain", _variants([(f"Ø {diameter} mm", diameter, 10000, diameter, diameter) for diameter in [300, 400, 500, 600, 800, 1000, 1200, 1500]]), primitive_shape="cylinder", geometry_axis="y", geometry_profile="vertical_cylinder", color="#A8ADB4"),
     spec("ingenieurbau", "stuetzbauwerke", "gabionen", "gabione", "Gabione", "Steinkorb für Stütz- und Landschaftsbauwerke.", "sonstiges", "natural_stone", "gabion", "rubble_stone", "grid_coarse", _variants([("500 × 500 mm", 1000, 500, 500, 500), ("500 × 1000 mm", 1000, 1000, 500, 500), ("1000 × 500 mm", 1000, 500, 1000, 500), ("1000 × 1000 mm", 1000, 1000, 1000, 1000), ("1500 × 1000 mm", 1000, 1000, 1500, 1000), ("2000 × 1000 mm", 1000, 1000, 2000, 1000)]), color="#8E8170"),
     spec("ingenieurbau", "stuetzbauwerke", "stuetzwaende", "stahlbetonstuetzwand", "Stahlbetonstützwand", "Massive Stützwand für Geländesprünge und Verkehrsanlagen.", "stahlbeton", "reinforced_concrete", "retaining_wall", "concrete_reinforced", "concrete_plain", wall_variants([200, 250, 300, 350, 400, 500, 600, 800], height=4000), color="#A8ADB4"),
 ]
@@ -194,6 +361,17 @@ def _payload(family: dict[str, Any]) -> dict[str, Any]:
             "dimensions.depth_mm": raw["depth_mm"],
             "dimensions.thickness_mm": raw["thickness_mm"],
             "dimensions.length_mm": raw["width_mm"],
+            "geometry.primitive_shape": family["primitive_shape"],
+            "geometry.profile_id": family["geometry_profile"],
+            "geometry.axis": family["geometry_axis"],
+            "geometry.fit_mode": "grid_footprint",
+            "geometry.height_mode": family["height_mode"],
+            "geometry.height_fraction": 0.5 if family["height_mode"] == "half" else 1.0,
+            "interaction.kind": family["interaction_kind"],
+            "interaction.openable": family["interaction_kind"] == "swing_door",
+            "interaction.default_state": "closed",
+            "inventory.icon_kind": family["inventory_icon_kind"],
+            "inventory.sort_order": family["inventory_sort_order"],
             "technical.units": {
                 "dimensions.width_mm": "mm",
                 "dimensions.height_mm": "mm",
@@ -225,6 +403,7 @@ def _payload(family: dict[str, Any]) -> dict[str, Any]:
     first = raw_variants[0]
     taxonomy_path = f"{family['domain']}/{family['category']}/{family['subcategory']}"
     vplib_uid = str(uuid.uuid5(NAMESPACE, f"{taxonomy_path}/{family['slug']}"))
+    editor_cells = [1, 2, 1] if family["geometry_profile"] == "hinged_door" else [1, 1, 1]
     return {
         "vplib_uid": vplib_uid,
         "family_slug": family["slug"],
@@ -233,11 +412,14 @@ def _payload(family: dict[str, Any]) -> dict[str, Any]:
         "label": family["name"],
         "family_description": family["description"],
         "description": family["description"],
-        "object_kind": "cell_block",
+        "object_kind": family["object_kind"],
         "domain": family["domain"],
         "category": family["category"],
         "subcategory": family["subcategory"],
         "taxonomy_path": taxonomy_path,
+        # The definition-variable contract is currently shared by all four
+        # object kinds. Object semantics are carried independently so readers
+        # do not have to infer geometry from a profile name.
         "family_profile_id": "simple_cell_block",
         "variant_profile_id": "simple_cell_block.v1",
         "default_variant_id": "default",
@@ -246,6 +428,16 @@ def _payload(family: dict[str, Any]) -> dict[str, Any]:
         "geometry_depth": first["depth_mm"] / 1000,
         "geometry_unit": "m",
         "primitive_shape": family["primitive_shape"],
+        "geometry_profile_id": family["geometry_profile"],
+        "geometry_axis": family["geometry_axis"],
+        "block_height_mode": family["height_mode"],
+        "height_fraction": 0.5 if family["height_mode"] == "half" else 1.0,
+        "interaction_kind": family["interaction_kind"],
+        "interaction_openable": family["interaction_kind"] == "swing_door",
+        "interaction_default_state": "closed",
+        "editor_cells_x": editor_cells[0],
+        "editor_cells_y": editor_cells[1],
+        "editor_cells_z": editor_cells[2],
         "material_class": family["material_class"],
         "material_classes": [family["material_class"]],
         "definition_variants": variants,
@@ -270,8 +462,10 @@ def build(*, check_only: bool = False) -> dict[str, Any]:
     from library.services import library_create_service
 
     entries: list[dict[str, Any]] = []
+    revision_payloads: list[dict[str, Any]] = []
     for family in FAMILY_SPECS:
         payload = _payload(family)
+        revision_payloads.append(payload)
         result = library_create_service.build_package_plan(payload, include_documents=True) if check_only else library_create_service.save_package(payload, overwrite=True)
         if not result.ok:
             raise RuntimeError(f"{family['slug']}: {_result_errors(result)}")
@@ -298,9 +492,21 @@ def build(*, check_only: bool = False) -> dict[str, Any]:
         )
 
     domains = Counter(entry["domain"] for entry in entries)
+    content_revision = hashlib.sha256(
+        json.dumps(
+            {
+                "builder_contract_version": 2,
+                "families": revision_payloads,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
     catalog = {
         "schema_version": "vectoplan.standard_library.catalog.v1",
         "catalog_version": "1.0.0",
+        "content_revision": content_revision,
         "created_at": CREATED_AT,
         "generator": "scripts/build_standard_library_v1.py",
         "source_root": "standard_library/v1/packages",

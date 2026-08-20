@@ -1034,17 +1034,29 @@ class CreativeLibraryUserService:
             visible_only=not include_deleted,
             limit=MAX_LIMIT,
         )
-        if not normalize_bool(result.get("ok"), default=False):
-            raise CreativeLibraryUserServiceError(
-                clean_string(result.get("errors"), fallback="Published library read failed.")
-            )
-
-        return [
+        indexed_items = [
             normalize_json_mapping(item)
             for item in normalize_json_list(
                 normalize_json_mapping(result.get("payload")).get("items")
             )
-        ]
+        ] if normalize_bool(result.get("ok"), default=False) else []
+
+        # The checked-in standard library is authoritative for built-in
+        # families. Overlaying it here keeps existing installations current
+        # even while their persisted index is still on the previous revision.
+        try:
+            from .standard_library_source_service import overlay_standard_library_source_items
+        except ImportError:
+            from library.services.standard_library_source_service import overlay_standard_library_source_items
+
+        resolved_items = overlay_standard_library_source_items(indexed_items)
+        if resolved_items:
+            return resolved_items
+        if not normalize_bool(result.get("ok"), default=False):
+            raise CreativeLibraryUserServiceError(
+                clean_string(result.get("errors"), fallback="Published library read failed.")
+            )
+        return indexed_items
 
 
 

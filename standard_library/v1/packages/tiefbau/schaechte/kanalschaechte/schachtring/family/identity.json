@@ -5,9 +5,11 @@
   "slug": "schachtring",
   "label": "Schachtring",
   "description": "Runder Fertigteil-Schachtring in Standardnennweiten und Bauhöhen.",
-  "object_kind": "cell_block",
+  "object_kind": "multi_cell_module",
   "family_profile_id": "simple_cell_block",
   "variant_profile_id": "simple_cell_block.v1",
   "status": "draft",
-  "language": "de"
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
 }

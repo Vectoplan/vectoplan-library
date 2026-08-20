@@ -1,0 +1,131 @@
+{
+  "schema_version": "vplib.pricing.v1",
+  "currency": "EUR",
+  "enforced": false,
+  "rule_count": 6,
+  "complete_rule_count": 0,
+  "incomplete_variant_ids": [
+    "default",
+    "500_300_mm",
+    "600_350_mm",
+    "800_400_mm",
+    "1000_500_mm",
+    "1200_600_mm"
+  ],
+  "rules": [
+    {
+      "variant_id": "default",
+      "variant_label": "400 × 300 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "500_300_mm",
+      "variant_label": "500 × 300 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "600_350_mm",
+      "variant_label": "600 × 350 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "800_400_mm",
+      "variant_label": "800 × 400 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "1000_500_mm",
+      "variant_label": "1000 × 500 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "1200_600_mm",
+      "variant_label": "1200 × 600 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    }
+  ]
+}

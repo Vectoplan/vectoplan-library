@@ -158,6 +158,32 @@ def test_manufacturer_profile_is_written_as_portable_vplib_contract() -> None:
     assert identity["manufacturer"]["organization_id"] == "org:vectobrick"
 
 
+def test_empty_manufacturer_form_shell_stays_generic_and_consistent() -> None:
+    payload = minimal_payload()
+    payload.update(
+        {
+            "manufacturer_scope": "generic",
+            "manufacturer_name": "",
+            "manufacturer_profile_json": "{}",
+            "manufacturer_locations_json": "[]",
+            "manufacturer_territories_json": "[]",
+        }
+    )
+
+    result = create_service().build_package_plan(payload)
+
+    assert result.ok, [issue.to_dict() for issue in result.errors]
+    documents = result.data["documents"]
+    contract = documents["manufacturer/contract.json"]
+    identity = documents["family/identity.json"]
+    assert contract["scope"] == "generic"
+    assert contract["manufacturer_bound"] is False
+    assert contract["manufacturer_data_required"] is False
+    assert contract["required_fields"] == []
+    assert identity["manufacturer_scope"] == "generic"
+    assert identity["manufacturer"] is None
+
+
 def test_manufacturer_bound_vplib_requires_name_location_and_location_role() -> None:
     payload = minimal_payload()
     payload["manufacturer_profile"] = {
@@ -1155,10 +1181,10 @@ def _selected_value(html: str, name: str) -> str:
 def test_rendered_generator_uses_fresh_assets_and_one_operational_variant_state() -> None:
     app, html = _rendered_create_page()
     assert app
-    assert "/static/css/vplib/create.css?v=20260813.3" in html
-    assert "/static/js/vplib/create/create_uploads.js?v=20260813.3" in html
-    assert "/static/js/vplib/create/create_variant_drawer.js?v=20260813.3" in html
-    assert "/static/js/vplib/create/create_actions.js?v=20260813.3" in html
+    assert "/static/css/vplib/create.css?v=20260815.1" in html
+    assert "/static/js/vplib/create/create_uploads.js?v=20260815.1" in html
+    assert "/static/js/vplib/create/create_variant_drawer.js?v=20260815.1" in html
+    assert "/static/js/vplib/create/create_actions.js?v=20260815.1" in html
 
     for name in (
         "object_kind",
@@ -1195,7 +1221,7 @@ def test_rendered_generator_embeds_isolated_editor_preview() -> None:
     assert "http://localhost:5100/editor/test-generator" in html
     assert "parentOrigin=http%3A%2F%2Flocalhost" in html
     assert (
-        "/static/js/vplib/create/create_editor_preview_bridge.js?v=20260813.3"
+        "/static/js/vplib/create/create_editor_preview_bridge.js?v=20260815.1"
         in html
     )
     assert 'data-vp-preview-mode="dev-empty"' not in html

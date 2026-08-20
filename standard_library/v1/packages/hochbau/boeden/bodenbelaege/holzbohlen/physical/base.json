@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "6ab8b76b-f308-543b-9d51-1217a32634b9",
+  "family_id": "vp.hochbau.boeden.bodenbelaege.holzbohlen",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "holz"
+  ]
+}

@@ -15,7 +15,7 @@
 <div
   class="vp-create-manufacturer-profile"
   data-vp-manufacturer-profile-root="true"
-  data-vp-manufacturer-scope="manufacturer"
+  data-vp-manufacturer-scope="generic"
   data-vp-manufacturer-coverage-mode="locations"
   data-vp-manufacturer-api="/api/v1/vplib/manufacturer-products/manufacturers"
   data-vp-manufacturer-geocode-api="/api/v1/vplib/manufacturer-products/geocode"
@@ -55,8 +55,8 @@
 
       <div class="vp-create-manufacturer-profile__organization">
         <label class="vp-create-field">
-          <span class="vp-create-field__label">Herstellername *</span>
-          <input class="vp-create-input" name="manufacturer_name" value="{{ _manufacturer_org.get('name', '') }}" placeholder="z. B. Schlagmann Poroton" data-vp-manufacturer-profile-field="name" required />
+          <span class="vp-create-field__label">Herstellername</span>
+          <input class="vp-create-input" name="manufacturer_name" value="{{ _manufacturer_org.get('name', '') }}" placeholder="z. B. Schlagmann Poroton" data-vp-manufacturer-profile-field="name" />
         </label>
         <label class="vp-create-field">
           <span class="vp-create-field__label">Marke</span>
@@ -103,7 +103,7 @@
     </div>
   </section>
 
-  <input type="hidden" name="manufacturer_scope" value="manufacturer" />
+  <input type="hidden" name="manufacturer_scope" value="generic" data-vp-manufacturer-scope-field />
   <input type="hidden" name="manufacturer_org_id" value="{{ _manufacturer_org.get('organization_id', '') }}" data-vp-manufacturer-profile-field="organization_id" />
   <input type="hidden" name="manufacturer_coverage_mode" value="locations" />
   <input type="hidden" name="manufacturer_profile_json" value="{{ _manufacturer_profile | tojson | forceescape }}" data-vp-manufacturer-profile-json />

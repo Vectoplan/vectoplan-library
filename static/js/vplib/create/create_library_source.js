@@ -10,6 +10,7 @@
     items: [],
     selected: null,
     permissions: null,
+    identityTaxonomyLocked: false,
     ready: false
   };
 
@@ -75,9 +76,18 @@
 
   function itemPayload(item) {
     var source = mapping(item);
+    var summary = mapping(first(source.summary, source.item_summary, source.family_summary));
     var currentRevision = mapping(first(source.current_revision, source.latest_revision, source.revision));
-    var payload = mapping(first(currentRevision.payload, currentRevision.resolved_payload, source.payload));
-    return Object.assign({}, payload, currentRevision, source);
+    return Object.assign(
+      {},
+      mapping(summary.payload),
+      mapping(source.payload),
+      mapping(currentRevision.resolved_payload),
+      mapping(currentRevision.payload),
+      currentRevision,
+      summary,
+      source
+    );
   }
 
   function itemLabel(item) {
@@ -186,6 +196,7 @@
 
     if (state.mode === "new") {
       state.selected = null;
+      setIdentityTaxonomyLocked(false);
       setHiddenValue("[data-vp-source-library-item-ref]", "");
       setHiddenValue("[data-vp-source-vplib-uid]", "");
       setHiddenValue("[data-vp-source-revision-id]", "");
@@ -379,6 +390,73 @@
     return false;
   }
 
+  function isSystemAdmin(permissions) {
+    var context = mapping(permissions);
+    if (mapping(context.capabilities).system_admin === true) {
+      return true;
+    }
+    var identity = mapping(context.identity);
+    return list(identity.roles).some(function (role) {
+      return text(role).toLowerCase().replace(/-/g, "_") === "system_admin";
+    });
+  }
+
+  function identityTaxonomyPanel() {
+    return document.querySelector("[data-vp-step-index='2'] [data-vp-create-section='identity-taxonomy']") ||
+      document.querySelector("[data-vp-create-section='identity-taxonomy']");
+  }
+
+  function setIdentityTaxonomyLocked(locked) {
+    var panel = identityTaxonomyPanel();
+    var shouldLock = Boolean(locked);
+    state.identityTaxonomyLocked = shouldLock;
+    if (!panel) {
+      return;
+    }
+
+    panel.setAttribute("data-vp-existing-source-locked", shouldLock ? "true" : "false");
+    panel.classList.toggle("vp-create-section--source-locked", shouldLock);
+
+    Array.prototype.slice.call(panel.querySelectorAll("input:not([type='hidden']), select, textarea")).forEach(function (field) {
+      if (shouldLock) {
+        if (!field.hasAttribute("data-vp-source-lock-tabindex")) {
+          field.setAttribute("data-vp-source-lock-tabindex", field.getAttribute("tabindex") || "");
+          field.setAttribute("data-vp-source-lock-readonly", field.readOnly ? "true" : "false");
+        }
+        if (field.tagName === "INPUT" || field.tagName === "TEXTAREA") {
+          field.readOnly = true;
+        }
+        field.setAttribute("aria-readonly", "true");
+        field.setAttribute("tabindex", "-1");
+      } else if (field.hasAttribute("data-vp-source-lock-tabindex")) {
+        field.readOnly = field.getAttribute("data-vp-source-lock-readonly") === "true";
+        var previousTabIndex = field.getAttribute("data-vp-source-lock-tabindex");
+        if (previousTabIndex) {
+          field.setAttribute("tabindex", previousTabIndex);
+        } else {
+          field.removeAttribute("tabindex");
+        }
+        field.removeAttribute("aria-readonly");
+        field.removeAttribute("data-vp-source-lock-tabindex");
+        field.removeAttribute("data-vp-source-lock-readonly");
+      }
+    });
+
+    var notice = panel.querySelector("[data-vp-source-identity-lock-notice]");
+    if (!notice) {
+      notice = document.createElement("div");
+      notice.className = "vp-create-library-source__notice vp-create-library-source__identity-lock";
+      notice.setAttribute("data-vp-source-identity-lock-notice", "true");
+      notice.setAttribute("role", "status");
+      var body = panel.querySelector(".vplib-create-step__body") || panel;
+      body.insertBefore(notice, body.firstChild);
+    }
+    notice.hidden = !shouldLock;
+    notice.textContent = shouldLock
+      ? "Grunddaten und Taxonomie stammen aus der ausgewählten VPLIB. Nur System-Admins dürfen diese Stammdaten ändern."
+      : "";
+  }
+
   function prefillFromItem(item) {
     var data = itemPayload(item);
     var family = mapping(first(data.family, data.identity, data.family_payload));
@@ -474,6 +552,7 @@
     Promise.all([hydrateDetail(item), loadPermissions(item)]).then(function (results) {
       state.selected = results[0] || item;
       prefillFromItem(state.selected);
+      setIdentityTaxonomyLocked(!isSystemAdmin(results[1]));
       updateSelection(state.selected);
       setStatus("Bestehender Baustein ausgewählt. Du kannst jetzt mit Weiter fortfahren.", "ready");
       emit("vectoplan:create:library-source-selected", {
@@ -535,7 +614,8 @@
       getState: function () { return state; },
       selectMode: selectMode,
       reload: loadLibrary,
-      getSelectedItem: function () { return state.selected; }
+      getSelectedItem: function () { return state.selected; },
+      isIdentityTaxonomyLocked: function () { return state.identityTaxonomyLocked; }
     };
     emit("vectoplan:create:library-source-ready", { root: state.root });
   }

@@ -11,7 +11,7 @@
     "category": "Leitungen",
     "subcategory": "Abwasserleitungen"
   },
-  "object_kind": "cell_block",
+  "object_kind": "adaptive_system",
   "profiles": {
     "family_profile_id": "simple_cell_block",
     "variant_profile_id": "simple_cell_block.v1"

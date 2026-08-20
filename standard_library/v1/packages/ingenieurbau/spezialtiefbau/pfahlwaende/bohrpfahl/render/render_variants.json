@@ -6,6 +6,8 @@
       "render_variant_id": "default",
       "mode": "primitive",
       "primitive_shape": "cylinder",
+      "geometry_profile_id": "vertical_cylinder",
+      "geometry_document": "render/geometry.json",
       "label": "Default primitive preview",
       "source": "generated"
     }

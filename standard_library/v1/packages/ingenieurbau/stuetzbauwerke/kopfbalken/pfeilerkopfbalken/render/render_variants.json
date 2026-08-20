@@ -6,6 +6,8 @@
       "render_variant_id": "default",
       "mode": "primitive",
       "primitive_shape": "block",
+      "geometry_profile_id": "beam",
+      "geometry_document": "render/geometry.json",
       "label": "Default primitive preview",
       "source": "generated"
     }

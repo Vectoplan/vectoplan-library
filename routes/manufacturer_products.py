@@ -163,9 +163,15 @@ def permissions_context():
     family_ref = request.args.get("family_ref")
     family = _resolve_family(family_ref) if family_ref else None
     service = get_authorization_service()
+    identity = service.identity()
     decisions = {
         permission.value: service.decide(permission, family=family).to_dict()
         for permission in LibraryPermission
+    }
+    capabilities = service.capabilities(family=family)
+    capabilities["system_admin"] = "system_admin" in {
+        str(role or "").strip().lower().replace("-", "_")
+        for role in identity.roles
     }
     return _response(
         {
@@ -173,10 +179,10 @@ def permissions_context():
             "data": {
                 "mode": "platform" if service.provider.name != "open_source_allow_all" else "open_source",
                 "provider": service.provider.name,
-                "identity": service.identity().to_dict(),
+                "identity": identity.to_dict(),
                 "family_ref": family_ref,
                 "family_db_id": getattr(family, "id", None),
-                "capabilities": service.capabilities(family=family),
+                "capabilities": capabilities,
                 "decisions": decisions,
             },
         }

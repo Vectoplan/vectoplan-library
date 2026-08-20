@@ -1,0 +1,171 @@
+{
+  "schema_version": "vplib.pricing.v1",
+  "currency": "EUR",
+  "enforced": false,
+  "rule_count": 8,
+  "complete_rule_count": 0,
+  "incomplete_variant_ids": [
+    "default",
+    "180_mm",
+    "200_mm",
+    "220_mm",
+    "240_mm",
+    "250_mm",
+    "280_mm",
+    "300_mm"
+  ],
+  "rules": [
+    {
+      "variant_id": "default",
+      "variant_label": "160 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "180_mm",
+      "variant_label": "180 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "200_mm",
+      "variant_label": "200 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "220_mm",
+      "variant_label": "220 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "240_mm",
+      "variant_label": "240 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "250_mm",
+      "variant_label": "250 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "280_mm",
+      "variant_label": "280 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "300_mm",
+      "variant_label": "300 mm",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "0ce9dfd5-4f99-5db2-8af3-b6097946b47e",
+  "family_id": "vp.hochbau.oeffnungen.aussentueren.aussentuer",
+  "default_variant_id": "default",
+  "label": "Außentür",
+  "description": "Robuste, öffnungsfähige Außentür mit üblichen Rohbaumaßen.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "oeffnungen",
+  "subcategory": "aussentueren",
+  "classification_path": "hochbau/oeffnungen/aussentueren",
+  "source_path": "hochbau/oeffnungen/aussentueren/aussentuer",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Öffnungen",
+    "subcategory": "Außentüren"
+  },
+  "object_kind": "catalog_object",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

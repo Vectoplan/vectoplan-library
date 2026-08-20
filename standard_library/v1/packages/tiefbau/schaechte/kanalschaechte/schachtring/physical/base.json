@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "vplib_uid": "cd095d75-ac53-5b1b-a4eb-993db8d2789d",
   "family_id": "vp.tiefbau.schaechte.kanalschaechte.schachtring",
-  "object_kind": "cell_block",
+  "object_kind": "multi_cell_module",
   "profiles": {
     "family_profile_id": "simple_cell_block",
     "variant_profile_id": "simple_cell_block.v1"

@@ -1,0 +1,211 @@
+{
+  "schema_version": "vplib.pricing.v1",
+  "currency": "EUR",
+  "enforced": false,
+  "rule_count": 10,
+  "complete_rule_count": 0,
+  "incomplete_variant_ids": [
+    "default",
+    "dn_125",
+    "dn_150",
+    "dn_200",
+    "dn_250",
+    "dn_300",
+    "dn_400",
+    "dn_500",
+    "dn_600",
+    "dn_800"
+  ],
+  "rules": [
+    {
+      "variant_id": "default",
+      "variant_label": "DN 100",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "dn_125",
+      "variant_label": "DN 125",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "dn_150",
+      "variant_label": "DN 150",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "dn_200",
+      "variant_label": "DN 200",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "dn_250",
+      "variant_label": "DN 250",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "dn_300",
+      "variant_label": "DN 300",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "dn_400",
+      "variant_label": "DN 400",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "dn_500",
+      "variant_label": "DN 500",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "dn_600",
+      "variant_label": "DN 600",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    },
+    {
+      "variant_id": "dn_800",
+      "variant_label": "DN 800",
+      "pricing_basis": "per_m2",
+      "billing_quantity": 1.0,
+      "price": {
+        "amount": 0.0,
+        "currency": "EUR",
+        "vat_percent": 19.0,
+        "includes_vat": false
+      },
+      "output": {
+        "quantity": 0.0,
+        "unit": "Stück"
+      },
+      "minimum_order": 0.0,
+      "notes": "",
+      "status": "incomplete"
+    }
+  ]
+}

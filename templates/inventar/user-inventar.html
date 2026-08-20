@@ -8,7 +8,8 @@
 
   <title data-i18n="vectoplan.server.library.inventar.user_inventar.title.user_inventar_vectoplan.3a379148">User-Inventar · VECTOPLAN</title>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css', v='20260809.3') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css', v='20260815.4') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/user-inventory-mobile.css', v='20260818.3') }}">
 </head>
 
 <body class="vp-inventar-page vp-user-inventar-page vp-user-inventar-overlay-page">
@@ -103,7 +104,12 @@
   </main>
 
   <script
-    src="{{ url_for('static', filename='js/inventar/user-inventory.js', v='20260809.2') }}"
+    src="{{ url_for('static', filename='js/inventar/vectoplan-library-icons.js', v='20260815.4') }}"
+    defer
+  ></script>
+
+  <script
+    src="{{ url_for('static', filename='js/inventar/user-inventory.js', v='20260815.2') }}"
     defer
     data-user-id="{{ _user_id }}"
     data-inventory-key="{{ _inventory_key | e }}"

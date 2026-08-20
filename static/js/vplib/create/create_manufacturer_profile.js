@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.0.0";
+  var VERSION = "2.1.0";
   var ROOT_SELECTOR = "[data-vp-manufacturer-profile-root='true']";
 
   function text(value) { return value === null || value === undefined ? "" : String(value).trim(); }
@@ -26,6 +26,7 @@
     var search = root.querySelector("[data-vp-manufacturer-search]");
     var profileField = root.querySelector("[data-vp-manufacturer-profile-json]");
     var locationsField = root.querySelector("[data-vp-manufacturer-locations-json]");
+    var scopeField = root.querySelector("[data-vp-manufacturer-scope-field]");
     var organizationIdField = root.querySelector('[data-vp-manufacturer-profile-field="organization_id"]');
     var locationRows = root.querySelector("[data-vp-manufacturer-location-rows]");
     var locationTemplate = root.querySelector("template[data-vp-manufacturer-location-template]");
@@ -38,7 +39,6 @@
     var includeAll = false;
     var registryItems = [];
     var registryTimer = 0;
-
     function familyRef() {
       var field = form && form.querySelector('[name="source_library_item_ref"]');
       if (field && text(field.value)) { return text(field.value); }
@@ -134,20 +134,31 @@
 
     function buildProfile() {
       var locations = collectLocations();
+      var organization = {
+        organization_id: organizationValue("organization_id"),
+        name: organizationValue("name"),
+        brand: organizationValue("brand"),
+        website: organizationValue("website"),
+        country_code: (organizationValue("country_code") || "DE").toUpperCase(),
+        owner_subject: selectedManufacturer && selectedManufacturer.owner_subject || "",
+        platform_admin_retains_access: true
+      };
+      var manufacturerBound = Boolean(
+        organization.organization_id ||
+        organization.name ||
+        organization.brand ||
+        organization.website ||
+        locations.length
+      );
+      var scope = manufacturerBound ? "manufacturer" : "generic";
+      root.dataset.vpManufacturerScope = scope;
+      if (scopeField) { scopeField.value = scope; }
       return {
         schema_version: "vplib.manufacturer.v2",
-        enforced: true,
-        scope: "manufacturer",
-        manufacturer_bound: true,
-        organization: {
-          organization_id: organizationValue("organization_id"),
-          name: organizationValue("name"),
-          brand: organizationValue("brand"),
-          website: organizationValue("website"),
-          country_code: (organizationValue("country_code") || "DE").toUpperCase(),
-          owner_subject: selectedManufacturer && selectedManufacturer.owner_subject || "",
-          platform_admin_retains_access: true
-        },
+        enforced: manufacturerBound,
+        scope: scope,
+        manufacturer_bound: manufacturerBound,
+        organization: organization,
         availability: {
           storage: "platform_database_with_package_snapshot",
           coverage_mode: "locations",
@@ -163,7 +174,11 @@
       var profile = buildProfile();
       profileField.value = JSON.stringify(profile);
       locationsField.value = JSON.stringify(profile.availability.locations);
-      summary.textContent = profile.organization.name ? profile.organization.name + " · " + profile.availability.location_count + " Standorte" : "Hersteller auswählen";
+      summary.textContent = profile.scope === "generic"
+        ? "Keine Herstellerdaten"
+        : profile.organization.name
+          ? profile.organization.name + " · " + profile.availability.location_count + " Standorte"
+          : "Herstellerdaten unvollständig";
       root.dispatchEvent(new CustomEvent("vectoplan:create:manufacturer-profile-changed", {
         bubbles: true,
         detail: { version: VERSION, reason: reason || "change", manufacturer_profile: profile }
@@ -246,13 +261,16 @@
       if (!silent) { sync("location-added"); }
     }
 
-    function fillManufacturer(item) {
+    function fillManufacturer(item, options) {
+      var settings = options || {};
       selectedManufacturer = item || null;
       setOrganizationValue("organization_id", item && (item.organization_id || item.uid) || "");
       ["name", "brand", "website", "country_code"].forEach(function (key) { setOrganizationValue(key, item && item[key] || (key === "country_code" ? "DE" : "")); });
       locationRows.replaceChildren();
       (item && Array.isArray(item.locations) ? item.locations : []).forEach(function (location) { addLocation(location, true); });
-      if (!locationRows.children.length) { addLocation({ country_code: "DE", radius_km: 100, coverage_mode: "radius", applies_to_all_variants: true }, true); }
+      if (!locationRows.children.length && (item || settings.addBlankLocation)) {
+        addLocation({ country_code: "DE", radius_km: 100, coverage_mode: "radius", applies_to_all_variants: true }, true);
+      }
       transferPanel.hidden = !(platformAdmin && item && item.uid);
       renderRegistry();
       sync("manufacturer-selected");
@@ -352,7 +370,7 @@
       if (remove) { remove.closest("[data-vp-manufacturer-location-row]").remove(); updateLocationLabels(); sync("location-removed"); }
     });
     root.querySelector("[data-vp-add-manufacturer-location]").addEventListener("click", function () { addLocation({ country_code: "DE", radius_km: 100, coverage_mode: "radius", applies_to_all_variants: true }); });
-    newManufacturerButton.addEventListener("click", function () { fillManufacturer(null); });
+    newManufacturerButton.addEventListener("click", function () { fillManufacturer(null, { addBlankLocation: true }); });
     root.querySelector("[data-vp-manufacturer-show-family]").addEventListener("click", function () { includeAll = false; loadRegistry(); });
     root.querySelector("[data-vp-manufacturer-show-all]").addEventListener("click", function () { includeAll = true; loadRegistry(); });
     root.querySelector("[data-vp-manufacturer-save]").addEventListener("click", saveManufacturer);
@@ -375,7 +393,7 @@
     var initial = parseJson(profileField.value, {});
     var initialOrg = initial.organization || {};
     var initialLocations = initial.availability && Array.isArray(initial.availability.locations) ? initial.availability.locations : parseJson(locationsField.value, []);
-    if (initialOrg.organization_id) {
+    if (initialOrg.organization_id || initialOrg.name || initialOrg.brand || initialOrg.website || initialLocations.length) {
       fillManufacturer(Object.assign({}, initialOrg, { uid: initialOrg.organization_id, locations: initialLocations }));
     } else {
       fillManufacturer(null);

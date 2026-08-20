@@ -1797,12 +1797,33 @@ def _load_standard_library_on_startup(app: Flask) -> None:
         _append_check_result(app, "standard_library", result)
         return
 
+    catalog_path = source_root.parent / "catalog.json"
+    catalog_revision = ""
+    try:
+        catalog_document = json.loads(catalog_path.read_text(encoding="utf-8-sig"))
+        if isinstance(catalog_document, Mapping):
+            catalog_revision = _optional_text(catalog_document.get("content_revision")) or ""
+    except Exception:
+        catalog_document = {}
+
     startup_marker = source_root / ".vectoplan-startup-sync-complete"
+    marker_revision = ""
     if startup_marker.is_file():
+        try:
+            marker_document = json.loads(startup_marker.read_text(encoding="utf-8-sig"))
+            if isinstance(marker_document, Mapping):
+                marker_revision = _optional_text(marker_document.get("content_revision")) or ""
+        except Exception:
+            marker_document = {}
+
+    # Legacy markers and markers from an older catalog revision must not
+    # suppress synchronization after an application update.
+    if startup_marker.is_file() and catalog_revision and marker_revision == catalog_revision:
         metadata = {
             "enabled": True,
             "source_root": str(source_root),
             "startup_sync_marker": str(startup_marker),
+            "content_revision": catalog_revision,
             "reused_startup_sync": True,
         }
         state["metadata"]["standard_library"] = metadata
@@ -1870,9 +1891,8 @@ def _load_standard_library_on_startup(app: Flask) -> None:
             scan_summary = {"status": str(scan_summary)}
 
         expected_count = 0
-        catalog_path = source_root.parent / "catalog.json"
         try:
-            catalog = json.loads(catalog_path.read_text(encoding="utf-8-sig"))
+            catalog = catalog_document or json.loads(catalog_path.read_text(encoding="utf-8-sig"))
             expected_count = _safe_int(catalog.get("family_count"), default=0, minimum=0)
         except Exception:
             expected_count = 0
@@ -1885,6 +1905,7 @@ def _load_standard_library_on_startup(app: Flask) -> None:
             "enabled": True,
             "source_root": str(source_root),
             "catalog_path": str(catalog_path),
+            "content_revision": catalog_revision,
             "expected_family_count": expected_count,
             "scan": _json_safe_mapping(scan_summary),
         }
@@ -1958,7 +1979,14 @@ def _load_standard_library_on_startup(app: Flask) -> None:
             )
             if sync_ok:
                 startup_marker.write_text(
-                    json.dumps({"source_root": str(source_root), "status": "ok"}, sort_keys=True),
+                    json.dumps(
+                        {
+                            "source_root": str(source_root),
+                            "status": "ok",
+                            "content_revision": catalog_revision,
+                        },
+                        sort_keys=True,
+                    ),
                     encoding="utf-8",
                 )
             _append_check_result(

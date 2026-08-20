@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "321ef10c-be58-5321-a703-a6d5a3cd9f82",
+  "family_id": "vp.hochbau.boeden.bodenbelaege.laminat",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "holz"
+  ]
+}
