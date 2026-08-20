@@ -3,3 +3,7 @@
 *.pid
 *.sock
 *.ctl
+
+# Commercial platform policy implementation. The Apache-licensed service only
+# contains the provider contract and permissive open-source default.
+/platform_private/

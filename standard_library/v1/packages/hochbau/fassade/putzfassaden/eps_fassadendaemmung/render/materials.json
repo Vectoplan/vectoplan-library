@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1.0",
+  "materials": [
+    {
+      "material_id": "default",
+      "type": "kunststoff",
+      "color_hint": "#9CA3AF"
+    }
+  ]
+}

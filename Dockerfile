@@ -88,7 +88,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     VECTOPLAN_LIBRARY_SERVICE_ROOT=${APP_HOME} \
     VECTOPLAN_LIBRARY_SRC_ROOT=${APP_HOME}/src \
     VECTOPLAN_LIBRARY_PACKAGE_ROOT=${APP_HOME}/src/library \
-    VECTOPLAN_LIBRARY_SOURCE_ROOT=${APP_HOME}/src/library/source \
+    VECTOPLAN_LIBRARY_SOURCE_ROOT=/opt/vectoplan-standard-library-v1 \
+    VECTOPLAN_LIBRARY_LOAD_ON_STARTUP=true \
+    VECTOPLAN_LIBRARY_DB_SYNC_ON_STARTUP=true \
     VECTOPLAN_LIBRARY_CREATIVE_ROOT=${APP_HOME}/creative_library \
     VECTOPLAN_LIBRARY_GENERATED_ROOT=${APP_HOME}/generated/library \
     VECTOPLAN_LIBRARY_CACHE_ROOT=${APP_HOME}/generated/library_cache \
@@ -108,7 +110,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     LIBRARY_SERVICE_ROOT=${APP_HOME} \
     LIBRARY_SRC_ROOT=${APP_HOME}/src \
     LIBRARY_PACKAGE_ROOT=${APP_HOME}/src/library \
-    LIBRARY_SOURCE_ROOT=${APP_HOME}/src/library/source \
+    LIBRARY_SOURCE_ROOT=/opt/vectoplan-standard-library-v1 \
     LIBRARY_CREATIVE_ROOT=${APP_HOME}/creative_library \
     LIBRARY_GENERATED_ROOT=${APP_HOME}/generated/library \
     LIBRARY_CACHE_ROOT=${APP_HOME}/generated/library_cache \
@@ -233,6 +235,7 @@ RUN set -eux; \
         "${APP_HOME}/generated/library" \
         "${APP_HOME}/generated/library_cache" \
         "${APP_HOME}/src/library/source" \
+        "${APP_HOME}/standard_library/v1/packages" \
     ; \
     chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}"
 
@@ -291,9 +294,12 @@ RUN set -eux; \
         "${APP_HOME}/generated/library" \
         "${APP_HOME}/generated/library_cache" \
         "${APP_HOME}/src/library/source" \
+        "${APP_HOME}/standard_library/v1/packages" \
+        "/opt/vectoplan-standard-library-v1" \
     ; \
+    cp -R "${APP_HOME}/standard_library/v1/packages"/. "/opt/vectoplan-standard-library-v1"/; \
     find "${APP_HOME}" -type d -name "__pycache__" -prune -exec rm -rf {} + || true; \
-    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}"
+    chown -R "${APP_USER}:${APP_USER}" "${APP_HOME}" "/opt/vectoplan-standard-library-v1"
 
 
 # -----------------------------------------------------------------------------

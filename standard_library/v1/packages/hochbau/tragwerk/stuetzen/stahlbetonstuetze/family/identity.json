@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "e417b515-11ae-5ff5-b080-be0aea265060",
+  "family_id": "vp.hochbau.tragwerk.stuetzen.stahlbetonstuetze",
+  "slug": "stahlbetonstuetze",
+  "label": "Stahlbetonstütze",
+  "description": "Quadratische Stahlbetonstütze in typischen Querschnitten.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

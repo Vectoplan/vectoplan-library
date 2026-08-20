@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "321ef10c-be58-5321-a703-a6d5a3cd9f82",
+  "family_id": "vp.hochbau.boeden.bodenbelaege.laminat",
+  "default_variant_id": "default",
+  "label": "Laminat",
+  "description": "Laminatbelag als platzierbarer halber Block mit mehreren Aufbauhöhen.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "boeden",
+  "subcategory": "bodenbelaege",
+  "classification_path": "hochbau/boeden/bodenbelaege",
+  "source_path": "hochbau/boeden/bodenbelaege/laminat",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Böden",
+    "subcategory": "Bodenbeläge"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

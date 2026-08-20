@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "5a9f2bab-bb2d-5431-9739-9aefaf574485",
+  "family_id": "vp.hochbau.decken.holzdecken.brettsperrholzdecke",
+  "default_variant_id": "default",
+  "label": "Brettsperrholzdecke",
+  "description": "Massive CLT-Deckenplatte in gängigen Aufbauten.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "decken",
+  "subcategory": "holzdecken",
+  "classification_path": "hochbau/decken/holzdecken",
+  "source_path": "hochbau/decken/holzdecken/brettsperrholzdecke",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Decken",
+    "subcategory": "Holzdecken"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

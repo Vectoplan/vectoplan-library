@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "3c4bcbb4-fa49-5408-a6a1-9d39c08f7e18",
+  "family_id": "vp.ingenieurbau.stuetzbauwerke.stuetzwaende.stahlbetonstuetzwand",
+  "default_variant_id": "default",
+  "label": "Stahlbetonstützwand",
+  "description": "Massive Stützwand für Geländesprünge und Verkehrsanlagen.",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "stuetzbauwerke",
+  "subcategory": "stuetzwaende",
+  "classification_path": "ingenieurbau/stuetzbauwerke/stuetzwaende",
+  "source_path": "ingenieurbau/stuetzbauwerke/stuetzwaende/stahlbetonstuetzwand",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Stützbauwerke",
+    "subcategory": "Stützwände"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

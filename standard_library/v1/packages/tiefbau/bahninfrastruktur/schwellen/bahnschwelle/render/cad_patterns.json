@@ -1,0 +1,178 @@
+{
+  "schema_version": "vplib.render.cad_patterns.v1",
+  "catalog_version": "1.0.0",
+  "units": "mm_paper",
+  "default_variant_id": "default",
+  "pattern_ids": [
+    "line_horizontal",
+    "precast_concrete"
+  ],
+  "patterns": [
+    {
+      "id": "line_horizontal",
+      "label": "Linien horizontal",
+      "category": "line",
+      "category_label": "Linien und Raster",
+      "description": "Parallele horizontale Linien.",
+      "kind": "line",
+      "active": true,
+      "sort_order": 100,
+      "tags": [
+        "line",
+        "horizontal"
+      ],
+      "definition": {
+        "line_families": [
+          {
+            "angle_deg": 0,
+            "spacing_mm": 3,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "precast_concrete",
+      "label": "Betonfertigteil",
+      "category": "concrete",
+      "category_label": "Beton und Estrich",
+      "description": "Geordnete Betonpunktierung zur Unterscheidung von Fertigteilen.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 320,
+      "tags": [
+        "concrete",
+        "precast"
+      ],
+      "definition": {
+        "tile_mm": [
+          8,
+          8
+        ],
+        "line_families": [
+          {
+            "angle_deg": 45,
+            "spacing_mm": 8,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": [
+              0.5,
+              7.5
+            ]
+          }
+        ],
+        "primitives": [
+          {
+            "type": "dot",
+            "at_mm": [
+              2,
+              2
+            ],
+            "radius_mm": 0.14
+          },
+          {
+            "type": "dot",
+            "at_mm": [
+              6,
+              6
+            ],
+            "radius_mm": 0.14
+          }
+        ]
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "variant_id": "default",
+      "cut": {
+        "pattern_id": "precast_concrete",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "line_horizontal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "beton_2500",
+      "cut": {
+        "pattern_id": "precast_concrete",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "line_horizontal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "beton_2600",
+      "cut": {
+        "pattern_id": "precast_concrete",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "line_horizontal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "holz_2500",
+      "cut": {
+        "pattern_id": "precast_concrete",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "line_horizontal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "holz_2700",
+      "cut": {
+        "pattern_id": "precast_concrete",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "line_horizontal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    }
+  ]
+}

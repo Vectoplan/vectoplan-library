@@ -38,7 +38,7 @@ Taxonomy:
     No fallback to hochbau/bloecke/basis is allowed for new packages.
 
 Canonical source path:
-    src/library/source/{domain}/{category}/{subcategory}/{family_slug}
+    standard_library/v1/packages/{domain}/{category}/{subcategory}/{family_slug}
 
 Canonical family_id:
     vp.{domain}.{category}.{subcategory}.{family_slug}
@@ -63,6 +63,7 @@ import io
 import json
 import os
 import re
+import time
 import traceback
 import uuid
 import zipfile
@@ -73,12 +74,27 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
+try:
+    from vplib.spatial_contract import normalize_spatial_contract
+except ImportError:  # pragma: no cover - alternate package root used by some runners
+    from src.vplib.spatial_contract import normalize_spatial_contract  # type: ignore
+
+try:
+    from vplib.manufacturer_profile import normalize_manufacturer_profile
+except ImportError:  # pragma: no cover - alternate package root used by some runners
+    from src.vplib.manufacturer_profile import normalize_manufacturer_profile  # type: ignore
+
+try:
+    from vplib.pricing_contract import normalize_pricing_contract
+except ImportError:  # pragma: no cover - alternate package root used by some runners
+    from src.vplib.pricing_contract import normalize_pricing_contract  # type: ignore
+
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-LIBRARY_CREATE_SERVICE_VERSION = "0.5.0"
+LIBRARY_CREATE_SERVICE_VERSION = "0.8.0"
 ENV_TEXTURE_OPTIMIZATION_ENABLED = "VPLIB_TEXTURE_OPTIMIZATION_ENABLED"
 ENV_TEXTURE_MAX_EDGE = "VPLIB_TEXTURE_MAX_EDGE"
 ENV_TEXTURE_WEBP_QUALITY = "VPLIB_TEXTURE_WEBP_QUALITY"
@@ -145,7 +161,30 @@ ALLOWED_PRIMITIVE_SHAPES = {
     "slab",
     "cylinder",
     "pipe",
+    "frame",
+    "conveyor",
+    "stairs",
+    "composite",
 }
+ALLOWED_GEOMETRY_PROFILES = {
+    "block",
+    "half_block",
+    "slab",
+    "wall_segment",
+    "beam",
+    "column",
+    "vertical_cylinder",
+    "pipe_segment",
+    "thin_window",
+    "hinged_door",
+    "conveyor_segment",
+    "stair_run",
+    "composite_parts",
+}
+ALLOWED_GEOMETRY_AXES = {"x", "y", "z"}
+ALLOWED_BLOCK_HEIGHT_MODES = {"full", "half", "dimensions"}
+ALLOWED_INTERACTION_KINDS = {"none", "swing_door", "toggle", "rotate", "slide"}
+ALLOWED_GEOMETRY_PART_SHAPES = {"box", "cylinder", "pipe", "frame", "wedge"}
 DEFAULT_TEXTURE_MAX_EDGE = 1024
 DEFAULT_TEXTURE_WEBP_QUALITY = 82
 TEXTURE_RASTER_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".tga", ".bmp"}
@@ -387,6 +426,14 @@ class NormalizedCreateDraft:
     variants: list[dict[str, Any]]
 
     primitive_shape: str
+    geometry_profile_id: str
+    geometry_axis: str
+    geometry_parts: list[dict[str, Any]]
+    block_height_mode: str
+    height_fraction: float
+    interaction_kind: str
+    interaction_openable: bool
+    interaction_default_state: str
     geometry_width: float
     geometry_height: float
     geometry_depth: float
@@ -398,6 +445,9 @@ class NormalizedCreateDraft:
     editor_cell_size_x: float
     editor_cell_size_y: float
     editor_cell_size_z: float
+    spatial_contract: dict[str, Any]
+    manufacturer_profile: dict[str, Any]
+    pricing_contract: dict[str, Any]
 
     material_class: str
     material_classes: list[str]
@@ -449,8 +499,13 @@ class NormalizedCreateDraft:
             "variants": _json_safe(self.variants),
             "primitive_shape": self.primitive_shape,
             "geometry": {
-                "mode": "primitive",
+                "mode": self.spatial_contract.get("mode", "contained"),
                 "primitive_shape": self.primitive_shape,
+                "profile_id": self.geometry_profile_id,
+                "axis": self.geometry_axis,
+                "parts": _json_safe(self.geometry_parts),
+                "height_mode": self.block_height_mode,
+                "height_fraction": self.height_fraction,
                 "dimensions": {
                     "width": self.geometry_width,
                     "height": self.geometry_height,
@@ -459,6 +514,8 @@ class NormalizedCreateDraft:
                 },
             },
             "editor_block": {
+                "height_mode": self.block_height_mode,
+                "height_fraction": self.height_fraction,
                 "cells": {
                     "x": self.editor_cells_x,
                     "y": self.editor_cells_y,
@@ -471,6 +528,14 @@ class NormalizedCreateDraft:
                     "unit": self.geometry_unit,
                 },
             },
+            "interaction": {
+                "kind": self.interaction_kind,
+                "openable": self.interaction_openable,
+                "default_state": self.interaction_default_state,
+            },
+            "spatial_contract": _json_safe(self.spatial_contract),
+            "manufacturer_profile": _json_safe(self.manufacturer_profile),
+            "pricing_contract": _json_safe(self.pricing_contract),
             "technical": {
                 "material_class": self.material_class,
                 "material_classes": list(self.material_classes),
@@ -785,6 +850,7 @@ def get_create_options(*, include_definitions: bool = True, user_id: Any = 1) ->
             "primitive_shapes": static_options["primitive_shapes"],
             "units": static_options["units"],
             "material_classes": static_options["material_classes"],
+            "hatch_patterns": static_options["hatch_patterns"],
             "limits": {
                 "max_text_length": MAX_TEXT_LENGTH,
                 "max_slug_length": MAX_SLUG_LENGTH,
@@ -1518,7 +1584,7 @@ def _safe_archive_filename(value: Any) -> str:
 
 def save_package(payload: Any, *, overwrite: bool | None = None) -> CreateResult:
     """
-    Write a validated directory package into src/library/source.
+    Write a validated directory package into the configured standard library source.
 
     Writing is disabled by default. Enable explicitly with:
         VPLIB_CREATE_WRITE_ENABLED=true
@@ -1858,6 +1924,30 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
         "height_mm": _unit_value_to_millimetres(normalized.geometry_height, normalized.geometry_unit),
         "depth_mm": _unit_value_to_millimetres(normalized.geometry_depth, normalized.geometry_unit),
     }
+    spatial_contract = _json_safe(normalized.spatial_contract)
+    spatial_zone = dict(spatial_contract.get("zone") or {})
+    spatial_mode = str(spatial_contract.get("mode") or "contained")
+    connectors = [
+        dict(item)
+        for item in (spatial_contract.get("connectors") or [])
+        if isinstance(item, Mapping)
+    ]
+    manufacturer_profile = _json_safe(normalized.manufacturer_profile)
+    pricing_contract = _json_safe(normalized.pricing_contract)
+    manufacturer_scope = str(manufacturer_profile.get("scope") or "generic")
+    manufacturer_organization = dict(manufacturer_profile.get("organization") or {})
+    manufacturer_availability = dict(manufacturer_profile.get("availability") or {})
+    manufacturer_locations = [
+        dict(item)
+        for item in (manufacturer_availability.get("locations") or [])
+        if isinstance(item, Mapping)
+    ]
+    manufacturer_territories = [
+        dict(item)
+        for item in (manufacturer_availability.get("territories") or [])
+        if isinstance(item, Mapping)
+    ]
+    manufacturer_coverage_mode = str(manufacturer_availability.get("coverage_mode") or "locations")
     starter_contract = (
         normalized.object_kind == DEFAULT_OBJECT_KIND
         and normalized.family_profile_id == STARTER_FAMILY_PROFILE_ID
@@ -1877,12 +1967,18 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
         "editor/placement.json",
         "editor/targeting.json",
         "editor/anchors.json",
+        "editor/spatial.json",
+        "editor/sockets.json",
+        "editor/ports.json",
+        "render/geometry.json",
         "render/render_variants.json",
         "render/bounds.json",
         "physical/base.json",
         "physical/dimensions.json",
         "physical/collision.json",
+        "dynamic/interactions.json",
         "manufacturer/contract.json",
+        "commercial/pricing.json",
         "definitions/profile.json",
     ]
 
@@ -1917,6 +2013,9 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "source_path": normalized.source_path,
             "default_variant_id": normalized.default_variant_id,
             "variant_count": len(normalized.variants),
+            "spatial_mode": spatial_mode,
+            "connector_count": len(connectors),
+            "manufacturer_scope": manufacturer_scope,
             "documents_required": False if starter_contract else None,
             "external_assets_required": False if starter_contract else None,
             "created_at": normalized.created_at,
@@ -1947,8 +2046,9 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                 "material": bool(normalized.material_classes),
                 "calculation": bool(normalized.variables),
                 "analysis": False,
-                "dynamic": normalized.object_kind == "adaptive_system",
+                "dynamic": normalized.object_kind == "adaptive_system" or normalized.interaction_kind != "none",
                 "manufacturer": True,
+                "commercial": True,
                 "docs": True,
                 "definitions": True,
                 "tests": False,
@@ -1964,15 +2064,16 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                     "material": bool(normalized.material_classes),
                     "calculation": bool(normalized.variables),
                     "analysis": False,
-                    "dynamic": normalized.object_kind == "adaptive_system",
+                    "dynamic": normalized.object_kind == "adaptive_system" or normalized.interaction_kind != "none",
                     "manufacturer": True,
+                    "commercial": True,
                     "docs": True,
                     "definitions": True,
                     "tests": False,
                 }.items()
                 if enabled
             ],
-            "required_modules": ["family", "variants", "editor", "render", "physical", "definitions"],
+            "required_modules": ["family", "variants", "editor", "render", "physical", "definitions", "commercial"],
             "optional_modules": ["material", "calculation", "dynamic", "manufacturer", "docs"],
             "excluded_modules": ["analysis", "tests"],
             "module_versions": {
@@ -1982,6 +2083,7 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                 "render": DEFAULT_SCHEMA_VERSION,
                 "physical": DEFAULT_SCHEMA_VERSION,
                 "definitions": DEFAULT_SCHEMA_VERSION,
+                "commercial": DEFAULT_SCHEMA_VERSION,
             },
             "required_documents": required_documents,
         },
@@ -1997,6 +2099,8 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "variant_profile_id": normalized.variant_profile_id,
             "status": "draft",
             "language": "de",
+            "manufacturer_scope": manufacturer_scope,
+            "manufacturer": manufacturer_organization if manufacturer_scope == "manufacturer" else None,
         },
         "family/classification.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
@@ -2082,6 +2186,9 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "scale_policy": "fixed",
             "editor_block": {
                 "placement_truth": "editor_block",
+                "height_mode": normalized.block_height_mode,
+                "height_fraction": normalized.height_fraction,
+                "geometry_profile_id": normalized.geometry_profile_id,
                 "cells": {
                     "x": normalized.editor_cells_x,
                     "y": normalized.editor_cells_y,
@@ -2095,13 +2202,14 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
                 },
                 "dimensions_mm": dimensions_mm,
             },
+            "spatial_zone": spatial_zone,
             "host_rules": _default_host_rules(normalized),
         },
         "editor/targeting.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "enabled": True,
-            "target_type": "grid_cell" if normalized.object_kind == "cell_block" else "object",
-            "selection_mode": "bounds",
+            "target_type": "grid_cell" if spatial_mode == "contained" and normalized.object_kind == "cell_block" else "object_zone",
+            "selection_mode": "model_envelope" if spatial_mode != "contained" else "bounds",
             "placement_profile": normalized.variant_profile_id,
         },
         "editor/anchors.json": {
@@ -2109,15 +2217,41 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "anchors": [
                 {"anchor_id": "center", "type": "center", "enabled": True},
                 {"anchor_id": "bottom_center", "type": "bottom_center", "enabled": True},
+            ] + [
+                {
+                    "anchor_id": connector["connector_id"],
+                    "type": "connection_point",
+                    "enabled": True,
+                    "position": connector.get("position"),
+                    "normal": connector.get("normal"),
+                }
+                for connector in connectors
             ],
         },
+        "editor/spatial.json": spatial_contract,
         "editor/sockets.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
-            "sockets": [],
+            "sockets": connectors,
         },
         "editor/ports.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
-            "ports": [],
+            "ports": [
+                connector
+                for connector in connectors
+                if connector.get("interface_type") in {"pipe", "duct", "cable"}
+            ],
+        },
+        "render/geometry.json": {
+            "schema_version": "2.0.0",
+            "contract": "vplib.declarative_geometry",
+            "profile_id": normalized.geometry_profile_id,
+            "primitive_shape": normalized.primitive_shape,
+            "axis": normalized.geometry_axis,
+            "fit_mode": "grid_footprint",
+            "height_mode": normalized.block_height_mode,
+            "height_fraction": normalized.height_fraction,
+            "parts": _json_safe(normalized.geometry_parts),
+            "dimensions_mm": dimensions_mm,
         },
         "render/render_variants.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
@@ -2125,16 +2259,22 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "render_variants": [
                 {
                     "render_variant_id": "default",
-                    "mode": "primitive",
+                    "mode": "primitive" if spatial_mode == "contained" else "model",
                     "primitive_shape": normalized.primitive_shape,
-                    "label": "Default primitive preview",
-                    "source": "generated",
+                    "geometry_profile_id": normalized.geometry_profile_id,
+                    "geometry_document": "render/geometry.json",
+                    "label": "Default primitive preview" if spatial_mode == "contained" else "Primary model preview",
+                    "source": "generated" if spatial_mode == "contained" else "primary_geometry_asset",
                 }
             ],
         },
         "render/bounds.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
-            "type": "box",
+            "type": spatial_zone.get("shape", "box"),
+            "source": spatial_zone.get("source", "manual_dimensions"),
+            "auto_fit": bool(spatial_zone.get("auto_fit")),
+            "margin": spatial_zone.get("margin", 0),
+            "clearance": spatial_zone.get("clearance", {}),
             "width": normalized.geometry_width,
             "height": normalized.geometry_height,
             "depth": normalized.geometry_depth,
@@ -2154,9 +2294,13 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
         "render/lod.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "levels": [
-                {"lod": 0, "mode": "primitive", "enabled": True},
+                {"lod": 0, "mode": "primitive" if spatial_mode == "contained" else "model", "enabled": True},
             ],
         },
+        "render/cad_patterns.json": _build_cad_patterns_document(
+            normalized.variants,
+            default_variant_id=normalized.default_variant_id,
+        ),
         "physical/base.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "vplib_uid": vplib_uid,
@@ -2164,7 +2308,7 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "object_kind": normalized.object_kind,
             "profiles": profiles,
             "unit": normalized.geometry_unit,
-            "physical_model": "simple_box",
+            "physical_model": "simple_box" if spatial_mode == "contained" else "asset_envelope",
             "material_classes": normalized.material_classes,
         },
         "physical/dimensions.json": {
@@ -2176,29 +2320,56 @@ def build_package_documents(draft: NormalizedCreateDraft | Mapping[str, Any]) ->
             "width_mm": dimensions_mm["width_mm"],
             "height_mm": dimensions_mm["height_mm"],
             "depth_mm": dimensions_mm["depth_mm"],
-            "source": "create_form",
+            "source": spatial_zone.get("source", "create_form"),
         },
         "physical/collision.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "collision_enabled": True,
-            "type": "box",
+            "type": spatial_zone.get("shape", "box"),
+            "source": spatial_zone.get("source", "manual_dimensions"),
             "width": normalized.geometry_width,
             "height": normalized.geometry_height,
             "depth": normalized.geometry_depth,
             "unit": normalized.geometry_unit,
             "dimensions_mm": dimensions_mm,
+            "clearance": spatial_zone.get("clearance", {}),
+        },
+        "dynamic/interactions.json": {
+            "schema_version": "1.0.0",
+            "kind": normalized.interaction_kind,
+            "enabled": normalized.interaction_kind != "none",
+            "openable": normalized.interaction_openable,
+            "default_state": normalized.interaction_default_state,
+            "states": ["closed", "open"] if normalized.interaction_openable else [normalized.interaction_default_state],
         },
         "manufacturer/contract.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
-            "manufacturer_products_allowed": False,
-            "manufacturer_data_required": False,
+            "profile_schema_version": manufacturer_profile.get("schema_version"),
+            "scope": manufacturer_scope,
+            "manufacturer_bound": manufacturer_scope == "manufacturer",
+            "organization": manufacturer_organization,
+            "availability": {
+                "storage": manufacturer_availability.get("storage", "platform_database_with_package_snapshot"),
+                "coverage_mode": manufacturer_coverage_mode,
+                "location_count": len(manufacturer_locations),
+                "territory_count": len(manufacturer_territories),
+                "locations": manufacturer_locations,
+                "territories": manufacturer_territories,
+            },
+            "manufacturer_products_allowed": True,
+            "manufacturer_data_required": manufacturer_scope == "manufacturer",
             "documents_required": False,
-            "overlay_level": "none",
-            "allowed_overlay_levels": [],
-            "required_fields": [],
-            "override_slots": [],
-            "notes": "Generated by simple create flow. Manufacturer overlays are intentionally disabled in phase 1.",
+            "overlay_level": "family",
+            "allowed_overlay_levels": ["family", "variant", "product"],
+            "required_fields": (
+                ["organization.name", f"availability.{manufacturer_coverage_mode}"]
+                if manufacturer_scope == "manufacturer"
+                else []
+            ),
+            "override_slots": ["product_identity", "availability", "documents"],
+            "notes": "Dynamic platform availability remains database-backed; the package contains a portable snapshot.",
         },
+        "commercial/pricing.json": pricing_contract,
         "definitions/profile.json": {
             "schema_version": DEFAULT_SCHEMA_VERSION,
             "object_kind": normalized.object_kind,
@@ -2296,7 +2467,7 @@ def get_source_root(explicit: str | os.PathLike[str] | None = None) -> Path:
         1. explicit argument
         2. VECTOPLAN_LIBRARY_SOURCE_ROOT
         3. VPLIB_CREATE_SOURCE_ROOT
-        4. src/library/source relative to this file
+        4. standard_library/v1/packages relative to the service root
     """
     if explicit:
         return Path(explicit).expanduser().resolve()
@@ -2311,9 +2482,9 @@ def get_source_root(explicit: str | os.PathLike[str] | None = None) -> Path:
 
     try:
         current_file = Path(__file__).resolve()
-        return (current_file.parents[1] / "source").resolve()
+        return (current_file.parents[3] / "standard_library" / "v1" / "packages").resolve()
     except Exception:
-        return (Path.cwd() / "src" / "library" / "source").resolve()
+        return (Path.cwd() / "standard_library" / "v1" / "packages").resolve()
 
 
 def _utc_now() -> str:
@@ -2526,6 +2697,66 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         )
         primitive_shape = DEFAULT_PRIMITIVE_SHAPE
 
+    inferred_semantics = _semantic_geometry_defaults(
+        primitive_shape=primitive_shape,
+        category=category,
+        subcategory=subcategory,
+        family_slug=family_slug,
+    )
+    geometry_profile_id = _normalize_slug_token(
+        _first_value(
+            payload,
+            ["geometry_profile_id", "geometryProfileId", ("geometry", "profile_id")],
+            inferred_semantics["geometry.profile_id"],
+        )
+    )
+    if geometry_profile_id not in ALLOWED_GEOMETRY_PROFILES:
+        warnings.append(
+            _warning(
+                "unknown_geometry_profile_fallback",
+                "Das Geometrieprofil wurde auf das passende Standardprofil zurückgesetzt.",
+                field="geometry_profile_id",
+                details={"received": geometry_profile_id},
+            )
+        )
+        geometry_profile_id = str(inferred_semantics["geometry.profile_id"])
+    geometry_axis = _normalize_slug_token(
+        _first_value(payload, ["geometry_axis", "geometryAxis", ("geometry", "axis")], inferred_semantics["geometry.axis"])
+    )
+    if geometry_axis not in ALLOWED_GEOMETRY_AXES:
+        geometry_axis = "x"
+    block_height_mode = _normalize_slug_token(
+        _first_value(payload, ["block_height_mode", "blockHeightMode", ("geometry", "height_mode")], "full")
+    )
+    if block_height_mode not in ALLOWED_BLOCK_HEIGHT_MODES:
+        block_height_mode = "dimensions"
+    height_fraction_default = 0.5 if block_height_mode == "half" else 1.0
+    height_fraction = _safe_float(
+        _first_value(payload, ["height_fraction", "heightFraction", ("geometry", "height_fraction")], height_fraction_default),
+        default=height_fraction_default,
+        minimum=0.01,
+        maximum=32.0,
+    )
+    if block_height_mode == "half":
+        height_fraction = 0.5
+    elif block_height_mode == "full":
+        height_fraction = 1.0
+    geometry_parts = _normalize_geometry_parts(
+        _first_value(payload, ["geometry_parts", "geometryParts", "geometry_parts_json", ("geometry", "parts")], [])
+    )
+    interaction_kind = _normalize_slug_token(
+        _first_value(payload, ["interaction_kind", "interactionKind", ("interaction", "kind")], inferred_semantics["interaction.kind"])
+    )
+    if interaction_kind not in ALLOWED_INTERACTION_KINDS:
+        interaction_kind = "none"
+    interaction_openable = _safe_bool(
+        _first_value(payload, ["interaction_openable", "interactionOpenable", ("interaction", "openable")], interaction_kind == "swing_door"),
+        default=interaction_kind == "swing_door",
+    )
+    interaction_default_state = _normalize_slug_token(
+        _first_value(payload, ["interaction_default_state", "interactionDefaultState", ("interaction", "default_state")], "closed")
+    ) or "closed"
+
     geometry_unit = _normalize_unit(
         _first_value(
             payload,
@@ -2570,8 +2801,6 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         default_mm=STARTER_DIMENSIONS_MM["dimensions.depth_mm"] if starter_requested else 1000,
     )
 
-    block_count_locked = object_kind in {"cell_block", "adaptive_system"}
-
     editor_cells_x = _safe_int(
         _first_value(payload, ["editor_cells_x", "editorCellsX", ("editor_block", "cells", "x")], 1),
         default=1,
@@ -2591,10 +2820,43 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         maximum=1000,
     )
 
+    spatial_contract = normalize_spatial_contract(
+        payload,
+        dimensions={
+            "width": geometry_width,
+            "height": geometry_height,
+            "depth": geometry_depth,
+        },
+        cells={"x": editor_cells_x, "y": editor_cells_y, "z": editor_cells_z},
+        unit=geometry_unit,
+    )
+    spatial_zone = spatial_contract["zone"]
+    spatial_dimensions = spatial_zone["dimensions"]
+    spatial_cells = spatial_zone["grid"]["cells"]
+    geometry_width = float(spatial_dimensions["width"])
+    geometry_height = float(spatial_dimensions["height"])
+    geometry_depth = float(spatial_dimensions["depth"])
+    geometry_unit = str(spatial_dimensions["unit"])
+    editor_cells_x = int(spatial_cells["x"])
+    editor_cells_y = int(spatial_cells["y"])
+    editor_cells_z = int(spatial_cells["z"])
+
+    block_count_locked = (
+        spatial_contract["mode"] == "contained"
+        and object_kind in {"cell_block", "adaptive_system"}
+    )
     if block_count_locked:
         editor_cells_x = 1
         editor_cells_y = 1
         editor_cells_z = 1
+
+    # These profiles have an intentional, stable Minecraft-style footprint.
+    if geometry_profile_id == "hinged_door":
+        editor_cells_x, editor_cells_y, editor_cells_z = 1, 2, 1
+        interaction_kind = "swing_door"
+        interaction_openable = True
+    elif geometry_profile_id == "thin_window":
+        editor_cells_x, editor_cells_y, editor_cells_z = 1, 1, 1
 
     editor_cell_size_x = _safe_float(
         _first_value(
@@ -2626,6 +2888,35 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         minimum=0.0001,
         maximum=10_000.0,
     )
+    spatial_contract["zone"]["dimensions"] = {
+        "width": geometry_width,
+        "height": geometry_height,
+        "depth": geometry_depth,
+        "unit": geometry_unit,
+    }
+    spatial_contract["zone"]["grid"]["cells"] = {
+        "x": editor_cells_x,
+        "y": editor_cells_y,
+        "z": editor_cells_z,
+    }
+    spatial_contract["zone"]["grid"]["cell_size"] = {
+        "x": editor_cell_size_x,
+        "y": editor_cell_size_y,
+        "z": editor_cell_size_z,
+        "unit": geometry_unit,
+    }
+    model_transform = spatial_contract.get("model_transform")
+    if isinstance(model_transform, dict):
+        scale_in_blocks = model_transform.get("scale_in_blocks") or {"x": 1.0, "y": 1.0, "z": 1.0}
+        model_transform["block_reference"] = dict(spatial_contract["zone"]["grid"]["cell_size"])
+        model_transform["resulting_size"] = {
+            "x": editor_cell_size_x * float(scale_in_blocks.get("x") or 1.0),
+            "y": editor_cell_size_y * float(scale_in_blocks.get("y") or 1.0),
+            "z": editor_cell_size_z * float(scale_in_blocks.get("z") or 1.0),
+            "unit": geometry_unit,
+        }
+
+    manufacturer_profile = normalize_manufacturer_profile(payload)
 
     material_class_raw = _first_value(
         payload,
@@ -2677,6 +2968,38 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
         geometry_unit=geometry_unit,
         starter=starter_requested,
     )
+    semantic_defaults = _semantic_geometry_defaults(
+        primitive_shape=primitive_shape,
+        category=category,
+        subcategory=subcategory,
+        family_slug=family_slug,
+        geometry_profile_id=geometry_profile_id,
+        geometry_axis=geometry_axis,
+        geometry_parts=geometry_parts,
+        block_height_mode=block_height_mode,
+        height_fraction=height_fraction,
+        interaction_kind=interaction_kind,
+        interaction_openable=interaction_openable,
+        interaction_default_state=interaction_default_state,
+    )
+    for variant in variants:
+        definition_values = variant.get("definition_values")
+        if not isinstance(definition_values, dict):
+            definition_values = dict(definition_values or {})
+        for key, value in semantic_defaults.items():
+            definition_values.setdefault(key, value)
+        definition_values.setdefault(
+            "dimensions.length_mm",
+            definition_values.get(
+                "dimensions.width_mm",
+                _unit_value_to_millimetres(geometry_width, geometry_unit),
+            ),
+        )
+        variant["definition_values"] = definition_values
+        variant["definitionValues"] = definition_values
+        variant["overrides"] = definition_values
+
+    pricing_contract = normalize_pricing_contract(payload, variants=variants)
 
     variables, variable_warnings = _normalize_variables(payload)
     warnings.extend(variable_warnings)
@@ -2697,6 +3020,16 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
             "documents_required": False if starter_requested else None,
         },
     }
+    geometry_uploads = payload.get("geometry_model_uploads") or payload.get("geometry_model_uploads_json")
+    if isinstance(geometry_uploads, Mapping):
+        source_metadata["geometry_model_uploads"] = _json_safe(dict(geometry_uploads))
+    binary_assets = payload.get("_binary_assets")
+    if isinstance(binary_assets, list):
+        source_metadata["binary_asset_kinds"] = [
+            str(item.get("kind") or "")
+            for item in binary_assets
+            if isinstance(item, Mapping)
+        ]
 
     definition_context = payload.get("definition_context")
     if isinstance(definition_context, Mapping):
@@ -2729,6 +3062,14 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
             default_variant_id=default_variant_id,
             variants=variants,
             primitive_shape=primitive_shape,
+            geometry_profile_id=geometry_profile_id,
+            geometry_axis=geometry_axis,
+            geometry_parts=geometry_parts,
+            block_height_mode=block_height_mode,
+            height_fraction=height_fraction,
+            interaction_kind=interaction_kind,
+            interaction_openable=interaction_openable,
+            interaction_default_state=interaction_default_state,
             geometry_width=geometry_width,
             geometry_height=geometry_height,
             geometry_depth=geometry_depth,
@@ -2739,6 +3080,9 @@ def _normalize_draft(payload: Mapping[str, Any]) -> tuple[NormalizedCreateDraft,
             editor_cell_size_x=editor_cell_size_x,
             editor_cell_size_y=editor_cell_size_y,
             editor_cell_size_z=editor_cell_size_z,
+            spatial_contract=spatial_contract,
+            manufacturer_profile=manufacturer_profile,
+            pricing_contract=pricing_contract,
             material_class=material_class,
             material_classes=material_classes,
             variables=variables,
@@ -2908,6 +3252,128 @@ def _millimetres_to_unit(value_mm: float, unit: str) -> float:
 def _unit_value_to_millimetres(value: float, unit: str) -> int:
     factor = {"m": 1000.0, "cm": 10.0, "mm": 1.0}.get(unit, 1000.0)
     return max(1, int(round(float(value) * factor)))
+
+
+def _normalize_geometry_parts(value: Any) -> list[dict[str, Any]]:
+    """Normalize the small, declarative part format consumed by the editor."""
+    raw = value
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return []
+        try:
+            raw = json.loads(text)
+        except (TypeError, ValueError):
+            return []
+    if isinstance(raw, Mapping):
+        raw = raw.get("parts")
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes, bytearray)):
+        return []
+
+    result: list[dict[str, Any]] = []
+    for index, candidate in enumerate(list(raw)[:64]):
+        if not isinstance(candidate, Mapping):
+            continue
+        shape = _normalize_slug_token(candidate.get("shape") or candidate.get("type") or "box")
+        if shape not in ALLOWED_GEOMETRY_PART_SHAPES:
+            shape = "box"
+
+        def vector(key: str, fallback: tuple[float, float, float]) -> list[float]:
+            source = candidate.get(key)
+            if isinstance(source, Mapping):
+                values = [source.get("x"), source.get("y"), source.get("z")]
+            elif isinstance(source, Sequence) and not isinstance(source, (str, bytes, bytearray)):
+                values = list(source)[:3]
+            else:
+                values = []
+            values += list(fallback[len(values):])
+            return [
+                _safe_float(values[0], default=fallback[0], minimum=-1000.0, maximum=1000.0),
+                _safe_float(values[1], default=fallback[1], minimum=-1000.0, maximum=1000.0),
+                _safe_float(values[2], default=fallback[2], minimum=-1000.0, maximum=1000.0),
+            ]
+
+        size = vector("size", (1.0, 1.0, 1.0))
+        size = [max(0.001, abs(component)) for component in size]
+        opacity = _safe_float(candidate.get("opacity"), default=1.0, minimum=0.0, maximum=1.0)
+        color = str(candidate.get("color") or "#9ca3af").strip()
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            color = "#9ca3af"
+        result.append(
+            {
+                "part_id": _safe_segment(_slugify(candidate.get("part_id") or candidate.get("id") or f"part_{index + 1}")),
+                "shape": shape,
+                "size": size,
+                "position": vector("position", (0.0, 0.0, 0.0)),
+                "rotation": vector("rotation", (0.0, 0.0, 0.0)),
+                "color": color.lower(),
+                "opacity": opacity,
+                "collision": _safe_bool(candidate.get("collision"), default=True),
+            }
+        )
+    return result
+
+
+def _semantic_geometry_defaults(
+    *,
+    primitive_shape: str,
+    category: str,
+    subcategory: str,
+    family_slug: str,
+    geometry_profile_id: str = "",
+    geometry_axis: str = "",
+    geometry_parts: Sequence[Mapping[str, Any]] = (),
+    block_height_mode: str = "full",
+    height_fraction: float = 1.0,
+    interaction_kind: str = "",
+    interaction_openable: bool = False,
+    interaction_default_state: str = "closed",
+) -> dict[str, Any]:
+    """Return editor-readable geometry semantics for generated VPLIB variants."""
+    haystack = " ".join((primitive_shape, category, subcategory, family_slug)).lower()
+    profile_id = geometry_profile_id or primitive_shape
+    axis = geometry_axis or "x"
+    icon_kind = primitive_shape
+    resolved_interaction_kind = interaction_kind or "none"
+    sort_order = 500
+    if not geometry_profile_id:
+        if any(token in haystack for token in ("fenster", "window")):
+            profile_id, icon_kind, sort_order = "thin_window", "window", 120
+        elif any(token in haystack for token in ("tuer", "tueren", "door")):
+            profile_id, icon_kind, resolved_interaction_kind, sort_order = "hinged_door", "door", "swing_door", 110
+        elif primitive_shape == "pipe" or any(token in haystack for token in ("rohr", "leitung", "conduit")):
+            profile_id, icon_kind, sort_order = "pipe_segment", "pipe", 210
+        elif primitive_shape == "cylinder":
+            profile_id, axis, icon_kind, sort_order = "vertical_cylinder", "y", "cylinder", 220
+    if profile_id == "thin_window":
+        icon_kind, sort_order = "window", 120
+    elif profile_id == "hinged_door":
+        icon_kind, resolved_interaction_kind, sort_order = "door", "swing_door", 110
+    elif profile_id == "pipe_segment":
+        icon_kind, sort_order = "pipe", 210
+    elif profile_id == "vertical_cylinder":
+        icon_kind, sort_order = "cylinder", 220
+    result: dict[str, Any] = {
+        "geometry.primitive_shape": primitive_shape,
+        "geometry.profile_id": profile_id,
+        "geometry.axis": axis,
+        "geometry.fit_mode": "grid_footprint",
+        "geometry.height_mode": block_height_mode,
+        "geometry.height_fraction": round(height_fraction, 4),
+        "interaction.kind": resolved_interaction_kind,
+        "interaction.openable": interaction_openable or resolved_interaction_kind == "swing_door",
+        "interaction.default_state": interaction_default_state,
+        "inventory.icon_kind": icon_kind,
+        "inventory.sort_order": sort_order,
+    }
+    if geometry_parts:
+        result["geometry.parts_json"] = json.dumps(
+            list(geometry_parts),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    return result
 
 
 def _materialize_variant_contract(
@@ -3696,6 +4162,28 @@ def _validate_normalized_draft(draft: NormalizedCreateDraft) -> list[CreateIssue
     if draft.primitive_shape not in ALLOWED_PRIMITIVE_SHAPES:
         errors.append(_error("invalid_choice", "Ungültige primitive Form.", field="primitive_shape"))
 
+    if draft.geometry_profile_id not in ALLOWED_GEOMETRY_PROFILES:
+        errors.append(_error("invalid_choice", "Ungültiges Geometrieprofil.", field="geometry_profile_id"))
+
+    if draft.geometry_axis not in ALLOWED_GEOMETRY_AXES:
+        errors.append(_error("invalid_choice", "Ungültige Geometrieachse.", field="geometry_axis"))
+
+    if draft.block_height_mode not in ALLOWED_BLOCK_HEIGHT_MODES:
+        errors.append(_error("invalid_choice", "Ungültiger Höhenmodus.", field="block_height_mode"))
+
+    if draft.interaction_kind not in ALLOWED_INTERACTION_KINDS:
+        errors.append(_error("invalid_choice", "Ungültige Interaktion.", field="interaction_kind"))
+
+    if draft.geometry_profile_id == "hinged_door" and (
+        draft.editor_cells_x != 1 or draft.editor_cells_y != 2 or draft.editor_cells_z != 1
+    ):
+        errors.append(_error("door_grid_invalid", "Eine Tür muss genau 1 × 2 × 1 Rasterzellen belegen.", field="editor_block.cells"))
+
+    if draft.geometry_profile_id == "thin_window" and (
+        draft.editor_cells_x != 1 or draft.editor_cells_y != 1 or draft.editor_cells_z != 1
+    ):
+        errors.append(_error("window_grid_invalid", "Ein Fenster muss genau 1 × 1 × 1 Rasterzellen belegen.", field="editor_block.cells"))
+
     if draft.geometry_unit not in ALLOWED_UNITS:
         errors.append(_error("invalid_choice", "Ungültige Einheit.", field="geometry_unit"))
 
@@ -3718,7 +4206,7 @@ def _validate_normalized_draft(draft: NormalizedCreateDraft) -> list[CreateIssue
         if value < 1:
             errors.append(_error("invalid_integer", "Rasterbedarf muss mindestens 1 sein.", field=field_name))
 
-    if draft.object_kind == "cell_block" and (
+    if draft.spatial_contract.get("mode") == "contained" and draft.object_kind == "cell_block" and (
         draft.editor_cells_x != 1 or draft.editor_cells_y != 1 or draft.editor_cells_z != 1
     ):
         errors.append(
@@ -3734,9 +4222,164 @@ def _validate_normalized_draft(draft: NormalizedCreateDraft) -> list[CreateIssue
             )
         )
 
+    spatial_mode = str(draft.spatial_contract.get("mode") or "contained")
+    connectors = draft.spatial_contract.get("connectors") or []
+    connector_ids = [
+        str(item.get("connector_id") or "")
+        for item in connectors
+        if isinstance(item, Mapping)
+    ]
+    if len(connector_ids) != len(set(connector_ids)):
+        errors.append(
+            _error(
+                "duplicate_connector_id",
+                "Anschluss-IDs müssen innerhalb einer VPLIB eindeutig sein.",
+                field="spatial_contract.connectors",
+            )
+        )
+
+    if spatial_mode in {"asset_driven", "hybrid"}:
+        uploads = draft.source.get("geometry_model_uploads")
+        upload_count = int(uploads.get("count") or 0) if isinstance(uploads, Mapping) else 0
+        binary_asset_kinds = draft.source.get("binary_asset_kinds") or []
+        has_geometry_asset = upload_count > 0 or "geometry_model" in binary_asset_kinds
+        if not has_geometry_asset:
+            errors.append(
+                _error(
+                    "spatial_primary_model_required",
+                    "Für eine modellgetriebene oder hybride Zone ist ein primäres 3D-Modell erforderlich.",
+                    field="geometry_model_files",
+                )
+            )
+
+    manufacturer_profile = draft.manufacturer_profile or {}
+    if manufacturer_profile.get("scope") == "manufacturer" and manufacturer_profile.get("enforced"):
+        organization = manufacturer_profile.get("organization") or {}
+        availability = manufacturer_profile.get("availability") or {}
+        coverage_mode = str(availability.get("coverage_mode") or "locations")
+        locations = availability.get("locations") or []
+        territories = availability.get("territories") or []
+        known_variant_ids = {
+            str(variant.get("variant_id") or "")
+            for variant in draft.variants
+            if isinstance(variant, Mapping) and variant.get("variant_id")
+        }
+        if not str(organization.get("name") or "").strip():
+            errors.append(
+                _error(
+                    "manufacturer_name_required",
+                    "Bei einer herstellergebundenen VPLIB ist der Herstellername erforderlich.",
+                    field="manufacturer_name",
+                )
+            )
+        if coverage_mode == "locations" and not locations:
+            errors.append(
+                _error(
+                    "manufacturer_location_required",
+                    "Mindestens ein Produktions-, Liefer- oder Vertriebsstandort ist erforderlich.",
+                    field="manufacturer_locations_json",
+                )
+            )
+        if coverage_mode == "territories" and not territories:
+            errors.append(
+                _error(
+                    "manufacturer_territory_required",
+                    "Mindestens ein Vertriebsgebiet ist erforderlich.",
+                    field="manufacturer_territories_json",
+                )
+            )
+
+        def validate_variant_assignment(entry: Mapping[str, Any], field: str, label: str) -> None:
+            applies_to_all = bool(entry.get("applies_to_all_variants"))
+            variant_ids = {
+                str(value)
+                for value in (entry.get("variant_ids") or [])
+                if str(value).strip()
+            }
+            if not applies_to_all and not variant_ids:
+                errors.append(
+                    _error(
+                        "manufacturer_variant_assignment_required",
+                        f"Für {label} muss mindestens eine Variante gewählt werden.",
+                        field=field,
+                    )
+                )
+            unknown = sorted(variant_ids - known_variant_ids) if not applies_to_all else []
+            if unknown:
+                errors.append(
+                    _error(
+                        "manufacturer_variant_reference_invalid",
+                        f"{label} verweist auf unbekannte Varianten: {', '.join(unknown)}.",
+                        field=field,
+                    )
+                )
+        location_ids: list[str] = []
+        for index, location in enumerate(locations):
+            location_id = str(location.get("location_id") or "")
+            if location_id in location_ids:
+                errors.append(
+                    _error(
+                        "duplicate_manufacturer_location_id",
+                        "Standort-IDs müssen innerhalb des Herstellerprofils eindeutig sein.",
+                        field="manufacturer_locations_json",
+                    )
+                )
+            location_ids.append(location_id)
+            if not location.get("roles"):
+                errors.append(
+                    _error(
+                        "manufacturer_location_role_required",
+                        f"Für Standort {index + 1} muss mindestens eine Aufgabe gewählt werden.",
+                        field="manufacturer_locations_json",
+                    )
+                )
+            validate_variant_assignment(location, "manufacturer_locations_json", f"Standort {index + 1}")
+
+        territory_ids: list[str] = []
+        for index, territory in enumerate(territories):
+            territory_id = str(territory.get("territory_id") or "")
+            if territory_id in territory_ids:
+                errors.append(
+                    _error(
+                        "duplicate_manufacturer_territory_id",
+                        "Gebiets-IDs müssen innerhalb des Herstellerprofils eindeutig sein.",
+                        field="manufacturer_territories_json",
+                    )
+                )
+            territory_ids.append(territory_id)
+            if not territory.get("territory_code"):
+                errors.append(
+                    _error(
+                        "manufacturer_territory_code_required",
+                        f"Für Vertriebsgebiet {index + 1} muss ein Gebiet gewählt werden.",
+                        field="manufacturer_territories_json",
+                    )
+                )
+            validate_variant_assignment(territory, "manufacturer_territories_json", f"Vertriebsgebiet {index + 1}")
+
     if not draft.variants:
         errors.append(_error("required", "Mindestens eine Variante ist erforderlich.", field="variants"))
         return errors
+
+    pricing_contract = draft.pricing_contract or {}
+    if pricing_contract.get("enforced"):
+        pricing_rules = {
+            str(rule.get("variant_id") or ""): rule
+            for rule in (pricing_contract.get("rules") or [])
+            if isinstance(rule, Mapping)
+        }
+        for variant in draft.variants:
+            variant_id = str(variant.get("variant_id") or "")
+            rule = pricing_rules.get(variant_id)
+            if not rule or str(rule.get("status") or "") != "complete":
+                errors.append(
+                    _error(
+                        "variant_pricing_incomplete",
+                        f"Für Variante {variant_id or 'unbekannt'} müssen Preis und Produktmenge vollständig definiert sein.",
+                        field="pricing_contract_json",
+                        details={"variant_id": variant_id},
+                    )
+                )
 
     variant_ids: list[str] = []
     default_variants: list[Mapping[str, Any]] = []
@@ -4142,12 +4785,19 @@ def _build_notes_markdown(draft: NormalizedCreateDraft) -> str:
         f"- Family: `{draft.family_id}`\n"
         f"- Package: `{draft.package_id}`\n"
         f"- Object kind: `{draft.object_kind}`\n"
+        f"- Spatial mode: `{draft.spatial_contract.get('mode', 'contained')}`\n"
+        f"- Connectors: `{len(draft.spatial_contract.get('connectors') or [])}`\n"
+        f"- Manufacturer scope: `{draft.manufacturer_profile.get('scope', 'generic')}`\n"
+        f"- Manufacturer locations: `{(draft.manufacturer_profile.get('availability') or {}).get('location_count', 0)}`\n"
+        f"- Manufacturer territories: `{(draft.manufacturer_profile.get('availability') or {}).get('territory_count', 0)}`\n"
+        f"- Pricing rules: `{draft.pricing_contract.get('rule_count', 0)}`\n"
+        f"- Complete pricing rules: `{draft.pricing_contract.get('complete_rule_count', 0)}`\n"
         f"- Taxonomy version: `{draft.taxonomy_version}`\n"
         f"- Classification: `{draft.classification_path}`\n"
         f"- Source path: `{draft.source_path}`\n"
         f"- Generated by: `{LIBRARY_CREATE_SERVICE_COMPONENT}` `{LIBRARY_CREATE_SERVICE_VERSION}`\n\n"
-        "Dieses Package wurde durch den einfachen `/create`-Flow erzeugt.\n"
-        "Es enthält keine ausführbare Logik, keinen Modellupload und keine automatische Veröffentlichung.\n"
+        "Dieses Package wurde durch den `/create`-Editor erzeugt.\n"
+        "Es enthält keine ausführbare Logik und keine automatische Veröffentlichung.\n"
     )
 
 
@@ -4375,6 +5025,12 @@ def _normalize_form_mapping(payload: dict[str, Any]) -> dict[str, Any]:
         "generator_json",
         "documents_json",
         "assets_json",
+        "spatial_contract_json",
+        "manufacturer_profile_json",
+        "manufacturer_locations_json",
+        "manufacturer_territories_json",
+        "pricing_contract_json",
+        "variant_prices_json",
         "draft_json",
     ]:
         if json_key in normalized and isinstance(normalized[json_key], str):
@@ -4465,6 +5121,10 @@ def _static_create_options() -> dict[str, Any]:
             {"value": "slab", "id": "slab", "label": "Decke / Platte liegend", "enabled": True},
             {"value": "cylinder", "id": "cylinder", "label": "Zylinder", "enabled": True},
             {"value": "pipe", "id": "pipe", "label": "Rohr / liegender Zylinder", "enabled": True},
+            {"value": "frame", "id": "frame", "label": "Rahmen / Fenster", "enabled": True},
+            {"value": "conveyor", "id": "conveyor", "label": "Förderband", "enabled": True},
+            {"value": "stairs", "id": "stairs", "label": "Treppe", "enabled": True},
+            {"value": "composite", "id": "composite", "label": "Zusammengesetzte Geometrie", "enabled": True},
         ],
         "units": [
             {"value": "m", "id": "m", "label": "Meter", "enabled": True, "default": True},
@@ -4482,7 +5142,41 @@ def _static_create_options() -> dict[str, Any]:
             {"value": "kunststoff", "id": "kunststoff", "label": "Kunststoff", "enabled": True},
             {"value": "sonstiges", "id": "sonstiges", "label": "Sonstiges Material", "enabled": True},
         ],
+        "hatch_patterns": _get_hatch_pattern_options(),
     }
+
+
+@lru_cache(maxsize=1)
+def _load_pattern_defaults_module() -> ModuleType:
+    errors: list[str] = []
+    for module_name in (
+        "vplib.defaults.pattern_defaults",
+        "src.vplib.defaults.pattern_defaults",
+    ):
+        try:
+            return importlib.import_module(module_name)
+        except Exception as exc:
+            errors.append(f"{module_name}: {exc}")
+    raise RuntimeError("Could not import VPLIB pattern defaults: " + "; ".join(errors))
+
+
+def _get_hatch_pattern_options() -> list[dict[str, Any]]:
+    module = _load_pattern_defaults_module()
+    return list(module.get_hatch_pattern_options())
+
+
+def _build_cad_patterns_document(
+    variants: Iterable[Any],
+    *,
+    default_variant_id: str,
+) -> dict[str, Any]:
+    module = _load_pattern_defaults_module()
+    return dict(
+        module.build_cad_patterns_document(
+            variants,
+            default_variant_id=default_variant_id,
+        )
+    )
 
 
 def _flatten_taxonomy_options(taxonomy_payload: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
@@ -5231,6 +5925,14 @@ def _attach_assets_to_documents(
 ) -> dict[str, Any]:
     result = {str(path): _json_safe(content) for path, content in documents.items()}
     asset_entries = [_asset_metadata(asset) for asset in binary_assets]
+    spatial = result.get("editor/spatial.json")
+    spatial_mode = str(spatial.get("mode") or "contained") if isinstance(spatial, Mapping) else "contained"
+    primary_geometry = next(
+        (asset for asset in asset_entries if asset["kind"] == "geometry_model"),
+        None,
+    )
+    if primary_geometry is not None:
+        primary_geometry["role"] = "embedded_geometry" if spatial_mode == "contained" else "zone_driver"
     manifest = result.get(MANIFEST_DOCUMENT_PATH)
     if isinstance(manifest, Mapping):
         manifest_payload = dict(manifest)
@@ -5249,6 +5951,17 @@ def _attach_assets_to_documents(
         render_payload["assets"] = [
             asset for asset in asset_entries if asset["kind"] in {"geometry_model", "textures"}
         ]
+        if primary_geometry is not None and spatial_mode != "contained":
+            render_rows = [
+                dict(item)
+                for item in render_payload.get("render_variants", [])
+                if isinstance(item, Mapping)
+            ]
+            if render_rows:
+                render_rows[0]["mode"] = "model"
+                render_rows[0]["source"] = primary_geometry["relative_path"]
+                render_rows[0]["asset_sha256"] = primary_geometry["sha256"]
+                render_payload["render_variants"] = render_rows
         result["render/render_variants.json"] = render_payload
 
     primary_texture = next(
@@ -5296,11 +6009,29 @@ def _serialize_document(relative_path: str, content: Any) -> str:
     return str(content) + "\n"
 
 
+def _replace_file_with_retry(temp_file: Path, target_file: Path) -> None:
+    """Replace a package file despite short-lived Windows scanner locks."""
+    delays = (0.0, 0.02, 0.05, 0.1, 0.2)
+    for attempt, delay in enumerate(delays):
+        if delay:
+            time.sleep(delay)
+        try:
+            temp_file.replace(target_file)
+            return
+        except PermissionError:
+            if attempt == len(delays) - 1:
+                raise
+
+
+def _atomic_temp_file(target_file: Path) -> Path:
+    return target_file.with_name(f".{target_file.name}.{uuid.uuid4().hex}.tmp")
+
+
 def _write_text_atomic(target_file: Path, content: str) -> None:
-    temp_file = target_file.with_name(f".{target_file.name}.tmp")
+    temp_file = _atomic_temp_file(target_file)
     try:
         temp_file.write_text(content, encoding="utf-8")
-        temp_file.replace(target_file)
+        _replace_file_with_retry(temp_file, target_file)
     except Exception:
         try:
             if temp_file.exists():
@@ -5311,10 +6042,10 @@ def _write_text_atomic(target_file: Path, content: str) -> None:
 
 
 def _write_bytes_atomic(target_file: Path, content: bytes) -> None:
-    temp_file = target_file.with_name(f".{target_file.name}.tmp")
+    temp_file = _atomic_temp_file(target_file)
     try:
         temp_file.write_bytes(content)
-        temp_file.replace(target_file)
+        _replace_file_with_retry(temp_file, target_file)
     except Exception:
         try:
             if temp_file.exists():

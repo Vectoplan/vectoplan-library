@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "28d28ed3-71e4-529e-9722-d033a810bbdd",
+  "family_id": "vp.tiefbau.strassen_wege.pflaster.rechteckpflaster",
+  "default_variant_id": "default",
+  "label": "Rechteckpflaster",
+  "description": "Beton- oder Natursteinpflaster für Wege und Plätze.",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "strassen_wege",
+  "subcategory": "pflaster",
+  "classification_path": "tiefbau/strassen_wege/pflaster",
+  "source_path": "tiefbau/strassen_wege/pflaster/rechteckpflaster",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Straßen und Wege",
+    "subcategory": "Pflaster"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

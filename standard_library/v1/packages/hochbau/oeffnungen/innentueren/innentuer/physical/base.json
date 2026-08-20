@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "55ce3d03-18a9-55bc-94ca-102d755dc762",
+  "family_id": "vp.hochbau.oeffnungen.innentueren.innentuer",
+  "object_kind": "catalog_object",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "holz"
+  ]
+}

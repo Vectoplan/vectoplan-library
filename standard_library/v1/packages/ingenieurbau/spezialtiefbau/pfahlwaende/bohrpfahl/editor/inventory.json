@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "11b2d639-c37a-5e0b-a84f-b934877c4700",
+  "family_id": "vp.ingenieurbau.spezialtiefbau.pfahlwaende.bohrpfahl",
+  "default_variant_id": "default",
+  "label": "Bohrpfahl",
+  "description": "Runder Stahlbeton-Bohrpfahl in typischen Durchmessern.",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "spezialtiefbau",
+  "subcategory": "pfahlwaende",
+  "classification_path": "ingenieurbau/spezialtiefbau/pfahlwaende",
+  "source_path": "ingenieurbau/spezialtiefbau/pfahlwaende/bohrpfahl",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Spezialtiefbau",
+    "subcategory": "Pfahlwände"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

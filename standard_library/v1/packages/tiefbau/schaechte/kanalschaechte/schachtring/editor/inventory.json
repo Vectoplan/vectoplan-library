@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "cd095d75-ac53-5b1b-a4eb-993db8d2789d",
+  "family_id": "vp.tiefbau.schaechte.kanalschaechte.schachtring",
+  "default_variant_id": "default",
+  "label": "Schachtring",
+  "description": "Runder Fertigteil-Schachtring in Standardnennweiten und Bauhöhen.",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "schaechte",
+  "subcategory": "kanalschaechte",
+  "classification_path": "tiefbau/schaechte/kanalschaechte",
+  "source_path": "tiefbau/schaechte/kanalschaechte/schachtring",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Schächte",
+    "subcategory": "Kanalschächte"
+  },
+  "object_kind": "multi_cell_module",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

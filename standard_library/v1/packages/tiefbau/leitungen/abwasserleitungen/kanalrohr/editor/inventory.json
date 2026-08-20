@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "0067a1f4-3a50-5aa5-bc21-41d1ecc4b189",
+  "family_id": "vp.tiefbau.leitungen.abwasserleitungen.kanalrohr",
+  "default_variant_id": "default",
+  "label": "Kanalrohr",
+  "description": "Abwasserrohr als vereinfachter Rohrkörper in gängigen Nennweiten.",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "leitungen",
+  "subcategory": "abwasserleitungen",
+  "classification_path": "tiefbau/leitungen/abwasserleitungen",
+  "source_path": "tiefbau/leitungen/abwasserleitungen/kanalrohr",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Leitungen",
+    "subcategory": "Abwasserleitungen"
+  },
+  "object_kind": "adaptive_system",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

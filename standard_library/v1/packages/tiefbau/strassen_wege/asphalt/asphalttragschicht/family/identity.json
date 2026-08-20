@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "9f27d212-14ba-5c95-918e-d81600f528b0",
+  "family_id": "vp.tiefbau.strassen_wege.asphalt.asphalttragschicht",
+  "slug": "asphalttragschicht",
+  "label": "Asphalttragschicht",
+  "description": "Tragende Asphaltlage für unterschiedliche Belastungsklassen.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

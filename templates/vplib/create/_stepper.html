@@ -3,9 +3,9 @@
   VECTOPLAN Library · VPLIB Create Wizard · Compact Stepper
 
   Zweck:
-  - Kopf-Komponente für den 1–6 Create-Wizard.
+  - Seitenleiste für den achtstufigen Create-Wizard.
   - Rendert ausschließlich Wizard-Navigation, Fortschritt und Status.
-  - Kompaktes Black-UI-Layout für templates/vplib.
+  - Kompaktes helles Editor-Layout für templates/vplib.
   - Bewahrt die bestehenden DOM-Verträge für create_wizard.js / create.js.
   - Zeigt Schritt 3 sichtbar als "Variablen", hält intern aber key/target
     kompatibel zu object/object-variants.
@@ -39,22 +39,32 @@
 {% set vp_default_create_steps = [
   {
     "index": 1,
-    "key": "identity",
-    "label": "Grunddaten",
-    "short_label": "Daten",
-    "description": "Name und Beschreibung",
-    "target": "identity"
+    "key": "library-source",
+    "label": "Creative Library",
+    "short_label": "Start",
+    "description": "Bestehend oder neu",
+    "target": "library-source"
   },
   {
     "index": 2,
-    "key": "taxonomy",
-    "label": "Taxonomie",
-    "short_label": "Taxonomie",
-    "description": "Domain und Kategorie",
-    "target": "taxonomy"
+    "key": "identity-taxonomy",
+    "aliases": ["identity", "taxonomy", "identity-taxonomy"],
+    "label": "Grunddaten & Taxonomie",
+    "short_label": "Grunddaten",
+    "description": "Identität und Einordnung",
+    "target": "identity-taxonomy"
   },
   {
     "index": 3,
+    "key": "manufacturer",
+    "aliases": ["manufacturer", "distribution", "availability"],
+    "label": "Hersteller & Vertrieb",
+    "short_label": "Vertrieb",
+    "description": "Hersteller, Gebiete und Varianten",
+    "target": "manufacturer"
+  },
+  {
+    "index": 4,
     "key": "object",
     "alias": "variables",
     "label": "Variablen",
@@ -63,15 +73,23 @@
     "target": "object-variants"
   },
   {
-    "index": 4,
+    "index": 5,
     "key": "geometry",
     "label": "Geometrie",
     "short_label": "Geometrie",
-    "description": "Maße und 3D",
+    "description": "Grundform, Maße und Raster",
     "target": "geometry"
   },
   {
-    "index": 5,
+    "index": 6,
+    "key": "spatial",
+    "label": "Raum & Anschlüsse",
+    "short_label": "Raum",
+    "description": "Modell, Skalierung und Anschlüsse",
+    "target": "spatial"
+  },
+  {
+    "index": 7,
     "key": "technical",
     "label": "Technik",
     "short_label": "Technik",
@@ -79,7 +97,15 @@
     "target": "technical"
   },
   {
-    "index": 6,
+    "index": 8,
+    "key": "pricing",
+    "label": "Preise",
+    "short_label": "Preise",
+    "description": "Preis und Produktmenge je Variante",
+    "target": "pricing"
+  },
+  {
+    "index": 9,
     "key": "create",
     "label": "Erzeugen",
     "short_label": "Erzeugen",
@@ -115,8 +141,8 @@
   id="{{ vp_stepper_component_id }}"
   class="vplib-create-stepper"
   data-vp-create-stepper
-  data-vp-stepper-layout="compact"
-  data-vp-stepper-theme="black"
+  data-vp-stepper-layout="sidebar"
+  data-vp-stepper-theme="light"
   data-vp-stepper-template-root="vplib"
   data-vp-stepper-version="0.6.0"
   data-vp-step-count="{{ vp_create_step_count }}"
@@ -131,12 +157,12 @@
         <p
           id="{{ vp_stepper_label_id }}"
           class="vplib-create-stepper__eyebrow"
-        >
+         data-i18n="vectoplan.server.library.vplib.create.stepper.p.vplib_generator.55339aaa">
           VPLIB - Generator
         </p>
 
         <div class="vplib-create-stepper__title-row">
-          <h1 class="vplib-create-stepper__title">
+          <h1 class="vplib-create-stepper__title" data-i18n="vectoplan.server.library.vplib.create.stepper.h1.neuer_library_baustein_erstellen.96a23b25">
             Neuer Library-Baustein erstellen
           </h1>
 
@@ -159,10 +185,10 @@
           {% endif %}
 
           {% if step_index == vp_initial_step %}
-            {% if step is mapping and 'label' in step and step['label'] %}
-              Schritt {{ step_index }} von {{ vp_create_step_count }}: {{ step['label'] }}.
-            {% else %}
-              Schritt {{ step_index }} von {{ vp_create_step_count }}.
+            {% if step is mapping and 'label' in step and step['label'] %}<span data-i18n="vectoplan.server.library.vplib.create.stepper.span.schritt.6c190fb4">
+              Schritt </span>{{ step_index }}<span data-i18n="vectoplan.server.library.vplib.create.stepper.span.von.df444e9c"> von </span>{{ vp_create_step_count }}: {{ step['label'] }}.
+            {% else %}<span data-i18n="vectoplan.server.library.vplib.create.stepper.span.schritt.6e845306">
+              Schritt </span>{{ step_index }}<span data-i18n="vectoplan.server.library.vplib.create.stepper.span.von.2e3120f5"> von </span>{{ vp_create_step_count }}.
             {% endif %}
           {% endif %}
         {% endfor %}
@@ -278,7 +304,7 @@
             aria-controls="vplib-create-step-{{ step_index }}"
             {% if is_active %}aria-current="step"{% endif %}
             {% if is_locked %}aria-disabled="true"{% else %}aria-disabled="false"{% endif %}
-          >
+           data-i18n-aria-label="server.library.vplib.create.stepper.button_aria-label.schritt.0d8838f8">
             <span class="vplib-create-stepper__marker" aria-hidden="true">
               <span class="vplib-create-stepper__number">
                 {{ step_index }}
@@ -311,7 +337,7 @@
   </div>
 
   <noscript>
-    <div class="vplib-create-stepper__noscript" role="status">
+    <div class="vplib-create-stepper__noscript" role="status" data-i18n="vectoplan.server.library.vplib.create.stepper.div.javascript_ist_deaktiviert_der_create_.5b53a61f">
       JavaScript ist deaktiviert. Der Create-Wizard benötigt JavaScript, damit Schritte, Vorschau und Backend-Aktionen gesteuert werden können.
     </div>
   </noscript>
@@ -333,7 +359,7 @@
 
       var state = {
         root: root,
-        stepCount: parseInteger(root.getAttribute("data-vp-step-count"), 6),
+        stepCount: parseInteger(root.getAttribute("data-vp-step-count"), 9),
         currentStep: parseInteger(root.getAttribute("data-vp-current-step"), 1),
         maxReachedStep: parseInteger(root.getAttribute("data-vp-max-reached-step"), 1),
         progressFill: root.querySelector("[data-vp-step-progress-fill]"),

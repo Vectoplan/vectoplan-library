@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "48dc2cbb-a7f0-501a-bb17-08c57c6d7f19",
+  "family_id": "vp.tiefbau.strassen_wege.fahrbahnen.schottertragschicht",
+  "default_variant_id": "default",
+  "label": "Schottertragschicht",
+  "description": "Ungebundene Tragschicht aus gebrochenem Gestein.",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "strassen_wege",
+  "subcategory": "fahrbahnen",
+  "classification_path": "tiefbau/strassen_wege/fahrbahnen",
+  "source_path": "tiefbau/strassen_wege/fahrbahnen/schottertragschicht",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Straßen und Wege",
+    "subcategory": "Fahrbahnen"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

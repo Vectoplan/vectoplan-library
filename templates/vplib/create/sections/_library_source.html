@@ -1,0 +1,115 @@
+{# First step of the VPLIB wizard: create a family or extend an existing one. #}
+<section
+  class="vplib-create-step__panel vp-create-section vp-create-section--library-source"
+  data-vp-create-section="library-source"
+  data-create-section="library-source"
+  data-vp-library-source-root="true"
+  data-vp-library-list-url="/api/v1/vplib/library/blocks?limit=80&include_payload=false&include_metadata=true"
+  data-vp-library-detail-url="/api/v1/vplib/library/blocks/__item_ref__?include_payload=true&include_metadata=true&include_variants=true"
+  data-vp-library-permissions-url="/api/v1/vplib/manufacturer-products/permissions"
+>
+  <header class="vplib-create-step__header">
+    <div class="vplib-create-step__header-main">
+      <p class="vplib-create-step__eyebrow">Creative Library</p>
+      <h2 class="vplib-create-step__title">Startpunkt wählen</h2>
+      <p class="vplib-create-step__description">
+        Nutze eine bestehende technische Familie für dein Herstellerprodukt oder beginne eine vollständig neue VPLIB.
+      </p>
+    </div>
+    <span class="vp-create-status-pill" data-vp-library-source-status-pill>Auswahl offen</span>
+  </header>
+
+  <div class="vplib-create-step__body vp-create-library-source__body">
+    <input type="hidden" name="source_library_item_ref" value="" data-vp-source-library-item-ref />
+    <input type="hidden" name="source_vplib_uid" value="" data-vp-source-vplib-uid />
+    <input type="hidden" name="source_revision_id" value="" data-vp-source-revision-id />
+    <input type="hidden" name="source_mode" value="" data-vp-source-mode />
+
+    <fieldset class="vp-create-library-source__mode" data-vp-library-mode-group>
+      <legend>Arbeitsmodus auswählen</legend>
+
+      <label class="vp-create-library-source__mode-card">
+        <input
+          type="radio"
+          name="create_mode"
+          value="existing"
+          required
+          data-vp-library-mode="existing"
+        />
+        <span class="vp-create-library-source__mode-icon" aria-hidden="true">CL</span>
+        <span class="vp-create-library-source__mode-copy">
+          <strong>Aus der Creative Library</strong>
+          <span>Technische Familie auswählen und eigene Herstellerprodukte ergänzen.</span>
+          <small data-vp-library-existing-availability>Veröffentlichte Bausteine laden …</small>
+        </span>
+        <span class="vp-create-library-source__mode-check" aria-hidden="true">✓</span>
+      </label>
+
+      <label class="vp-create-library-source__mode-card">
+        <input
+          type="radio"
+          name="create_mode"
+          value="new"
+          required
+          data-vp-library-mode="new"
+        />
+        <span class="vp-create-library-source__mode-icon vp-create-library-source__mode-icon--new" aria-hidden="true">+</span>
+        <span class="vp-create-library-source__mode-copy">
+          <strong>Neue technische Familie</strong>
+          <span>Grunddaten, Taxonomie, Variablen, Geometrie und Technik neu definieren.</span>
+          <small>Vollständige Bearbeitung</small>
+        </span>
+        <span class="vp-create-library-source__mode-check" aria-hidden="true">✓</span>
+      </label>
+    </fieldset>
+
+    <section class="vp-create-library-source__browser" data-vp-library-browser hidden>
+      <header class="vp-create-library-source__browser-header">
+        <div>
+          <h3>Baustein auswählen</h3>
+          <p>Wähle genau eine technische Familie. Herstellerprodukte werden später separat referenziert und überladen die VPLIB nicht.</p>
+        </div>
+        <span class="vp-create-status-pill vp-create-status-pill--muted" data-vp-library-count>Wird geladen …</span>
+      </header>
+
+      <div class="vp-create-library-source__filters">
+        <label class="vp-create-field">
+          <span class="vp-create-field__label">Suchen</span>
+          <input
+            class="vp-create-input"
+            type="search"
+            placeholder="z. B. Mauerwerk, Ziegel, Außenwand"
+            autocomplete="off"
+            data-vp-library-search
+          />
+        </label>
+        <label class="vp-create-field">
+          <span class="vp-create-field__label">Kategorie</span>
+          <select class="vp-create-select" data-vp-library-category>
+            <option value="">Alle Kategorien</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="vp-create-library-source__selection" data-vp-library-selection hidden>
+        <div>
+          <span>Ausgewählt</span>
+          <strong data-vp-library-selection-name></strong>
+          <small data-vp-library-selection-path></small>
+        </div>
+        <span class="vp-create-status-pill vp-create-status-pill--ok" data-vp-library-permission>Bearbeitung möglich</span>
+      </div>
+
+      <div class="vp-create-library-source__grid" data-vp-library-grid aria-live="polite">
+        <div class="vp-create-library-source__empty" data-vp-library-empty>
+          <strong>Creative Library wird geladen.</strong>
+          <span>Die veröffentlichten Bausteine werden aus der Datenbank abgerufen.</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="vp-create-library-source__notice" data-vp-library-source-notice role="status" aria-live="polite">
+      Wähle zuerst, ob du einen bestehenden Baustein verwendest oder eine neue VPLIB erstellst.
+    </div>
+  </div>
+</section>

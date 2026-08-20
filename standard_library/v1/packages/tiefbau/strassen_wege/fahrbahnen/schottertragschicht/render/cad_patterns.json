@@ -1,0 +1,304 @@
+{
+  "schema_version": "vplib.render.cad_patterns.v1",
+  "catalog_version": "1.0.0",
+  "units": "mm_paper",
+  "default_variant_id": "default",
+  "pattern_ids": [
+    "crushed_stone",
+    "gravel"
+  ],
+  "patterns": [
+    {
+      "id": "crushed_stone",
+      "label": "Schotter / Splitt",
+      "category": "ground",
+      "category_label": "Boden und Gesteinskörnung",
+      "description": "Kantige Gesteinskörnung für Schotter und Splitt.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 530,
+      "tags": [
+        "crushed_stone",
+        "aggregate",
+        "schotter"
+      ],
+      "definition": {
+        "tile_mm": [
+          10,
+          8
+        ],
+        "line_families": [],
+        "primitives": [
+          {
+            "type": "polyline",
+            "points_mm": [
+              [
+                1,
+                2
+              ],
+              [
+                2.5,
+                1
+              ],
+              [
+                3.5,
+                2.5
+              ],
+              [
+                2,
+                3.5
+              ],
+              [
+                1,
+                2
+              ]
+            ]
+          },
+          {
+            "type": "polyline",
+            "points_mm": [
+              [
+                6,
+                1
+              ],
+              [
+                8,
+                2
+              ],
+              [
+                7,
+                4
+              ],
+              [
+                5.5,
+                3
+              ],
+              [
+                6,
+                1
+              ]
+            ]
+          },
+          {
+            "type": "polyline",
+            "points_mm": [
+              [
+                3,
+                6
+              ],
+              [
+                5,
+                5
+              ],
+              [
+                6,
+                7
+              ],
+              [
+                4,
+                7.5
+              ],
+              [
+                3,
+                6
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "gravel",
+      "label": "Kies",
+      "category": "ground",
+      "category_label": "Boden und Gesteinskörnung",
+      "description": "Runde, unterschiedlich große Körner für Kies.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 520,
+      "tags": [
+        "gravel",
+        "aggregate"
+      ],
+      "definition": {
+        "tile_mm": [
+          10,
+          8
+        ],
+        "line_families": [],
+        "primitives": [
+          {
+            "type": "circle",
+            "at_mm": [
+              2,
+              2
+            ],
+            "radius_mm": 0.8
+          },
+          {
+            "type": "circle",
+            "at_mm": [
+              6,
+              2.5
+            ],
+            "radius_mm": 1.1
+          },
+          {
+            "type": "circle",
+            "at_mm": [
+              4,
+              6
+            ],
+            "radius_mm": 0.7
+          },
+          {
+            "type": "circle",
+            "at_mm": [
+              8.5,
+              6
+            ],
+            "radius_mm": 0.9
+          }
+        ]
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "variant_id": "default",
+      "cut": {
+        "pattern_id": "crushed_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "gravel",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "150_mm",
+      "cut": {
+        "pattern_id": "crushed_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "gravel",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "180_mm",
+      "cut": {
+        "pattern_id": "crushed_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "gravel",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "200_mm",
+      "cut": {
+        "pattern_id": "crushed_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "gravel",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "250_mm",
+      "cut": {
+        "pattern_id": "crushed_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "gravel",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "300_mm",
+      "cut": {
+        "pattern_id": "crushed_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "gravel",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "350_mm",
+      "cut": {
+        "pattern_id": "crushed_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "gravel",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "400_mm",
+      "cut": {
+        "pattern_id": "crushed_stone",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "gravel",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    }
+  ]
+}

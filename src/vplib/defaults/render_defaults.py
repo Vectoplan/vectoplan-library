@@ -923,10 +923,15 @@ def render_documents_from_create_request(
     metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Baut alle render/*.json-Dokumente aus CreateRequest."""
-    return render_defaults_from_create_request(
+    documents = render_defaults_from_create_request(
         request,
         metadata=metadata,
     ).to_documents(include_optional=include_optional)
+    if include_optional:
+        from .pattern_defaults import cad_pattern_document_from_create_request
+
+        documents["render/cad_patterns.json"] = cad_pattern_document_from_create_request(request)
+    return documents
 
 
 def render_documents_from_context(

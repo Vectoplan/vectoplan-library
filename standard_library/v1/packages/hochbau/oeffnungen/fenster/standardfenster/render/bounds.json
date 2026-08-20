@@ -1,0 +1,48 @@
+{
+  "schema_version": "0.1.0",
+  "type": "box",
+  "source": "manual_dimensions",
+  "auto_fit": false,
+  "margin": 0.0,
+  "clearance": {
+    "left": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "right": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "front": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "rear": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "top": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "bottom": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    }
+  },
+  "width": 0.76,
+  "height": 0.76,
+  "depth": 0.12,
+  "unit": "m",
+  "dimensions_mm": {
+    "width_mm": 760,
+    "height_mm": 760,
+    "depth_mm": 120
+  }
+}

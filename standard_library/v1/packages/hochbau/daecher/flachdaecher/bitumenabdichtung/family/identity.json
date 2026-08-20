@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "0ef4cb42-81eb-58dd-bcfc-05726a03f9c9",
+  "family_id": "vp.hochbau.daecher.flachdaecher.bitumenabdichtung",
+  "slug": "bitumenabdichtung",
+  "label": "Bitumenabdichtung",
+  "description": "Mehrlagig nutzbare Bitumenbahn für Flachdachabdichtungen.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

@@ -2781,7 +2781,7 @@ class LibraryGeneratorWorkflowService:
         subcategory = normalize_key(payload.get("subcategory"), "unknown")
         family_id = normalize_key(payload.get("family_id") or payload.get("family_name"), "untitled")
 
-        package_root = f"src/library/source/{domain}/{category}/{subcategory}/{family_id}"
+        package_root = f"standard_library/v1/packages/{domain}/{category}/{subcategory}/{family_id}"
 
         return {
             "ok": True,

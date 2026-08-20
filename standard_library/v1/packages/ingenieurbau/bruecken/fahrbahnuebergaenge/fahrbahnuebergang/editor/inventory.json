@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "aaba8a82-bf3a-5ee1-baef-92d7de29fe31",
+  "family_id": "vp.ingenieurbau.bruecken.fahrbahnuebergaenge.fahrbahnuebergang",
+  "default_variant_id": "default",
+  "label": "Fahrbahnübergang",
+  "description": "Modularer Fahrbahnübergang für unterschiedliche Bewegungsbereiche.",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "bruecken",
+  "subcategory": "fahrbahnuebergaenge",
+  "classification_path": "ingenieurbau/bruecken/fahrbahnuebergaenge",
+  "source_path": "ingenieurbau/bruecken/fahrbahnuebergaenge/fahrbahnuebergang",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Brücken",
+    "subcategory": "Fahrbahnübergänge"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

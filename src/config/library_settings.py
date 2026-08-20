@@ -7,7 +7,7 @@ bestehenden `/src/vplib`-Kerns arbeitet.
 
 Zuständigkeit dieser Datei:
 
-- Pfade für `src/library/source`
+- Pfade für `standard_library/v1/packages`
 - Pfade für spätere `creative_library`
 - Route-Prefix und Route-Pfade für Library-APIs
 - Scan-Verhalten für Block-/Objektpakete
@@ -34,7 +34,7 @@ Taxonomie-Regel:
 
 Kanonischer Source-Pfad:
 
-    src/library/source/{domain}/{category}/{subcategory}/{family_slug}/
+    standard_library/v1/packages/{domain}/{category}/{subcategory}/{family_slug}/
 
 Version 0.2.0:
 
@@ -76,7 +76,7 @@ DEFAULT_CACHE_CLEAR_ROUTE_PATH: Final[str] = "/cache/clear"
 DEFAULT_BLOCK_DETAIL_ROUTE_TEMPLATE: Final[str] = "/blocks/<block_id>"
 DEFAULT_BLOCK_VARIANTS_ROUTE_TEMPLATE: Final[str] = "/blocks/<block_id>/variants"
 
-DEFAULT_SOURCE_DIRECTORY_RELATIVE: Final[str] = "src/library/source"
+DEFAULT_SOURCE_DIRECTORY_RELATIVE: Final[str] = "standard_library/v1/packages"
 DEFAULT_LIBRARY_PACKAGE_DIRECTORY_RELATIVE: Final[str] = "src/library"
 DEFAULT_CREATIVE_LIBRARY_DIRECTORY_RELATIVE: Final[str] = "creative_library"
 DEFAULT_GENERATED_LIBRARY_DIRECTORY_RELATIVE: Final[str] = "generated/library"

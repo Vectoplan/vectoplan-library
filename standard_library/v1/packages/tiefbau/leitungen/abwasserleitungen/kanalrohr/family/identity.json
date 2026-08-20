@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "0067a1f4-3a50-5aa5-bc21-41d1ecc4b189",
+  "family_id": "vp.tiefbau.leitungen.abwasserleitungen.kanalrohr",
+  "slug": "kanalrohr",
+  "label": "Kanalrohr",
+  "description": "Abwasserrohr als vereinfachter Rohrkörper in gängigen Nennweiten.",
+  "object_kind": "adaptive_system",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

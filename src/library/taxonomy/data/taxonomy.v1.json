@@ -27,7 +27,7 @@
   },
   "metadata": {
     "language": "de",
-    "canonical_source_path_pattern": "src/library/source/{domain}/{category}/{subcategory}/{family_slug}",
+    "canonical_source_path_pattern": "standard_library/v1/packages/{domain}/{category}/{subcategory}/{family_slug}",
     "family_id_pattern": "vp.{domain}.{category}.{subcategory}.{family_slug}",
     "package_id_pattern": "vplib.vp.{domain}.{category}.{subcategory}.{family_slug}",
     "selection_required": [

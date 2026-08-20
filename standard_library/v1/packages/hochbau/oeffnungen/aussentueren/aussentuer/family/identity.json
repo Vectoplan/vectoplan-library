@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "0ce9dfd5-4f99-5db2-8af3-b6097946b47e",
+  "family_id": "vp.hochbau.oeffnungen.aussentueren.aussentuer",
+  "slug": "aussentuer",
+  "label": "Außentür",
+  "description": "Robuste, öffnungsfähige Außentür mit üblichen Rohbaumaßen.",
+  "object_kind": "catalog_object",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

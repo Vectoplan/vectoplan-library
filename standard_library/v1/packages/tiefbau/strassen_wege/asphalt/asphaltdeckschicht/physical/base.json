@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "a870e6f1-e91a-5464-b37a-6f667121511d",
+  "family_id": "vp.tiefbau.strassen_wege.asphalt.asphaltdeckschicht",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "sonstiges"
+  ]
+}

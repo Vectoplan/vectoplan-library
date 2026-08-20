@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "0db51e36-55c8-59e0-9da8-b36eb0d580a6",
+  "family_id": "vp.ingenieurbau.brueckentragwerk.traeger.spannbetontraeger",
+  "default_variant_id": "default",
+  "label": "Spannbetonträger",
+  "description": "Vereinfachter Spannbeton-Fertigteilträger für Variantenstudien.",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "brueckentragwerk",
+  "subcategory": "traeger",
+  "classification_path": "ingenieurbau/brueckentragwerk/traeger",
+  "source_path": "ingenieurbau/brueckentragwerk/traeger/spannbetontraeger",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Brückentragwerk",
+    "subcategory": "Träger"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

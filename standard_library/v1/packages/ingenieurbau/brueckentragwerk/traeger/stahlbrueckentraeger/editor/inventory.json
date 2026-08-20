@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "5ef00b01-30ba-583a-8db7-62a0320d92a7",
+  "family_id": "vp.ingenieurbau.brueckentragwerk.traeger.stahlbrueckentraeger",
+  "default_variant_id": "default",
+  "label": "Stahlbrückenträger",
+  "description": "Vereinfachter geschweißter Stahlträger für Brückenmodelle.",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "brueckentragwerk",
+  "subcategory": "traeger",
+  "classification_path": "ingenieurbau/brueckentragwerk/traeger",
+  "source_path": "ingenieurbau/brueckentragwerk/traeger/stahlbrueckentraeger",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Brückentragwerk",
+    "subcategory": "Träger"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

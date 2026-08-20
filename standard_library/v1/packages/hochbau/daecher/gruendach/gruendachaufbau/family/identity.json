@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "2b275d32-d4ca-574c-918e-26edcba8677c",
+  "family_id": "vp.hochbau.daecher.gruendach.gruendachaufbau",
+  "slug": "gruendachaufbau",
+  "label": "Gründachaufbau",
+  "description": "Vegetations- und Substrataufbau für extensive bis intensive Begrünung.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

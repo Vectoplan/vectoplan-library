@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "e9a2596c-f6c5-5541-978b-3b2365284c1d",
+  "family_id": "vp.hochbau.waende.mauerwerkswaende.mauerwerkswand",
+  "slug": "mauerwerkswand",
+  "label": "Mauerwerkswand",
+  "description": "Allgemeine Mauerwerkswand in üblichen Wandstärken.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

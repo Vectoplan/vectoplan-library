@@ -1,0 +1,243 @@
+{
+  "schema_version": "vplib.render.cad_patterns.v1",
+  "catalog_version": "1.0.0",
+  "units": "mm_paper",
+  "default_variant_id": "default",
+  "pattern_ids": [
+    "cross_laminated_timber",
+    "wood_general"
+  ],
+  "patterns": [
+    {
+      "id": "cross_laminated_timber",
+      "label": "Brettsperrholz",
+      "category": "wood",
+      "category_label": "Holz und Holzwerkstoffe",
+      "description": "Wechselnde orthogonale Lagen für Brettsperrholz.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 720,
+      "tags": [
+        "wood",
+        "clt",
+        "cross_laminated"
+      ],
+      "definition": {
+        "line_families": [
+          {
+            "angle_deg": 0,
+            "spacing_mm": 3,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": [
+              6,
+              3
+            ]
+          },
+          {
+            "angle_deg": 90,
+            "spacing_mm": 6,
+            "offset_mm": [
+              0,
+              1.5
+            ],
+            "dash_mm": [
+              3,
+              3
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "wood_general",
+      "label": "Holz allgemein",
+      "category": "wood",
+      "category_label": "Holz und Holzwerkstoffe",
+      "description": "Allgemeine Holzmaserung mit langen, leicht versetzten Linien.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 700,
+      "tags": [
+        "wood",
+        "timber",
+        "holz"
+      ],
+      "definition": {
+        "tile_mm": [
+          14,
+          8
+        ],
+        "line_families": [
+          {
+            "angle_deg": 4,
+            "spacing_mm": 2.6,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": [
+              5,
+              2,
+              3,
+              4
+            ]
+          }
+        ],
+        "primitives": [
+          {
+            "type": "ellipse",
+            "at_mm": [
+              8,
+              4
+            ],
+            "radius_mm": [
+              1.8,
+              0.8
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "variant_id": "default",
+      "cut": {
+        "pattern_id": "cross_laminated_timber",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "100_mm",
+      "cut": {
+        "pattern_id": "cross_laminated_timber",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "120_mm",
+      "cut": {
+        "pattern_id": "cross_laminated_timber",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "140_mm",
+      "cut": {
+        "pattern_id": "cross_laminated_timber",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "160_mm",
+      "cut": {
+        "pattern_id": "cross_laminated_timber",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "180_mm",
+      "cut": {
+        "pattern_id": "cross_laminated_timber",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "200_mm",
+      "cut": {
+        "pattern_id": "cross_laminated_timber",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "240_mm",
+      "cut": {
+        "pattern_id": "cross_laminated_timber",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    }
+  ]
+}

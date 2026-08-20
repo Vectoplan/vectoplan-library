@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "strassen_wege",
+  "subcategory": "rinnen",
+  "classification_path": "tiefbau/strassen_wege/rinnen",
+  "source_path": "tiefbau/strassen_wege/rinnen/entwaesserungsrinne",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Straßen und Wege",
+    "subcategory": "Rinnen"
+  },
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  }
+}

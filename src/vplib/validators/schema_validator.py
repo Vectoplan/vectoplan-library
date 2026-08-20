@@ -522,6 +522,7 @@ def get_document_validator_registry() -> Mapping[str, Callable[[Mapping[str, Any
 
     register_validator_safe(registry, "render/render_variants.json", ".render_defaults", "validate_render_variants_document")
     register_validator_safe(registry, "render/bounds.json", ".render_defaults", "validate_render_bounds_document")
+    register_validator_safe(registry, "render/cad_patterns.json", ".pattern_defaults", "validate_cad_patterns_document")
 
     register_validator_safe(registry, "physical/base.json", ".physical_defaults", "validate_physical_base_document")
     register_validator_safe(registry, "physical/dimensions.json", ".physical_defaults", "validate_physical_dimensions_document")

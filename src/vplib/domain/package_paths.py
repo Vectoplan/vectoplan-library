@@ -288,6 +288,7 @@ _MODULE_PATH_DEFINITIONS: Final[dict[str, ModulePathDefinition]] = {
             "render/bounds.json",
             "render/materials.json",
             "render/lod.json",
+            "render/cad_patterns.json",
         ),
         asset_files=(
             "render/icon.svg",

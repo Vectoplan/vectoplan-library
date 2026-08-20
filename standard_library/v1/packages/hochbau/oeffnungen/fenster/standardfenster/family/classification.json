@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "oeffnungen",
+  "subcategory": "fenster",
+  "classification_path": "hochbau/oeffnungen/fenster",
+  "source_path": "hochbau/oeffnungen/fenster/standardfenster",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Öffnungen",
+    "subcategory": "Fenster"
+  },
+  "object_kind": "catalog_object",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  }
+}

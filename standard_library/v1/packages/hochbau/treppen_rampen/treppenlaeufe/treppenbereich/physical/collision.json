@@ -1,0 +1,47 @@
+{
+  "schema_version": "0.1.0",
+  "collision_enabled": true,
+  "type": "box",
+  "source": "manual_dimensions",
+  "width": 1.0,
+  "height": 3.0,
+  "depth": 2.5,
+  "unit": "m",
+  "dimensions_mm": {
+    "width_mm": 1000,
+    "height_mm": 3000,
+    "depth_mm": 2500
+  },
+  "clearance": {
+    "left": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "right": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "front": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "rear": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "top": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    },
+    "bottom": {
+      "enabled": false,
+      "distance": 0.0,
+      "unit": "m"
+    }
+  }
+}

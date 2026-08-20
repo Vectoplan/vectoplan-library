@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "6ab8b76b-f308-543b-9d51-1217a32634b9",
+  "family_id": "vp.hochbau.boeden.bodenbelaege.holzbohlen",
+  "default_variant_id": "default",
+  "label": "Holzbohlen",
+  "description": "Massive Holzbohlen als platzierbarer halber Block für Bodenaufbauten.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "boeden",
+  "subcategory": "bodenbelaege",
+  "classification_path": "hochbau/boeden/bodenbelaege",
+  "source_path": "hochbau/boeden/bodenbelaege/holzbohlen",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Böden",
+    "subcategory": "Bodenbeläge"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

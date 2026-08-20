@@ -1,0 +1,58 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "211f3b4a-e055-50e0-8792-83e3c5197056",
+  "package_id": "vplib.vp.tiefbau.bahninfrastruktur.gleise.gleisschotter",
+  "family_id": "vp.tiefbau.bahninfrastruktur.gleise.gleisschotter",
+  "family_slug": "gleisschotter",
+  "family_name": "Gleisschotter",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "bahninfrastruktur",
+  "subcategory": "gleise",
+  "classification": {
+    "domain": "tiefbau",
+    "category": "bahninfrastruktur",
+    "subcategory": "gleise",
+    "classification_path": "tiefbau/bahninfrastruktur/gleise",
+    "labels": {
+      "domain": "Tiefbau",
+      "category": "Bahninfrastruktur",
+      "subcategory": "Gleise"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "tiefbau/bahninfrastruktur/gleise",
+  "source_path": "tiefbau/bahninfrastruktur/gleise/gleisschotter",
+  "default_variant_id": "default",
+  "variant_count": 6,
+  "spatial_mode": "contained",
+  "connector_count": 0,
+  "manufacturer_scope": "generic",
+  "documents_required": false,
+  "external_assets_required": false,
+  "created_at": "2026-08-11T00:00:00Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.8.0",
+    "mode": "simple_create",
+    "starter_contract": true
+  },
+  "assets": [],
+  "asset_count": 0
+}

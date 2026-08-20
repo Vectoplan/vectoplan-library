@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "588ff161-fc0d-58c8-a505-7abd2861b53f",
+  "family_id": "vp.hochbau.waende.tragende_waende.stahlbetonwand",
+  "default_variant_id": "default",
+  "label": "Stahlbetonwand",
+  "description": "Tragende Stahlbetonwand für Hochbaugrundrisse und Schnitte.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "waende",
+  "subcategory": "tragende_waende",
+  "classification_path": "hochbau/waende/tragende_waende",
+  "source_path": "hochbau/waende/tragende_waende/stahlbetonwand",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Wände",
+    "subcategory": "Tragende Wände"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

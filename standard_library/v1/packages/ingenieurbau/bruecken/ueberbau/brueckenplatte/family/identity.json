@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "fc121492-1219-5290-a833-64459e0de7d7",
+  "family_id": "vp.ingenieurbau.bruecken.ueberbau.brueckenplatte",
+  "slug": "brueckenplatte",
+  "label": "Brückenplatte",
+  "description": "Massive Stahlbetonplatte für Brückenüberbauten.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

@@ -161,11 +161,11 @@
     aria-describedby="{{ _vp_variant_drawer_id }}-subtitle"
     tabindex="-1"
   >
-    <form
+    <div
       class="vp-create-variant-drawer__form"
       data-vp-variant-drawer-form="true"
-      autocomplete="off"
-      novalidate
+      role="group"
+      aria-label="Variantenwerte bearbeiten"
     >
       <input
         type="hidden"
@@ -249,7 +249,7 @@
           <p
             class="vp-create-variant-drawer__kicker"
             data-vp-variant-drawer-kicker="true"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.p.variable.f435deff">
             Variable
           </p>
 
@@ -257,12 +257,12 @@
             id="{{ _vp_variant_drawer_id }}-title"
             class="vp-create-variant-drawer__title"
             data-vp-variant-drawer-title="true"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.h3.variable_bearbeiten.883d0a30">
             Variable bearbeiten
           </h3>
 
           <label class="vp-create-variant-drawer__name-editor">
-            <span>Variantenname</span>
+            <span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.variantenname.07b9776a">Variantenname</span>
             <input
               class="vp-create-control vp-create-variant-drawer__name-input"
               type="text"
@@ -275,14 +275,14 @@
               data-vp-field-key="variant.label"
               data-vp-definition-value-key="variant.label"
               aria-label="Variantenname"
-            />
+             data-i18n-aria-label="server.library.vplib.create.variants.variant_drawer_shell.input_aria-label.variantenname.3d811f68"/>
           </label>
 
           <p
             id="{{ _vp_variant_drawer_id }}-subtitle"
             class="vp-create-variant-drawer__subtitle"
             data-vp-variant-drawer-subtitle="true"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.p.werte_werden_aus_dem_passenden_backend.4cb48bc3">
             Werte werden aus dem passenden Backend-Definitionsprofil aufgebaut.
           </p>
         </div>
@@ -294,7 +294,7 @@
             data-vp-variant-drawer-cancel="true"
             data-vp-variant-footer-action="cancel"
             aria-label="Variantenbearbeitung abbrechen"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.button.abbrechen.098b9cdc" data-i18n-aria-label="server.library.vplib.create.variants.variant_drawer_shell.button_aria-label.variantenbearbeitung_abbrechen.20eafa46">
             Abbrechen
           </button>
 
@@ -307,7 +307,7 @@
             {% if not _drawer_definitions_available %}
               data-vp-action-disabled-reason="definitions_unavailable"
             {% endif %}
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.button.pr_fen.4a3d1fb4" data-i18n-aria-label="server.library.vplib.create.variants.variant_drawer_shell.button_aria-label.variante_pr_fen.dff509ab">
             Prüfen
           </button>
 
@@ -321,7 +321,7 @@
             {% if not _drawer_definitions_available %}
               data-vp-action-disabled-reason="definitions_unavailable"
             {% endif %}
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.button.speichern.aaeff2fc" data-i18n-aria-label="server.library.vplib.create.variants.variant_drawer_shell.button_aria-label.variante_speichern.d15b74c5">
             Speichern
           </button>
 
@@ -331,7 +331,7 @@
             data-vp-variant-drawer-close="true"
             data-vp-variant-footer-action="close"
             aria-label="Variablenbearbeitung schließen"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.button.schlie_en.362fe2ea" data-i18n-aria-label="server.library.vplib.create.variants.variant_drawer_shell.button_aria-label.variablenbearbeitung_schlie_en.d8598622">
             Schließen
           </button>
         </div>
@@ -346,33 +346,33 @@
         <span
           class="vp-create-variant-drawer__pill"
           data-vp-variant-drawer-profile-pill="true"
-        >
-          Profil: {% if _drawer_variant_profile_id %}{{ _drawer_variant_profile_id }}{% else %}auto{% endif %}
+        ><span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.profil.97e9fed3">
+          Profil: </span>{% if _drawer_variant_profile_id %}{{ _drawer_variant_profile_id }}{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.auto.0961cb9b">auto</span>{% endif %}
         </span>
 
         <span
           class="vp-create-variant-drawer__pill"
           data-vp-variant-drawer-object-kind-pill="true"
-        >
-          Objektart: {{ _drawer_object_kind }}
+        ><span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.objektart.10e2a4a2">
+          Objektart: </span>{{ _drawer_object_kind }}
         </span>
 
         <span
           class="vp-create-variant-drawer__pill"
           data-vp-variant-drawer-taxonomy-pill="true"
-        >
+        ><span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.taxonomie.11995fc9">
           Taxonomie:
-          {% if _drawer_domain or _drawer_category or _drawer_subcategory %}
+          </span>{% if _drawer_domain or _drawer_category or _drawer_subcategory %}
             {{ _drawer_domain }} / {{ _drawer_category }} / {{ _drawer_subcategory }}
-          {% else %}
+          {% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.offen.3b2c5646">
             offen
-          {% endif %}
+          </span>{% endif %}
         </span>
 
         <span
           class="vp-create-variant-drawer__pill vp-create-variant-drawer__pill--system"
           data-vp-variant-drawer-variant-id-pill="true"
-        >
+         data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.id.a767ada7">
           ID: <span data-vp-variant-drawer-variant-id-label="true"></span>
         </span>
       </div>
@@ -386,14 +386,14 @@
         <span
           class="vp-create-variant-drawer__status-pill vp-create-variant-drawer__status-pill--idle"
           data-vp-variant-drawer-status-pill="true"
-        >
+         data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.bereit.125b545c">
           Bereit
         </span>
 
         <span
           class="vp-create-variant-drawer__status-text"
           data-vp-variant-drawer-status-text="true"
-        >
+         data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.variable_bereit.5d9e027f">
           Variable bereit.
         </span>
       </div>
@@ -406,11 +406,11 @@
         hidden
       >
         <div class="vp-create-variant-drawer__validation-header">
-          <strong data-vp-variant-drawer-validation-title="true">
+          <strong data-vp-variant-drawer-validation-title="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.strong.pr_fung.ac0b46f6">
             Prüfung
           </strong>
 
-          <span data-vp-variant-drawer-validation-count="true">
+          <span data-vp-variant-drawer-validation-count="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.0_hinweise.37921f14">
             0 Hinweise
           </span>
         </div>
@@ -430,7 +430,7 @@
           data-vp-variant-drawer-section-nav="true"
           aria-label="Variablenabschnitte"
           hidden
-        >
+         data-i18n-aria-label="server.library.vplib.create.variants.variant_drawer_shell.nav_aria-label.variablenabschnitte.7be24bdb">
           <div
             class="vp-create-variant-drawer__section-nav-empty"
             data-vp-variant-drawer-section-nav-empty="true"
@@ -455,8 +455,8 @@
             data-vp-variant-drawer-fields-empty="true"
             hidden
           >
-            <strong>Felder werden geladen.</strong>
-            <span>
+            <strong data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.strong.felder_werden_geladen.90d143e9">Felder werden geladen.</strong>
+            <span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.sobald_ein_variant_profile_aufgel_st_w.76e1c42f">
               Sobald ein Variant Profile aufgelöst wurde, rendert die Runtime hier die passenden Eingabefelder.
             </span>
           </div>
@@ -488,7 +488,7 @@
               data-vp-variant-optional-placement="list-detail"
               data-vp-optional-ui-mode="list-detail"
               aria-label="Variablen auswählen und bearbeiten"
-            >
+             data-i18n-aria-label="server.library.vplib.create.variants.variant_drawer_shell.section_aria-label.variablen_ausw_hlen_und_bearbeiten.f0143875">
               <div
                 class="vp-create-variant-optional-fields__available"
                 data-vp-variant-optional-fields-available="true"
@@ -498,11 +498,11 @@
                   class="vp-create-variant-optional-fields__available-header"
                   data-vp-variant-optional-fields-available-header="true"
                 >
-                  <strong data-vp-variant-optional-fields-available-title="true">
+                  <strong data-vp-variant-optional-fields-available-title="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.strong.variablen.07ff6456">
                     Variablen
                   </strong>
 
-                  <span data-vp-variant-optional-fields-available-count="true">
+                  <span data-vp-variant-optional-fields-available-count="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.wird_geladen.259141cd">
                     Wird geladen.
                   </span>
                 </div>
@@ -512,7 +512,7 @@
                   data-vp-variant-optional-fields-available-columns="true"
                   aria-hidden="true"
                 >
-                  <span>Variablenbezeichnung</span>
+                  <span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.variablenbezeichnung.6d7f3700">Variablenbezeichnung</span>
                 </div>
 
                 <div
@@ -520,7 +520,7 @@
                   data-vp-variant-optional-fields-available-list="true"
                   role="listbox"
                   aria-label="Verfügbare Backend-Variablen"
-                ></div>
+                 data-i18n-aria-label="server.library.vplib.create.variants.variant_drawer_shell.div_aria-label.verf_gbare_backend_variablen.8567c0fc"></div>
               </div>
 
               <div
@@ -529,11 +529,11 @@
                 data-vp-variant-detail-pane="true"
               >
                 <div class="vp-create-variant-optional-fields__selected-header">
-                  <strong data-vp-variant-detail-title="true">
+                  <strong data-vp-variant-detail-title="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.strong.variable_bearbeiten.cf28c06b">
                     Variable bearbeiten
                   </strong>
 
-                  <span data-vp-variant-optional-fields-selected-count="true">
+                  <span data-vp-variant-optional-fields-selected-count="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.0_ausgef_llt.2c3a2183">
                     0 ausgefüllt
                   </span>
                 </div>
@@ -542,8 +542,8 @@
                   class="vp-create-variant-optional-fields__selected-empty"
                   data-vp-variant-optional-fields-selected-empty="true"
                 >
-                  <strong>Variable auswählen</strong>
-                  <span>
+                  <strong data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.strong.variable_ausw_hlen.137dd454">Variable auswählen</strong>
+                  <span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.w_hle_links_eine_variable_aus_der_pass.6e937eec">
                     Wähle links eine Variable aus. Der passende Eingabetyp erscheint dann hier.
                   </span>
                 </div>
@@ -563,10 +563,10 @@
           data-vp-variant-drawer-summary="true"
           aria-label="Variablen-Zusammenfassung"
           hidden
-        >
+         data-i18n-aria-label="server.library.vplib.create.variants.variant_drawer_shell.aside_aria-label.variablen_zusammenfassung.4b0858fa">
           <header class="vp-create-variant-drawer__summary-header">
-            <h4>Zusammenfassung</h4>
-            <p>Live-Überblick über die aktuelle Variante.</p>
+            <h4 data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.h4.zusammenfassung.616391a8">Zusammenfassung</h4>
+            <p data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.p.live_berblick_ber_die_aktuelle_variant.7c661c15">Live-Überblick über die aktuelle Variante.</p>
           </header>
 
           <dl
@@ -574,25 +574,25 @@
             data-vp-variant-drawer-summary-list="true"
           >
             <div class="vp-create-variant-drawer__summary-item">
-              <dt>Name</dt>
-              <dd data-vp-variant-drawer-summary-name="true">Noch nicht festgelegt</dd>
+              <dt data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.dt.name.46541cfe">Name</dt>
+              <dd data-vp-variant-drawer-summary-name="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.dd.noch_nicht_festgelegt.ddd3320d">Noch nicht festgelegt</dd>
             </div>
 
             <div class="vp-create-variant-drawer__summary-item">
-              <dt>Variant-ID</dt>
-              <dd data-vp-variant-drawer-summary-id="true">wird automatisch vergeben</dd>
+              <dt data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.dt.variant_id.7bf0f185">Variant-ID</dt>
+              <dd data-vp-variant-drawer-summary-id="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.dd.wird_automatisch_vergeben.6a4924ec">wird automatisch vergeben</dd>
             </div>
 
             <div class="vp-create-variant-drawer__summary-item">
-              <dt>Profil</dt>
+              <dt data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.dt.profil.2519cd29">Profil</dt>
               <dd data-vp-variant-drawer-summary-profile="true">
-                {% if _drawer_variant_profile_id %}{{ _drawer_variant_profile_id }}{% else %}auto{% endif %}
+                {% if _drawer_variant_profile_id %}{{ _drawer_variant_profile_id }}{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.auto.c537a00a">auto</span>{% endif %}
               </dd>
             </div>
 
             <div class="vp-create-variant-drawer__summary-item">
-              <dt>Status</dt>
-              <dd data-vp-variant-drawer-summary-status="true">Entwurf</dd>
+              <dt data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.dt.status.b0519879">Status</dt>
+              <dd data-vp-variant-drawer-summary-status="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.dd.entwurf.d7d43ea9">Entwurf</dd>
             </div>
           </dl>
 
@@ -611,8 +611,8 @@
           data-vp-section-id="__section_id__"
         >
           <header class="vp-create-variant-drawer__section-header">
-            <h4 data-vp-section-label="true">__section_label__</h4>
-            <p data-vp-section-description="true">__section_description__</p>
+            <h4 data-vp-section-label="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.h4.section_label.1b74ce33">__section_label__</h4>
+            <p data-vp-section-description="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.p.section_description.c334db82">__section_description__</p>
           </header>
 
           <div
@@ -631,7 +631,7 @@
           data-vp-section-id="__section_id__"
           aria-controls="__section_id__"
         >
-          <span data-vp-section-nav-label="true">__section_label__</span>
+          <span data-vp-section-nav-label="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.section_label.0d47cd3d">__section_label__</span>
           <span
             class="vp-create-variant-drawer__section-nav-state"
             data-vp-section-nav-state="true"
@@ -648,7 +648,7 @@
           data-vp-field-value-type="__field_value_type__"
         >
           <label class="vp-create-variant-field__label">
-            <span data-vp-field-label="true">__field_label__</span>
+            <span data-vp-field-label="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.field_label.11acba10">__field_label__</span>
             <span
               class="vp-create-variant-field__required"
               data-vp-field-required="true"
@@ -697,11 +697,11 @@
         >
           <div class="vp-create-upload__header" data-vp-upload-header>
             <div>
-              <strong class="vp-create-upload__title" data-vp-upload-title>
+              <strong class="vp-create-upload__title" data-vp-upload-title data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.strong.field_label.80b1b766">
                 __field_label__
               </strong>
 
-              <p class="vp-create-upload__hint" data-vp-upload-hint>
+              <p class="vp-create-upload__hint" data-vp-upload-hint data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.p.bis_zu_12_dateien_gleichzeitig_oder_na.f03fa3c8">
                 Bis zu 12 Dateien gleichzeitig oder nacheinander auswählen. Sie werden direkt in das VPLIB eingebettet.
               </p>
             </div>
@@ -710,7 +710,7 @@
               class="vp-create-status-pill vp-create-status-pill--muted"
               data-vp-upload-count-label
               aria-live="polite"
-            >
+             data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.0_dateien.943b56cf">
               0 Dateien
             </span>
           </div>
@@ -744,7 +744,7 @@
             <p
               class="vp-create-upload__empty"
               data-vp-upload-empty
-            >
+             data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.p.noch_keine_dokumente_ausgew_hlt.ec7c35c5">
               Noch keine Dokumente ausgewählt.
             </p>
 
@@ -768,7 +768,7 @@
           <span
             class="vp-create-variant-optional-fields__available-name"
             data-vp-optional-available-name="true"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.field_label.b596fb60">
             __field_label__
           </span>
         </button>
@@ -782,8 +782,8 @@
           data-vp-field-value-type="__field_value_type__"
         >
           <div class="vp-create-variant-optional-fields__row-variable">
-            <strong data-vp-optional-row-label="true">__field_label__</strong>
-            <span data-vp-optional-row-meta="true">__field_key__</span>
+            <strong data-vp-optional-row-label="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.strong.field_label.3138a7c1">__field_label__</strong>
+            <span data-vp-optional-row-meta="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.field_key.a08a8ecb">__field_key__</span>
           </div>
 
           <div
@@ -796,7 +796,7 @@
             type="button"
             data-vp-optional-row-remove="true"
             data-vp-remove-additional-field="true"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.button.entfernen.bbe66d41">
             Entfernen
           </button>
         </div>
@@ -808,8 +808,8 @@
           data-vp-validation-item="true"
           data-vp-validation-field-key="__field_key__"
         >
-          <strong data-vp-validation-label="true">__label__</strong>
-          <span data-vp-validation-message="true">__message__</span>
+          <strong data-vp-validation-label="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.strong.label.80ce0bee">__label__</strong>
+          <span data-vp-validation-message="true" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.message.6510096d">__message__</span>
         </li>
       </template>
 
@@ -818,11 +818,11 @@
           class="vp-create-variant-drawer__summary-chip"
           data-vp-summary-chip="true"
           data-vp-summary-field-key="__field_key__"
-        >
+         data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_shell.span.label.16a8c423">
           __label__
         </span>
       </template>
-    </form>
+    </div>
   </section>
 </aside>
 

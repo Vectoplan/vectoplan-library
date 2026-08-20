@@ -1,0 +1,157 @@
+{
+  "schema_version": "vplib.render.cad_patterns.v1",
+  "catalog_version": "1.0.0",
+  "units": "mm_paper",
+  "default_variant_id": "default",
+  "pattern_ids": [
+    "gypsum_board",
+    "line_horizontal"
+  ],
+  "patterns": [
+    {
+      "id": "gypsum_board",
+      "label": "Gipskarton",
+      "category": "finish",
+      "category_label": "Ausbau und Sondermaterialien",
+      "description": "Feines Punkt-Strich-Muster für Gipskartonplatten.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 910,
+      "tags": [
+        "gypsum",
+        "drywall",
+        "gipskarton"
+      ],
+      "definition": {
+        "line_families": [
+          {
+            "angle_deg": 45,
+            "spacing_mm": 3,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": [
+              0.4,
+              2.6
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "line_horizontal",
+      "label": "Linien horizontal",
+      "category": "line",
+      "category_label": "Linien und Raster",
+      "description": "Parallele horizontale Linien.",
+      "kind": "line",
+      "active": true,
+      "sort_order": 100,
+      "tags": [
+        "line",
+        "horizontal"
+      ],
+      "definition": {
+        "line_families": [
+          {
+            "angle_deg": 0,
+            "spacing_mm": 3,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": []
+          }
+        ]
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "variant_id": "default",
+      "cut": {
+        "pattern_id": "gypsum_board",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "line_horizontal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "100_mm",
+      "cut": {
+        "pattern_id": "gypsum_board",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "line_horizontal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "125_mm",
+      "cut": {
+        "pattern_id": "gypsum_board",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "line_horizontal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "150_mm",
+      "cut": {
+        "pattern_id": "gypsum_board",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "line_horizontal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "175_mm",
+      "cut": {
+        "pattern_id": "gypsum_board",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "line_horizontal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    }
+  ]
+}

@@ -91,6 +91,7 @@ CELL_BLOCK_OPTIONAL_DOCUMENTS: Final[tuple[tuple[str, str], ...]] = (
     ("editor", "editor/anchors.json"),
     ("render", "render/bounds.json"),
     ("render", "render/materials.json"),
+    ("render", "render/cad_patterns.json"),
     ("physical", "physical/layers.json"),
     ("physical", "physical/occupancy.json"),
     ("physical", "physical/mass.json"),

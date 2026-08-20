@@ -25,10 +25,9 @@ Wichtig:
 - keine Pflichtdatei routes/editor.py
 - keine Pflicht-Templates oder Static-Dateien
 - API-/JSON-Service, kein UI-Service
-- kein Scan von src/library/source beim Startup
-- einzige Startup-Schreiboperation: fehlende leere Default-Creative-Library
-  und ihren Source-Ordner initialisieren
-- keine Datenbanklogik
+- kanonische Standard-Library beim Startup scannen
+- fehlende leere Default-Creative-Library und ihren Source-Ordner initialisieren
+- Standard-Library optional idempotent in den Library-Index synchronisieren
 
 Diese Datei enthält bewusst:
 
@@ -36,8 +35,7 @@ Diese Datei enthält bewusst:
 - Caching für Check-Spezifikationen
 - keine Business-Logik
 - keine Package-Erstellung
-- keine Datenbanklogik
-- keine automatische Datenbank-Persistenz
+- best-effort Datenbank-Synchronisation der kanonischen Standard-Library
 """
 
 from __future__ import annotations
@@ -45,6 +43,7 @@ from __future__ import annotations
 import copy
 import importlib
 import importlib.util as importlib_util
+import json
 import os
 import traceback
 from dataclasses import asdict, dataclass, field, is_dataclass
@@ -552,6 +551,7 @@ def _new_startup_state() -> dict[str, Any]:
             "vplib_settings": [],
             "library_settings": [],
             "library_health": [],
+            "standard_library": [],
         },
         "metadata": {},
         "route_summary": {
@@ -596,7 +596,17 @@ def _ensure_startup_state(app: Flask) -> dict[str, Any]:
     if not isinstance(startup_state["checks"], dict):
         startup_state["checks"] = {}
 
-    for key in ("paths", "files", "modules", "routes", "vplib_settings", "library_settings", "library_health"):
+    for key in (
+        "paths",
+        "files",
+        "modules",
+        "routes",
+        "vplib_settings",
+        "library_settings",
+        "library_health",
+        "library_archive",
+        "standard_library",
+    ):
         startup_state["checks"].setdefault(key, [])
 
         if not isinstance(startup_state["checks"][key], list):
@@ -761,9 +771,9 @@ def get_default_path_check_specs() -> tuple[PathCheckSpec, ...]:
         PathCheckSpec(
             name="library_source_root",
             config_key="LIBRARY_SOURCE_ROOT",
-            fallback_relative_paths=("src/library/source",),
+            fallback_relative_paths=("standard_library/v1/packages",),
             required=False,
-            description="Creative Library source package input root. May be empty or missing in early development.",
+            description="Canonical standard library package input root.",
         ).normalized(),
         PathCheckSpec(
             name="library_domain_root",
@@ -1746,6 +1756,294 @@ def _initialize_default_creative_library(app: Flask) -> None:
         _append_warning(app, result.message, details=details)
 
 
+def _standard_library_source_root(app: Flask) -> Path:
+    configured = _safe_get_config(app, "VECTOPLAN_LIBRARY_SOURCE_ROOT", None)
+    if configured in (None, ""):
+        configured = _safe_get_config(app, "VPLIB_CREATE_SOURCE_ROOT", None)
+    if configured in (None, ""):
+        configured = os.getenv("VECTOPLAN_LIBRARY_SOURCE_ROOT") or os.getenv("VPLIB_CREATE_SOURCE_ROOT")
+    if configured not in (None, ""):
+        return Path(str(configured)).expanduser().resolve()
+    return (Path(__file__).resolve().parents[2] / "standard_library" / "v1" / "packages").resolve()
+
+
+def _startup_flag(app: Flask, config_key: str, env_key: str, *, default: bool) -> bool:
+    configured = _safe_get_config(app, config_key, None)
+    if configured is not None:
+        return _safe_bool(configured, default=default)
+    return _safe_bool(os.getenv(env_key), default=default)
+
+
+def _load_standard_library_on_startup(app: Flask) -> None:
+    """Scannt die kanonische Library bei jedem Start und synchronisiert sie best-effort."""
+    state = _ensure_startup_state(app)
+    source_root = _standard_library_source_root(app)
+    enabled = _startup_flag(
+        app,
+        "VECTOPLAN_LIBRARY_LOAD_ON_STARTUP",
+        "VECTOPLAN_LIBRARY_LOAD_ON_STARTUP",
+        default=True,
+    )
+    if not enabled:
+        result = StartupCheckResult(
+            name="standard_library_startup_load",
+            check_type="standard_library",
+            status="disabled",
+            required=False,
+            ok=True,
+            message="Standard-Library-Startscan ist explizit deaktiviert.",
+            details={"source_root": str(source_root), "enabled": False},
+        ).normalized()
+        _append_check_result(app, "standard_library", result)
+        return
+
+    catalog_path = source_root.parent / "catalog.json"
+    catalog_revision = ""
+    try:
+        catalog_document = json.loads(catalog_path.read_text(encoding="utf-8-sig"))
+        if isinstance(catalog_document, Mapping):
+            catalog_revision = _optional_text(catalog_document.get("content_revision")) or ""
+    except Exception:
+        catalog_document = {}
+
+    startup_marker = source_root / ".vectoplan-startup-sync-complete"
+    marker_revision = ""
+    if startup_marker.is_file():
+        try:
+            marker_document = json.loads(startup_marker.read_text(encoding="utf-8-sig"))
+            if isinstance(marker_document, Mapping):
+                marker_revision = _optional_text(marker_document.get("content_revision")) or ""
+        except Exception:
+            marker_document = {}
+
+    # Legacy markers and markers from an older catalog revision must not
+    # suppress synchronization after an application update.
+    if startup_marker.is_file() and catalog_revision and marker_revision == catalog_revision:
+        metadata = {
+            "enabled": True,
+            "source_root": str(source_root),
+            "startup_sync_marker": str(startup_marker),
+            "content_revision": catalog_revision,
+            "reused_startup_sync": True,
+        }
+        state["metadata"]["standard_library"] = metadata
+        _append_check_result(
+            app,
+            "standard_library",
+            StartupCheckResult(
+                name="standard_library_startup_load",
+                check_type="standard_library",
+                status="ok",
+                required=True,
+                ok=True,
+                message="Standard-Library wurde in diesem Containerstart bereits synchronisiert.",
+                details=metadata,
+            ).normalized(),
+        )
+        return
+
+    scan_module = None
+    import_errors: list[str] = []
+    for module_name in (
+        "library.services.library_scan_service",
+        "src.library.services.library_scan_service",
+        "vectoplan_library.library.services.library_scan_service",
+    ):
+        try:
+            scan_module = importlib.import_module(module_name)
+            break
+        except Exception as exc:
+            import_errors.append(f"{module_name}: {type(exc).__name__}: {exc}")
+
+    scan_options = {
+        "include_invalid": True,
+        "use_cache": True,
+        "cache_ttl_seconds": 3600,
+        "include_raw_pipeline": False,
+        "include_index": False,
+        "include_scan_result": False,
+        "include_discovery_result": False,
+        "include_read_results": False,
+        "include_validation_results": False,
+        "include_fingerprint_results": False,
+        "include_taxonomy_payload": False,
+    }
+
+    try:
+        if scan_module is None:
+            raise ImportError(" | ".join(import_errors))
+        scanner = getattr(scan_module, "scan_library_source", None)
+        if not callable(scanner):
+            raise RuntimeError("library scan service exposes no scan_library_source function")
+        if not source_root.is_dir():
+            raise FileNotFoundError(f"Standard library source root does not exist: {source_root}")
+
+        scan_pipeline = scanner(
+            source_root=str(source_root),
+            options=scan_options,
+            force_refresh=True,
+        )
+        namespace = _ensure_service_namespace(app)
+        namespace["standard_library_pipeline"] = scan_pipeline
+        to_dict = getattr(scan_pipeline, "to_dict", None)
+        scan_summary = to_dict(include_raw_pipeline=False) if callable(to_dict) else _json_safe(scan_pipeline)
+        if not isinstance(scan_summary, Mapping):
+            scan_summary = {"status": str(scan_summary)}
+
+        expected_count = 0
+        try:
+            catalog = catalog_document or json.loads(catalog_path.read_text(encoding="utf-8-sig"))
+            expected_count = _safe_int(catalog.get("family_count"), default=0, minimum=0)
+        except Exception:
+            expected_count = 0
+
+        valid_count = _safe_int(scan_summary.get("valid_item_count"), default=0, minimum=0)
+        scan_ok = bool(scan_summary.get("ok", getattr(scan_pipeline, "ok", False)))
+        count_ok = expected_count <= 0 or valid_count >= expected_count
+        load_ok = scan_ok and count_ok
+        metadata = {
+            "enabled": True,
+            "source_root": str(source_root),
+            "catalog_path": str(catalog_path),
+            "content_revision": catalog_revision,
+            "expected_family_count": expected_count,
+            "scan": _json_safe_mapping(scan_summary),
+        }
+        state["metadata"]["standard_library"] = metadata
+        result = StartupCheckResult(
+            name="standard_library_startup_load",
+            check_type="standard_library",
+            status="ok" if load_ok else "partial",
+            required=True,
+            ok=load_ok,
+            message=(
+                f"Standard-Library geladen: {valid_count} gültige Familien."
+                if load_ok
+                else f"Standard-Library unvollständig: {valid_count} von {expected_count or '?'} Familien gültig."
+            ),
+            details=metadata,
+        ).normalized()
+        _append_check_result(app, "standard_library", result)
+        if not load_ok:
+            _maybe_raise_in_strict_mode(app, result.message, details=result.details)
+
+        sync_enabled = _startup_flag(
+            app,
+            "VECTOPLAN_LIBRARY_DB_SYNC_ON_STARTUP",
+            "VECTOPLAN_LIBRARY_DB_SYNC_ON_STARTUP",
+            default=True,
+        )
+        if not scan_ok or not sync_enabled:
+            return
+
+        try:
+            sync_module = None
+            sync_import_errors: list[str] = []
+            for module_name in (
+                "library.services.library_db_sync_service",
+                "src.library.services.library_db_sync_service",
+                "vectoplan_library.library.services.library_db_sync_service",
+            ):
+                try:
+                    sync_module = importlib.import_module(module_name)
+                    break
+                except Exception as import_exc:
+                    sync_import_errors.append(
+                        f"{module_name}: {type(import_exc).__name__}: {import_exc}"
+                    )
+            if sync_module is None:
+                raise ImportError(" | ".join(sync_import_errors))
+            synchronizer = getattr(sync_module, "sync_library_to_database_response", None)
+            if not callable(synchronizer):
+                raise RuntimeError("library DB sync service exposes no synchronizer")
+            with app.app_context():
+                sync_summary = synchronizer(
+                    source_root=str(source_root),
+                    force_refresh=False,
+                    triggered_by="startup:standard-library-v1",
+                    publish_valid_only=True,
+                    mark_missing_deleted=False,
+                    include_raw_documents=True,
+                    scan_options=scan_options,
+                )
+            metadata["database_sync"] = _json_safe(sync_summary)
+            sync_status = (
+                str(sync_summary.get("status") or "ok").lower()
+                if isinstance(sync_summary, Mapping)
+                else "ok"
+            )
+            sync_ok = (
+                bool(sync_summary.get("ok", sync_status not in {"error", "failed", "unavailable"}))
+                if isinstance(sync_summary, Mapping)
+                else True
+            )
+            if sync_ok:
+                startup_marker.write_text(
+                    json.dumps(
+                        {
+                            "source_root": str(source_root),
+                            "status": "ok",
+                            "content_revision": catalog_revision,
+                        },
+                        sort_keys=True,
+                    ),
+                    encoding="utf-8",
+                )
+            _append_check_result(
+                app,
+                "standard_library",
+                StartupCheckResult(
+                    name="standard_library_database_sync",
+                    check_type="standard_library",
+                    status="ok" if sync_ok else sync_status,
+                    required=False,
+                    ok=sync_ok,
+                    message=(
+                        "Standard-Library wurde in den Laufzeitindex synchronisiert."
+                        if sync_ok
+                        else "Standard-Library-DB-Sync meldet einen Fehler."
+                    ),
+                    details=_json_safe_mapping(sync_summary if isinstance(sync_summary, Mapping) else {}),
+                ).normalized(),
+            )
+        except Exception as exc:
+            details = {"source_root": str(source_root), "type": type(exc).__name__, "message": str(exc)}
+            _append_check_result(
+                app,
+                "standard_library",
+                StartupCheckResult(
+                    name="standard_library_database_sync",
+                    check_type="standard_library",
+                    status="warning",
+                    required=False,
+                    ok=False,
+                    message="Standard-Library ist dateibasiert geladen; DB-Sync ist aktuell nicht verfügbar.",
+                    details=details,
+                ).normalized(),
+            )
+            _append_warning(app, "Standard-Library-DB-Sync ist aktuell nicht verfügbar.", details=details)
+    except Exception as exc:
+        details = {
+            "source_root": str(source_root),
+            "type": type(exc).__name__,
+            "message": str(exc),
+            "import_errors": import_errors,
+        }
+        result = StartupCheckResult(
+            name="standard_library_startup_load",
+            check_type="standard_library",
+            status="failed",
+            required=True,
+            ok=False,
+            message="Standard-Library konnte beim Start nicht geladen werden.",
+            details=details,
+        ).normalized()
+        _append_check_result(app, "standard_library", result)
+        if _is_strict_startup_enabled(app):
+            raise
+        _append_warning(app, result.message, details=details)
+
+
 def _collect_startup_metadata(app: Flask) -> None:
     """Erfasst zentrale App- und Startup-Metadaten."""
     state = _ensure_startup_state(app)
@@ -1939,6 +2237,7 @@ def run_startup(app: Flask) -> Flask:
         "library_settings": [],
         "library_health": [],
         "library_archive": [],
+        "standard_library": [],
     }
 
     _safe_log_info(app, "Startup hooks for vectoplan-library are running.")
@@ -1950,6 +2249,7 @@ def run_startup(app: Flask) -> Flask:
 
         _collect_startup_metadata(app)
         _initialize_default_creative_library(app)
+        _load_standard_library_on_startup(app)
         _run_path_checks(app)
         _run_file_checks(app)
         _run_module_checks(app)
@@ -2038,10 +2338,12 @@ def get_startup_summary(app: Flask) -> dict[str, Any]:
         "file_check_count": len(checks.get("files", []) or []),
         "module_check_count": len(checks.get("modules", []) or []),
         "route_check_count": len(checks.get("routes", []) or []),
+        "standard_library_check_count": len(checks.get("standard_library", []) or []),
         "failed_path_checks": _count_failed("paths"),
         "failed_file_checks": _count_failed("files"),
         "failed_module_checks": _count_failed("modules"),
         "failed_route_checks": _count_failed("routes"),
+        "failed_standard_library_checks": _count_failed("standard_library"),
         "route_count": _safe_int(route_summary.get("count", 0), default=0, minimum=0),
         "required_route_count": _safe_int(route_summary.get("required_route_count", 0), default=0, minimum=0),
         "missing_required_routes": list(route_summary.get("missing_required_routes", []) or []),

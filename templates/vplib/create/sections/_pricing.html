@@ -1,0 +1,104 @@
+{% set _pricing_draft = create_initial_draft if create_initial_draft is defined and create_initial_draft is mapping else {} %}
+{% set _pricing_contract = _pricing_draft.get('pricing_contract', {}) if _pricing_draft.get('pricing_contract', {}) is mapping else {} %}
+
+<div
+  class="vplib-create-step__panel vp-create-card vp-create-section vp-create-section--pricing"
+  data-create-section="pricing"
+  data-vp-create-section="pricing"
+  data-vp-step-panel="pricing"
+  data-vp-pricing-root
+  aria-labelledby="vp-create-pricing-title"
+>
+  <header class="vplib-create-step__header">
+    <div class="vplib-create-step__header-main">
+      <span class="vp-create-section-eyebrow">Step 8 · Preise</span>
+      <h2 id="vp-create-pricing-title" class="vplib-create-step__title">Preise und Mengenumrechnung</h2>
+      <p class="vplib-create-step__description">
+        Lege je Variante fest, wofür abgerechnet wird und welche Produktmenge der Kunde dafür erhält.
+      </p>
+    </div>
+    <span class="vp-create-status-pill" data-vp-pricing-summary>Varianten werden geladen</span>
+  </header>
+
+  <div class="vplib-create-step__body vp-create-pricing-step__body">
+    <section class="vp-create-pricing-intro" aria-label="Berechnungsprinzip">
+      <div class="vp-create-pricing-intro__formula" aria-hidden="true">
+        <span>Bezugsmenge</span><strong>×</strong><span>Preis</span><strong>→</strong><span>Produktmenge</span>
+      </div>
+      <p>Beispiel: <strong>1 m² = 42,50 €</strong> und dafür werden <strong>16 Steine</strong> geliefert.</p>
+    </section>
+
+    <div class="vp-create-pricing-list" data-vp-pricing-list></div>
+    <div class="vp-create-pricing-empty" data-vp-pricing-empty>
+      <strong>Noch keine Varianten verfügbar.</strong>
+      <span>Lege zuerst in Schritt 4 mindestens eine Variante an.</span>
+    </div>
+  </div>
+
+  <input
+    type="hidden"
+    name="pricing_contract_json"
+    value="{{ _pricing_contract | tojson | forceescape }}"
+    data-vp-pricing-contract-json
+  />
+</div>
+
+<template data-vp-pricing-rule-template>
+  <article class="vp-create-pricing-rule" data-vp-pricing-rule>
+    <header class="vp-create-pricing-rule__header">
+      <div>
+        <span class="vp-create-section-eyebrow">Variante</span>
+        <h3 data-vp-pricing-variant-label>Standard</h3>
+      </div>
+      <span class="vp-create-status-pill" data-vp-pricing-rule-status>Unvollständig</span>
+    </header>
+    <div class="vp-create-pricing-rule__grid">
+      <label class="vp-create-field">
+        <span class="vp-create-field__label">Berechnung</span>
+        <select class="vp-create-select" data-vp-pricing-field="pricing_basis">
+          <option value="per_m2">pro m²</option>
+          <option value="per_m3">pro m³</option>
+          <option value="per_meter">pro laufendem Meter</option>
+          <option value="per_piece">pro Stück</option>
+          <option value="per_package">pro Verpackung / Palette</option>
+          <option value="fixed">Pauschalpreis</option>
+        </select>
+      </label>
+      <label class="vp-create-field">
+        <span class="vp-create-field__label">Bezugsmenge</span>
+        <input class="vp-create-input" type="number" min="0.000001" step="0.01" value="1" data-vp-pricing-field="billing_quantity" />
+      </label>
+      <label class="vp-create-field">
+        <span class="vp-create-field__label">Preis netto</span>
+        <span class="vp-create-input-group">
+          <input class="vp-create-input" type="number" min="0" step="0.01" placeholder="0,00" data-vp-pricing-field="price_amount" />
+          <span class="vp-create-input-group__suffix">EUR</span>
+        </span>
+      </label>
+      <label class="vp-create-field">
+        <span class="vp-create-field__label">MwSt.</span>
+        <span class="vp-create-input-group">
+          <input class="vp-create-input" type="number" min="0" step="0.1" value="19" data-vp-pricing-field="vat_percent" />
+          <span class="vp-create-input-group__suffix">%</span>
+        </span>
+      </label>
+      <label class="vp-create-field">
+        <span class="vp-create-field__label">Erhaltene Menge</span>
+        <input class="vp-create-input" type="number" min="0" step="0.01" placeholder="z. B. 16" data-vp-pricing-field="output_quantity" />
+      </label>
+      <label class="vp-create-field">
+        <span class="vp-create-field__label">Einheit der Produktmenge</span>
+        <input class="vp-create-input" type="text" value="Stück" placeholder="z. B. Steine, Platten, Pakete" data-vp-pricing-field="output_unit" />
+      </label>
+      <label class="vp-create-field">
+        <span class="vp-create-field__label">Mindestbestellmenge</span>
+        <input class="vp-create-input" type="number" min="0" step="0.01" value="0" data-vp-pricing-field="minimum_order" />
+      </label>
+      <label class="vp-create-field vp-create-field--wide">
+        <span class="vp-create-field__label">Hinweis</span>
+        <input class="vp-create-input" type="text" placeholder="Optional, z. B. Preis ab Werk" data-vp-pricing-field="notes" />
+      </label>
+    </div>
+    <p class="vp-create-pricing-rule__result" data-vp-pricing-rule-result></p>
+  </article>
+</template>

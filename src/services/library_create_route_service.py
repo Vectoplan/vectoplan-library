@@ -1919,7 +1919,7 @@ def get_template_context_response(payload: Any = None, *, user_id: Any = 1) -> R
         "_material_classes": _coerce_list(options_data.get("material_classes") or options_data.get("materials") or definitions_options.get("materials") if isinstance(definitions_options, Mapping) else []),
         "create_steps": options_data.get("create_steps") or context_data.get("create_steps") or None,
         "create_initial_step": 1,
-        "create_default_theme": "dark",
+        "create_default_theme": "light",
         "create_theme_storage_key": "vectoplan.create.wizard.theme",
         "create_legacy_theme_storage_key": "vectoplan.create.theme",
         "route_service": _route_service_metadata(route, normalized_payload),
@@ -3096,6 +3096,16 @@ def _decode_create_json_fields(data: dict[str, Any]) -> None:
         "definitionVariantsJson",
         "geometry_model_uploads_json",
         "geometryModelUploadsJson",
+        "spatial_contract_json",
+        "spatialContractJson",
+        "connection_points_json",
+        "connectionPointsJson",
+        "manufacturer_profile_json",
+        "manufacturerProfileJson",
+        "manufacturer_locations_json",
+        "manufacturerLocationsJson",
+        "manufacturer_territories_json",
+        "manufacturerTerritoriesJson",
         "technical_document_uploads_json",
         "technicalDocumentUploadsJson",
         "variant_document_uploads_json",
@@ -3116,9 +3126,27 @@ def _decode_create_json_fields(data: dict[str, Any]) -> None:
             if isinstance(decoded, list):
                 data.setdefault("definition_variants", decoded)
                 data.setdefault("definitionVariants", decoded)
+        elif key in {"connection_points_json", "connectionPointsJson"}:
+            if isinstance(decoded, list):
+                data.setdefault("connection_points", decoded)
+                data.setdefault("connectionPoints", decoded)
+        elif key in {"manufacturer_locations_json", "manufacturerLocationsJson"}:
+            if isinstance(decoded, list):
+                data.setdefault("manufacturer_locations", decoded)
+                data.setdefault("manufacturerLocations", decoded)
+        elif key in {"manufacturer_territories_json", "manufacturerTerritoriesJson"}:
+            if isinstance(decoded, list):
+                data.setdefault("manufacturer_territories", decoded)
+                data.setdefault("manufacturerTerritories", decoded)
         elif isinstance(decoded, Mapping):
             if key.startswith("geometry_"):
                 data.setdefault("geometry_model_uploads", dict(decoded))
+            elif key.startswith("spatial"):
+                data.setdefault("spatial_contract", dict(decoded))
+                data.setdefault("spatialContract", dict(decoded))
+            elif key.startswith("manufacturer_profile") or key.startswith("manufacturerProfile"):
+                data.setdefault("manufacturer_profile", dict(decoded))
+                data.setdefault("manufacturerProfile", dict(decoded))
             elif key.startswith("technical_"):
                 data.setdefault("technical_document_uploads", dict(decoded))
             elif key.startswith("variant_"):
@@ -3131,6 +3159,13 @@ def _normalize_scalar_aliases(data: dict[str, Any]) -> None:
     aliases = (
         ("family_name", "familyName"),
         ("family_description", "familyDescription"),
+        ("manufacturer_scope", "manufacturerScope"),
+        ("manufacturer_coverage_mode", "manufacturerCoverageMode"),
+        ("manufacturer_name", "manufacturerName"),
+        ("manufacturer_brand", "manufacturerBrand"),
+        ("manufacturer_org_id", "manufacturerOrgId"),
+        ("manufacturer_website", "manufacturerWebsite"),
+        ("manufacturer_country_code", "manufacturerCountryCode"),
         ("object_kind", "objectKind"),
         ("family_profile_id", "familyProfileId"),
         ("variant_profile_id", "variantProfileId"),

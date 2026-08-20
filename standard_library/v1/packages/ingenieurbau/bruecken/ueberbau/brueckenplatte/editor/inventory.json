@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "fc121492-1219-5290-a833-64459e0de7d7",
+  "family_id": "vp.ingenieurbau.bruecken.ueberbau.brueckenplatte",
+  "default_variant_id": "default",
+  "label": "Brückenplatte",
+  "description": "Massive Stahlbetonplatte für Brückenüberbauten.",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "bruecken",
+  "subcategory": "ueberbau",
+  "classification_path": "ingenieurbau/bruecken/ueberbau",
+  "source_path": "ingenieurbau/bruecken/ueberbau/brueckenplatte",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Brücken",
+    "subcategory": "Überbau"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

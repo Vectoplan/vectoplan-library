@@ -1,0 +1,187 @@
+{
+  "schema_version": "vplib.render.cad_patterns.v1",
+  "catalog_version": "1.0.0",
+  "units": "mm_paper",
+  "default_variant_id": "default",
+  "pattern_ids": [
+    "grid_fine",
+    "precast_concrete"
+  ],
+  "patterns": [
+    {
+      "id": "grid_fine",
+      "label": "Raster fein",
+      "category": "line",
+      "category_label": "Linien und Raster",
+      "description": "Feines orthogonales Raster.",
+      "kind": "cross",
+      "active": true,
+      "sort_order": 160,
+      "tags": [
+        "grid",
+        "fine"
+      ],
+      "definition": {
+        "line_families": [
+          {
+            "angle_deg": 0,
+            "spacing_mm": 1.5,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": []
+          },
+          {
+            "angle_deg": 90,
+            "spacing_mm": 1.5,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "precast_concrete",
+      "label": "Betonfertigteil",
+      "category": "concrete",
+      "category_label": "Beton und Estrich",
+      "description": "Geordnete Betonpunktierung zur Unterscheidung von Fertigteilen.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 320,
+      "tags": [
+        "concrete",
+        "precast"
+      ],
+      "definition": {
+        "tile_mm": [
+          8,
+          8
+        ],
+        "line_families": [
+          {
+            "angle_deg": 45,
+            "spacing_mm": 8,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": [
+              0.5,
+              7.5
+            ]
+          }
+        ],
+        "primitives": [
+          {
+            "type": "dot",
+            "at_mm": [
+              2,
+              2
+            ],
+            "radius_mm": 0.14
+          },
+          {
+            "type": "dot",
+            "at_mm": [
+              6,
+              6
+            ],
+            "radius_mm": 0.14
+          }
+        ]
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "variant_id": "default",
+      "cut": {
+        "pattern_id": "precast_concrete",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_fine",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "nw_150",
+      "cut": {
+        "pattern_id": "precast_concrete",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_fine",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "nw_200",
+      "cut": {
+        "pattern_id": "precast_concrete",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_fine",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "nw_300",
+      "cut": {
+        "pattern_id": "precast_concrete",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_fine",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "nw_400",
+      "cut": {
+        "pattern_id": "precast_concrete",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "grid_fine",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    }
+  ]
+}

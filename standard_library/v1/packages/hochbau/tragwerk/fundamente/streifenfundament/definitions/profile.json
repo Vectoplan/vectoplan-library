@@ -1,0 +1,17 @@
+{
+  "schema_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "default_variant_id": "default",
+  "starter_contract": true,
+  "required_definition_values": [
+    "variant.variant_id",
+    "variant.label",
+    "dimensions.width_mm",
+    "dimensions.height_mm",
+    "dimensions.depth_mm"
+  ],
+  "documents_required": false,
+  "external_assets_required": false
+}

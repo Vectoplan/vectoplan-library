@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "e417b515-11ae-5ff5-b080-be0aea265060",
+  "family_id": "vp.hochbau.tragwerk.stuetzen.stahlbetonstuetze",
+  "default_variant_id": "default",
+  "label": "Stahlbetonstütze",
+  "description": "Quadratische Stahlbetonstütze in typischen Querschnitten.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "tragwerk",
+  "subcategory": "stuetzen",
+  "classification_path": "hochbau/tragwerk/stuetzen",
+  "source_path": "hochbau/tragwerk/stuetzen/stahlbetonstuetze",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Tragwerk",
+    "subcategory": "Stützen"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

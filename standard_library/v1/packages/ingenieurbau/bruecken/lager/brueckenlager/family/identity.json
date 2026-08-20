@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "a67310e1-72b0-5958-8814-6090d640cfcf",
+  "family_id": "vp.ingenieurbau.bruecken.lager.brueckenlager",
+  "slug": "brueckenlager",
+  "label": "Brückenlager",
+  "description": "Vereinfachtes Elastomer- und Topflager in Standardabmessungen.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

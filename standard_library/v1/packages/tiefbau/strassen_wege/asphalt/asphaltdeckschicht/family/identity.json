@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "a870e6f1-e91a-5464-b37a-6f667121511d",
+  "family_id": "vp.tiefbau.strassen_wege.asphalt.asphaltdeckschicht",
+  "slug": "asphaltdeckschicht",
+  "label": "Asphaltdeckschicht",
+  "description": "Deckschicht für Straßen und Verkehrsflächen.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

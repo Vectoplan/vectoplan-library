@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "9817ac78-d171-5e90-ae4c-f00d1b17311e",
+  "family_id": "vp.hochbau.tragwerk.traeger.stahlbetontraeger",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "stahlbeton"
+  ]
+}

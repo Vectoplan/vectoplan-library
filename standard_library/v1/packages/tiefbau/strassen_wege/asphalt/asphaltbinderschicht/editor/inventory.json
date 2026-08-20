@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "ba4e3400-bbcb-5b6e-abc7-b6276eb85fce",
+  "family_id": "vp.tiefbau.strassen_wege.asphalt.asphaltbinderschicht",
+  "default_variant_id": "default",
+  "label": "Asphaltbinderschicht",
+  "description": "Binderschicht zwischen Deck- und Tragschicht.",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "strassen_wege",
+  "subcategory": "asphalt",
+  "classification_path": "tiefbau/strassen_wege/asphalt",
+  "source_path": "tiefbau/strassen_wege/asphalt/asphaltbinderschicht",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Straßen und Wege",
+    "subcategory": "Asphalt"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

@@ -1,0 +1,58 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "0efa81ac-253c-5587-a1c6-118060a484ae",
+  "package_id": "vplib.vp.tiefbau.leitungen.wasserleitungen.wasserleitung",
+  "family_id": "vp.tiefbau.leitungen.wasserleitungen.wasserleitung",
+  "family_slug": "wasserleitung",
+  "family_name": "Wasserleitung",
+  "package_version": "0.1.0",
+  "object_kind": "adaptive_system",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "leitungen",
+  "subcategory": "wasserleitungen",
+  "classification": {
+    "domain": "tiefbau",
+    "category": "leitungen",
+    "subcategory": "wasserleitungen",
+    "classification_path": "tiefbau/leitungen/wasserleitungen",
+    "labels": {
+      "domain": "Tiefbau",
+      "category": "Leitungen",
+      "subcategory": "Wasserleitungen"
+    },
+    "object_kind": "adaptive_system"
+  },
+  "classification_path": "tiefbau/leitungen/wasserleitungen",
+  "source_path": "tiefbau/leitungen/wasserleitungen/wasserleitung",
+  "default_variant_id": "default",
+  "variant_count": 10,
+  "spatial_mode": "contained",
+  "connector_count": 0,
+  "manufacturer_scope": "generic",
+  "documents_required": null,
+  "external_assets_required": null,
+  "created_at": "2026-08-11T00:00:00Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.8.0",
+    "mode": "simple_create",
+    "starter_contract": false
+  },
+  "assets": [],
+  "asset_count": 0
+}

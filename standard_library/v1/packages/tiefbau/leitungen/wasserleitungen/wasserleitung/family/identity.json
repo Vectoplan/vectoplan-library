@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "0efa81ac-253c-5587-a1c6-118060a484ae",
+  "family_id": "vp.tiefbau.leitungen.wasserleitungen.wasserleitung",
+  "slug": "wasserleitung",
+  "label": "Wasserleitung",
+  "description": "Druckrohr für Trink- und Betriebswasser.",
+  "object_kind": "adaptive_system",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

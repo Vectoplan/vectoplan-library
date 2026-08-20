@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "a67310e1-72b0-5958-8814-6090d640cfcf",
+  "family_id": "vp.ingenieurbau.bruecken.lager.brueckenlager",
+  "default_variant_id": "default",
+  "label": "Brückenlager",
+  "description": "Vereinfachtes Elastomer- und Topflager in Standardabmessungen.",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "bruecken",
+  "subcategory": "lager",
+  "classification_path": "ingenieurbau/bruecken/lager",
+  "source_path": "ingenieurbau/bruecken/lager/brueckenlager",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Brücken",
+    "subcategory": "Lager"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

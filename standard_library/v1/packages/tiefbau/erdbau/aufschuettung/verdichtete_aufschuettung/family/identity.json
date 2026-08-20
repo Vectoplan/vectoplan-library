@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "0d91f1e2-d0b9-55de-839c-218738460c67",
+  "family_id": "vp.tiefbau.erdbau.aufschuettung.verdichtete_aufschuettung",
+  "slug": "verdichtete_aufschuettung",
+  "label": "Verdichtete Aufschüttung",
+  "description": "Modellkörper für lagenweise verdichtete Erd- und Füllstoffe.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

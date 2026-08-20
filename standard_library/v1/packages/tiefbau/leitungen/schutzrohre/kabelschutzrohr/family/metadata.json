@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1.0",
+  "source": "create_flow",
+  "generator": "library-create-service",
+  "generator_version": "0.8.0",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "starter_contract": false
+}

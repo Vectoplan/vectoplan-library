@@ -1669,6 +1669,7 @@
         label: normalizedItem.label || normalizedItem.name || normalizedItem.title || "Item",
         description: normalizedItem.description || normalizedItem.text || "",
         object_kind: normalizedItem.object_kind || normalizedItem.kind || "",
+        icon_kind: normalizedItem.icon_kind || normalizedItem.iconKind || "",
 
         domain: normalizedItem.domain || "",
         category: normalizedItem.category || "",
@@ -1870,7 +1871,7 @@
       familyId,
       vplibUid
     ];
-    var knownTools = ["selection", "paint", "sculpt", "parcel", "parcel-grid", "ruler-laser", "copy-transform"];
+    var knownTools = ["selection", "room", "paint", "sculpt", "parcel", "parcel-grid", "ruler-laser", "copy-transform"];
     for (var index = 0; index < candidates.length; index += 1) {
       var candidate = cleanString(candidates[index]).toLowerCase().replace(/_/g, "-");
       ["vectoplan.world-edit.", "world-edit.", "world-edit-"].some(function (prefix) {
@@ -1982,10 +1983,28 @@
     var worldEditToolId = worldEditToolIdFromSlot(slot);
     var previewUrl = slotPreviewUrl(slot);
     var previewColor = slotPreviewColor(slot);
+    var iconSystem = window.VectoplanLibraryIcons;
+    var libraryIconKind = iconSystem && typeof iconSystem.kind === "function"
+      ? iconSystem.kind(slot)
+      : "block";
+    element.setAttribute("data-library-icon-kind", libraryIconKind);
     if (worldEditToolId) {
       element.setAttribute("data-has-texture", "false");
-      icon.hidden = false;
-      content.appendChild(icon);
+      if (iconSystem && typeof iconSystem.createTool === "function") {
+        icon.hidden = true;
+        content.appendChild(iconSystem.createTool(worldEditToolId, {
+          className: "vp-user-slot__tool-icon"
+        }));
+      } else {
+        icon.hidden = false;
+        content.appendChild(icon);
+      }
+    } else if (libraryIconKind !== "block" && iconSystem && typeof iconSystem.create === "function") {
+      element.setAttribute("data-has-texture", "false");
+      icon.hidden = true;
+      content.appendChild(iconSystem.create(slot, {
+        className: "vp-user-slot__library-icon"
+      }));
     } else if (previewUrl) {
       var cube = createTextureCube(previewUrl, "vp-user-slot__cube", previewColor);
       var preloader = new Image();
@@ -2007,14 +2026,17 @@
     } else {
       element.setAttribute("data-has-texture", "false");
       icon.hidden = true;
-      content.appendChild(createTextureCube("", "vp-user-slot__cube", previewColor));
+      content.appendChild(
+        iconSystem && typeof iconSystem.create === "function"
+          ? iconSystem.create(slot, { className: "vp-user-slot__library-icon" })
+          : createTextureCube("", "vp-user-slot__cube", previewColor)
+      );
     }
 
     var label = document.createElement("span");
     label.className = "vp-user-slot__label";
     label.textContent = slot.label || slot.family_id || slot.vplib_uid || "Item";
 
-    if (!worldEditToolId) content.appendChild(icon);
     content.appendChild(label);
 
     renderQuantityElement(element, slot);
@@ -2178,6 +2200,7 @@
     var worldEditToolId = worldEditToolIdFromSlot(slot);
     var worldEditIcons = {
       selection: "\u2317",
+      room: "R",
       paint: "\u270e",
       sculpt: "\u2248",
       parcel: "\u2316",
@@ -2363,6 +2386,7 @@
       label: cleanString(raw.label || raw.name || raw.title),
       description: cleanString(raw.description || raw.text),
       object_kind: cleanString(raw.object_kind || raw.objectKind || raw.kind),
+      icon_kind: cleanString(raw.icon_kind || raw.iconKind || normalizeObject(raw.payload).icon_kind),
 
       domain: cleanString(raw.domain),
       category: cleanString(raw.category),
@@ -2419,6 +2443,7 @@
       label: "",
       description: "",
       object_kind: "",
+      icon_kind: "",
       domain: "",
       category: "",
       subcategory: "",
@@ -2476,6 +2501,7 @@
         title: cleanString(element.dataset.itemTitle),
         description: cleanString(element.dataset.itemDescription),
         object_kind: cleanString(element.dataset.objectKind),
+        icon_kind: cleanString(element.dataset.iconKind),
         domain: cleanString(element.dataset.domain),
         category: cleanString(element.dataset.category),
         subcategory: cleanString(element.dataset.subcategory),

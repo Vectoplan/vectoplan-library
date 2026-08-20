@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.1.0",
+  "material_classes": [
+    "beton"
+  ],
+  "primary_material_class": "beton",
+  "source": "create_form"
+}

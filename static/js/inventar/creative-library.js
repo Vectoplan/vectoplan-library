@@ -3,7 +3,7 @@
   "use strict";
 
   var MODULE_NAME = "VectoplanCreativeLibrary";
-  var MODULE_VERSION = "1.5.0";
+  var MODULE_VERSION = "1.7.0";
   var DRAG_MIME = "application/x-vectoplan-vplib-item+json";
   var POINTER_DRAG_START = "vectoplan:creative-pointer-drag-start";
   var POINTER_DRAG_MOVE = "vectoplan:creative-pointer-drag-move";
@@ -15,6 +15,7 @@
   var WORLD_EDIT_STATE_REQUEST = "vectoplan:creative-inventory-request-user-inventory-state";
   var POINTER_DRAG_THRESHOLD = 6;
   var REQUEST_TIMEOUT_MS = 12000;
+  var AUTO_REFRESH_INTERVAL_MS = 10000;
   var SELECTORS = {
     grid: "[data-creative-library-grid]",
     search: "[data-creative-search]",
@@ -26,6 +27,8 @@
   var state = {
     initialized: false,
     loading: false,
+    refreshTimer: 0,
+    itemsSignature: "",
     items: [],
     query: "",
     selectedWorldEditToolId: "",
@@ -38,13 +41,16 @@
       parcelMask: true,
       parcelGridMode: "boundary",
       parcelGridSetback: 0,
-      parcelGridInfluence: 3
+      parcelGridInfluence: 3,
+      roomType: "wohnen",
+      roomLabel: "Raum"
     },
     errors: []
   };
 
   var WORLD_EDIT_TOOLS = [
     { id: "selection", label: "Selection Tool", icon: "\u2317", group: "basic-tools", ready: true, description: "Quader markieren, an sechs Flaechenpunkten anpassen und als Set, Wand, Fill, Replace oder Clear ausfuehren." },
+    { id: "room", label: "Räume", icon: "R", group: "basic-tools", ready: true, description: "Den mit dem Selection Tool markierten X/Y/Z-Bereich als semantischen Raum und Energiezone anlegen." },
     { id: "parcel", label: "Flurstück Tool", icon: "\u2316", group: "basic-tools", ready: true, description: "Flurstücke direkt im 3D-Editor projektweit auswählen oder abwählen." },
     { id: "parcel-grid", label: "Grundstücksraster", icon: "\u22d5", group: "basic-tools", ready: true, description: "Eine Flurstücksgrenze als Bauachse wählen und direkte Grenzbebauung oder einen festen Abstand vorgeben." },
     { id: "paint", label: "Paint Brush", icon: "\u270e", group: "basic-tools", ready: true, description: "Kugel-, Quader- und Zylinderpinsel mit Radius, Dichte und Wandstaerke." },
@@ -177,6 +183,17 @@
     return values;
   }
 
+  function bundledMaterialPreviewUrl(materialType) {
+    var normalized = clean(materialType).toLowerCase().replace(/-/g, "_");
+    if (normalized === "steel") return safePreviewUrl("/static/textures/materials/steel.webp");
+    if (["wood", "timber"].indexOf(normalized) >= 0) return safePreviewUrl("/static/textures/materials/timber.webp");
+    if (["brick", "masonry", "ceramic"].indexOf(normalized) >= 0) return safePreviewUrl("/static/textures/materials/masonry.webp");
+    if (["concrete", "reinforced_concrete", "natural_stone", "asphalt"].indexOf(normalized) >= 0) {
+      return safePreviewUrl("/static/textures/materials/concrete.webp");
+    }
+    return "";
+  }
+
   function normalizeAppearance(raw, payload, metadata, activeVariant, assets) {
     var definitionValues = activeVariant ? record(activeVariant.definition_values) : {};
     var textureAsset = assets.filter(function (asset) {
@@ -200,6 +217,7 @@
       metadata.materialType,
       "generic"
     ).toLowerCase();
+    if (!textureUrl) textureUrl = bundledMaterialPreviewUrl(materialType);
     var color = first(
       definitionValues["material.color_hint"],
       nestedValue(definitionValues, ["material", "color_hint"]),
@@ -229,6 +247,39 @@
       generateMipmaps: booleanValue(runtime.generate_mipmaps, true),
       anisotropy: Number(runtime.anisotropy || 4) || 4
     };
+  }
+
+  function semanticIconKind(raw, payload, activeVariant, domain, category, subcategory, label) {
+    if (window.VectoplanLibraryIcons && typeof window.VectoplanLibraryIcons.kind === "function") {
+      return window.VectoplanLibraryIcons.kind(Object.assign({}, raw, {
+        payload: payload,
+        selected_variant: activeVariant,
+        domain: domain,
+        category: category,
+        subcategory: subcategory,
+        label: label
+      }));
+    }
+    var values = activeVariant ? record(activeVariant.definition_values) : {};
+    var explicit = first(
+      values["inventory.icon_kind"],
+      values["geometry.profile_id"],
+      values["geometry.primitive_shape"],
+      raw.primitive_shape,
+      payload.primitive_shape
+    ).toLowerCase().replace(/-/g, "_");
+    var haystack = [explicit, domain, category, subcategory, label].join(" ").toLowerCase();
+    if (/window|fenster/.test(haystack)) return "window";
+    if (/door|t(ü|ue)r/.test(haystack)) return "door";
+    if (/pipe|rohr|leitung|conduit/.test(haystack)) return "pipe";
+    if (/manhole|schacht|ring|cylinder/.test(haystack)) return "cylinder";
+    if (/stair|treppe/.test(haystack)) return "stair";
+    if (/rail|gleis|schwelle/.test(haystack)) return "rail";
+    if (/column|st(ü|ue)tze|pfahl|pfeiler/.test(haystack)) return "column";
+    if (/beam|tr(a|ä|ae)ger|balken/.test(haystack)) return "beam";
+    if (/wall|wand|fassade|spund/.test(haystack)) return "wall";
+    if (/slab|decke|boden|dach|asphalt|pflaster|schicht|fahrbahn/.test(haystack)) return "slab";
+    return "block";
   }
 
 
@@ -295,6 +346,9 @@
     var iconText = first(icon.text, icon.label, raw.icon_text, label).replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2).toUpperCase() || "VP";
     var previewUrl = safePreviewUrl(first(preview.url, preview.src, raw.preview_url, raw.banner_url, appearance.textureUrl));
     var color = first(icon.color, appearance.color, raw.color, payload.color);
+    var iconKind = semanticIconKind(raw, payload, activeVariant, domain, category, subcategory, label);
+    var sortOrder = Number(activeVariant && record(activeVariant.definition_values)["inventory.sort_order"]);
+    if (!Number.isFinite(sortOrder)) sortOrder = 500;
 
     return {
       id: itemDbId,
@@ -313,6 +367,8 @@
       category: category,
       subcategory: subcategory,
       taxonomy_path: taxonomyPath,
+      icon_kind: iconKind,
+      sort_order: sortOrder,
       quantity: Number(raw.quantity || 1) || 1,
       source: first(raw.source, raw.source_scope, "creative-library"),
       scope: first(raw.scope, "editor"),
@@ -392,7 +448,36 @@
       seen[key] = true;
       result.push(item);
     });
-    return result.sort(function (left, right) { return left.label.localeCompare(right.label, "de"); });
+    var domainRank = { hochbau: 10, tiefbau: 20, ingenieurbau: 30, "world-edit": 90, all: 99 };
+    var categoryRank = {
+      oeffnungen: 10,
+      waende: 20,
+      tragwerk: 30,
+      treppen_rampen: 40,
+      decken: 50,
+      daecher: 60,
+      fassade: 70,
+      ausbau: 80,
+      boeden: 90,
+      leitungen: 10,
+      schaechte: 20,
+      strassen_wege: 30,
+      bahninfrastruktur: 40,
+      erdbau: 50,
+      bruecken: 10,
+      brueckentragwerk: 20,
+      stuetzbauwerke: 30,
+      tunnel: 40,
+      spezialtiefbau: 50
+    };
+    return result.sort(function (left, right) {
+      return (domainRank[left.domain] || 80) - (domainRank[right.domain] || 80)
+        || (categoryRank[left.category] || 80) - (categoryRank[right.category] || 80)
+        || left.category.localeCompare(right.category, "de")
+        || left.subcategory.localeCompare(right.subcategory, "de")
+        || left.sort_order - right.sort_order
+        || left.label.localeCompare(right.label, "de");
+    });
   }
 
   function safePreviewUrl(value) {
@@ -407,14 +492,19 @@
     }
   }
 
-  function createTextureCube(textureUrl, extraClassName) {
+  function createTextureCube(textureUrl, extraClassName, fallbackColor) {
     var cube = document.createElement("span");
     cube.className = "vp-inventory-cube " + (extraClassName || "");
     cube.setAttribute("aria-hidden", "true");
     ["front", "right", "top"].forEach(function (faceName) {
       var face = document.createElement("span");
       face.className = "vp-inventory-cube__face vp-inventory-cube__face--" + faceName;
-      face.style.backgroundImage = "url(\"" + textureUrl.replace(/[\"\\]/g, "\\$&") + "\")";
+      if (textureUrl) {
+        face.style.backgroundImage = "url(\"" + textureUrl.replace(/[\"\\]/g, "\\$&") + "\")";
+      }
+      if (/^#[0-9a-f]{3,8}$/i.test(fallbackColor || "")) {
+        face.style.backgroundColor = fallbackColor;
+      }
       cube.appendChild(face);
     });
     return cube;
@@ -428,6 +518,70 @@
       || objectKind === "material"
       || objectKind === "terrain_block"
       || objectKind === "voxel";
+  }
+
+  function createSemanticPreview(item, textureUrl) {
+    if (item.icon_kind === "block" && textureUrl) {
+      return createTextureCube(textureUrl, "vp-creative-card__cube", item.icon.color);
+    }
+    if (window.VectoplanLibraryIcons && typeof window.VectoplanLibraryIcons.create === "function") {
+      return window.VectoplanLibraryIcons.create(item, {
+        className: "vp-creative-card__semantic-preview"
+      });
+    }
+    var namespace = "http://www.w3.org/2000/svg";
+    var wrapper = document.createElement("span");
+    wrapper.className = "vp-creative-card__semantic-preview vp-creative-card__semantic-preview--" + item.icon_kind;
+    wrapper.style.setProperty("--vp-item-color", item.icon.color || "#718096");
+    wrapper.setAttribute("aria-hidden", "true");
+    var svg = document.createElementNS(namespace, "svg");
+    svg.setAttribute("viewBox", "0 0 64 64");
+    svg.setAttribute("focusable", "false");
+    svg.setAttribute("aria-hidden", "true");
+    function shape(name, attributes) {
+      var node = document.createElementNS(namespace, name);
+      Object.keys(attributes).forEach(function (key) { node.setAttribute(key, attributes[key]); });
+      svg.appendChild(node);
+      return node;
+    }
+    var fill = "var(--vp-item-color)";
+    var stroke = "#203047";
+    if (item.icon_kind === "pipe") {
+      shape("rect", { x: "11", y: "23", width: "42", height: "18", rx: "9", fill: fill, stroke: stroke, "stroke-width": "2" });
+      shape("ellipse", { cx: "52", cy: "32", rx: "7", ry: "9", fill: "#e9f2f7", stroke: stroke, "stroke-width": "2" });
+      shape("ellipse", { cx: "52", cy: "32", rx: "3.5", ry: "5", fill: "#52657a" });
+      shape("path", { d: "M15 26H45", stroke: "rgba(255,255,255,.72)", "stroke-width": "2", "stroke-linecap": "round" });
+    } else if (item.icon_kind === "window") {
+      shape("rect", { x: "13", y: "9", width: "38", height: "46", rx: "2", fill: "#d8f3ff", stroke: stroke, "stroke-width": "4" });
+      shape("path", { d: "M32 11V53M15 32H49", stroke: stroke, "stroke-width": "3" });
+      shape("path", { d: "M18 15L29 15L18 27Z", fill: "rgba(255,255,255,.8)" });
+    } else if (item.icon_kind === "door") {
+      shape("path", { d: "M14 56V9H46V56", fill: "none", stroke: stroke, "stroke-width": "4" });
+      shape("path", { d: "M19 13L45 17L45 54L19 56Z", fill: fill, stroke: stroke, "stroke-width": "2" });
+      shape("circle", { cx: "39", cy: "35", r: "2.3", fill: "#f8d36a", stroke: stroke, "stroke-width": "1" });
+    } else if (item.icon_kind === "cylinder" || item.icon_kind === "column") {
+      shape("path", { d: "M16 17C16 10 48 10 48 17V47C48 55 16 55 16 47Z", fill: fill, stroke: stroke, "stroke-width": "2" });
+      shape("ellipse", { cx: "32", cy: "17", rx: "16", ry: "7", fill: "rgba(255,255,255,.45)", stroke: stroke, "stroke-width": "2" });
+      if (item.icon_kind === "cylinder") shape("ellipse", { cx: "32", cy: "47", rx: "11", ry: "4", fill: "#52657a" });
+    } else if (item.icon_kind === "stair") {
+      shape("path", { d: "M9 52H21V42H31V32H41V22H54V52Z", fill: fill, stroke: stroke, "stroke-width": "2", "stroke-linejoin": "round" });
+      shape("path", { d: "M12 48L49 19", stroke: "rgba(255,255,255,.7)", "stroke-width": "2" });
+    } else if (item.icon_kind === "rail") {
+      shape("path", { d: "M19 9L12 55M45 9L52 55M18 19H46M15 32H49M13 45H51", fill: "none", stroke: stroke, "stroke-width": "4", "stroke-linecap": "round" });
+    } else if (item.icon_kind === "wall") {
+      shape("path", { d: "M8 21L47 11L56 18L17 29Z", fill: "rgba(255,255,255,.45)", stroke: stroke, "stroke-width": "2" });
+      shape("path", { d: "M17 29L56 18V44L17 55Z", fill: fill, stroke: stroke, "stroke-width": "2" });
+      shape("path", { d: "M8 21L17 29V55L8 47Z", fill: "rgba(0,0,0,.18)", stroke: stroke, "stroke-width": "2" });
+    } else if (item.icon_kind === "slab") {
+      shape("path", { d: "M7 27L42 14L57 24L22 38Z", fill: "rgba(255,255,255,.45)", stroke: stroke, "stroke-width": "2" });
+      shape("path", { d: "M22 38L57 24V37L22 51Z", fill: fill, stroke: stroke, "stroke-width": "2" });
+      shape("path", { d: "M7 27L22 38V51L7 40Z", fill: "rgba(0,0,0,.18)", stroke: stroke, "stroke-width": "2" });
+    } else {
+      shape("path", { d: "M9 25L41 13L55 23L23 36V53L9 43Z", fill: fill, stroke: stroke, "stroke-width": "2" });
+      shape("path", { d: "M23 36L55 23V40L23 53Z", fill: "rgba(0,0,0,.2)", stroke: stroke, "stroke-width": "2" });
+    }
+    wrapper.appendChild(svg);
+    return wrapper;
   }
 
   function worldEditToolItem(tool) {
@@ -497,6 +651,7 @@
       source: item.source,
       scope: item.scope,
       mode: item.mode,
+      icon_kind: item.icon_kind,
       icon: item.icon,
       preview: item.preview,
       assets: item.assets,
@@ -628,6 +783,7 @@
     var brushSettings = panel.querySelector("[data-world-edit-brush-settings]");
     var utilitySettings = panel.querySelector("[data-world-edit-utility-settings]");
     var parcelGridSettings = panel.querySelector("[data-world-edit-parcel-grid-settings]");
+    var roomSettings = panel.querySelector("[data-world-edit-room-settings]");
     var utilityTitle = panel.querySelector("[data-world-edit-utility-title]");
     var utilityText = panel.querySelector("[data-world-edit-utility-text]");
     var operationField = panel.querySelector("[data-world-edit-operation-field]");
@@ -639,10 +795,11 @@
     if (panelSubtitle) panelSubtitle.textContent = "World Edit Einstellungen";
     if (title) title.textContent = tool.label;
     if (description) description.textContent = tool.description;
-    if (selectionSettings) selectionSettings.hidden = tool.id !== "selection";
+    if (selectionSettings) selectionSettings.hidden = ["selection", "room"].indexOf(tool.id) < 0;
     if (brushSettings) brushSettings.hidden = tool.id !== "paint" && tool.id !== "sculpt";
     if (utilitySettings) utilitySettings.hidden = ["parcel", "parcel-grid", "ruler-laser", "copy-transform"].indexOf(tool.id) < 0;
     if (parcelGridSettings) parcelGridSettings.hidden = tool.id !== "parcel-grid";
+    if (roomSettings) roomSettings.hidden = tool.id !== "room";
     if (utilityTitle) utilityTitle.textContent = tool.label;
     if (utilityText) utilityText.textContent = tool.id === "parcel"
       ? "Flurstück anvisieren und anklicken. Die Auswahl wird sofort mit Map und Projekt synchronisiert."
@@ -651,9 +808,9 @@
       : tool.id === "ruler-laser"
         ? "Linksklick halten, Kamera bis zum zweiten Punkt bewegen und loslassen."
         : "Zuerst mit Selection markieren, dann Copy, Cut oder Paste wählen.";
-    if (operationField) operationField.hidden = ["parcel", "parcel-grid", "ruler-laser"].indexOf(tool.id) >= 0;
+    if (operationField) operationField.hidden = ["parcel", "parcel-grid", "ruler-laser", "room"].indexOf(tool.id) >= 0;
     if (parcelMask) parcelMask.hidden = ["parcel", "parcel-grid", "ruler-laser"].indexOf(tool.id) >= 0;
-    if (actions) actions.hidden = ["selection", "copy-transform"].indexOf(tool.id) < 0;
+    if (actions) actions.hidden = ["selection", "copy-transform", "room"].indexOf(tool.id) < 0;
     if (operationSelect) {
       var clipboardTool = tool.id === "copy-transform";
       if (operationSelect.dataset.mode !== (clipboardTool ? "clipboard" : "world")) {
@@ -779,7 +936,7 @@
       status.textContent = clean(detail.status);
       status.dataset.ready = detail.statusKind === "error" || detail.statusKind === "warning" ? "false" : "true";
     }
-    if (actions) actions.hidden = ["selection", "copy-transform"].indexOf(state.selectedWorldEditToolId) < 0;
+    if (actions) actions.hidden = ["selection", "copy-transform", "room"].indexOf(state.selectedWorldEditToolId) < 0;
     if (execute) execute.disabled = Boolean(detail.busy) || detail.canExecute === false;
     if (reset) reset.disabled = Boolean(detail.busy);
     if (parcelGridInfluence && Number.isFinite(Number(detail.parcelGridInfluence))) {
@@ -814,7 +971,9 @@
       parcelMask: state.worldEditSettings.parcelMask,
       parcelGridMode: state.worldEditSettings.parcelGridMode,
       parcelGridSetback: state.worldEditSettings.parcelGridSetback,
-      parcelGridInfluence: state.worldEditSettings.parcelGridInfluence
+      parcelGridInfluence: state.worldEditSettings.parcelGridInfluence,
+      roomType: state.worldEditSettings.roomType,
+      roomLabel: state.worldEditSettings.roomLabel
     });
   }
 
@@ -828,6 +987,8 @@
     var parcelGridMode = document.querySelector("[data-world-edit-config-parcel-grid-mode]");
     var parcelGridSetback = document.querySelector("[data-world-edit-config-setback]");
     var parcelGridInfluence = document.querySelector("[data-world-edit-config-influence]");
+    var roomType = document.querySelector("[data-world-edit-config-room-type]");
+    var roomLabel = document.querySelector("[data-world-edit-config-room-label]");
 
     function readAndEmit() {
       state.worldEditSettings.operation = operation ? operation.value : "set";
@@ -839,11 +1000,13 @@
       state.worldEditSettings.parcelGridMode = parcelGridMode ? parcelGridMode.value : "boundary";
       state.worldEditSettings.parcelGridSetback = Number(parcelGridSetback ? parcelGridSetback.value : 0);
       state.worldEditSettings.parcelGridInfluence = Number(parcelGridInfluence ? parcelGridInfluence.value : 3);
+      state.worldEditSettings.roomType = roomType ? roomType.value : "wohnen";
+      state.worldEditSettings.roomLabel = clean(roomLabel ? roomLabel.value : "Raum") || "Raum";
       updateWorldEditSettingOutputs();
       emitWorldEditSettings();
     }
 
-    [operation, shape, parcelMask, parcelGridMode].forEach(function (input) {
+    [operation, shape, parcelMask, parcelGridMode, roomType, roomLabel].forEach(function (input) {
       if (input) input.addEventListener("change", readAndEmit);
     });
     [radius, density, wall, parcelGridSetback, parcelGridInfluence].forEach(function (input) {
@@ -913,6 +1076,7 @@
     card.dataset.packageId = item.package_id;
     card.dataset.variantId = item.variant_id;
     card.dataset.objectKind = item.object_kind;
+    card.dataset.iconKind = item.icon_kind;
     card.dataset.domain = "world-edit";
     card.dataset.category = tool.group;
     card.dataset.subcategory = tool.ready ? "built-in" : "roadmap";
@@ -931,15 +1095,28 @@
 
     var preview = document.createElement("span");
     preview.className = "vp-creative-card__preview vp-world-edit-card__preview";
-    var icon = document.createElement("span");
-    icon.className = "vp-world-edit-card__icon";
-    icon.textContent = tool.icon;
+    var iconSystem = window.VectoplanLibraryIcons;
+    var icon = iconSystem && typeof iconSystem.createTool === "function"
+      ? iconSystem.createTool(tool, { className: "vp-world-edit-card__symbol" })
+      : document.createElement("span");
+    if (!icon.classList.contains("vp-library-tool-icon")) {
+      icon.className = "vp-world-edit-card__icon";
+      icon.textContent = tool.icon;
+    }
     preview.appendChild(icon);
     var badge = document.createElement("small");
     badge.className = "vp-world-edit-card__badge";
     badge.textContent = tool.ready ? "BETA" : "PLAN";
     preview.appendChild(badge);
     card.appendChild(preview);
+
+    var content = document.createElement("span");
+    content.className = "vp-creative-card__content";
+    var title = document.createElement("strong");
+    title.className = "vp-creative-card__title";
+    title.textContent = tool.label;
+    content.appendChild(title);
+    card.appendChild(content);
 
     var tooltip = document.createElement("span");
     tooltip.className = "vp-creative-card__tooltip";
@@ -996,26 +1173,14 @@
     preview.className = "vp-creative-card__preview vp-creative-card__banner";
     preview.setAttribute("aria-hidden", "true");
     var previewUrl = safePreviewUrl(item.preview.url);
-    if (previewUrl) {
-      if (isBlockLikeObjectKind(item.object_kind)) {
-        preview.appendChild(createTextureCube(previewUrl, "vp-creative-card__cube"));
-      } else {
-        var image = document.createElement("img");
-        image.className = "vp-creative-card__preview-image vp-creative-card__banner-image";
-        image.src = previewUrl;
-        image.alt = "";
-        image.loading = "lazy";
-        image.decoding = "async";
-        image.draggable = false;
-        preview.appendChild(image);
-      }
-    }
-    var icon = document.createElement("span");
-    icon.className = "vp-creative-card__icon";
-    icon.dataset.creativeCardIcon = "true";
-    icon.textContent = item.icon.text;
-    if (/^#[0-9a-f]{3,8}$/i.test(item.icon.color)) icon.style.backgroundColor = item.icon.color;
-    preview.appendChild(icon);
+    preview.appendChild(createSemanticPreview(item, previewUrl));
+
+    var content = document.createElement("div");
+    content.className = "vp-creative-card__content";
+    var title = document.createElement("strong");
+    title.className = "vp-creative-card__title";
+    title.textContent = item.label.replace(/\s+-\s+.+$/, "");
+    content.appendChild(title);
 
     var tooltip = document.createElement("div");
     tooltip.className = "vp-creative-card__tooltip";
@@ -1031,10 +1196,15 @@
     tooltipDetail.textContent = item.variants.length > 1
       ? (variantDetail ? "Standard: " + variantDetail + " · " : "") + item.variants.length + " Dicken hinterlegt"
       : first(variantDetail, item.description, item.appearance.materialType);
+    if (item.variants.length > 1) {
+      tooltipDetail.textContent = (variantDetail ? "Standard: " + variantDetail + " / " : "")
+        + item.variants.length + " Varianten hinterlegt";
+    }
     tooltip.appendChild(tooltipDetail);
 
     card.dataset.hasTexture = previewUrl ? "true" : "false";
     card.appendChild(preview);
+    card.appendChild(content);
     card.appendChild(tooltip);
     bindCreativeCardDrag(card, item);
     return card;
@@ -1052,6 +1222,18 @@
         }
       }
     } catch (error) { state.errors.push(String(error)); }
+  }
+
+  function itemsSignature(items) {
+    return items.map(function (item) {
+      return [
+        first(item.vplib_uid, item.vplibUid, item.family_id, item.familyId, item.id),
+        first(item.runtimeBlockTypeId, item.blockTypeId),
+        (Array.isArray(item.variants) ? item.variants : []).map(function (variant) {
+          return first(variant.variant_id, variant.variantId, variant.id) + ":" + first(variant.revision_hash);
+        }).join(",")
+      ].join("|");
+    }).sort().join(";");
   }
 
   function updateEmptyState() {
@@ -1093,6 +1275,7 @@
     items.forEach(function (item) { fragment.appendChild(createCard(item)); });
     grid.appendChild(fragment);
     state.items = items;
+    state.itemsSignature = itemsSignature(items);
     if (state.selectedWorldEditToolId) {
       var selectedTool = findWorldEditTool(state.selectedWorldEditToolId);
       var selectedCard = document.querySelector('[data-world-edit-tool-id="' + state.selectedWorldEditToolId + '"]');
@@ -1161,6 +1344,44 @@
     });
   }
 
+  function refreshInBackground() {
+    var grid = document.querySelector(SELECTORS.grid);
+    if (!grid || state.loading || document.hidden || document.querySelector(".vp-creative-card--dragging")) {
+      return Promise.resolve(state.items);
+    }
+
+    var primaryUrl = clean(grid.dataset.creativeItemsUrl);
+    var fallbackUrl = clean(grid.dataset.publishedItemsUrl);
+    if (!primaryUrl && !fallbackUrl) return Promise.resolve(state.items);
+
+    function requestWithFallback() {
+      if (!primaryUrl) return requestItems(fallbackUrl);
+      return requestItems(primaryUrl).then(function (rawItems) {
+        if (rawItems.length || !fallbackUrl) return rawItems;
+        return requestItems(fallbackUrl);
+      });
+    }
+
+    return requestWithFallback().then(function (rawItems) {
+      var items = uniqueItems(rawItems);
+      if (itemsSignature(items) !== state.itemsSignature) render(items);
+      return items;
+    }).catch(function (error) {
+      state.errors.push(String(error));
+      return state.items;
+    });
+  }
+
+  function startAutoRefresh() {
+    if (state.refreshTimer) return;
+    state.refreshTimer = window.setInterval(function () {
+      void refreshInBackground();
+    }, AUTO_REFRESH_INTERVAL_MS);
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) void refreshInBackground();
+    });
+  }
+
   function bindInventoryToggleKeys() {
     document.addEventListener("keydown", function (event) {
       if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -1209,10 +1430,11 @@
     bindWorldEditActions();
     document.addEventListener("vectoplan:taxonomy-filter-applied", function () { applySearch(); });
     void load();
+    startAutoRefresh();
     postDragMessage(WORLD_EDIT_STATE_REQUEST, null, { reason: "creative-inventory-ready" });
   }
 
-  window[MODULE_NAME] = { init: init, load: load, applySearch: applySearch, getState: function () { return state; } };
+  window[MODULE_NAME] = { init: init, load: load, refresh: refreshInBackground, applySearch: applySearch, getState: function () { return state; } };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();
 })();

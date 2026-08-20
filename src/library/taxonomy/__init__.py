@@ -28,7 +28,7 @@ Canonical taxonomy file:
     services/vectoplan-library/src/library/taxonomy/data/taxonomy.v1.json
 
 Canonical source path:
-    src/library/source/{domain}/{category}/{subcategory}/{family_slug}
+    standard_library/v1/packages/{domain}/{category}/{subcategory}/{family_slug}
 
 Canonical family_id:
     vp.{domain}.{category}.{subcategory}.{family_slug}
@@ -246,7 +246,7 @@ def get_taxonomy_package_info() -> Dict[str, Any]:
             "validator": f"{__name__}.{_VALIDATOR_MODULE}",
             "service": f"{__name__}.{_SERVICE_MODULE}",
         },
-        "canonical_source_path_pattern": "src/library/source/{domain}/{category}/{subcategory}/{family_slug}",
+        "canonical_source_path_pattern": "standard_library/v1/packages/{domain}/{category}/{subcategory}/{family_slug}",
         "family_id_pattern": "vp.{domain}.{category}.{subcategory}.{family_slug}",
         "package_id_pattern": "vplib.vp.{domain}.{category}.{subcategory}.{family_slug}",
     }

@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "431c2667-2144-5cd0-b886-7ef4c0a95969",
+  "family_id": "vp.hochbau.decken.massivdecken.stahlbetondecke",
+  "default_variant_id": "default",
+  "label": "Stahlbetondecke",
+  "description": "Massive Geschossdecke aus Stahlbeton.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "decken",
+  "subcategory": "massivdecken",
+  "classification_path": "hochbau/decken/massivdecken",
+  "source_path": "hochbau/decken/massivdecken/stahlbetondecke",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Decken",
+    "subcategory": "Massivdecken"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

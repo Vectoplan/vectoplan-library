@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "670627ce-ffe8-5fb1-93f6-14ee840e565a",
+  "family_id": "vp.tiefbau.strassen_wege.rinnen.entwaesserungsrinne",
+  "default_variant_id": "default",
+  "label": "Entwässerungsrinne",
+  "description": "Linienentwässerung für Verkehrs- und Freiflächen.",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "strassen_wege",
+  "subcategory": "rinnen",
+  "classification_path": "tiefbau/strassen_wege/rinnen",
+  "source_path": "tiefbau/strassen_wege/rinnen/entwaesserungsrinne",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Straßen und Wege",
+    "subcategory": "Rinnen"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

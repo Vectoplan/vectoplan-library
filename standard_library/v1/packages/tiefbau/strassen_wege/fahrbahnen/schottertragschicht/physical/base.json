@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "48dc2cbb-a7f0-501a-bb17-08c57c6d7f19",
+  "family_id": "vp.tiefbau.strassen_wege.fahrbahnen.schottertragschicht",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "sonstiges"
+  ]
+}

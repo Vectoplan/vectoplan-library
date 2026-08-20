@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1.0",
+  "width": 0.8,
+  "height": 0.5,
+  "depth": 0.8,
+  "unit": "m",
+  "width_mm": 800,
+  "height_mm": 500,
+  "depth_mm": 800,
+  "source": "manual_dimensions"
+}

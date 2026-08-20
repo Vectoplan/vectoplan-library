@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "dd95e99c-dda9-5b4d-b1fb-c96ae58c3eb2",
+  "family_id": "vp.tiefbau.bahninfrastruktur.schwellen.bahnschwelle",
+  "slug": "bahnschwelle",
+  "label": "Bahnschwelle",
+  "description": "Vereinfachte Beton- und Holzschwellen mit typischen Abmessungen.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

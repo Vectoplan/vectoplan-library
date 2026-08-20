@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "48dc2cbb-a7f0-501a-bb17-08c57c6d7f19",
+  "family_id": "vp.tiefbau.strassen_wege.fahrbahnen.schottertragschicht",
+  "slug": "schottertragschicht",
+  "label": "Schottertragschicht",
+  "description": "Ungebundene Tragschicht aus gebrochenem Gestein.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

@@ -1,0 +1,58 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "vplib_uid": "de8cc456-c23a-5c4c-9260-e3902de09075",
+  "package_id": "vplib.vp.hochbau.fassade.putzfassaden.eps_fassadendaemmung",
+  "family_id": "vp.hochbau.fassade.putzfassaden.eps_fassadendaemmung",
+  "family_slug": "eps_fassadendaemmung",
+  "family_name": "EPS-Fassadendämmung",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "fassade",
+  "subcategory": "putzfassaden",
+  "classification": {
+    "domain": "hochbau",
+    "category": "fassade",
+    "subcategory": "putzfassaden",
+    "classification_path": "hochbau/fassade/putzfassaden",
+    "labels": {
+      "domain": "Hochbau",
+      "category": "Fassade",
+      "subcategory": "Putzfassaden"
+    },
+    "object_kind": "cell_block"
+  },
+  "classification_path": "hochbau/fassade/putzfassaden",
+  "source_path": "hochbau/fassade/putzfassaden/eps_fassadendaemmung",
+  "default_variant_id": "default",
+  "variant_count": 9,
+  "spatial_mode": "contained",
+  "connector_count": 0,
+  "manufacturer_scope": "generic",
+  "documents_required": false,
+  "external_assets_required": false,
+  "created_at": "2026-08-11T00:00:00Z",
+  "created_by": "library-create-service",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  },
+  "generator": {
+    "component": "library-create-service",
+    "version": "0.8.0",
+    "mode": "simple_create",
+    "starter_contract": true
+  },
+  "assets": [],
+  "asset_count": 0
+}

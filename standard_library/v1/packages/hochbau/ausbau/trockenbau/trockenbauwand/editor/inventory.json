@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "97977d40-d33d-5d5b-8794-969b6cb57caa",
+  "family_id": "vp.hochbau.ausbau.trockenbau.trockenbauwand",
+  "default_variant_id": "default",
+  "label": "Trockenbauwand",
+  "description": "Leichte Metallständerwand mit Gipskartonbekleidung.",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "ausbau",
+  "subcategory": "trockenbau",
+  "classification_path": "hochbau/ausbau/trockenbau",
+  "source_path": "hochbau/ausbau/trockenbau/trockenbauwand",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Ausbau",
+    "subcategory": "Trockenbau"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "43f2abf9-dabd-5b98-b185-d259382f5fd1",
+  "family_id": "vp.ingenieurbau.stuetzbauwerke.kopfbalken.pfeilerkopfbalken",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "stahlbeton"
+  ]
+}

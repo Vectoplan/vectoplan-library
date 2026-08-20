@@ -152,6 +152,15 @@ def _load_db() -> Any:
 
 db = _load_db()
 
+# The asset/document mappers below reference LibraryFile and
+# LibraryFileVersion by class name. Register those dependency classes before a
+# direct import of this module can trigger SQLAlchemy mapper configuration
+# (for example through the manufacturer product API).
+try:
+    __import__("models.library_files")
+except ImportError:  # pragma: no cover - alternate package root
+    __import__("src.models.library_files")
+
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -799,40 +808,40 @@ class CreativeLibraryItem(TimestampMixin, JsonMixin, db.Model):
         back_populates="family",
         cascade="all, delete-orphan",
         foreign_keys="CreativeLibraryRevision.family_db_id",
-        lazy="selectin",
+        lazy="select",
     )
     current_revision = db.relationship(
         "CreativeLibraryRevision",
         foreign_keys=[current_revision_id],
         post_update=True,
-        lazy="joined",
+        lazy="select",
     )
     variants = db.relationship(
         "CreativeLibraryVariant",
         back_populates="family",
         cascade="all, delete-orphan",
         foreign_keys="CreativeLibraryVariant.family_db_id",
-        lazy="selectin",
+        lazy="select",
     )
     assets = db.relationship(
         "CreativeLibraryAsset",
         back_populates="family",
         cascade="all, delete-orphan",
         foreign_keys="CreativeLibraryAsset.family_db_id",
-        lazy="selectin",
+        lazy="select",
     )
     documents = db.relationship(
         "CreativeLibraryDocument",
         back_populates="family",
         cascade="all, delete-orphan",
         foreign_keys="CreativeLibraryDocument.family_db_id",
-        lazy="selectin",
+        lazy="select",
     )
     inventory_slots = db.relationship(
         "CreativeLibraryInventorySlot",
         back_populates="family",
         foreign_keys="CreativeLibraryInventorySlot.family_db_id",
-        lazy="selectin",
+        lazy="select",
     )
 
     __table_args__ = (
@@ -1214,12 +1223,12 @@ class CreativeLibraryScanRun(TimestampMixin, JsonMixin, db.Model):
     meta = db.Column(db.JSON, nullable=False, default=dict)
     metadata_json = db.Column(db.JSON, nullable=False, default=dict)
 
-    revisions = db.relationship("CreativeLibraryRevision", back_populates="scan_run", lazy="selectin")
+    revisions = db.relationship("CreativeLibraryRevision", back_populates="scan_run", lazy="select")
     issues = db.relationship(
         "CreativeLibraryScanIssue",
         back_populates="scan_run",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="select",
     )
 
     __table_args__ = (
@@ -1441,38 +1450,38 @@ class CreativeLibraryRevision(TimestampMixin, JsonMixin, db.Model):
         "CreativeLibraryItem",
         back_populates="revisions",
         foreign_keys=[family_db_id],
-        lazy="joined",
+        lazy="select",
     )
     item = db.relationship(
         "CreativeLibraryItem",
         foreign_keys=[item_id],
-        lazy="joined",
+        lazy="select",
     )
     scan_run = db.relationship(
         "CreativeLibraryScanRun",
         back_populates="revisions",
-        lazy="joined",
+        lazy="select",
     )
     variants = db.relationship(
         "CreativeLibraryVariant",
         back_populates="revision",
         cascade="all, delete-orphan",
         foreign_keys="CreativeLibraryVariant.revision_id",
-        lazy="selectin",
+        lazy="select",
     )
     assets = db.relationship(
         "CreativeLibraryAsset",
         back_populates="revision",
         cascade="all, delete-orphan",
         foreign_keys="CreativeLibraryAsset.revision_id",
-        lazy="selectin",
+        lazy="select",
     )
     document_rows = db.relationship(
         "CreativeLibraryDocument",
         back_populates="revision",
         cascade="all, delete-orphan",
         foreign_keys="CreativeLibraryDocument.revision_id",
-        lazy="selectin",
+        lazy="select",
     )
 
     __table_args__ = (
@@ -1697,21 +1706,21 @@ class CreativeLibraryVariant(TimestampMixin, JsonMixin, db.Model):
     created_by_user_id = db.Column(db.BigInteger, nullable=True, index=True)
     updated_by_user_id = db.Column(db.BigInteger, nullable=True, index=True)
 
-    family = db.relationship("CreativeLibraryItem", back_populates="variants", foreign_keys=[family_db_id], lazy="joined")
-    item = db.relationship("CreativeLibraryItem", foreign_keys=[item_id], lazy="joined")
-    revision = db.relationship("CreativeLibraryRevision", back_populates="variants", foreign_keys=[revision_id], lazy="joined")
+    family = db.relationship("CreativeLibraryItem", back_populates="variants", foreign_keys=[family_db_id], lazy="select")
+    item = db.relationship("CreativeLibraryItem", foreign_keys=[item_id], lazy="select")
+    revision = db.relationship("CreativeLibraryRevision", back_populates="variants", foreign_keys=[revision_id], lazy="select")
 
     assets = db.relationship(
         "CreativeLibraryAsset",
         back_populates="variant",
         foreign_keys="CreativeLibraryAsset.variant_db_id",
-        lazy="selectin",
+        lazy="select",
     )
     documents = db.relationship(
         "CreativeLibraryDocument",
         back_populates="variant",
         foreign_keys="CreativeLibraryDocument.variant_db_id",
-        lazy="selectin",
+        lazy="select",
     )
 
     __table_args__ = (
@@ -1907,12 +1916,12 @@ class CreativeLibraryAsset(TimestampMixin, JsonMixin, db.Model):
     meta = db.Column(db.JSON, nullable=False, default=dict)
     metadata_json = db.Column(db.JSON, nullable=False, default=dict)
 
-    family = db.relationship("CreativeLibraryItem", back_populates="assets", foreign_keys=[family_db_id], lazy="joined")
-    item = db.relationship("CreativeLibraryItem", foreign_keys=[item_id], lazy="joined")
-    revision = db.relationship("CreativeLibraryRevision", back_populates="assets", foreign_keys=[revision_id], lazy="joined")
-    variant = db.relationship("CreativeLibraryVariant", back_populates="assets", foreign_keys=[variant_db_id], lazy="joined")
-    library_file = db.relationship("LibraryFile", foreign_keys=[library_file_id], lazy="joined")
-    library_file_version = db.relationship("LibraryFileVersion", foreign_keys=[library_file_version_id], lazy="joined")
+    family = db.relationship("CreativeLibraryItem", back_populates="assets", foreign_keys=[family_db_id], lazy="select")
+    item = db.relationship("CreativeLibraryItem", foreign_keys=[item_id], lazy="select")
+    revision = db.relationship("CreativeLibraryRevision", back_populates="assets", foreign_keys=[revision_id], lazy="select")
+    variant = db.relationship("CreativeLibraryVariant", back_populates="assets", foreign_keys=[variant_db_id], lazy="select")
+    library_file = db.relationship("LibraryFile", foreign_keys=[library_file_id], lazy="select")
+    library_file_version = db.relationship("LibraryFileVersion", foreign_keys=[library_file_version_id], lazy="select")
 
     __table_args__ = (
         db.Index("ix_creative_library_assets_family_role", "family_db_id", "role"),
@@ -2090,12 +2099,12 @@ class CreativeLibraryDocument(TimestampMixin, JsonMixin, db.Model):
     meta = db.Column(db.JSON, nullable=False, default=dict)
     metadata_json = db.Column(db.JSON, nullable=False, default=dict)
 
-    family = db.relationship("CreativeLibraryItem", back_populates="documents", foreign_keys=[family_db_id], lazy="joined")
-    item = db.relationship("CreativeLibraryItem", foreign_keys=[item_id], lazy="joined")
-    revision = db.relationship("CreativeLibraryRevision", back_populates="document_rows", foreign_keys=[revision_id], lazy="joined")
-    variant = db.relationship("CreativeLibraryVariant", back_populates="documents", foreign_keys=[variant_db_id], lazy="joined")
-    library_file = db.relationship("LibraryFile", foreign_keys=[library_file_id], lazy="joined")
-    library_file_version = db.relationship("LibraryFileVersion", foreign_keys=[library_file_version_id], lazy="joined")
+    family = db.relationship("CreativeLibraryItem", back_populates="documents", foreign_keys=[family_db_id], lazy="select")
+    item = db.relationship("CreativeLibraryItem", foreign_keys=[item_id], lazy="select")
+    revision = db.relationship("CreativeLibraryRevision", back_populates="document_rows", foreign_keys=[revision_id], lazy="select")
+    variant = db.relationship("CreativeLibraryVariant", back_populates="documents", foreign_keys=[variant_db_id], lazy="select")
+    library_file = db.relationship("LibraryFile", foreign_keys=[library_file_id], lazy="select")
+    library_file_version = db.relationship("LibraryFileVersion", foreign_keys=[library_file_version_id], lazy="select")
 
     __table_args__ = (
         db.UniqueConstraint("revision_id", "relative_path", name="uq_creative_library_document_revision_path"),
@@ -2248,9 +2257,9 @@ class CreativeLibraryScanIssue(TimestampMixin, JsonMixin, db.Model):
     meta = db.Column(db.JSON, nullable=False, default=dict)
     metadata_json = db.Column(db.JSON, nullable=False, default=dict)
 
-    scan_run = db.relationship("CreativeLibraryScanRun", back_populates="issues", lazy="joined")
-    family = db.relationship("CreativeLibraryItem", foreign_keys=[family_db_id], lazy="joined")
-    revision = db.relationship("CreativeLibraryRevision", foreign_keys=[revision_id], lazy="joined")
+    scan_run = db.relationship("CreativeLibraryScanRun", back_populates="issues", lazy="select")
+    family = db.relationship("CreativeLibraryItem", foreign_keys=[family_db_id], lazy="select")
+    revision = db.relationship("CreativeLibraryRevision", foreign_keys=[revision_id], lazy="select")
 
     __table_args__ = (
         db.Index("ix_creative_library_scan_issues_run_severity", "scan_run_id", "severity"),
@@ -2421,8 +2430,8 @@ class CreativeLibraryInventorySlot(TimestampMixin, JsonMixin, db.Model):
     meta = db.Column(db.JSON, nullable=False, default=dict)
     metadata_json = db.Column(db.JSON, nullable=False, default=dict)
 
-    family = db.relationship("CreativeLibraryItem", back_populates="inventory_slots", foreign_keys=[family_db_id], lazy="joined")
-    item = db.relationship("CreativeLibraryItem", foreign_keys=[item_id], lazy="joined")
+    family = db.relationship("CreativeLibraryItem", back_populates="inventory_slots", foreign_keys=[family_db_id], lazy="select")
+    item = db.relationship("CreativeLibraryItem", foreign_keys=[item_id], lazy="select")
 
     __table_args__ = (
         db.UniqueConstraint("inventory_key", "slot_index", name="uq_creative_library_inventory_key_slot"),
@@ -2538,6 +2547,318 @@ class CreativeLibraryInventorySlot(TimestampMixin, JsonMixin, db.Model):
 # Repository-compatible aliases
 # ---------------------------------------------------------------------------
 
+class CreativeLibraryProductVariant(TimestampMixin, JsonMixin, db.Model):
+    """Commercial manufacturer product linked to one technical VPLIB family.
+
+    Product catalog data intentionally lives outside ``creative_library_variants``.
+    A family therefore stays compact even when many manufacturers publish SKUs.
+    """
+
+    __tablename__ = "creative_library_product_variants"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    uid = db.Column(db.String(MAX_UID_LENGTH), nullable=False, unique=True, default=new_uid, index=True)
+    family_db_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("creative_library_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    base_variant_db_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("creative_library_variants.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    vplib_uid = db.Column(db.String(MAX_VPLIB_UID_LENGTH), nullable=True, index=True)
+    family_id = db.Column(db.String(MAX_FAMILY_ID_LENGTH), nullable=True, index=True)
+    base_variant_id = db.Column(db.String(MAX_VARIANT_ID_LENGTH), nullable=True, index=True)
+
+    manufacturer_org_id = db.Column(db.String(MAX_OWNER_SCOPE_LENGTH), nullable=False, index=True)
+    brand = db.Column(db.String(MAX_LABEL_LENGTH), nullable=True, index=True)
+    product_name = db.Column(db.String(MAX_LABEL_LENGTH), nullable=False, index=True)
+    sku = db.Column(db.String(MAX_FIELD_LENGTH), nullable=False, index=True)
+    gtin = db.Column(db.String(MAX_FIELD_LENGTH), nullable=True, index=True)
+    description = db.Column(db.Text, nullable=True)
+    product_url = db.Column(db.String(MAX_PATH_LENGTH), nullable=True)
+
+    status = db.Column(db.String(MAX_STATUS_LENGTH), nullable=False, default="draft", index=True)
+    active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    visible = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    submitted_by_subject = db.Column(db.String(MAX_OWNER_SCOPE_LENGTH), nullable=True, index=True)
+    approved_by_subject = db.Column(db.String(MAX_OWNER_SCOPE_LENGTH), nullable=True, index=True)
+    submitted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    approved_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    properties_json = db.Column(db.JSON, nullable=False, default=dict)
+    metadata_json = db.Column(db.JSON, nullable=False, default=dict)
+
+    family = db.relationship("CreativeLibraryItem", foreign_keys=[family_db_id], lazy="select")
+    base_variant = db.relationship("CreativeLibraryVariant", foreign_keys=[base_variant_db_id], lazy="select")
+    locations = db.relationship(
+        "CreativeLibraryProductAvailability",
+        back_populates="product_variant",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="select",
+        order_by="CreativeLibraryProductAvailability.sort_order",
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "family_db_id",
+            "manufacturer_org_id",
+            "sku",
+            name="uq_creative_library_product_family_org_sku",
+        ),
+        db.Index("ix_creative_library_products_family_status", "family_db_id", "status", "active"),
+        db.Index("ix_creative_library_products_org_status", "manufacturer_org_id", "status", "active"),
+    )
+
+    @classmethod
+    def create_from_payload(
+        cls,
+        *,
+        family: CreativeLibraryItem,
+        payload: Mapping[str, Any],
+        submitted_by_subject: Any = None,
+        base_variant: CreativeLibraryVariant | None = None,
+    ) -> "CreativeLibraryProductVariant":
+        status = normalize_optional_string(payload.get("status"), max_length=MAX_STATUS_LENGTH) or "draft"
+        return cls(
+            family=family,
+            family_db_id=family.id,
+            base_variant=base_variant,
+            base_variant_db_id=getattr(base_variant, "id", None),
+            vplib_uid=family.vplib_uid,
+            family_id=family.family_id,
+            base_variant_id=normalize_optional_string(
+                first_non_empty(payload.get("base_variant_id"), getattr(base_variant, "variant_id", None)),
+                max_length=MAX_VARIANT_ID_LENGTH,
+            ),
+            manufacturer_org_id=normalize_required_string(
+                payload.get("manufacturer_org_id"),
+                field_name="manufacturer_org_id",
+                max_length=MAX_OWNER_SCOPE_LENGTH,
+            ),
+            brand=normalize_optional_string(payload.get("brand"), max_length=MAX_LABEL_LENGTH),
+            product_name=normalize_required_string(
+                first_non_empty(payload.get("product_name"), payload.get("name")),
+                field_name="product_name",
+                max_length=MAX_LABEL_LENGTH,
+            ),
+            sku=normalize_required_string(payload.get("sku"), field_name="sku", max_length=MAX_FIELD_LENGTH),
+            gtin=normalize_optional_string(payload.get("gtin"), max_length=MAX_FIELD_LENGTH),
+            description=normalize_optional_string(payload.get("description")),
+            product_url=normalize_optional_string(payload.get("product_url"), max_length=MAX_PATH_LENGTH),
+            status=status,
+            active=normalize_bool(payload.get("active"), default=True),
+            visible=normalize_bool(payload.get("visible"), default=True),
+            submitted_by_subject=normalize_optional_string(submitted_by_subject, max_length=MAX_OWNER_SCOPE_LENGTH),
+            submitted_at=utc_now() if status in {"submitted", "pending", "published"} else None,
+            properties_json=normalize_json_mapping(payload.get("properties")),
+            metadata_json=normalize_json_mapping(payload.get("metadata")),
+        )
+
+    def to_dict(self, *, include_locations: bool = True) -> dict[str, Any]:
+        result = {
+            "id": self.id,
+            "uid": self.uid,
+            "family_db_id": self.family_db_id,
+            "base_variant_db_id": self.base_variant_db_id,
+            "vplib_uid": self.vplib_uid,
+            "family_id": self.family_id,
+            "base_variant_id": self.base_variant_id,
+            "manufacturer_org_id": self.manufacturer_org_id,
+            "brand": self.brand,
+            "product_name": self.product_name,
+            "name": self.product_name,
+            "sku": self.sku,
+            "gtin": self.gtin,
+            "description": self.description,
+            "product_url": self.product_url,
+            "status": self.status,
+            "active": self.active,
+            "visible": self.visible,
+            "submitted_by_subject": self.submitted_by_subject,
+            "approved_by_subject": self.approved_by_subject,
+            "submitted_at": self.submitted_at.isoformat() if self.submitted_at else None,
+            "approved_at": self.approved_at.isoformat() if self.approved_at else None,
+            "properties": normalize_json_mapping(self.properties_json),
+            "metadata": normalize_json_mapping(self.metadata_json),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+        if include_locations:
+            result["locations"] = [location.to_dict() for location in (self.locations or [])]
+        return result
+
+
+class CreativeLibraryProductAvailability(TimestampMixin, JsonMixin, db.Model):
+    """Sales/origin location and geographic coverage of a product variant."""
+
+    __tablename__ = "creative_library_product_availability"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    uid = db.Column(db.String(MAX_UID_LENGTH), nullable=False, unique=True, default=new_uid, index=True)
+    product_variant_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("creative_library_product_variants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name = db.Column(db.String(MAX_LABEL_LENGTH), nullable=False)
+    channel = db.Column(db.String(MAX_STATUS_LENGTH), nullable=False, default="factory", index=True)
+    address = db.Column(db.String(MAX_PATH_LENGTH), nullable=True)
+    postal_code = db.Column(db.String(MAX_FIELD_LENGTH), nullable=True, index=True)
+    city = db.Column(db.String(MAX_LABEL_LENGTH), nullable=True, index=True)
+    country_code = db.Column(db.String(2), nullable=False, default="DE", index=True)
+    latitude = db.Column(db.Float, nullable=True, index=True)
+    longitude = db.Column(db.Float, nullable=True, index=True)
+    radius_km = db.Column(db.Float, nullable=False, default=0.0, index=True)
+    active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    metadata_json = db.Column(db.JSON, nullable=False, default=dict)
+
+    product_variant = db.relationship("CreativeLibraryProductVariant", back_populates="locations", lazy="select")
+
+    __table_args__ = (
+        db.Index("ix_creative_library_availability_country_postal", "country_code", "postal_code"),
+        db.Index("ix_creative_library_availability_geo", "latitude", "longitude", "radius_km"),
+    )
+
+    @classmethod
+    def create_from_payload(
+        cls,
+        *,
+        product_variant: CreativeLibraryProductVariant,
+        payload: Mapping[str, Any],
+        sort_order: int = 0,
+    ) -> "CreativeLibraryProductAvailability":
+        def optional_float(value: Any, *, minimum: float | None = None, maximum: float | None = None) -> float | None:
+            if value in (None, ""):
+                return None
+            number = float(value)
+            if minimum is not None and number < minimum:
+                raise ValueError(f"value must be >= {minimum}")
+            if maximum is not None and number > maximum:
+                raise ValueError(f"value must be <= {maximum}")
+            return number
+
+        radius = optional_float(payload.get("radius_km"), minimum=0.0, maximum=2500.0)
+        return cls(
+            product_variant=product_variant,
+            name=normalize_required_string(payload.get("name"), field_name="location.name", max_length=MAX_LABEL_LENGTH),
+            channel=normalize_optional_string(payload.get("channel"), max_length=MAX_STATUS_LENGTH) or "factory",
+            address=normalize_optional_string(payload.get("address"), max_length=MAX_PATH_LENGTH),
+            postal_code=normalize_optional_string(payload.get("postal_code"), max_length=MAX_FIELD_LENGTH),
+            city=normalize_optional_string(payload.get("city"), max_length=MAX_LABEL_LENGTH),
+            country_code=(normalize_optional_string(payload.get("country_code"), max_length=2) or "DE").upper(),
+            latitude=optional_float(payload.get("latitude"), minimum=-90.0, maximum=90.0),
+            longitude=optional_float(payload.get("longitude"), minimum=-180.0, maximum=180.0),
+            radius_km=radius if radius is not None else 0.0,
+            active=normalize_bool(payload.get("active"), default=True),
+            sort_order=normalize_int(sort_order, default=0, minimum=0) or 0,
+            metadata_json=normalize_json_mapping(payload.get("metadata")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "uid": self.uid,
+            "product_variant_id": self.product_variant_id,
+            "name": self.name,
+            "channel": self.channel,
+            "address": self.address,
+            "postal_code": self.postal_code,
+            "city": self.city,
+            "country_code": self.country_code,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "radius_km": self.radius_km,
+            "active": self.active,
+            "sort_order": self.sort_order,
+            "metadata": normalize_json_mapping(self.metadata_json),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class CreativeLibraryPermissionGrant(TimestampMixin, JsonMixin, db.Model):
+    """Generic persisted grant consumed by the optional platform policy provider."""
+
+    __tablename__ = "creative_library_permission_grants"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    uid = db.Column(db.String(MAX_UID_LENGTH), nullable=False, unique=True, default=new_uid, index=True)
+    family_db_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("creative_library_items.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    subject_type = db.Column(db.String(MAX_STATUS_LENGTH), nullable=False, index=True)
+    subject_id = db.Column(db.String(MAX_OWNER_SCOPE_LENGTH), nullable=False, index=True)
+    permission = db.Column(db.String(MAX_SCOPE_LENGTH), nullable=False, index=True)
+    effect = db.Column(db.String(MAX_STATUS_LENGTH), nullable=False, default="allow", index=True)
+    active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    valid_from = db.Column(db.DateTime(timezone=True), nullable=True)
+    valid_until = db.Column(db.DateTime(timezone=True), nullable=True)
+    created_by_subject = db.Column(db.String(MAX_OWNER_SCOPE_LENGTH), nullable=True)
+    reason = db.Column(db.Text, nullable=True)
+    metadata_json = db.Column(db.JSON, nullable=False, default=dict)
+
+    family = db.relationship("CreativeLibraryItem", foreign_keys=[family_db_id], lazy="select")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "family_db_id",
+            "subject_type",
+            "subject_id",
+            "permission",
+            name="uq_creative_library_permission_grant",
+        ),
+        db.Index("ix_creative_library_grants_subject", "subject_type", "subject_id", "active"),
+        db.Index("ix_creative_library_grants_family_permission", "family_db_id", "permission", "active"),
+    )
+
+    def is_effective(self, *, at: datetime | None = None) -> bool:
+        moment = at or utc_now()
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=timezone.utc)
+        valid_from = self.valid_from
+        valid_until = self.valid_until
+        if valid_from is not None and valid_from.tzinfo is None:
+            valid_from = valid_from.replace(tzinfo=timezone.utc)
+        if valid_until is not None and valid_until.tzinfo is None:
+            valid_until = valid_until.replace(tzinfo=timezone.utc)
+        if not self.active:
+            return False
+        if valid_from and valid_from > moment:
+            return False
+        if valid_until and valid_until < moment:
+            return False
+        return True
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "uid": self.uid,
+            "family_db_id": self.family_db_id,
+            "subject_type": self.subject_type,
+            "subject_id": self.subject_id,
+            "permission": self.permission,
+            "effect": self.effect,
+            "active": self.active,
+            "valid_from": self.valid_from.isoformat() if self.valid_from else None,
+            "valid_until": self.valid_until.isoformat() if self.valid_until else None,
+            "created_by_subject": self.created_by_subject,
+            "reason": self.reason,
+            "metadata": normalize_json_mapping(self.metadata_json),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
 CreativeLibraryFamily = CreativeLibraryItem
 CreativeLibraryFamilyRevision = CreativeLibraryRevision
 
@@ -2557,6 +2878,9 @@ def iter_creative_library_models() -> tuple[type[Any], ...]:
         CreativeLibraryDocument,
         CreativeLibraryScanIssue,
         CreativeLibraryInventorySlot,
+        CreativeLibraryProductVariant,
+        CreativeLibraryProductAvailability,
+        CreativeLibraryPermissionGrant,
     )
 
 
@@ -2639,6 +2963,9 @@ def get_creative_library_models_health() -> dict[str, Any]:
             "supports_generator_metadata": True,
             "supports_library_file_links": True,
             "supports_draft_source_pointers": True,
+            "supports_manufacturer_products": True,
+            "supports_distribution_coverage": True,
+            "supports_permission_grants": True,
         }
     except Exception as exc:
         return {
@@ -2700,6 +3027,9 @@ __all__ = [
     "CreativeLibraryScanIssue",
     "CreativeLibraryScanRun",
     "CreativeLibraryVariant",
+    "CreativeLibraryProductVariant",
+    "CreativeLibraryProductAvailability",
+    "CreativeLibraryPermissionGrant",
 
     # Enums
     "CreativeLibraryAssetKind",

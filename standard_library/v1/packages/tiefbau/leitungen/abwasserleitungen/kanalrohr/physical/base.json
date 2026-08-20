@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "0067a1f4-3a50-5aa5-bc21-41d1ecc4b189",
+  "family_id": "vp.tiefbau.leitungen.abwasserleitungen.kanalrohr",
+  "object_kind": "adaptive_system",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "kunststoff"
+  ]
+}

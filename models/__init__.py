@@ -106,6 +106,7 @@ class ModelModuleStatus:
 
 _RELATIVE_MODEL_MODULES: Final[dict[str, str]] = {
     "creative_library": ".creative_library",
+    "manufacturer_registry": ".manufacturer_registry",
     "library_definitions": ".library_definitions",
     "library_files": ".library_files",
     "library_taxonomy": ".library_taxonomy",
@@ -126,6 +127,9 @@ _RELATIVE_MODEL_MODULE_ALIASES: Final[dict[str, str]] = {
     "scans": "creative_library",
     "published_library": "creative_library",
     "creative_published": "creative_library",
+    "manufacturers": "manufacturer_registry",
+    "manufacturer": "manufacturer_registry",
+    "manufacturer_master_data": "manufacturer_registry",
 
     # ---------------------------------------------------------------------
     # Definition Catalog aliases
@@ -201,6 +205,11 @@ _MODULE_MODEL_ITERATOR_NAMES: Final[dict[str, tuple[str, ...]]] = {
         "iter_models",
         "get_models",
     ),
+    "manufacturer_registry": (
+        "iter_manufacturer_registry_models",
+        "iter_models",
+        "get_models",
+    ),
     "library_definitions": (
         "iter_library_definition_models",
         "iter_models",
@@ -254,6 +263,14 @@ _SYMBOL_TO_MODULE: Final[dict[str, str]] = {
     "CreativeLibraryItem": "creative_library",
     "CreativeLibraryRevision": "creative_library",
     "CreativeLibraryVariant": "creative_library",
+    "CreativeLibraryProductVariant": "creative_library",
+    "CreativeLibraryProductAvailability": "creative_library",
+    "CreativeLibraryPermissionGrant": "creative_library",
+    "ManufacturerOrganization": "manufacturer_registry",
+    "ManufacturerLocation": "manufacturer_registry",
+    "ManufacturerFamilyLink": "manufacturer_registry",
+    "ManufacturerAccessGrant": "manufacturer_registry",
+    "ManufacturerOwnershipTransfer": "manufacturer_registry",
     "CreativeLibraryAsset": "creative_library",
     "CreativeLibraryDocument": "creative_library",
     "CreativeLibraryScanRun": "creative_library",
@@ -842,6 +859,9 @@ def get_models_health() -> dict[str, Any]:
         "metadata": metadata_snapshot,
         "modules": [status.to_dict() for status in statuses],
         "supports_creative_library": is_model_symbol("CreativeLibraryItem"),
+        "supports_manufacturer_products": is_model_symbol("CreativeLibraryProductVariant"),
+        "supports_distribution_coverage": is_model_symbol("CreativeLibraryProductAvailability"),
+        "supports_permission_grants": is_model_symbol("CreativeLibraryPermissionGrant"),
         "supports_library_definitions": is_model_symbol("LibraryDefinitionVariable"),
         "supports_library_files": is_model_symbol("LibraryFile"),
         "supports_library_taxonomy": is_model_symbol("LibraryTaxonomyNode"),

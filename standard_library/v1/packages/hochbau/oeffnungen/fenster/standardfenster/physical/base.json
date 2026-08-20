@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "642520ac-a7ff-57ac-86e4-67177af9b377",
+  "family_id": "vp.hochbau.oeffnungen.fenster.standardfenster",
+  "object_kind": "catalog_object",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "kunststoff"
+  ]
+}

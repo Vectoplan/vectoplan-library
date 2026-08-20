@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "0d91f1e2-d0b9-55de-839c-218738460c67",
+  "family_id": "vp.tiefbau.erdbau.aufschuettung.verdichtete_aufschuettung",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "sonstiges"
+  ]
+}

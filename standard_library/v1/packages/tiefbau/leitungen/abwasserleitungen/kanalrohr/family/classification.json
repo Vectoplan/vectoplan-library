@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "leitungen",
+  "subcategory": "abwasserleitungen",
+  "classification_path": "tiefbau/leitungen/abwasserleitungen",
+  "source_path": "tiefbau/leitungen/abwasserleitungen/kanalrohr",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Leitungen",
+    "subcategory": "Abwasserleitungen"
+  },
+  "object_kind": "adaptive_system",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  }
+}

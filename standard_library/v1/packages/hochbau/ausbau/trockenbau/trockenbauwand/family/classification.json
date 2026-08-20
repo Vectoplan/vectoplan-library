@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "taxonomy_version": "v1",
+  "domain": "hochbau",
+  "category": "ausbau",
+  "subcategory": "trockenbau",
+  "classification_path": "hochbau/ausbau/trockenbau",
+  "source_path": "hochbau/ausbau/trockenbau/trockenbauwand",
+  "labels": {
+    "domain": "Hochbau",
+    "category": "Ausbau",
+    "subcategory": "Trockenbau"
+  },
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  }
+}

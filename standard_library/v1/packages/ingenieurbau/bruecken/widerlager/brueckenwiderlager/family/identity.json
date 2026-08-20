@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "1c000b3f-eb03-54f2-a908-b5a81668ed21",
+  "family_id": "vp.ingenieurbau.bruecken.widerlager.brueckenwiderlager",
+  "slug": "brueckenwiderlager",
+  "label": "Brückenwiderlager",
+  "description": "Vereinfachter massiver Widerlagerkörper mit mehreren Wandstärken.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

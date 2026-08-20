@@ -1,0 +1,182 @@
+{
+  "schema_version": "vplib.render.cad_patterns.v1",
+  "catalog_version": "1.0.0",
+  "units": "mm_paper",
+  "default_variant_id": "default",
+  "pattern_ids": [
+    "timber_longitudinal",
+    "wood_general"
+  ],
+  "patterns": [
+    {
+      "id": "timber_longitudinal",
+      "label": "Vollholz längs",
+      "category": "wood",
+      "category_label": "Holz und Holzwerkstoffe",
+      "description": "Längsmaserung für Balken und Bretter.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 710,
+      "tags": [
+        "timber",
+        "longitudinal",
+        "beam"
+      ],
+      "definition": {
+        "line_families": [
+          {
+            "angle_deg": 0,
+            "spacing_mm": 2.2,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": [
+              8,
+              2,
+              4,
+              3
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "wood_general",
+      "label": "Holz allgemein",
+      "category": "wood",
+      "category_label": "Holz und Holzwerkstoffe",
+      "description": "Allgemeine Holzmaserung mit langen, leicht versetzten Linien.",
+      "kind": "material",
+      "active": true,
+      "sort_order": 700,
+      "tags": [
+        "wood",
+        "timber",
+        "holz"
+      ],
+      "definition": {
+        "tile_mm": [
+          14,
+          8
+        ],
+        "line_families": [
+          {
+            "angle_deg": 4,
+            "spacing_mm": 2.6,
+            "offset_mm": [
+              0,
+              0
+            ],
+            "dash_mm": [
+              5,
+              2,
+              3,
+              4
+            ]
+          }
+        ],
+        "primitives": [
+          {
+            "type": "ellipse",
+            "at_mm": [
+              8,
+              4
+            ],
+            "radius_mm": [
+              1.8,
+              0.8
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "variant_id": "default",
+      "cut": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "timber_longitudinal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "24_mm",
+      "cut": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "timber_longitudinal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "28_mm",
+      "cut": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "timber_longitudinal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "32_mm",
+      "cut": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "timber_longitudinal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    },
+    {
+      "variant_id": "40_mm",
+      "cut": {
+        "pattern_id": "wood_general",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      },
+      "surface": {
+        "pattern_id": "timber_longitudinal",
+        "scale": 1.0,
+        "rotation_deg": 0.0,
+        "foreground_color": "#202020",
+        "background_color": "#FFFFFF"
+      }
+    }
+  ]
+}

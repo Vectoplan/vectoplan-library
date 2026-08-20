@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "642520ac-a7ff-57ac-86e4-67177af9b377",
+  "family_id": "vp.hochbau.oeffnungen.fenster.standardfenster",
+  "slug": "standardfenster",
+  "label": "Standardfenster",
+  "description": "Fensterfamilie mit üblichen Rohbaumaßen für 2D- und 3D-Platzierung.",
+  "object_kind": "catalog_object",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

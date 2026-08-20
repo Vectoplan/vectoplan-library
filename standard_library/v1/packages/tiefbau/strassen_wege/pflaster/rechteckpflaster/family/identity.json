@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "28d28ed3-71e4-529e-9722-d033a810bbdd",
+  "family_id": "vp.tiefbau.strassen_wege.pflaster.rechteckpflaster",
+  "slug": "rechteckpflaster",
+  "label": "Rechteckpflaster",
+  "description": "Beton- oder Natursteinpflaster für Wege und Plätze.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

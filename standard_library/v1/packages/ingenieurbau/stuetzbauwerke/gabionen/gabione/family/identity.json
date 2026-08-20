@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "35cbd028-9af7-524a-b4d3-ef0e21beff85",
+  "family_id": "vp.ingenieurbau.stuetzbauwerke.gabionen.gabione",
+  "slug": "gabione",
+  "label": "Gabione",
+  "description": "Steinkorb für Stütz- und Landschaftsbauwerke.",
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "status": "draft",
+  "language": "de",
+  "manufacturer_scope": "generic",
+  "manufacturer": null
+}

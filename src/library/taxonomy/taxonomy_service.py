@@ -25,7 +25,7 @@ Responsibilities:
 - cache expensive payloads safely
 
 Canonical source path:
-    src/library/source/{domain}/{category}/{subcategory}/{family_slug}
+    standard_library/v1/packages/{domain}/{category}/{subcategory}/{family_slug}
 
 Canonical family_id:
     vp.{domain}.{category}.{subcategory}.{family_slug}

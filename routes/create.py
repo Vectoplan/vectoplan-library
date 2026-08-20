@@ -561,6 +561,19 @@ def _build_editor_generator_preview_context() -> dict[str, str]:
         )
 
     parts = urlsplit(configured_url)
+    parent_parts = urlsplit(parent_origin)
+    loopback_hosts = {"127.0.0.1", "localhost", "::1"}
+    # Browsers treat localhost and 127.0.0.1 as different origins. Keep the
+    # configured editor port, but use the same loopback hostname as /create.
+    if (
+        parts.hostname in loopback_hosts
+        and parent_parts.hostname in loopback_hosts
+        and parts.hostname != parent_parts.hostname
+    ):
+        browser_host = str(parent_parts.hostname or "localhost")
+        browser_host = f"[{browser_host}]" if ":" in browser_host else browser_host
+        browser_netloc = f"{browser_host}:{parts.port}" if parts.port else browser_host
+        parts = parts._replace(netloc=browser_netloc)
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
     query.update(
         {
@@ -1349,6 +1362,20 @@ def _normalize_embedded_json_fields(payload: dict[str, Any]) -> dict[str, Any]:
         "definitionVariantsJson": list,
         "geometry_model_uploads_json": dict,
         "geometryModelUploadsJson": dict,
+        "spatial_contract_json": dict,
+        "spatialContractJson": dict,
+        "connection_points_json": list,
+        "connectionPointsJson": list,
+        "manufacturer_profile_json": dict,
+        "manufacturerProfileJson": dict,
+        "manufacturer_locations_json": list,
+        "manufacturerLocationsJson": list,
+        "manufacturer_territories_json": list,
+        "manufacturerTerritoriesJson": list,
+        "pricing_contract_json": dict,
+        "pricingContractJson": dict,
+        "variant_prices_json": list,
+        "variantPricesJson": list,
         "texture_uploads_json": dict,
         "textureUploadsJson": dict,
         "payload_json": dict,
@@ -3700,7 +3727,7 @@ def _build_create_template_context(
             generator_data.get("steps"),
         ),
         "create_initial_step": 1,
-        "create_default_theme": "dark",
+        "create_default_theme": "light",
         "create_theme_storage_key": "vectoplan.create.wizard.theme",
         "create_legacy_theme_storage_key": "vectoplan.create.theme",
 

@@ -1,0 +1,37 @@
+{
+  "schema_version": "0.1.0",
+  "profile_schema_version": "vplib.manufacturer.v2",
+  "scope": "generic",
+  "manufacturer_bound": false,
+  "organization": {
+    "organization_id": "",
+    "name": "",
+    "brand": "",
+    "website": "",
+    "country_code": "DE"
+  },
+  "availability": {
+    "storage": "platform_database_with_package_snapshot",
+    "coverage_mode": "locations",
+    "location_count": 0,
+    "territory_count": 0,
+    "locations": [],
+    "territories": []
+  },
+  "manufacturer_products_allowed": true,
+  "manufacturer_data_required": false,
+  "documents_required": false,
+  "overlay_level": "family",
+  "allowed_overlay_levels": [
+    "family",
+    "variant",
+    "product"
+  ],
+  "required_fields": [],
+  "override_slots": [
+    "product_identity",
+    "availability",
+    "documents"
+  ],
+  "notes": "Dynamic platform availability remains database-backed; the package contains a portable snapshot."
+}

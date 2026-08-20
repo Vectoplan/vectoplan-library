@@ -296,6 +296,7 @@ _MODULE_DEFINITIONS: Final[dict[VplibModuleName, ModuleDefinition]] = {
             "bounds.json",
             "materials.json",
             "lod.json",
+            "cad_patterns.json",
         ),
         depends_on=(
             VplibModuleName.FAMILY,

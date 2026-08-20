@@ -560,7 +560,41 @@ def compact_creative_library_item(item: Mapping[str, Any]) -> dict[str, Any]:
     )
 
     compact = select(data, item_keys)
-    compact["payload"] = select(normalize_json_mapping(data.get("payload")), payload_keys)
+    compact_payload = select(normalize_json_mapping(data.get("payload")), payload_keys)
+
+    runtime_block_type_id = next(
+        (
+            str(value).strip()
+            for value in (
+                data.get("runtimeBlockTypeId"),
+                data.get("runtime_block_type_id"),
+                data.get("blockTypeId"),
+                compact_payload.get("runtimeBlockTypeId"),
+                compact_payload.get("runtime_block_type_id"),
+                compact_payload.get("blockTypeId"),
+                data.get("family_id"),
+                compact_payload.get("family_id"),
+            )
+            if value is not None and str(value).strip()
+        ),
+        "",
+    )
+    placeable = bool(runtime_block_type_id and (data.get("family_id") or data.get("vplib_uid")))
+    placement = normalize_json_mapping(data.get("placement") or compact_payload.get("placement"))
+    if runtime_block_type_id:
+        placement.setdefault("runtimeBlockTypeId", runtime_block_type_id)
+        placement.setdefault("blockTypeId", runtime_block_type_id)
+    placement["placeable"] = placeable
+
+    compact["runtimeBlockTypeId"] = runtime_block_type_id
+    compact["blockTypeId"] = runtime_block_type_id
+    compact["placeable"] = placeable
+    compact["placement"] = placement
+    compact_payload["runtimeBlockTypeId"] = runtime_block_type_id
+    compact_payload["blockTypeId"] = runtime_block_type_id
+    compact_payload["placeable"] = placeable
+    compact_payload["placement"] = placement
+    compact["payload"] = compact_payload
     compact["variants"] = [
         select(variant, variant_keys)
         for variant in normalize_json_list(data.get("variants"))
@@ -1000,17 +1034,29 @@ class CreativeLibraryUserService:
             visible_only=not include_deleted,
             limit=MAX_LIMIT,
         )
-        if not normalize_bool(result.get("ok"), default=False):
-            raise CreativeLibraryUserServiceError(
-                clean_string(result.get("errors"), fallback="Published library read failed.")
-            )
-
-        return [
+        indexed_items = [
             normalize_json_mapping(item)
             for item in normalize_json_list(
                 normalize_json_mapping(result.get("payload")).get("items")
             )
-        ]
+        ] if normalize_bool(result.get("ok"), default=False) else []
+
+        # The checked-in standard library is authoritative for built-in
+        # families. Overlaying it here keeps existing installations current
+        # even while their persisted index is still on the previous revision.
+        try:
+            from .standard_library_source_service import overlay_standard_library_source_items
+        except ImportError:
+            from library.services.standard_library_source_service import overlay_standard_library_source_items
+
+        resolved_items = overlay_standard_library_source_items(indexed_items)
+        if resolved_items:
+            return resolved_items
+        if not normalize_bool(result.get("ok"), default=False):
+            raise CreativeLibraryUserServiceError(
+                clean_string(result.get("errors"), fallback="Published library read failed.")
+            )
+        return indexed_items
 
 
 

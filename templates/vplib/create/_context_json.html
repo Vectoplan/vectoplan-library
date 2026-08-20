@@ -442,12 +442,14 @@
   {% set _context_steps = create_steps %}
 {% else %}
   {% set _context_steps = [
-    {'index': 1, 'key': 'identity', 'label': 'Grunddaten', 'target': 'identity', 'required': true},
-    {'index': 2, 'key': 'taxonomy', 'label': 'Taxonomie', 'target': 'taxonomy', 'required': true},
+    {'index': 1, 'key': 'library-source', 'label': 'Creative Library', 'target': 'library-source', 'required': true},
+    {'index': 2, 'key': 'identity-taxonomy', 'label': 'Grunddaten & Taxonomie', 'target': 'identity-taxonomy', 'required': true},
     {'index': 3, 'key': 'variables', 'alias': 'object', 'label': 'Variablen', 'target': 'object-variants', 'required': true},
-    {'index': 4, 'key': 'geometry', 'label': 'Geometrie', 'target': 'geometry', 'required': true},
-    {'index': 5, 'key': 'technical', 'label': 'Technik', 'target': 'technical', 'required': false},
-    {'index': 6, 'key': 'actions', 'alias': 'create', 'label': 'Erzeugen', 'target': 'actions', 'required': true}
+    {'index': 4, 'key': 'manufacturer', 'label': 'Hersteller & Vertrieb', 'target': 'manufacturer', 'required': false},
+    {'index': 5, 'key': 'geometry', 'label': 'Geometrie', 'target': 'geometry', 'required': true},
+    {'index': 6, 'key': 'spatial', 'label': 'Raum & Anschlüsse', 'target': 'spatial', 'required': false},
+    {'index': 7, 'key': 'technical', 'label': 'Technik', 'target': 'technical', 'required': false},
+    {'index': 8, 'key': 'actions', 'alias': 'create', 'label': 'Erzeugen', 'target': 'actions', 'required': true}
   ] %}
 {% endif %}
 
@@ -465,9 +467,9 @@
 {% elif create_default_theme is defined and create_default_theme %}
   {% set _context_default_theme = create_default_theme | string | lower %}
 {% else %}
-  {% set _context_default_theme = 'dark' %}
+  {% set _context_default_theme = 'light' %}
 {% endif %}
-{% if _context_default_theme not in ['dark', 'light', 'system'] %}{% set _context_default_theme = 'dark' %}{% endif %}
+{% if _context_default_theme not in ['light'] %}{% set _context_default_theme = 'light' %}{% endif %}
 
 {% if _create_theme_storage_key is defined and _create_theme_storage_key %}
   {% set _context_theme_storage_key = _create_theme_storage_key %}
@@ -544,7 +546,7 @@
   },
   "theme": {
     "default": {{ _context_default_theme | tojson }},
-    "fallback": "dark",
+    "fallback": "light",
     "initial": {{ _context_default_theme | tojson }},
     "storage_key": {{ _context_theme_storage_key | tojson }},
     "storageKey": {{ _context_theme_storage_key | tojson }},

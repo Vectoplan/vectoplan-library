@@ -164,7 +164,7 @@
       </div>
 
       <div class="vp-create-variant-drawer-empty-state__copy">
-        <p class="vp-create-variant-drawer-empty-state__kicker">
+        <p class="vp-create-variant-drawer-empty-state__kicker" data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.p.variableneditor.1e4bb82f">
           Variableneditor
         </p>
 
@@ -194,24 +194,24 @@
         class="vp-create-variant-drawer-empty-state__status-pill vp-create-variant-drawer-empty-state__status-pill--{{ _empty_status }}"
         data-vp-empty-state-status-pill="true"
       >
-        {% if _empty_status == 'definitions_unavailable' %}
+        {% if _empty_status == 'definitions_unavailable' %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.definitionsdaten_fehlen.83461a7c">
           Definitionsdaten fehlen
-        {% elif _empty_status == 'profile_unresolved' %}
+        </span>{% elif _empty_status == 'profile_unresolved' %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.profil_offen.68b844ef">
           Profil offen
-        {% else %}
+        </span>{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.nicht_bereit.26aac3ac">
           Nicht bereit
-        {% endif %}
+        </span>{% endif %}
       </span>
 
       <span
         class="vp-create-variant-drawer-empty-state__status-text"
         data-vp-empty-state-status-text="true"
       >
-        {% if _empty_status == 'definitions_unavailable' %}
+        {% if _empty_status == 'definitions_unavailable' %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.definitionskontext_erneut_anfordern.7166b392">
           Definitionskontext erneut anfordern.
-        {% else %}
+        </span>{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.profilaufl_sung_erneut_anfordern.bd3f6787">
           Profilauflösung erneut anfordern.
-        {% endif %}
+        </span>{% endif %}
       </span>
     </div>
 
@@ -219,31 +219,31 @@
       class="vp-create-variant-drawer-empty-state__compact-context"
       data-vp-empty-state-compact-context="true"
       aria-label="Aktueller Variablenkontext"
-    >
+     data-i18n-aria-label="server.library.vplib.create.variants.variant_drawer_empty_state.dl_aria-label.aktueller_variablenkontext.940e9601">
       <div>
-        <dt>Taxonomie</dt>
+        <dt data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.dt.taxonomie.b3b15ff7">Taxonomie</dt>
         <dd>
-          <span data-vp-empty-state-domain="true">{% if _empty_domain %}{{ _empty_domain }}{% else %}offen{% endif %}</span>
+          <span data-vp-empty-state-domain="true">{% if _empty_domain %}{{ _empty_domain }}{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.offen.c7b0d5ed">offen</span>{% endif %}</span>
           <span aria-hidden="true">/</span>
-          <span data-vp-empty-state-category="true">{% if _empty_category %}{{ _empty_category }}{% else %}offen{% endif %}</span>
+          <span data-vp-empty-state-category="true">{% if _empty_category %}{{ _empty_category }}{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.offen.044fc007">offen</span>{% endif %}</span>
           <span aria-hidden="true">/</span>
-          <span data-vp-empty-state-subcategory="true">{% if _empty_subcategory %}{{ _empty_subcategory }}{% else %}offen{% endif %}</span>
+          <span data-vp-empty-state-subcategory="true">{% if _empty_subcategory %}{{ _empty_subcategory }}{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.offen.692e90eb">offen</span>{% endif %}</span>
         </dd>
       </div>
 
       <div>
-        <dt>Profil</dt>
+        <dt data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.dt.profil.c6aab524">Profil</dt>
         <dd>
-          <span data-vp-empty-state-family-profile="true">{% if _empty_family_profile_id %}{{ _empty_family_profile_id }}{% else %}auto{% endif %}</span>
+          <span data-vp-empty-state-family-profile="true">{% if _empty_family_profile_id %}{{ _empty_family_profile_id }}{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.auto.2f87c568">auto</span>{% endif %}</span>
           <span aria-hidden="true">→</span>
-          <span data-vp-empty-state-variant-profile="true">{% if _empty_variant_profile_id %}{{ _empty_variant_profile_id }}{% else %}auto{% endif %}</span>
+          <span data-vp-empty-state-variant-profile="true">{% if _empty_variant_profile_id %}{{ _empty_variant_profile_id }}{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.auto.eac0a854">auto</span>{% endif %}</span>
         </dd>
       </div>
 
       <div hidden>
-        <dt>Objektart</dt>
+        <dt data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.dt.objektart.3e6161e7">Objektart</dt>
         <dd data-vp-empty-state-object-kind="true">
-          {% if _empty_object_kind %}{{ _empty_object_kind }}{% else %}offen{% endif %}
+          {% if _empty_object_kind %}{{ _empty_object_kind }}{% else %}<span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.offen.c020e1ee">offen</span>{% endif %}
         </dd>
       </div>
     </dl>
@@ -253,7 +253,7 @@
       data-vp-empty-state-checks="true"
       hidden
     >
-      <h5>Prüfpunkte</h5>
+      <h5 data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.h5.pr_fpunkte.defc449a">Prüfpunkte</h5>
 
       <ul class="vp-create-variant-drawer-empty-state__check-list">
         <li
@@ -261,7 +261,7 @@
           data-vp-empty-state-check-state="{% if _empty_definitions_available %}ok{% else %}missing{% endif %}"
         >
           <span class="vp-create-variant-drawer-empty-state__check-dot" aria-hidden="true"></span>
-          <span>Definitionsdaten vorhanden</span>
+          <span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.definitionsdaten_vorhanden.56f4f9d4">Definitionsdaten vorhanden</span>
         </li>
 
         <li
@@ -269,7 +269,7 @@
           data-vp-empty-state-check-state="{% if _empty_domain and _empty_category and _empty_subcategory %}ok{% else %}missing{% endif %}"
         >
           <span class="vp-create-variant-drawer-empty-state__check-dot" aria-hidden="true"></span>
-          <span>Taxonomie vollständig</span>
+          <span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.taxonomie_vollst_ndig.0c6079fe">Taxonomie vollständig</span>
         </li>
 
         <li
@@ -277,7 +277,7 @@
           data-vp-empty-state-check-state="{% if _empty_object_kind %}ok{% else %}missing{% endif %}"
         >
           <span class="vp-create-variant-drawer-empty-state__check-dot" aria-hidden="true"></span>
-          <span>Objektart gesetzt</span>
+          <span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.objektart_gesetzt.1b35564f">Objektart gesetzt</span>
         </li>
 
         <li
@@ -285,7 +285,7 @@
           data-vp-empty-state-check-state="{% if _empty_variant_profile_id %}ok{% else %}pending{% endif %}"
         >
           <span class="vp-create-variant-drawer-empty-state__check-dot" aria-hidden="true"></span>
-          <span>Variant Profile aufgelöst</span>
+          <span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.variant_profile_aufgel_st.589ec350">Variant Profile aufgelöst</span>
         </li>
 
         <li
@@ -293,7 +293,7 @@
           data-vp-empty-state-check-state="pending"
         >
           <span class="vp-create-variant-drawer-empty-state__check-dot" aria-hidden="true"></span>
-          <span>Drawer Runtime bereit</span>
+          <span data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.span.drawer_runtime_bereit.99a8c3da">Drawer Runtime bereit</span>
         </li>
       </ul>
     </div>
@@ -303,7 +303,7 @@
         class="vp-create-button vp-create-button--secondary"
         type="button"
         data-vp-empty-state-retry="true"
-      >
+       data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.button.erneut_versuchen.0bdb9244">
         Erneut versuchen
       </button>
 
@@ -313,7 +313,7 @@
         data-vp-empty-state-toggle-diagnostics="true"
         aria-expanded="false"
         aria-controls="{{ _vp_variant_empty_state_id }}-diagnostics"
-      >
+       data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.button.diagnose.7575b847">
         Diagnose
       </button>
 
@@ -321,7 +321,7 @@
         class="vp-create-button vp-create-button--ghost"
         type="button"
         data-vp-empty-state-copy-context="true"
-      >
+       data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.button.kontext_kopieren.feec39b6">
         Kontext kopieren
       </button>
 
@@ -329,7 +329,7 @@
         class="vp-create-button vp-create-button--ghost"
         type="button"
         data-vp-empty-state-close="true"
-      >
+       data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.button.schlie_en.d0a5aec1">
         Schließen
       </button>
     </div>
@@ -341,8 +341,8 @@
       hidden
     >
       <header class="vp-create-variant-drawer-empty-state__diagnostics-header">
-        <h5>Diagnose</h5>
-        <p>Technischer Kontext für Definitions-/Profilauflösung.</p>
+        <h5 data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.h5.diagnose.ef10d34d">Diagnose</h5>
+        <p data-i18n="vectoplan.server.library.vplib.create.variants.variant_drawer_empty_state.p.technischer_kontext_f_r_definitions_pr.2907d9cb">Technischer Kontext für Definitions-/Profilauflösung.</p>
       </header>
 
       <pre

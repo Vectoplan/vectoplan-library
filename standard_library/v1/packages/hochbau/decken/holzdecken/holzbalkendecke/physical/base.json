@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vplib_uid": "b3062e3d-f6c3-507c-bf4a-7935cc260a3d",
+  "family_id": "vp.hochbau.decken.holzdecken.holzbalkendecke",
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  },
+  "unit": "m",
+  "physical_model": "simple_box",
+  "material_classes": [
+    "holz"
+  ]
+}

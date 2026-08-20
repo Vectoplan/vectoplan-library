@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "5684b808-b9a8-5063-9698-6d1a30c15c9e",
+  "family_id": "vp.ingenieurbau.tunnel.tunnelschalen.tunnelschale",
+  "default_variant_id": "default",
+  "label": "Tunnelschale",
+  "description": "Stahlbeton-Tunnelschale als vereinfachtes Segmentbauteil.",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "tunnel",
+  "subcategory": "tunnelschalen",
+  "classification_path": "ingenieurbau/tunnel/tunnelschalen",
+  "source_path": "ingenieurbau/tunnel/tunnelschalen/tunnelschale",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Tunnel",
+    "subcategory": "Tunnelschalen"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}

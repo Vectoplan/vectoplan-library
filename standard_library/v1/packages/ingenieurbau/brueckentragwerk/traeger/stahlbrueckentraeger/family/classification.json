@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "taxonomy_version": "v1",
+  "domain": "ingenieurbau",
+  "category": "brueckentragwerk",
+  "subcategory": "traeger",
+  "classification_path": "ingenieurbau/brueckentragwerk/traeger",
+  "source_path": "ingenieurbau/brueckentragwerk/traeger/stahlbrueckentraeger",
+  "labels": {
+    "domain": "Ingenieurbau",
+    "category": "Brückentragwerk",
+    "subcategory": "Träger"
+  },
+  "object_kind": "cell_block",
+  "profiles": {
+    "family_profile_id": "simple_cell_block",
+    "variant_profile_id": "simple_cell_block.v1"
+  }
+}

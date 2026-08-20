@@ -6,8 +6,8 @@
   - Globale Wizard-Navigation für /create.
   - Steuert Zurück / Weiter / Schrittstatus.
   - Rendert keine Backend-Aktionsbuttons.
-  - Backend-Aktionen bleiben im Schritt 6 über sections/_actions.html.
-  - Kompakte Black-UI-Navigation für templates/vplib.
+  - Backend-Aktionen bleiben im letzten Schritt über sections/_actions.html.
+  - Kompakte helle Editor-Navigation für templates/vplib.
   - Arbeitet defensiv mit oder ohne create.js/create_wizard.js.
   - Verwendet keine entfernten Partials:
       - _hero.html
@@ -41,9 +41,9 @@
       vectoplan:create:stepper-step-requested
 
   Wichtig:
-  - Step 3 wird sichtbar als "Variablen" geführt.
+  - Step 4 wird sichtbar als "Variablen" geführt.
   - Intern bleiben key="object" und target="object-variants" kompatibel.
-  - Schritt 6 zeigt keine Weiter-Primärnavigation mehr; Aktionen liegen dort
+  - Schritt 9 zeigt keine Weiter-Primärnavigation mehr; Aktionen liegen dort
     im Action-Step selbst.
 ----------------------------------------------------------------------------- #}
 
@@ -53,24 +53,35 @@
   {% set vp_nav_steps = [
     {
       "index": 1,
-      "key": "identity",
-      "label": "Grunddaten",
-      "short_label": "Daten",
-      "hint": "Name und Beschreibung festlegen.",
-      "description": "Name und Beschreibung",
-      "target": "identity"
+      "key": "library-source",
+      "label": "Creative Library",
+      "short_label": "Start",
+      "hint": "Bestehenden Baustein wählen oder eine neue VPLIB beginnen.",
+      "description": "Bestehend oder neu",
+      "target": "library-source"
     },
     {
       "index": 2,
-      "key": "taxonomy",
-      "label": "Taxonomie",
-      "short_label": "Taxonomie",
-      "hint": "Domain, Kategorie und Subkategorie auswählen.",
-      "description": "Domain, Kategorie und Subkategorie",
-      "target": "taxonomy"
+      "key": "identity-taxonomy",
+      "aliases": ["identity", "taxonomy", "identity-taxonomy"],
+      "label": "Grunddaten & Taxonomie",
+      "short_label": "Grunddaten",
+      "hint": "Name, Beschreibung und fachliche Einordnung festlegen.",
+      "description": "Identität und Einordnung",
+      "target": "identity-taxonomy"
     },
     {
       "index": 3,
+    "key": "manufacturer",
+    "aliases": ["manufacturer", "distribution", "availability"],
+    "label": "Hersteller & Vertrieb",
+    "short_label": "Vertrieb",
+    "hint": "Hersteller festlegen und Varianten Standorten oder Vertriebsgebieten zuweisen.",
+    "description": "Hersteller, Gebiete und Varianten",
+    "target": "manufacturer"
+  },
+    {
+      "index": 4,
       "key": "object",
       "alias": "variables",
       "label": "Variablen",
@@ -79,17 +90,26 @@
       "description": "Variablen und Varianten",
       "target": "object-variants"
     },
-    {
-      "index": 4,
-      "key": "geometry",
+  {
+    "index": 5,
+    "key": "geometry",
       "label": "Geometrie",
       "short_label": "Geometrie",
-      "hint": "Form, Maße, Raster und 3D-Modell vorbereiten.",
-      "description": "Form, Maße, Raster und 3D-Upload",
+      "hint": "Grundform, reale Maße, Texturen und Raster definieren.",
+      "description": "Grundform, Maße und Raster",
       "target": "geometry"
     },
-    {
-      "index": 5,
+  {
+    "index": 6,
+      "key": "spatial",
+      "label": "Raum & Anschlüsse",
+      "short_label": "Raum",
+      "hint": "Primärmodell laden, zur Blockgröße skalieren und Anschlüsse definieren.",
+      "description": "Modell, Skalierung und Anschlüsse",
+      "target": "spatial"
+    },
+  {
+    "index": 7,
       "key": "technical",
       "label": "Technik",
       "short_label": "Technik",
@@ -97,8 +117,17 @@
       "description": "Tatsächliche CAD-Maße",
       "target": "technical"
     },
-    {
-      "index": 6,
+  {
+    "index": 8,
+      "key": "pricing",
+      "label": "Preise",
+      "short_label": "Preise",
+      "hint": "Preis und Produktmenge für jede Variante definieren.",
+      "description": "Preislogik je Variante",
+      "target": "pricing"
+    },
+  {
+    "index": 9,
       "key": "create",
       "label": "Erzeugen",
       "short_label": "Erzeugen",
@@ -114,7 +143,7 @@
 {% set vp_nav_initial_step = vp_nav_initial_step_raw | int %}
 
 {% if vp_nav_step_count < 1 %}
-  {% set vp_nav_step_count = 6 %}
+{% set vp_nav_step_count = 9 %}
 {% endif %}
 
 {% if vp_nav_initial_step < 1 %}
@@ -188,7 +217,7 @@
   data-vp-wizard-nav
   data-create-wizard-nav="true"
   data-vp-wizard-nav-layout="compact"
-  data-vp-wizard-nav-theme="black"
+  data-vp-wizard-nav-theme="light"
   data-vp-wizard-nav-template-root="vplib"
   data-vp-wizard-nav-version="0.6.0"
   data-vp-current-step="{{ vp_nav_initial_step }}"
@@ -227,13 +256,13 @@
           data-vp-wizard-hint
           data-create-wizard-hint="true"
         >
-          {% if vp_nav_initial_step >= vp_nav_step_count %}
+          {% if vp_nav_initial_step >= vp_nav_step_count %}<span data-i18n="vectoplan.server.library.vplib.create.wizard_nav.span.w_hle_die_gew_nschte_aktion_im_schritt.336c3bdd">
             Wähle die gewünschte Aktion im Schritt aus.
-          {% elif vp_current_step_hint %}
+          </span>{% elif vp_current_step_hint %}
             {{ vp_current_step_hint }}
-          {% else %}
+          {% else %}<span data-i18n="vectoplan.server.library.vplib.create.wizard_nav.span.aktuellen_schritt_ausf_llen_und_weiter.a18b2f75">
             Aktuellen Schritt ausfüllen und weitergehen.
-          {% endif %}
+          </span>{% endif %}
         </p>
       </div>
     </div>
@@ -241,7 +270,7 @@
     <div
       class="vplib-create-wizard-nav__actions"
       aria-label="Wizard-Navigation"
-    >
+     data-i18n-aria-label="server.library.vplib.create.wizard_nav.div_aria-label.wizard_navigation.7d4f962f">
       <button
         type="button"
         class="vplib-create-wizard-nav__button vplib-create-wizard-nav__button--secondary"
@@ -265,7 +294,7 @@
         <span class="vplib-create-wizard-nav__button-icon" aria-hidden="true">
           ←
         </span>
-        <span class="vplib-create-wizard-nav__button-text">
+        <span class="vplib-create-wizard-nav__button-text" data-i18n="vectoplan.server.library.vplib.create.wizard_nav.span.zur_ck.8112ffcb">
           Zurück
         </span>
       </button>
@@ -290,11 +319,11 @@
         {% if vp_nav_initial_step >= vp_nav_step_count %}disabled aria-disabled="true"{% else %}aria-disabled="false"{% endif %}
       >
         <span class="vplib-create-wizard-nav__button-text" data-vp-wizard-next-label>
-          {% if vp_nav_initial_step >= vp_nav_step_count %}
+          {% if vp_nav_initial_step >= vp_nav_step_count %}<span data-i18n="vectoplan.server.library.vplib.create.wizard_nav.span.aktionen.d558b6d3">
             Aktionen
-          {% else %}
+          </span>{% else %}<span data-i18n="vectoplan.server.library.vplib.create.wizard_nav.span.weiter.661a2756">
             Weiter
-          {% endif %}
+          </span>{% endif %}
         </span>
         <span class="vplib-create-wizard-nav__button-icon" aria-hidden="true">
           →
@@ -334,7 +363,7 @@
       var stepsScript = nav.querySelector("[data-vp-wizard-nav-steps]");
 
       var minStep = parseInteger(nav.getAttribute("data-vp-min-step"), 1);
-      var maxStep = parseInteger(nav.getAttribute("data-vp-max-step") || nav.getAttribute("data-vp-step-count"), 6);
+      var maxStep = parseInteger(nav.getAttribute("data-vp-max-step") || nav.getAttribute("data-vp-step-count"), 9);
       var currentStep = parseInteger(nav.getAttribute("data-vp-current-step"), 1);
       var maxReachedStep = currentStep;
       var steps = [];
@@ -353,7 +382,7 @@
       }
 
       if (!Number.isFinite(maxStep) || maxStep < minStep) {
-        maxStep = 6;
+        maxStep = 9;
       }
 
       currentStep = clampStep(currentStep);

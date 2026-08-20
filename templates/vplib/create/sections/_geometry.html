@@ -1,6 +1,6 @@
 {# services/vectoplan-library/templates/vplib/create/sections/_geometry.html #}
 {# -----------------------------------------------------------------------------
-  VECTOPLAN Library · VPLIB Create Wizard · Step 4: Geometry
+  VECTOPLAN Library · VPLIB Create Wizard · Step 5: Geometry
 
   Zweck:
   - Erfasst technische Objektart, primitive Form, sichtbare Maße, Editor-Raster
@@ -152,6 +152,12 @@
   {% set _selected_shape = 'block' %}
 {% endif %}
 
+{% set _geometry_profile_id = _geometry_draft.get('geometry_profile_id', _geometry_values.get('profile_id', 'block')) if _geometry_draft is mapping else 'block' %}
+{% set _geometry_axis = _geometry_draft.get('geometry_axis', _geometry_values.get('axis', 'x')) if _geometry_draft is mapping else 'x' %}
+{% set _block_height_mode = _geometry_draft.get('block_height_mode', _geometry_values.get('height_mode', 'full')) if _geometry_draft is mapping else 'full' %}
+{% set _interaction_kind = _geometry_draft.get('interaction_kind', 'none') if _geometry_draft is mapping else 'none' %}
+{% set _geometry_parts_json = _geometry_draft.get('geometry_parts_json', '[]') if _geometry_draft is mapping else '[]' %}
+
 {% if _geometry_draft is mapping and 'geometry_width' in _geometry_draft and _geometry_draft['geometry_width'] is not none %}
   {% set _geometry_width = _geometry_draft['geometry_width'] %}
 {% elif _dimension_values is mapping and 'width' in _dimension_values and _dimension_values['width'] is not none %}
@@ -257,11 +263,11 @@
       <h2
         id="vp-create-geometry-title"
         class="vplib-create-step__title"
-      >
+       data-i18n="vectoplan.server.library.vplib.create.sections.geometry.h2.geometrie.171b76a4">
         Geometrie
       </h2>
 
-      <p class="vplib-create-step__description">
+      <p class="vplib-create-step__description" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.p.definiere_typ_form_ma_e_und_rasterbeda.1203ce31">
         Definiere Typ, Form, Maße und Rasterbedarf.
       </p>
     </div>
@@ -275,7 +281,7 @@
           for="create-geometry-object-kind"
           data-vp-field-wrapper="object_kind"
         >
-          <span class="vp-create-field__label">Typ</span>
+          <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.typ.73303213">Typ</span>
 
           <select
             id="create-geometry-object-kind"
@@ -290,28 +296,28 @@
             <option
               value="cell_block"
               {% if _selected_object_kind == 'cell_block' %}selected{% endif %}
-            >
+             data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.raster_bauteil.74ad59e0">
               Raster-Bauteil
             </option>
 
             <option
               value="multi_cell_module"
               {% if _selected_object_kind == 'multi_cell_module' %}selected{% endif %}
-            >
+             data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.mehrblock_modul.5ad739d4">
               Mehrblock-Modul
             </option>
 
             <option
               value="catalog_object"
               {% if _selected_object_kind == 'catalog_object' %}selected{% endif %}
-            >
+             data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.katalogelement.7705131c">
               Katalogelement
             </option>
 
             <option
               value="adaptive_system"
               {% if _selected_object_kind == 'adaptive_system' %}selected{% endif %}
-            >
+             data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.adaptives_system.0ac54d7a">
               Adaptives System
             </option>
 
@@ -325,10 +331,73 @@
           <span
             id="create-geometry-object-kind-hint"
             class="vp-create-field__hint"
-          >
+           data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.mehrblock_modul_entsperrt_das_editor_r.7a8688f6">
             Mehrblock-Modul entsperrt das Editor-Raster.
           </span>
         </label>
+      </div>
+
+      <div class="vplib-create-step__field vplib-create-step__field--full vp-create-subsection" data-vp-parametric-geometry="true">
+        <div class="vp-create-compact-subheader">
+          <h3 class="vp-create-compact-subheader__title">Funktionierende Bauteilgeometrie</h3>
+          <p class="vp-create-compact-subheader__text">
+            Wähle ein Profil statt nur eines Würfels. VECTOPLAN erzeugt daraus Belegung, Anschlüsse, Interaktion und Editor-Geometrie.
+          </p>
+        </div>
+
+        <div class="vplib-create-step__grid vp-create-field-grid vp-create-field-grid--three">
+          <label class="vp-create-field" for="create-geometry-profile">
+            <span class="vp-create-field__label">Bauteilprofil</span>
+            <select id="create-geometry-profile" class="vp-create-select" name="geometry_profile_id" data-create-field="geometry_profile_id">
+              {% for value, label in [
+                ('block', 'Ganzer Block'), ('half_block', 'Halber Block'), ('slab', 'Schicht / Platte'),
+                ('wall_segment', 'Wandsegment'), ('beam', 'Träger'), ('column', 'Stütze'),
+                ('hinged_door', 'Tür · 1 × 2 · aufklappbar'), ('thin_window', 'Fenster · 1 × 1'),
+                ('pipe_segment', 'Rohrsegment mit Anschlüssen'), ('vertical_cylinder', 'Vertikaler Zylinder'),
+                ('conveyor_segment', 'Förderbandsegment'), ('stair_run', 'Treppenlauf'),
+                ('composite_parts', 'Eigene Teilgeometrie')
+              ] %}
+                <option value="{{ value }}"{% if _geometry_profile_id == value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <span class="vp-create-field__hint">Tür, Fenster und Rohr erhalten damit ihr echtes Verhalten im Editor.</span>
+          </label>
+
+          <label class="vp-create-field" for="create-block-height-mode">
+            <span class="vp-create-field__label">Blockhöhe</span>
+            <select id="create-block-height-mode" class="vp-create-select" name="block_height_mode" data-create-field="block_height_mode">
+              <option value="full"{% if _block_height_mode == 'full' %} selected{% endif %}>Ganzer Block</option>
+              <option value="half"{% if _block_height_mode == 'half' %} selected{% endif %}>Halber Block</option>
+              <option value="dimensions"{% if _block_height_mode == 'dimensions' %} selected{% endif %}>Nach realen Abmessungen</option>
+            </select>
+          </label>
+
+          <label class="vp-create-field" for="create-geometry-axis">
+            <span class="vp-create-field__label">Hauptachse</span>
+            <select id="create-geometry-axis" class="vp-create-select" name="geometry_axis" data-create-field="geometry_axis">
+              <option value="x"{% if _geometry_axis == 'x' %} selected{% endif %}>X · horizontal</option>
+              <option value="y"{% if _geometry_axis == 'y' %} selected{% endif %}>Y · vertikal</option>
+              <option value="z"{% if _geometry_axis == 'z' %} selected{% endif %}>Z · horizontal</option>
+            </select>
+          </label>
+
+          <label class="vp-create-field" for="create-interaction-kind">
+            <span class="vp-create-field__label">Interaktion</span>
+            <select id="create-interaction-kind" class="vp-create-select" name="interaction_kind" data-create-field="interaction_kind">
+              <option value="none"{% if _interaction_kind == 'none' %} selected{% endif %}>Keine</option>
+              <option value="swing_door"{% if _interaction_kind == 'swing_door' %} selected{% endif %}>Auf-/Zuklappen</option>
+              <option value="toggle"{% if _interaction_kind == 'toggle' %} selected{% endif %}>Ein/Aus</option>
+              <option value="rotate"{% if _interaction_kind == 'rotate' %} selected{% endif %}>Drehen</option>
+              <option value="slide"{% if _interaction_kind == 'slide' %} selected{% endif %}>Schieben</option>
+            </select>
+          </label>
+
+          <label class="vp-create-field vplib-create-step__field--full" for="create-geometry-parts">
+            <span class="vp-create-field__label">Teilgeometrien (optional)</span>
+            <textarea id="create-geometry-parts" class="vp-create-input" name="geometry_parts_json" rows="5" data-create-field="geometry_parts_json" placeholder='[{"id":"frame","shape":"box","size":[1,0.08,0.08],"position":[0,0.46,0]}]'>{{ _geometry_parts_json }}</textarea>
+            <span class="vp-create-field__hint">JSON-Teile nutzen Blockkoordinaten. Formen: box, cylinder, pipe, frame, wedge; je Teil sind Größe, Position, Rotation, Farbe, Transparenz und Kollision möglich.</span>
+          </label>
+        </div>
       </div>
 
       <div class="vplib-create-step__field vplib-create-step__field--third">
@@ -337,7 +406,7 @@
           for="create-primitive-shape"
           data-vp-field-wrapper="primitive_shape"
         >
-          <span class="vp-create-field__label">Form</span>
+          <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.form.6107934a">Form</span>
 
           <select
             id="create-primitive-shape"
@@ -352,10 +421,11 @@
             {% if not _has_shapes %}disabled aria-disabled="true"{% endif %}
           >
             {% if _has_shapes %}
-              <option value="" disabled{% if not _selected_shape %} selected{% endif %}>
+              <option value="" disabled{% if not _selected_shape %} selected{% endif %} data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.form_w_hlen.68d8460e">
                 Form wählen
               </option>
 
+              {% set _shape_option_values = namespace(items=[]) %}
               {% for item in _geometry_shapes %}
                 {% if item is mapping %}
                   {% if 'id' in item and item['id'] %}
@@ -387,10 +457,29 @@
                 {% endif %}
 
                 {% if option_value %}
+                  {% set _shape_option_values.items = _shape_option_values.items + [option_value | string] %}
                   <option
                     value="{{ option_value }}"
                     data-vp-geometry-shape-option="true"
                     {% if option_value | string == _selected_shape | string %}selected{% endif %}
+                  >
+                    {{ option_label }}
+                  </option>
+                {% endif %}
+              {% endfor %}
+              {% for option_value, option_label in [
+                ('wall', 'Wand / Platte stehend'),
+                ('pipe', 'Rohr / liegender Zylinder'),
+                ('frame', 'Rahmen / Fenster'),
+                ('conveyor', 'Förderband'),
+                ('stairs', 'Treppe'),
+                ('composite', 'Zusammengesetzte Geometrie')
+              ] %}
+                {% if option_value not in _shape_option_values.items %}
+                  <option
+                    value="{{ option_value }}"
+                    data-vp-geometry-shape-option="true"
+                    {% if option_value == _selected_shape | string %}selected{% endif %}
                   >
                     {{ option_label }}
                   </option>
@@ -424,7 +513,7 @@
           for="create-geometry-unit"
           data-vp-field-wrapper="geometry_unit"
         >
-          <span class="vp-create-field__label">Einheit</span>
+          <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.einheit.09d1dba0">Einheit</span>
 
           <select
             id="create-geometry-unit"
@@ -439,7 +528,7 @@
             {% if not _has_units %}disabled aria-disabled="true"{% endif %}
           >
             {% if _has_units %}
-              <option value="" disabled{% if not _geometry_unit %} selected{% endif %}>
+              <option value="" disabled{% if not _geometry_unit %} selected{% endif %} data-i18n="vectoplan.server.library.vplib.create.sections.geometry.option.einheit_w_hlen.01168745">
                 Einheit wählen
               </option>
 
@@ -506,73 +595,6 @@
       </div>
 
       <div
-        class="vplib-create-step__field vplib-create-step__field--full vp-create-upload vp-create-upload--geometry vp-create-geometry-model-strip"
-        data-vp-upload
-        data-vp-upload-zone
-        data-create-upload-zone
-        data-vp-geometry-upload
-        data-vp-upload-kind="geometry_model"
-        data-vp-upload-purpose="geometry_model"
-        data-vp-upload-backend-enabled="true"
-        data-vp-upload-local-only="false"
-        data-vp-upload-metadata-field="geometry_model_uploads_json"
-      >
-        <div class="vp-create-upload__header" data-vp-upload-header>
-          <div>
-            <strong class="vp-create-upload__title">
-              3D-Modell
-            </strong>
-
-            <p class="vp-create-upload__hint">
-              Optionales 3D-Modell auswählen. Die Datei wird direkt in das VPLIB eingebettet.
-            </p>
-          </div>
-
-          <span
-            class="vp-create-status-pill vp-create-status-pill--muted"
-            data-vp-upload-count-label
-            aria-live="polite"
-          >
-            0 Dateien
-          </span>
-        </div>
-
-        <div class="vp-create-upload__controls" data-vp-upload-controls>
-          <input
-            id="create-geometry-model-upload"
-            type="file"
-            name="geometry_model_files"
-            multiple
-            accept=".glb,.gltf,.obj,.fbx,.stl,.bin,.mtl,.zip"
-            data-vp-upload-input
-            data-vp-geometry-model-upload-input="true"
-            data-vp-upload-kind="geometry_model"
-            data-vp-upload-purpose="geometry_model"
-            aria-describedby="create-geometry-model-upload-hint"
-          />
-
-          <input
-            id="create-geometry-model-upload-json"
-            type="hidden"
-            name="geometry_model_uploads_json"
-            value="{{ _geometry_model_uploads_json | string | e }}"
-            data-vp-upload-metadata
-            data-vp-geometry-model-upload-metadata="true"
-            data-vp-upload-metadata-kind="geometry_model"
-            data-create-field="geometry_model_uploads_json"
-          />
-
-
-
-          <div
-            class="vp-create-upload__file-list"
-            data-vp-upload-file-list
-            aria-live="polite"
-          ></div>
-        </div>
-      </div>
-
-      <div
         class="vplib-create-step__field vplib-create-step__field--full vp-create-upload vp-create-upload--textures"
         data-vp-upload
         data-vp-upload-zone
@@ -585,12 +607,12 @@
       >
         <div class="vp-create-upload__header" data-vp-upload-header>
           <div>
-            <strong class="vp-create-upload__title">Texturen</strong>
-            <p class="vp-create-upload__hint">
+            <strong class="vp-create-upload__title" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.strong.texturen.b760cf98">Texturen</strong>
+            <p class="vp-create-upload__hint" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.p.png_jpg_webp_tga_bmp_oder_ktx2_ausw_hl.0b6dfae5">
               PNG, JPG, WebP, TGA, BMP oder KTX2 auswählen. Rastertexturen werden automatisch auf maximal 1024 px begrenzt, als WebP komprimiert und mit Mipmaps wiederverwendbar eingebettet.
             </p>
           </div>
-          <span class="vp-create-status-pill vp-create-status-pill--muted" data-vp-upload-count-label aria-live="polite">
+          <span class="vp-create-status-pill vp-create-status-pill--muted" data-vp-upload-count-label aria-live="polite" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.0_dateien.bc12cb7c">
             0 Dateien
           </span>
         </div>
@@ -614,7 +636,7 @@
             data-vp-upload-metadata-kind="textures"
             data-create-field="texture_uploads_json"
           />
-          <p class="vp-create-upload__empty" data-vp-upload-empty>
+          <p class="vp-create-upload__empty" data-vp-upload-empty data-i18n="vectoplan.server.library.vplib.create.sections.geometry.p.noch_keine_textur_ausgew_hlt.cf03f8ed">
             Noch keine Textur ausgewählt.
           </p>
           <div class="vp-create-upload__file-list" data-vp-upload-file-list aria-live="polite"></div>
@@ -626,11 +648,11 @@
         data-create-visible-size-section="true"
       >
         <div class="vp-create-compact-subheader">
-          <h3 class="vp-create-compact-subheader__title">
+          <h3 class="vp-create-compact-subheader__title" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.h3.sichtbare_gr_e.834700b2">
             Sichtbare Größe
           </h3>
 
-          <p class="vp-create-compact-subheader__text">
+          <p class="vp-create-compact-subheader__text" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.p.primitive_au_enma_e_nicht_zwingend_all.dda5541c">
             Primitive Außenmaße, nicht zwingend alle späteren Fachmaße.
           </p>
         </div>
@@ -642,7 +664,7 @@
               for="create-geometry-width"
               data-vp-field-wrapper="geometry_width"
             >
-              <span class="vp-create-field__label">Breite</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.breite.57b55afd">Breite</span>
 
               <input
                 id="create-geometry-width"
@@ -671,7 +693,7 @@
               for="create-geometry-height"
               data-vp-field-wrapper="geometry_height"
             >
-              <span class="vp-create-field__label">Höhe</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.h_he.1d6d282a">Höhe</span>
 
               <input
                 id="create-geometry-height"
@@ -700,7 +722,7 @@
               for="create-geometry-depth"
               data-vp-field-wrapper="geometry_depth"
             >
-              <span class="vp-create-field__label">Tiefe</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.tiefe.84f9b101">Tiefe</span>
 
               <input
                 id="create-geometry-depth"
@@ -722,7 +744,7 @@
               <span
                 id="create-geometry-depth-hint"
                 class="vp-create-field__hint"
-              >
+               data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.sichtbare_tiefe.17a126cd">
                 Sichtbare Tiefe.
               </span>
             </label>
@@ -735,11 +757,11 @@
         data-create-editor-block-section="true"
       >
         <div class="vp-create-compact-subheader">
-          <h3 class="vp-create-compact-subheader__title">
+          <h3 class="vp-create-compact-subheader__title" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.h3.editor_raster.e379489d">
             Editor-Raster
           </h3>
 
-          <p class="vp-create-compact-subheader__text">
+          <p class="vp-create-compact-subheader__text" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.p.bei_raster_bauteil_und_adaptivem_syste.047bdc37">
             Bei Raster-Bauteil und Adaptivem System automatisch 1 × 1 × 1. Mehrblock-Modul ist frei editierbar.
           </p>
         </div>
@@ -751,7 +773,7 @@
               for="create-editor-cells-x"
               data-vp-field-wrapper="editor_cells_x"
             >
-              <span class="vp-create-field__label">Blöcke Breite</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.bl_cke_breite.5aa28820">Blöcke Breite</span>
 
               <input
                 id="create-editor-cells-x"
@@ -780,7 +802,7 @@
               for="create-editor-cells-y"
               data-vp-field-wrapper="editor_cells_y"
             >
-              <span class="vp-create-field__label">Blöcke Höhe</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.bl_cke_h_he.48304ef5">Blöcke Höhe</span>
 
               <input
                 id="create-editor-cells-y"
@@ -809,7 +831,7 @@
               for="create-editor-cells-z"
               data-vp-field-wrapper="editor_cells_z"
             >
-              <span class="vp-create-field__label">Blöcke Tiefe</span>
+              <span class="vp-create-field__label" data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.bl_cke_tiefe.f2d26c99">Blöcke Tiefe</span>
 
               <input
                 id="create-editor-cells-z"
@@ -841,9 +863,9 @@
           data-vp-inline-warning="geometry"
           role="status"
         >
-          <strong>Geometrie-Optionen unvollständig.</strong>
+          <strong data-i18n="vectoplan.server.library.vplib.create.sections.geometry.strong.geometrie_optionen_unvollst_ndig.314d3f62">Geometrie-Optionen unvollständig.</strong><span data-i18n="vectoplan.server.library.vplib.create.sections.geometry.span.formen_oder_einheiten_fehlen_im_option.a4ca35ab">
           Formen oder Einheiten fehlen im Options-Payload. Fallback-Werte werden als Hidden Fields weitergegeben.
-        </div>
+        </span></div>
       {% endif %}
     </div>
   </div>
@@ -1838,5 +1860,67 @@
         /* no-op */
       }
     }
+  })();
+</script>
+<script>
+  (function () {
+    "use strict";
+    var presets = {
+      block: { kind: "cell_block", shape: "block", height: "1", cells: [1, 1, 1], heightMode: "full", axis: "x", interaction: "none" },
+      half_block: { kind: "cell_block", shape: "slab", height: "0.5", cells: [1, 1, 1], heightMode: "half", axis: "x", interaction: "none" },
+      slab: { kind: "cell_block", shape: "slab", height: "0.12", cells: [1, 1, 1], heightMode: "dimensions", axis: "x", interaction: "none" },
+      wall_segment: { kind: "multi_cell_module", shape: "wall", height: "1", cells: [1, 1, 1], heightMode: "dimensions", axis: "x", interaction: "none" },
+      beam: { kind: "catalog_object", shape: "block", height: "0.24", cells: [1, 1, 1], heightMode: "dimensions", axis: "x", interaction: "none" },
+      column: { kind: "catalog_object", shape: "block", height: "1", cells: [1, 1, 1], heightMode: "dimensions", axis: "y", interaction: "none" },
+      hinged_door: { kind: "catalog_object", shape: "frame", width: "1", height: "2", depth: "0.12", cells: [1, 2, 1], heightMode: "dimensions", axis: "y", interaction: "swing_door" },
+      thin_window: { kind: "catalog_object", shape: "frame", width: "1", height: "1", depth: "0.12", cells: [1, 1, 1], heightMode: "dimensions", axis: "y", interaction: "none" },
+      pipe_segment: { kind: "adaptive_system", shape: "pipe", width: "1", height: "0.16", depth: "0.16", cells: [1, 1, 1], heightMode: "dimensions", axis: "x", interaction: "none" },
+      vertical_cylinder: { kind: "catalog_object", shape: "cylinder", cells: [1, 1, 1], heightMode: "dimensions", axis: "y", interaction: "none" },
+      conveyor_segment: { kind: "adaptive_system", shape: "conveyor", width: "1", height: "0.24", depth: "0.7", cells: [1, 1, 1], heightMode: "dimensions", axis: "x", interaction: "toggle" },
+      stair_run: { kind: "multi_cell_module", shape: "stairs", width: "1", height: "1", depth: "1", cells: [1, 1, 1], heightMode: "dimensions", axis: "z", interaction: "none" },
+      composite_parts: { kind: "catalog_object", shape: "composite", cells: [1, 1, 1], heightMode: "dimensions", axis: "x", interaction: "none" }
+    };
+
+    function emit(field) {
+      if (!field) return;
+      try { field.dispatchEvent(new Event("input", { bubbles: true })); } catch (ignore) {}
+      try { field.dispatchEvent(new Event("change", { bubbles: true })); } catch (ignore) {}
+    }
+
+    function setValue(root, selector, value) {
+      var field = root.querySelector(selector);
+      if (!field || value === undefined) return;
+      field.value = String(value);
+      emit(field);
+    }
+
+    function bootProfiles() {
+      var root = document.querySelector("[data-vp-geometry-root='true']");
+      var profile = root && root.querySelector("#create-geometry-profile");
+      if (!root || !profile || profile.dataset.vpPresetReady === "true") return;
+      profile.dataset.vpPresetReady = "true";
+      profile.addEventListener("change", function () {
+        var preset = presets[String(profile.value || "")];
+        if (!preset) return;
+        setValue(root, "#create-geometry-object-kind", preset.kind);
+        var apply = function () {
+          setValue(root, "#create-primitive-shape", preset.shape);
+          setValue(root, "#create-block-height-mode", preset.heightMode);
+          setValue(root, "#create-geometry-axis", preset.axis);
+          setValue(root, "#create-interaction-kind", preset.interaction);
+          setValue(root, "#create-geometry-width", preset.width);
+          setValue(root, "#create-geometry-height", preset.height);
+          setValue(root, "#create-geometry-depth", preset.depth);
+          setValue(root, "#create-editor-cells-x", preset.cells[0]);
+          setValue(root, "#create-editor-cells-y", preset.cells[1]);
+          setValue(root, "#create-editor-cells-z", preset.cells[2]);
+        };
+        if (typeof window.queueMicrotask === "function") window.queueMicrotask(apply);
+        else window.setTimeout(apply, 0);
+      });
+    }
+
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bootProfiles, { once: true });
+    else bootProfiles();
   })();
 </script>

@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "enabled": true,
+  "visible": true,
+  "vplib_uid": "0d91f1e2-d0b9-55de-839c-218738460c67",
+  "family_id": "vp.tiefbau.erdbau.aufschuettung.verdichtete_aufschuettung",
+  "default_variant_id": "default",
+  "label": "Verdichtete Aufschüttung",
+  "description": "Modellkörper für lagenweise verdichtete Erd- und Füllstoffe.",
+  "taxonomy_version": "v1",
+  "domain": "tiefbau",
+  "category": "erdbau",
+  "subcategory": "aufschuettung",
+  "classification_path": "tiefbau/erdbau/aufschuettung",
+  "source_path": "tiefbau/erdbau/aufschuettung/verdichtete_aufschuettung",
+  "labels": {
+    "domain": "Tiefbau",
+    "category": "Erdbau",
+    "subcategory": "Aufschüttung"
+  },
+  "object_kind": "cell_block",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "tags": []
+}
