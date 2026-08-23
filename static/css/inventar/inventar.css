@@ -3806,7 +3806,9 @@ html.vp-creative-inventory-embed .vp-creative-layout[data-create-embed-active="t
   grid-template-columns: minmax(60px, 1fr) minmax(112px, 1.35fr);
 }
 
-.vp-world-edit-config__field select {
+.vp-world-edit-config__field select,
+.vp-world-edit-config__field input[type="text"],
+.vp-world-edit-config__field input[type="number"] {
   min-width: 0;
   height: 30px;
   padding: 0 8px;
@@ -3817,6 +3819,10 @@ html.vp-creative-inventory-embed .vp-creative-layout[data-create-embed-active="t
   font: inherit;
   font-weight: 760;
 }
+
+.vp-world-edit-config__roof { max-height: min(58vh, 660px); overflow: auto; scrollbar-width: thin; }
+.vp-world-edit-config__roof details { display: grid; gap: 8px; border-top: 1px solid rgba(67, 93, 151, .14); }
+.vp-world-edit-config__roof summary { padding-top: 8px; color: #365bb4; font-size: .68rem; font-weight: 850; cursor: pointer; }
 
 .vp-world-edit-config__selection,
 .vp-world-edit-config__brush {
