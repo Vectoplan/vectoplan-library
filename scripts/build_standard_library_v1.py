@@ -151,6 +151,7 @@ def spec(
     inventory_icon_kind: str | None = None,
     inventory_sort_order: int = 500,
     color: str = "#9CA3AF",
+    plan_representation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     resolved_profile = geometry_profile or _default_geometry_profile(
         category=category,
@@ -184,7 +185,41 @@ def spec(
         "inventory_icon_kind": inventory_icon_kind or resolved_profile,
         "inventory_sort_order": inventory_sort_order,
         "color": color,
+        "plan_representation": dict(plan_representation or {}),
     }
+
+
+WINDOW_PLAN_REPRESENTATION = {
+    "cad.plan.symbol_kind": "window",
+    "cad.plan.detail_level": "permit",
+    "cad.plan.show_swing": False,
+    "cad.plan.show_opening_label": True,
+    "cad.plan.show_sill_height": True,
+    "cad.plan.frame_line_count": 3,
+    "cad.plan.room_fill_mode": "none",
+    "cad.plan.room_stamp_show_name": False,
+    "cad.plan.room_stamp_show_area": False,
+    "cad.plan.room_stamp_show_floor_finish": False,
+    "cad.plan.line_weight_mm": 0.35,
+}
+INTERIOR_DOOR_PLAN_REPRESENTATION = {
+    "cad.plan.symbol_kind": "interior_door",
+    "cad.plan.detail_level": "permit",
+    "cad.plan.show_swing": True,
+    "cad.plan.show_opening_label": True,
+    "cad.plan.show_sill_height": False,
+    "cad.plan.frame_line_count": 1,
+    "cad.plan.room_fill_mode": "none",
+    "cad.plan.room_stamp_show_name": False,
+    "cad.plan.room_stamp_show_area": False,
+    "cad.plan.room_stamp_show_floor_finish": False,
+    "cad.plan.line_weight_mm": 0.35,
+}
+EXTERIOR_DOOR_PLAN_REPRESENTATION = {
+    **INTERIOR_DOOR_PLAN_REPRESENTATION,
+    "cad.plan.symbol_kind": "exterior_door",
+    "cad.plan.line_weight_mm": 0.5,
+}
 
 
 FAMILY_SPECS: list[dict[str, Any]] = [
@@ -217,6 +252,7 @@ FAMILY_SPECS: list[dict[str, Any]] = [
         inventory_icon_kind="window",
         inventory_sort_order=120,
         color="#A7D8EA",
+        plan_representation=WINDOW_PLAN_REPRESENTATION,
     ),
     spec(
         "hochbau",
@@ -244,6 +280,7 @@ FAMILY_SPECS: list[dict[str, Any]] = [
         inventory_icon_kind="door",
         inventory_sort_order=110,
         color="#B98555",
+        plan_representation=INTERIOR_DOOR_PLAN_REPRESENTATION,
     ),
     spec(
         "hochbau",
@@ -270,6 +307,7 @@ FAMILY_SPECS: list[dict[str, Any]] = [
         inventory_icon_kind="door_exterior",
         inventory_sort_order=111,
         color="#7C5135",
+        plan_representation=EXTERIOR_DOOR_PLAN_REPRESENTATION,
     ),
     spec(
         "hochbau",
@@ -389,6 +427,7 @@ def _payload(family: dict[str, Any]) -> dict[str, Any]:
             "cad.pattern_foreground_color": "#202020",
             "cad.pattern_background_color": "#FFFFFF",
         }
+        values.update(family.get("plan_representation") or {})
         variants.append(
             {
                 "variant_id": variant_id,

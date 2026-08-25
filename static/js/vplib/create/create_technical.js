@@ -88,7 +88,21 @@
     }
   ];
   var PATTERN_KEYS = PATTERN_FIELDS.map(function (field) { return field.key; });
-  var MANAGED_KEYS = DIMENSION_KEYS.concat(PATTERN_KEYS);
+  var PLAN_FIELDS = [
+    {key: "cad.plan.symbol_kind", label: "2D-Plansymbol", description: "Fachliches Symbol für Grundriss und Planansicht.", valueType: "string", defaultValue: "auto"},
+    {key: "cad.plan.detail_level", label: "Detailstufe", description: "Planstufe für die vollständige Darstellung.", valueType: "string", defaultValue: "permit"},
+    {key: "cad.plan.show_swing", label: "Tür-Aufschlag", description: "Türblatt und Öffnungsbogen darstellen.", valueType: "boolean", defaultValue: true},
+    {key: "cad.plan.show_opening_label", label: "Öffnungsmaß", description: "Breite und Höhe am Öffnungssymbol zeigen.", valueType: "boolean", defaultValue: true},
+    {key: "cad.plan.show_sill_height", label: "Brüstungshöhe", description: "Brüstungshöhe am Fenstersymbol zeigen.", valueType: "boolean", defaultValue: true},
+    {key: "cad.plan.frame_line_count", label: "Rahmenlinien", description: "Anzahl der Fenster-Rahmenlinien.", valueType: "number", defaultValue: 2},
+    {key: "cad.plan.room_fill_mode", label: "Raumfüllung", description: "Darstellung der Raumzone.", valueType: "string", defaultValue: "zone"},
+    {key: "cad.plan.room_stamp_show_name", label: "Raumname", description: "Raumname im Stempel anzeigen.", valueType: "boolean", defaultValue: true},
+    {key: "cad.plan.room_stamp_show_area", label: "Raumfläche", description: "Fläche im Raumstempel anzeigen.", valueType: "boolean", defaultValue: true},
+    {key: "cad.plan.room_stamp_show_floor_finish", label: "Bodenaufbau", description: "Bodenaufbau im Ausführungsstempel zeigen.", valueType: "boolean", defaultValue: false},
+    {key: "cad.plan.line_weight_mm", label: "Linienstärke", description: "2D-Linienstärke auf dem Papier.", valueType: "number", defaultValue: 0.35}
+  ];
+  var PLAN_KEYS = PLAN_FIELDS.map(function (field) { return field.key; });
+  var MANAGED_KEYS = DIMENSION_KEYS.concat(PATTERN_KEYS, PLAN_KEYS);
 
   var state = {
     root: null,
@@ -357,6 +371,23 @@
     persistVariant(variant, values);
   }
 
+  function planField(key) {
+    return PLAN_FIELDS.find(function (field) { return field.key === key; }) || null;
+  }
+
+  function setPlanValue(key, rawValue) {
+    var variant = selectedVariant();
+    var field = planField(key);
+    if (!variant || !field) return;
+    var values = variantValues(variant);
+    if (field.valueType === "boolean") values[key] = Boolean(rawValue);
+    else if (field.valueType === "number") {
+      var parsed = Number(String(rawValue).replace(",", "."));
+      values[key] = Number.isFinite(parsed) ? parsed : field.defaultValue;
+    } else values[key] = clean(rawValue) || field.defaultValue;
+    persistVariant(variant, values);
+  }
+
   function populateVariantSelect() {
     var select = query("[data-vp-technical-variant-select]", state.root);
     var summary = query("[data-vp-technical-variant-summary]", state.root);
@@ -487,6 +518,17 @@
     });
   }
 
+  function renderPlanControls(values) {
+    PLAN_FIELDS.forEach(function (field) {
+      var input = query("[data-vp-technical-plan-value='" + field.key + "']", state.root);
+      if (!input) return;
+      var value = values[field.key];
+      if (value === null || typeof value === "undefined" || value === "") value = field.defaultValue;
+      if (field.valueType === "boolean") input.checked = Boolean(value);
+      else input.value = String(value);
+    });
+  }
+
   function renderPayloadFields() {
     var container = query("[data-vp-technical-payload-fields]", state.root);
     if (!container) {
@@ -545,6 +587,27 @@
         });
         index += 1;
       });
+      PLAN_FIELDS.forEach(function (field) {
+        var value = values[field.key];
+        if (value === null || typeof value === "undefined" || value === "") value = field.defaultValue;
+        var fields = {
+          key: field.key,
+          value: value,
+          unit: field.key === "cad.plan.line_weight_mm" ? "mm_paper" : "",
+          description: field.description,
+          value_type: field.valueType,
+          scope: "variant",
+          variant_id: variantId(variant)
+        };
+        Object.keys(fields).forEach(function (fieldName) {
+          var input = document.createElement("input");
+          input.type = "hidden";
+          input.name = "variables[" + index + "][" + fieldName + "]";
+          input.value = String(fields[fieldName]);
+          container.appendChild(input);
+        });
+        index += 1;
+      });
     });
     container.setAttribute("data-vp-technical-payload-count", String(index));
   }
@@ -554,7 +617,7 @@
     if (!status) {
       return;
     }
-    status.textContent = DIMENSION_FIELDS.length + " CAD-Maße · " + PATTERN_FIELDS.length + " Musterwerte";
+    status.textContent = DIMENSION_FIELDS.length + " CAD-Maße · " + PATTERN_FIELDS.length + " Musterwerte · " + PLAN_FIELDS.length + " Planwerte";
     status.setAttribute("data-vp-technical-status", "ready");
     state.root.setAttribute("data-vp-technical-ready", "true");
   }
@@ -564,6 +627,7 @@
     var values = variantValues(selectedVariant());
     renderRows(values);
     renderPatternControls(values);
+    renderPlanControls(values);
     renderPayloadFields();
     updateStatus();
   }
@@ -591,13 +655,18 @@
     var patternKey = clean(target.getAttribute("data-vp-technical-pattern-value"));
     if (patternKey) {
       setPatternValue(patternKey, target.value);
+      return;
+    }
+    var planKey = clean(target.getAttribute("data-vp-technical-plan-value"));
+    if (planKey) {
+      setPlanValue(planKey, target.type === "checkbox" ? target.checked : target.value);
     }
   }
 
   function bindEvents() {
     state.root.addEventListener("change", onChange);
     state.root.addEventListener("input", function (event) {
-      if (event.target && event.target.matches("[data-vp-technical-dimension-value], [data-vp-technical-pattern-value]")) {
+      if (event.target && event.target.matches("[data-vp-technical-dimension-value], [data-vp-technical-pattern-value], [data-vp-technical-plan-value]")) {
         onChange(event);
       }
     });

@@ -176,10 +176,10 @@ def test_standard_library_v1_is_complete_and_every_family_embeds_patterns() -> N
     manifests = sorted(package_root.rglob("vplib.manifest.json"))
     pattern_documents = sorted(package_root.rglob("render/cad_patterns.json"))
 
-    assert catalog["family_count"] == 52
+    assert catalog["family_count"] == 54
     assert catalog["variant_count"] >= 300
     assert len(catalog["content_revision"]) == 64
-    assert catalog["domain_counts"] == {"hochbau": 20, "ingenieurbau": 16, "tiefbau": 16}
+    assert catalog["domain_counts"] == {"hochbau": 22, "ingenieurbau": 16, "tiefbau": 16}
     assert len(manifests) == catalog["family_count"]
     assert len(pattern_documents) == catalog["family_count"]
     assert sum(item["variant_count"] for item in catalog["families"]) == catalog["variant_count"]
@@ -237,10 +237,56 @@ def test_standard_library_technical_objects_expose_editor_geometry_semantics() -
     assert pipe["geometry.primitive_shape"] == "pipe"
     assert window["geometry.profile_id"] == "thin_window"
     assert window["dimensions.depth_mm"] < window["dimensions.width_mm"]
+    assert window["cad.plan.symbol_kind"] == "window"
+    assert window["cad.plan.frame_line_count"] == 3
+    assert window["cad.plan.show_sill_height"] is True
     for door in (interior_door, exterior_door):
         assert door["geometry.profile_id"] == "hinged_door"
         assert door["interaction.kind"] == "swing_door"
         assert door["interaction.openable"] is True
+        assert door["cad.plan.show_swing"] is True
+        assert door["cad.plan.show_opening_label"] is True
+    assert interior_door["cad.plan.symbol_kind"] == "interior_door"
+    assert exterior_door["cad.plan.symbol_kind"] == "exterior_door"
+    assert exterior_door["cad.plan.line_weight_mm"] == 0.5
+
+
+def test_vplib_generator_exposes_variant_specific_plan_representation() -> None:
+    template = (SERVICE_ROOT / "templates/vplib/create/sections/_technical_cad.html").read_text(
+        encoding="utf-8-sig"
+    )
+    source_template = (SERVICE_ROOT / "templates/vplib/create/sections/_library_source.html").read_text(
+        encoding="utf-8-sig"
+    )
+    runtime = (SERVICE_ROOT / "static/js/vplib/create/create_technical.js").read_text(
+        encoding="utf-8-sig"
+    )
+    source_runtime = (SERVICE_ROOT / "static/js/vplib/create/create_library_source.js").read_text(
+        encoding="utf-8-sig"
+    )
+    variables = json.loads(
+        (SERVICE_ROOT / "src/library/definitions/data/variables.v1.json").read_text(
+            encoding="utf-8-sig"
+        )
+    )
+    keys = {item["key"] for item in variables["items"]}
+
+    assert "2D-Planrepräsentation" in template
+    assert 'data-vp-technical-plan-value="cad.plan.symbol_kind"' in template
+    assert 'data-vp-technical-plan-value="cad.plan.room_stamp_show_area"' in template
+    assert 'key: "cad.plan.show_swing"' in runtime
+    assert 'key: "cad.plan.line_weight_mm"' in runtime
+    assert "data-vp-library-inventory-url" in source_template
+    assert "hydrateInventoryItem" in source_runtime
+    assert "mergeHydratedItem" in source_runtime
+    assert {
+        "cad.plan.symbol_kind",
+        "cad.plan.show_swing",
+        "cad.plan.frame_line_count",
+        "cad.plan.room_fill_mode",
+        "cad.plan.room_stamp_show_area",
+        "cad.plan.line_weight_mm",
+    } <= keys
 
 
 def test_standard_library_source_overlay_replaces_stale_variants_and_adds_new_families() -> None:
@@ -264,7 +310,7 @@ def test_standard_library_source_overlay_replaces_stale_variants_and_adds_new_fa
     by_family = {item["family_id"]: item for item in items}
     pipe = by_family["vp.tiefbau.leitungen.abwasserleitungen.kanalrohr"]
 
-    assert len(items) == 52
+    assert len(items) == 54
     assert pipe["name"] == "Kanalrohr"
     assert pipe["variants"][0]["id"] == 123
     assert pipe["variants"][0]["definition_values"]["geometry.profile_id"] == "pipe_segment"

@@ -43,13 +43,18 @@ def standard_library_source_root() -> Path:
         or ""
     ).strip()
     if configured:
-        return Path(configured).expanduser().resolve()
-    return (
+        configured_root = Path(configured).expanduser().resolve()
+        if (configured_root.parent / "catalog.json").is_file():
+            return configured_root
+        if (configured_root / "catalog.json").is_file() and (configured_root / "packages").is_dir():
+            return (configured_root / "packages").resolve()
+    repository_root = (
         Path(__file__).resolve().parents[3]
         / "standard_library"
         / "v1"
         / "packages"
     ).resolve()
+    return repository_root
 
 
 def _catalog_token(catalog_path: Path) -> str:
