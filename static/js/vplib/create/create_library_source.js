@@ -74,6 +74,21 @@
     return text(first(item.id, item.family_db_id, item.item_id, item.vplib_uid, item.family_id, item.package_id));
   }
 
+  function itemIdentities(item) {
+    var data = itemPayload(item);
+    return [
+      item.id, item.family_db_id, item.item_id, item.vplib_uid, item.family_id, item.package_id,
+      data.id, data.family_db_id, data.item_id, data.vplib_uid, data.family_id, data.package_id
+    ].map(text).filter(Boolean);
+  }
+
+  function sameItem(left, right) {
+    var rightIds = itemIdentities(right);
+    return itemIdentities(left).some(function (identity) {
+      return rightIds.indexOf(identity) !== -1;
+    });
+  }
+
   function itemPayload(item) {
     var source = mapping(item);
     var summary = mapping(first(source.summary, source.item_summary, source.family_summary));
@@ -482,6 +497,18 @@
         variantsField.value = JSON.stringify(variants);
         variantsField.dispatchEvent(new Event("change", { bubbles: true }));
       }
+      if (
+        window.VectoplanCreateVariantState &&
+        typeof window.VectoplanCreateVariantState.setVariants === "function"
+      ) {
+        window.VectoplanCreateVariantState.setVariants(variants, {
+          source: "creative-library-prefill",
+          force: true,
+          sync: true,
+          emitNativeEvents: true,
+          forceEvent: true
+        });
+      }
     }
 
     emit("vectoplan:create:library-source-prefilled", { item: item, payload: data });
@@ -533,9 +560,46 @@
     }
     var url = template.replace("__item_ref__", encodeURIComponent(itemRef(item)));
     return fetchJson(url).then(function (payload) {
-      var data = mapping(first(mapping(payload).data, payload));
-      return mapping(first(data.item, data.block, data.family, data.result, data));
+      var response = mapping(payload);
+      var data = mapping(response.data);
+      if (!Object.keys(data).length) {
+        data = response;
+      }
+      var candidates = [data.item, data.block, data.family, data.result];
+      for (var index = 0; index < candidates.length; index += 1) {
+        var candidate = mapping(candidates[index]);
+        if (Object.keys(candidate).length) {
+          return candidate;
+        }
+      }
+      return data;
     }).catch(function () { return item; });
+  }
+
+  function hydrateInventoryItem(item) {
+    var url = state.root.getAttribute("data-vp-library-inventory-url");
+    if (!url) {
+      return Promise.resolve(null);
+    }
+    return fetchJson(url).then(function (payload) {
+      return extractItems(payload).find(function (candidate) {
+        return sameItem(candidate, item);
+      }) || null;
+    }).catch(function () { return null; });
+  }
+
+  function mergeHydratedItem(detail, sourceItem, fallback) {
+    var detailItem = mapping(detail);
+    var source = mapping(sourceItem);
+    if (!Object.keys(source).length) {
+      return Object.keys(detailItem).length ? detailItem : fallback;
+    }
+    var merged = Object.assign({}, detailItem, source);
+    merged.payload = Object.assign({}, mapping(detailItem.payload), mapping(source.payload));
+    if (!list(source.variants).length && list(detailItem.variants).length) {
+      merged.variants = detailItem.variants;
+    }
+    return merged;
   }
 
   function selectItem(item, card) {
@@ -549,8 +613,8 @@
     updateSelection(item);
     setStatus("Baustein wird als bearbeitbare Grundlage geladen …", "idle");
 
-    Promise.all([hydrateDetail(item), loadPermissions(item)]).then(function (results) {
-      state.selected = results[0] || item;
+    Promise.all([hydrateDetail(item), loadPermissions(item), hydrateInventoryItem(item)]).then(function (results) {
+      state.selected = mergeHydratedItem(results[0], results[2], item);
       prefillFromItem(state.selected);
       setIdentityTaxonomyLocked(!isSystemAdmin(results[1]));
       updateSelection(state.selected);

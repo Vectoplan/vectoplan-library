@@ -1871,7 +1871,7 @@
       familyId,
       vplibUid
     ];
-    var knownTools = ["selection", "room", "paint", "sculpt", "parcel", "parcel-grid", "ruler-laser", "copy-transform"];
+    var knownTools = ["selection", "room", "stair", "roof", "paint", "sculpt", "parcel", "parcel-grid", "ruler-laser", "copy-transform", "cut-transform", "tentacle"];
     for (var index = 0; index < candidates.length; index += 1) {
       var candidate = cleanString(candidates[index]).toLowerCase().replace(/_/g, "-");
       ["vectoplan.world-edit.", "world-edit.", "world-edit-"].some(function (prefix) {
@@ -1882,6 +1882,25 @@
       if (knownTools.indexOf(candidate) >= 0) return candidate;
     }
     return "";
+  }
+
+  function slotDisplayLabel(slot) {
+    var worldEditLabels = {
+      selection: "Selection Tool",
+      room: "Räume",
+      stair: "Treppenwerkzeug",
+      roof: "Dachgenerator",
+      paint: "Paint Brush",
+      sculpt: "Sculpt Brush",
+      parcel: "Flurstück Tool",
+      "parcel-grid": "Grundstücksraster",
+      "ruler-laser": "Ruler & Laser",
+      "copy-transform": "Copy / Paste",
+      "cut-transform": "Cut / Paste",
+      tentacle: "Tentacle Brush"
+    };
+    var toolId = worldEditToolIdFromSlot(slot);
+    return worldEditLabels[toolId] || slot.label || slot.family_id || slot.vplib_uid || "Item";
   }
 
   function renderSlotElement(element, slot) {
@@ -1907,7 +1926,7 @@
       element.setAttribute("data-slot-selected", selected ? "true" : "false");
       element.setAttribute("data-slot-empty", empty ? "true" : "false");
       element.setAttribute("data-slot-key", slot.slot_key || slotKey(slotIndex));
-      element.setAttribute("data-slot-label", slot.label || "");
+      element.setAttribute("data-slot-label", empty ? "" : slotDisplayLabel(slot));
       element.setAttribute("data-slot-quantity", String(normalizeQuantity(slot.quantity, 0)));
       element.setAttribute("data-item-db-id", slot.item_db_id || "");
       element.setAttribute("data-family-id", slot.family_id || "");
@@ -2035,7 +2054,7 @@
 
     var label = document.createElement("span");
     label.className = "vp-user-slot__label";
-    label.textContent = slot.label || slot.family_id || slot.vplib_uid || "Item";
+    label.textContent = slotDisplayLabel(slot);
 
     content.appendChild(label);
 
@@ -2201,12 +2220,16 @@
     var worldEditIcons = {
       selection: "\u2317",
       room: "R",
+      stair: "▥",
+      roof: "\u2302",
       paint: "\u270e",
       sculpt: "\u2248",
       parcel: "\u2316",
       "parcel-grid": "\u22d5",
       "ruler-laser": "\u2194",
-      "copy-transform": "\u27f3"
+      "copy-transform": "\u27f3",
+      "cut-transform": "\u2702",
+      tentacle: "\u223f"
     };
     if (worldEditIcons[worldEditToolId]) return worldEditIcons[worldEditToolId];
 
@@ -2238,7 +2261,7 @@
     if (meta.empty) {
       parts.push("leer");
     } else {
-      parts.push(slot.label || slot.family_id || slot.vplib_uid || "belegt");
+      parts.push(slotDisplayLabel(slot) || "belegt");
     }
 
     if (meta.selected) {

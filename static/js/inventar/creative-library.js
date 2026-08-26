@@ -32,6 +32,7 @@
     items: [],
     query: "",
     selectedWorldEditToolId: "",
+    worldEditSettingsByTool: {},
     worldEditSettings: {
       operation: "set",
       shape: "sphere",
@@ -43,28 +44,170 @@
       parcelGridSetback: 0,
       parcelGridInfluence: 3,
       roomType: "wohnen",
-      roomLabel: "Raum"
+      roomLabel: "Raum",
+      roomHeight: 3,
+      roofType: "gable",
+      roofPitchDeg: 35,
+      roofEavesHeightMm: 6000,
+      roofRidgeDirection: "auto",
+      roofRidgeDegrees: 0,
+      overhangMm: 500,
+      overhangNorthMm: 500,
+      overhangEastMm: 500,
+      overhangSouthMm: 500,
+      overhangWestMm: 500,
+      edgeOverhangsMm: "",
+      roofSkinThicknessMm: 180,
+      roofSkinMaterial: "generic-roof-build-up",
+      rafterWidthMm: 80,
+      rafterHeightMm: 200,
+      rafterSpacingMm: 700,
+      purlinWidthMm: 160,
+      purlinHeightMm: 240,
+      purlinMaximumSpacingMm: 2500,
+      plateauWidthRatio: 0.25,
+      mansardBreakRatio: 0.38,
+      mansardLowerPitchDeg: 70,
+      mansardUpperPitchDeg: 28,
+      hipEndRatio: 0.5,
+      barrelRiseMm: 3000,
+      barrelSegmentCount: 12,
+      sawtoothCount: 3,
+      sawtoothPitchDeg: 35
     },
     errors: []
   };
 
+  function copyWorldEditSettings(source) {
+    var settings = source || {};
+    return {
+      operation: settings.operation || "set",
+      shape: settings.shape || "sphere",
+      radius: Number.isFinite(Number(settings.radius)) ? Number(settings.radius) : 2,
+      density: Number.isFinite(Number(settings.density)) ? Number(settings.density) : 100,
+      wallThickness: Number.isFinite(Number(settings.wallThickness)) ? Number(settings.wallThickness) : 0,
+      parcelMask: settings.parcelMask !== false,
+      parcelGridMode: settings.parcelGridMode || "boundary",
+      parcelGridSetback: Number.isFinite(Number(settings.parcelGridSetback)) ? Number(settings.parcelGridSetback) : 0,
+      parcelGridInfluence: Number.isFinite(Number(settings.parcelGridInfluence)) ? Number(settings.parcelGridInfluence) : 3,
+      roomType: settings.roomType || "wohnen",
+      roomLabel: settings.roomLabel || "Raum",
+      roomHeight: Number.isFinite(Number(settings.roomHeight)) ? Number(settings.roomHeight) : 3,
+      roofType: settings.roofType || "gable",
+      roofPitchDeg: Number.isFinite(Number(settings.roofPitchDeg)) ? Number(settings.roofPitchDeg) : Number.isFinite(Number(settings.pitchDeg)) ? Number(settings.pitchDeg) : 35,
+      roofEavesHeightMm: Number.isFinite(Number(settings.roofEavesHeightMm)) ? Number(settings.roofEavesHeightMm) : Number.isFinite(Number(settings.eavesHeightMm)) ? Number(settings.eavesHeightMm) : 6000,
+      roofRidgeDirection: settings.roofRidgeDirection || (typeof settings.ridgeDirection === "string" ? settings.ridgeDirection : "degrees"),
+      roofRidgeDegrees: Number.isFinite(Number(settings.roofRidgeDegrees ?? settings.ridgeDirection)) ? Number(settings.roofRidgeDegrees ?? settings.ridgeDirection) : 0,
+      overhangMm: Number.isFinite(Number(settings.overhangMm)) ? Number(settings.overhangMm) : 500,
+      overhangNorthMm: Number.isFinite(Number(settings.overhangNorthMm)) ? Number(settings.overhangNorthMm) : 500,
+      overhangEastMm: Number.isFinite(Number(settings.overhangEastMm)) ? Number(settings.overhangEastMm) : 500,
+      overhangSouthMm: Number.isFinite(Number(settings.overhangSouthMm)) ? Number(settings.overhangSouthMm) : 500,
+      overhangWestMm: Number.isFinite(Number(settings.overhangWestMm)) ? Number(settings.overhangWestMm) : 500,
+      edgeOverhangsMm: Array.isArray(settings.edgeOverhangsMm) ? settings.edgeOverhangsMm.join(" ") : settings.edgeOverhangsMm || "",
+      roofSkinThicknessMm: Number.isFinite(Number(settings.roofSkinThicknessMm)) ? Number(settings.roofSkinThicknessMm) : 180,
+      roofSkinMaterial: settings.roofSkinMaterial || "generic-roof-build-up",
+      rafterWidthMm: Number.isFinite(Number(settings.rafterWidthMm)) ? Number(settings.rafterWidthMm) : 80,
+      rafterHeightMm: Number.isFinite(Number(settings.rafterHeightMm)) ? Number(settings.rafterHeightMm) : 200,
+      rafterSpacingMm: Number.isFinite(Number(settings.rafterSpacingMm)) ? Number(settings.rafterSpacingMm) : 700,
+      purlinWidthMm: Number.isFinite(Number(settings.purlinWidthMm)) ? Number(settings.purlinWidthMm) : 160,
+      purlinHeightMm: Number.isFinite(Number(settings.purlinHeightMm)) ? Number(settings.purlinHeightMm) : 240,
+      purlinMaximumSpacingMm: Number.isFinite(Number(settings.purlinMaximumSpacingMm)) ? Number(settings.purlinMaximumSpacingMm) : 2500,
+      plateauWidthRatio: Number.isFinite(Number(settings.plateauWidthRatio)) ? Number(settings.plateauWidthRatio) : 0.25,
+      mansardBreakRatio: Number.isFinite(Number(settings.mansardBreakRatio)) ? Number(settings.mansardBreakRatio) : 0.38,
+      mansardLowerPitchDeg: Number.isFinite(Number(settings.mansardLowerPitchDeg)) ? Number(settings.mansardLowerPitchDeg) : 70,
+      mansardUpperPitchDeg: Number.isFinite(Number(settings.mansardUpperPitchDeg)) ? Number(settings.mansardUpperPitchDeg) : 28,
+      hipEndRatio: Number.isFinite(Number(settings.hipEndRatio)) ? Number(settings.hipEndRatio) : 0.5,
+      barrelRiseMm: Number.isFinite(Number(settings.barrelRiseMm)) ? Number(settings.barrelRiseMm) : 3000,
+      barrelSegmentCount: Number.isFinite(Number(settings.barrelSegmentCount)) ? Number(settings.barrelSegmentCount) : 12,
+      sawtoothCount: Number.isFinite(Number(settings.sawtoothCount)) ? Number(settings.sawtoothCount) : 3,
+      sawtoothPitchDeg: Number.isFinite(Number(settings.sawtoothPitchDeg)) ? Number(settings.sawtoothPitchDeg) : 35
+    };
+  }
+
+  function storeWorldEditToolSettings(toolId) {
+    if (!toolId) return;
+    state.worldEditSettingsByTool[toolId] = copyWorldEditSettings(state.worldEditSettings);
+  }
+
+  function activateWorldEditToolSettings(toolId) {
+    if (state.selectedWorldEditToolId === toolId) return;
+    storeWorldEditToolSettings(state.selectedWorldEditToolId);
+    var stored = state.worldEditSettingsByTool[toolId];
+    var next = copyWorldEditSettings(stored);
+    if (!stored && toolId === "sculpt") {
+      next.shape = "box";
+      next.radius = 5;
+    }
+    state.worldEditSettings = next;
+    state.worldEditSettingsByTool[toolId] = copyWorldEditSettings(next);
+  }
+
+  function syncWorldEditSettingInputs() {
+    var settings = state.worldEditSettings;
+    var operation = document.querySelector("[data-world-edit-config-operation]");
+    var shape = document.querySelector("[data-world-edit-config-shape]");
+    var radius = document.querySelector("[data-world-edit-config-radius]");
+    var density = document.querySelector("[data-world-edit-config-density]");
+    var wall = document.querySelector("[data-world-edit-config-wall]");
+    var parcelMask = document.querySelector("[data-world-edit-config-parcel-mask]");
+    var parcelGridMode = document.querySelector("[data-world-edit-config-parcel-grid-mode]");
+    var parcelGridSetback = document.querySelector("[data-world-edit-config-setback]");
+    var parcelGridInfluence = document.querySelector("[data-world-edit-config-influence]");
+    var roomType = document.querySelector("[data-world-edit-config-room-type]");
+    var roomLabel = document.querySelector("[data-world-edit-config-room-label]");
+    var roomHeight = document.querySelector("[data-world-edit-config-room-height]");
+    if (operation) operation.value = settings.operation;
+    if (shape) shape.value = settings.shape;
+    if (radius) radius.value = String(settings.radius);
+    if (density) density.value = String(settings.density);
+    if (wall) wall.value = String(settings.wallThickness);
+    if (parcelMask) parcelMask.checked = settings.parcelMask;
+    if (parcelGridMode) parcelGridMode.value = settings.parcelGridMode;
+    if (parcelGridSetback) parcelGridSetback.value = String(settings.parcelGridSetback);
+    if (parcelGridInfluence) parcelGridInfluence.value = String(settings.parcelGridInfluence);
+    if (roomType) roomType.value = settings.roomType;
+    if (roomLabel) roomLabel.value = settings.roomLabel;
+    if (roomHeight) roomHeight.value = String(settings.roomHeight);
+    var roofInputMap = {
+      roofType: "roof-type", roofPitchDeg: "roof-pitch", roofEavesHeightMm: "roof-eaves-height",
+      roofRidgeDirection: "roof-ridge-direction", roofRidgeDegrees: "roof-ridge-degrees",
+      overhangMm: "roof-overhang", overhangNorthMm: "roof-overhang-north", overhangEastMm: "roof-overhang-east",
+      overhangSouthMm: "roof-overhang-south", overhangWestMm: "roof-overhang-west", edgeOverhangsMm: "roof-edge-overhangs",
+      roofSkinThicknessMm: "roof-skin-thickness", roofSkinMaterial: "roof-skin-material",
+      rafterWidthMm: "roof-rafter-width", rafterHeightMm: "roof-rafter-height", rafterSpacingMm: "roof-rafter-spacing",
+      purlinWidthMm: "roof-purlin-width", purlinHeightMm: "roof-purlin-height", purlinMaximumSpacingMm: "roof-purlin-spacing",
+      plateauWidthRatio: "roof-plateau-ratio", mansardBreakRatio: "roof-mansard-break",
+      mansardLowerPitchDeg: "roof-mansard-lower-pitch", mansardUpperPitchDeg: "roof-mansard-upper-pitch",
+      hipEndRatio: "roof-hip-end-ratio", barrelRiseMm: "roof-barrel-rise", barrelSegmentCount: "roof-barrel-segments",
+      sawtoothCount: "roof-sawtooth-count", sawtoothPitchDeg: "roof-sawtooth-pitch"
+    };
+    Object.keys(roofInputMap).forEach(function (key) {
+      var input = document.querySelector("[data-world-edit-config-" + roofInputMap[key] + "]");
+      if (input) input.value = String(settings[key]);
+    });
+    updateWorldEditSettingOutputs();
+  }
+
   var WORLD_EDIT_TOOLS = [
     { id: "selection", label: "Selection Tool", icon: "\u2317", group: "basic-tools", ready: true, description: "Quader markieren, an sechs Flaechenpunkten anpassen und als Set, Wand, Fill, Replace oder Clear ausfuehren." },
-    { id: "room", label: "Räume", icon: "R", group: "basic-tools", ready: true, description: "Den mit dem Selection Tool markierten X/Y/Z-Bereich als semantischen Raum und Energiezone anlegen." },
+    { id: "room", label: "Räume", icon: "R", group: "basic-tools", ready: true, description: "Eine beliebige gerade Raumkontur über Blockecken zeichnen, schließen und als semantischen Raum sowie Energiezone speichern." },
+    { id: "stair", label: "Treppenwerkzeug", icon: "▥", group: "basic-tools", ready: true, description: "Treppenbereich zeichnen und Treppentyp, Laufbreite, Antritt, Austritt und Laufrichtung parametrisch einstellen." },
+    { id: "roof", label: "Dachgenerator", icon: "⌂", group: "basic-tools", ready: true, description: "Beliebige gerade Dachkontur zeichnen und Dachhaut, Sparren sowie Pfetten live parametrisch in 3D erzeugen." },
     { id: "parcel", label: "Flurstück Tool", icon: "\u2316", group: "basic-tools", ready: true, description: "Flurstücke direkt im 3D-Editor projektweit auswählen oder abwählen." },
     { id: "parcel-grid", label: "Grundstücksraster", icon: "\u22d5", group: "basic-tools", ready: true, description: "Eine Flurstücksgrenze als Bauachse wählen und direkte Grenzbebauung oder einen festen Abstand vorgeben." },
     { id: "paint", label: "Paint Brush", icon: "\u270e", group: "basic-tools", ready: true, description: "Kugel-, Quader- und Zylinderpinsel mit Radius, Dichte und Wandstaerke." },
-    { id: "sculpt", label: "Sculpt Brush", icon: "\u2248", group: "basic-tools", ready: true, description: "Material auftragen oder mit Rechtsklick abtragen; bildet das Fundament fuer Smooth, Refine und Erosion." },
+    { id: "sculpt", label: "Sculpt Brush", icon: "\u2248", group: "basic-tools", ready: true, description: "Rechtsklick hebt eine Geländeschicht an, Linksklick senkt sie ab; Quader-Radius 5 ist voreingestellt." },
     { id: "shape", label: "Shape Tool", icon: "\u25c7", group: "basic-tools", description: "Parametrische Voll- und Hohlformen." },
     { id: "entity", label: "Entity Tool", icon: "\u25c9", group: "basic-tools", description: "Entities auswaehlen, platzieren und bearbeiten." },
     { id: "trigger-volume", label: "Trigger Volume", icon: "\u2318", group: "basic-tools", description: "Interaktions- und Triggerregionen anlegen." },
     { id: "ruler-laser", label: "Ruler & Laser", icon: "\u2194", group: "basic-tools", ready: true, description: "Distanzen zwischen zwei Punkten direkt in Metern messen." },
-    { id: "copy-transform", label: "Copy / Cut / Paste", icon: "\u27f3", group: "basic-tools", ready: true, description: "Markierte Bereiche kopieren, ausschneiden und am Ziel wieder einfügen." },
+    { id: "copy-transform", label: "Copy / Paste", icon: "\u29c9", group: "basic-tools", ready: true, description: "Markierte Bereiche kopieren, mit einem X/Y/Z-Achsengizmo blockweise als Live-Vorschau bewegen und einfügen." },
+    { id: "cut-transform", label: "Cut / Paste", icon: "\u2702", group: "basic-tools", ready: true, description: "Markierte Bereiche ausschneiden, mit einem X/Y/Z-Achsengizmo blockweise als Live-Vorschau bewegen und einfügen." },
     { id: "extrude-flood", label: "Extrude & Flood", icon: "\u21e5", group: "basic-tools", description: "Flaechen extrudieren oder zusammenhaengende Bereiche fluten." },
     { id: "boulder", label: "Boulder Brush", icon: "\u25ce", group: "terrain-brushes", description: "Unregelmaessige Felsvolumen." },
     { id: "cave", label: "Cave Brush", icon: "\u25d0", group: "terrain-brushes", description: "Tunnel und Hohlraeume aus Terrain schneiden." },
     { id: "mountain", label: "Mountain Brush", icon: "\u25b2", group: "terrain-brushes", description: "Gebirge und Hoehenzuege aufbauen." },
-    { id: "tentacle", label: "Tentacle Brush", icon: "\u223f", group: "terrain-brushes", description: "Organische, gerichtete Volumenpfade." },
+    { id: "tentacle", label: "Tentacle Brush", icon: "\u223f", group: "terrain-brushes", ready: true, description: "Gerade und ab drei Stützpunkten geglättete Straßen- oder Tunnelpfade zeichnen." },
     { id: "lava-cracks", label: "Lava Cracks", icon: "\u26a1", group: "terrain-brushes", description: "Verzweigte Spalten und Materialadern." },
     { id: "grass-erosion", label: "Grass & Erosion", icon: "\u224b", group: "terrain-brushes", description: "Oberflaechenmaterial verteilen und Terrain erodieren." },
     { id: "path-wall-layer", label: "Path / Wall / Layer", icon: "\u2503", group: "terrain-brushes", description: "Pfade, Waende und Materialschichten entlang einer Spur." },
@@ -767,7 +910,9 @@
     var aside = document.querySelector(".vp-creative-tools");
     var panel = document.querySelector("[data-world-edit-tool-config]");
     if (!aside || !panel || !tool) return;
+    activateWorldEditToolSettings(tool.id);
     state.selectedWorldEditToolId = tool.id;
+    syncWorldEditSettingInputs();
     Array.prototype.forEach.call(document.querySelectorAll("[data-world-edit-tool-card]"), function (entry) {
       entry.classList.toggle("is-selected", entry === card);
       entry.setAttribute("aria-selected", entry === card ? "true" : "false");
@@ -784,10 +929,13 @@
     var utilitySettings = panel.querySelector("[data-world-edit-utility-settings]");
     var parcelGridSettings = panel.querySelector("[data-world-edit-parcel-grid-settings]");
     var roomSettings = panel.querySelector("[data-world-edit-room-settings]");
+    var roofSettings = panel.querySelector("[data-world-edit-roof-settings]");
     var utilityTitle = panel.querySelector("[data-world-edit-utility-title]");
     var utilityText = panel.querySelector("[data-world-edit-utility-text]");
     var operationField = panel.querySelector("[data-world-edit-operation-field]");
     var operationSelect = panel.querySelector("[data-world-edit-config-operation]");
+    var brushPrimary = panel.querySelector("[data-world-edit-brush-primary]");
+    var brushSecondary = panel.querySelector("[data-world-edit-brush-secondary]");
     var parcelMask = panel.querySelector(".vp-world-edit-config__mask");
     var actions = panel.querySelector("[data-world-edit-config-actions]");
     panel.dataset.tool = tool.id;
@@ -795,11 +943,18 @@
     if (panelSubtitle) panelSubtitle.textContent = "World Edit Einstellungen";
     if (title) title.textContent = tool.label;
     if (description) description.textContent = tool.description;
-    if (selectionSettings) selectionSettings.hidden = ["selection", "room"].indexOf(tool.id) < 0;
-    if (brushSettings) brushSettings.hidden = tool.id !== "paint" && tool.id !== "sculpt";
-    if (utilitySettings) utilitySettings.hidden = ["parcel", "parcel-grid", "ruler-laser", "copy-transform"].indexOf(tool.id) < 0;
+    if (selectionSettings) selectionSettings.hidden = tool.id !== "selection";
+    if (brushSettings) brushSettings.hidden = ["paint", "sculpt", "tentacle"].indexOf(tool.id) < 0;
+    if (utilitySettings) utilitySettings.hidden = ["parcel", "parcel-grid", "ruler-laser", "copy-transform", "cut-transform"].indexOf(tool.id) < 0;
     if (parcelGridSettings) parcelGridSettings.hidden = tool.id !== "parcel-grid";
     if (roomSettings) roomSettings.hidden = tool.id !== "room";
+    if (roofSettings) roofSettings.hidden = tool.id !== "roof";
+    if (brushPrimary) brushPrimary.textContent = tool.id === "sculpt"
+      ? "Geländeschicht absenken"
+      : tool.id === "tentacle" ? "Pfadpunkt setzen oder verschieben" : "Pinsel anwenden";
+    if (brushSecondary) brushSecondary.textContent = tool.id === "sculpt"
+      ? "Geländeschicht anheben"
+      : tool.id === "tentacle" ? "Gelben Punkt löschen; sonst Pfad ausführen" : "Mit gleicher Form entfernen";
     if (utilityTitle) utilityTitle.textContent = tool.label;
     if (utilityText) utilityText.textContent = tool.id === "parcel"
       ? "Flurstück anvisieren und anklicken. Die Auswahl wird sofort mit Map und Projekt synchronisiert."
@@ -807,12 +962,14 @@
         ? "Grenzkante anvisieren und anklicken. Die cyanfarbene Bauachse zeigt Grenzlage, Abstand und Wirkbereich."
       : tool.id === "ruler-laser"
         ? "Linksklick halten, Kamera bis zum zweiten Punkt bewegen und loslassen."
-        : "Zuerst mit Selection markieren, dann Copy, Cut oder Paste wählen.";
-    if (operationField) operationField.hidden = ["parcel", "parcel-grid", "ruler-laser", "room"].indexOf(tool.id) >= 0;
-    if (parcelMask) parcelMask.hidden = ["parcel", "parcel-grid", "ruler-laser"].indexOf(tool.id) >= 0;
-    if (actions) actions.hidden = ["selection", "copy-transform", "room"].indexOf(tool.id) < 0;
+        : tool.id === "cut-transform"
+          ? "Bereich markieren, mit Rechtsklick ausschneiden, am X/Y/Z-Gizmo blockweise bewegen und mit Rechtsklick einfügen."
+          : "Bereich markieren, mit Rechtsklick kopieren, am X/Y/Z-Gizmo blockweise bewegen und mit Rechtsklick einfügen.";
+    if (operationField) operationField.hidden = ["parcel", "parcel-grid", "ruler-laser", "room", "stair", "roof", "copy-transform", "cut-transform"].indexOf(tool.id) >= 0;
+    if (parcelMask) parcelMask.hidden = ["parcel", "parcel-grid", "ruler-laser", "room", "stair", "roof"].indexOf(tool.id) >= 0;
+    if (actions) actions.hidden = ["selection", "copy-transform", "cut-transform", "room", "roof", "tentacle"].indexOf(tool.id) < 0;
     if (operationSelect) {
-      var clipboardTool = tool.id === "copy-transform";
+      var clipboardTool = false;
       if (operationSelect.dataset.mode !== (clipboardTool ? "clipboard" : "world")) {
         operationSelect.innerHTML = clipboardTool
           ? '<option value="copy">Kopieren</option><option value="cut">Ausschneiden</option><option value="paste">Einfügen</option>'
@@ -843,6 +1000,7 @@
     var panelSubtitle = aside && aside.querySelector("[data-creative-tools-subtitle]");
     if (panelTitle) panelTitle.textContent = "Creative Mode";
     if (panelSubtitle) panelSubtitle.textContent = "Schnelleinstellungen";
+    storeWorldEditToolSettings(state.selectedWorldEditToolId);
     state.selectedWorldEditToolId = "";
   }
 
@@ -936,13 +1094,30 @@
       status.textContent = clean(detail.status);
       status.dataset.ready = detail.statusKind === "error" || detail.statusKind === "warning" ? "false" : "true";
     }
-    if (actions) actions.hidden = ["selection", "copy-transform", "room"].indexOf(state.selectedWorldEditToolId) < 0;
+    if (actions) actions.hidden = ["selection", "copy-transform", "cut-transform", "room", "roof", "tentacle"].indexOf(state.selectedWorldEditToolId) < 0;
     if (execute) execute.disabled = Boolean(detail.busy) || detail.canExecute === false;
     if (reset) reset.disabled = Boolean(detail.busy);
     if (parcelGridInfluence && Number.isFinite(Number(detail.parcelGridInfluence))) {
       parcelGridInfluence.value = String(Math.max(1, Math.min(6, Math.round(Number(detail.parcelGridInfluence)))));
       state.worldEditSettings.parcelGridInfluence = Number(parcelGridInfluence.value);
       updateWorldEditSettingOutputs();
+    }
+    if (state.selectedWorldEditToolId === "roof") {
+      var roof = record(detail.roofParameters);
+      if (Object.keys(roof).length) {
+        var ridge = roof.ridgeDirection;
+        state.worldEditSettings = copyWorldEditSettings(Object.assign({}, state.worldEditSettings, roof, {
+          roofPitchDeg: roof.pitchDeg,
+          roofEavesHeightMm: roof.eavesHeightMm,
+          roofRidgeDirection: typeof ridge === "number" ? "degrees" : ridge,
+          roofRidgeDegrees: typeof ridge === "number" ? ridge : state.worldEditSettings.roofRidgeDegrees
+        }));
+        syncWorldEditSettingInputs();
+      }
+    }
+    if (state.selectedWorldEditToolId === "room" && Number.isFinite(Number(detail.roomHeight))) {
+      state.worldEditSettings.roomHeight = Number(detail.roomHeight);
+      syncWorldEditSettingInputs();
     }
   }
 
@@ -960,6 +1135,41 @@
 
   function emitWorldEditSettings() {
     if (!state.selectedWorldEditToolId) return;
+    var edgeOverhangs = clean(state.worldEditSettings.edgeOverhangsMm).split(/[;,\s]+/).map(Number).filter(function (value) {
+      return Number.isFinite(value) && value >= 0;
+    });
+    var ridgeDirection = state.worldEditSettings.roofRidgeDirection === "degrees"
+      ? state.worldEditSettings.roofRidgeDegrees
+      : state.worldEditSettings.roofRidgeDirection;
+    var roofParameters = {
+      roofType: state.worldEditSettings.roofType,
+      pitchDeg: state.worldEditSettings.roofPitchDeg,
+      eavesHeightMm: state.worldEditSettings.roofEavesHeightMm,
+      ridgeDirection: ridgeDirection,
+      overhangMm: state.worldEditSettings.overhangMm,
+      overhangNorthMm: state.worldEditSettings.overhangNorthMm,
+      overhangEastMm: state.worldEditSettings.overhangEastMm,
+      overhangSouthMm: state.worldEditSettings.overhangSouthMm,
+      overhangWestMm: state.worldEditSettings.overhangWestMm,
+      edgeOverhangsMm: edgeOverhangs,
+      roofSkinThicknessMm: state.worldEditSettings.roofSkinThicknessMm,
+      roofSkinMaterial: state.worldEditSettings.roofSkinMaterial,
+      rafterWidthMm: state.worldEditSettings.rafterWidthMm,
+      rafterHeightMm: state.worldEditSettings.rafterHeightMm,
+      rafterSpacingMm: state.worldEditSettings.rafterSpacingMm,
+      purlinWidthMm: state.worldEditSettings.purlinWidthMm,
+      purlinHeightMm: state.worldEditSettings.purlinHeightMm,
+      purlinMaximumSpacingMm: state.worldEditSettings.purlinMaximumSpacingMm,
+      plateauWidthRatio: state.worldEditSettings.plateauWidthRatio,
+      mansardBreakRatio: state.worldEditSettings.mansardBreakRatio,
+      mansardLowerPitchDeg: state.worldEditSettings.mansardLowerPitchDeg,
+      mansardUpperPitchDeg: state.worldEditSettings.mansardUpperPitchDeg,
+      hipEndRatio: state.worldEditSettings.hipEndRatio,
+      barrelRiseMm: state.worldEditSettings.barrelRiseMm,
+      barrelSegmentCount: state.worldEditSettings.barrelSegmentCount,
+      sawtoothCount: state.worldEditSettings.sawtoothCount,
+      sawtoothPitchDeg: state.worldEditSettings.sawtoothPitchDeg
+    };
     postDragMessage(WORLD_EDIT_SETTINGS_CHANGE, null, {
       tool: state.selectedWorldEditToolId,
       toolId: state.selectedWorldEditToolId,
@@ -973,7 +1183,14 @@
       parcelGridSetback: state.worldEditSettings.parcelGridSetback,
       parcelGridInfluence: state.worldEditSettings.parcelGridInfluence,
       roomType: state.worldEditSettings.roomType,
-      roomLabel: state.worldEditSettings.roomLabel
+      roomLabel: state.worldEditSettings.roomLabel,
+      roomHeight: state.worldEditSettings.roomHeight,
+      roofParameters: roofParameters,
+      roofType: roofParameters.roofType,
+      pitchDeg: roofParameters.pitchDeg,
+      eavesHeightMm: roofParameters.eavesHeightMm,
+      overhangMm: roofParameters.overhangMm,
+      roofSkinThicknessMm: roofParameters.roofSkinThicknessMm
     });
   }
 
@@ -989,6 +1206,24 @@
     var parcelGridInfluence = document.querySelector("[data-world-edit-config-influence]");
     var roomType = document.querySelector("[data-world-edit-config-room-type]");
     var roomLabel = document.querySelector("[data-world-edit-config-room-label]");
+    var roomHeight = document.querySelector("[data-world-edit-config-room-height]");
+    var roofInputMap = {
+      roofType: "roof-type", roofPitchDeg: "roof-pitch", roofEavesHeightMm: "roof-eaves-height",
+      roofRidgeDirection: "roof-ridge-direction", roofRidgeDegrees: "roof-ridge-degrees",
+      overhangMm: "roof-overhang", overhangNorthMm: "roof-overhang-north", overhangEastMm: "roof-overhang-east",
+      overhangSouthMm: "roof-overhang-south", overhangWestMm: "roof-overhang-west", edgeOverhangsMm: "roof-edge-overhangs",
+      roofSkinThicknessMm: "roof-skin-thickness", roofSkinMaterial: "roof-skin-material",
+      rafterWidthMm: "roof-rafter-width", rafterHeightMm: "roof-rafter-height", rafterSpacingMm: "roof-rafter-spacing",
+      purlinWidthMm: "roof-purlin-width", purlinHeightMm: "roof-purlin-height", purlinMaximumSpacingMm: "roof-purlin-spacing",
+      plateauWidthRatio: "roof-plateau-ratio", mansardBreakRatio: "roof-mansard-break",
+      mansardLowerPitchDeg: "roof-mansard-lower-pitch", mansardUpperPitchDeg: "roof-mansard-upper-pitch",
+      hipEndRatio: "roof-hip-end-ratio", barrelRiseMm: "roof-barrel-rise", barrelSegmentCount: "roof-barrel-segments",
+      sawtoothCount: "roof-sawtooth-count", sawtoothPitchDeg: "roof-sawtooth-pitch"
+    };
+    var roofInputs = {};
+    Object.keys(roofInputMap).forEach(function (key) {
+      roofInputs[key] = document.querySelector("[data-world-edit-config-" + roofInputMap[key] + "]");
+    });
 
     function readAndEmit() {
       state.worldEditSettings.operation = operation ? operation.value : "set";
@@ -1002,11 +1237,21 @@
       state.worldEditSettings.parcelGridInfluence = Number(parcelGridInfluence ? parcelGridInfluence.value : 3);
       state.worldEditSettings.roomType = roomType ? roomType.value : "wohnen";
       state.worldEditSettings.roomLabel = clean(roomLabel ? roomLabel.value : "Raum") || "Raum";
+      state.worldEditSettings.roomHeight = Number(roomHeight ? roomHeight.value : 3);
+      Object.keys(roofInputs).forEach(function (key) {
+        var input = roofInputs[key];
+        if (!input) return;
+        state.worldEditSettings[key] = ["roofType", "roofRidgeDirection", "edgeOverhangsMm", "roofSkinMaterial"].indexOf(key) >= 0
+          ? input.value
+          : Number(input.value);
+      });
       updateWorldEditSettingOutputs();
       emitWorldEditSettings();
     }
 
-    [operation, shape, parcelMask, parcelGridMode, roomType, roomLabel].forEach(function (input) {
+    [operation, shape, parcelMask, parcelGridMode, roomType, roomLabel, roomHeight].concat(Object.keys(roofInputs).map(function (key) {
+      return roofInputs[key];
+    })).forEach(function (input) {
       if (input) input.addEventListener("change", readAndEmit);
     });
     [radius, density, wall, parcelGridSetback, parcelGridInfluence].forEach(function (input) {

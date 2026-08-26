@@ -8,7 +8,7 @@
 
   <title data-i18n="vectoplan.server.library.inventar.creative_inventar.title.creative_inventar_vectoplan.34b16b7a">Creative-Inventar · VECTOPLAN</title>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css', v='20260815.4') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/inventar/inventar.css', v='20260823.roof1') }}">
 </head>
 
 <body class="vp-inventar-page vp-creative-inventar-page">
@@ -287,7 +287,7 @@
 
           <section class="vp-world-edit-config__selection" data-world-edit-room-settings hidden>
             <h4>Raum &amp; Energiezone</h4>
-            <p>Der markierte X/Y/Z-Bereich bleibt geometrisch unsichtbar. Am Boden erscheinen eine grüne Fläche, die Bezeichnung und die automatisch ermittelte Fläche.</p>
+            <p>Gerade Konturlinien Punkt für Punkt setzen und am Startpunkt schließen. Die grüne Bodenfläche, Bezeichnung und Fläche bleiben über ihre Eckpunkte bearbeitbar.</p>
             <label class="vp-world-edit-config__field">
               <span>Raumart</span>
               <select data-world-edit-config-room-type aria-label="Raumart">
@@ -306,6 +306,58 @@
               <span>Bezeichnung</span>
               <input type="text" maxlength="80" value="Raum" data-world-edit-config-room-label>
             </label>
+            <label class="vp-world-edit-config__field">
+              <span>Raumhöhe (m)</span>
+              <input type="number" min="0.1" max="256" step="0.1" value="3" data-world-edit-config-room-height>
+            </label>
+          </section>
+
+          <section class="vp-world-edit-config__selection vp-world-edit-config__roof" data-world-edit-roof-settings hidden>
+            <h4>Parametrischer Dachaufbau</h4>
+            <p>Kontur über Blockecken schließen. Jede Änderung berechnet Dachhaut, Sparren und Pfetten erneut und zeigt das Ergebnis direkt im 3D-Editor.</p>
+            <label class="vp-world-edit-config__field"><span>Dachart</span><select data-world-edit-config-roof-type>
+              <option value="flat">Flachdach</option><option value="gable" selected>Satteldach</option>
+              <option value="hipped">Walmdach</option><option value="half_hipped">Krüppelwalmdach</option>
+              <option value="pent">Pultdach</option><option value="mansard">Mansarddach</option>
+              <option value="trapezoid">Trapezdach</option><option value="butterfly">Schmetterlingsdach</option>
+              <option value="pyramid">Zelt-/Pyramidendach</option><option value="barrel">Tonnendach</option>
+              <option value="sawtooth">Sheddach</option>
+            </select></label>
+            <label class="vp-world-edit-config__field"><span>Neigung (°)</span><input type="number" min="0" max="80" step="0.5" value="35" data-world-edit-config-roof-pitch></label>
+            <label class="vp-world-edit-config__field"><span>Traufhöhe (mm)</span><input type="number" min="-100000" max="100000" step="100" value="6000" data-world-edit-config-roof-eaves-height></label>
+            <label class="vp-world-edit-config__field"><span>Firstrichtung</span><select data-world-edit-config-roof-ridge-direction>
+              <option value="auto">Automatisch</option><option value="x">X / Ost–West</option><option value="y">Y / Nord–Süd</option><option value="degrees">Winkel</option>
+            </select></label>
+            <label class="vp-world-edit-config__field"><span>Firstwinkel (°)</span><input type="number" min="-360" max="360" step="1" value="0" data-world-edit-config-roof-ridge-degrees></label>
+            <details open><summary>Dachhaut &amp; Überstände</summary>
+              <label class="vp-world-edit-config__field"><span>Dachhaut (mm)</span><input type="number" min="1" max="2000" step="10" value="180" data-world-edit-config-roof-skin-thickness></label>
+              <label class="vp-world-edit-config__field"><span>Material</span><input type="text" value="generic-roof-build-up" data-world-edit-config-roof-skin-material></label>
+              <label class="vp-world-edit-config__field"><span>Standard (mm)</span><input type="number" min="0" max="5000" value="500" data-world-edit-config-roof-overhang></label>
+              <label class="vp-world-edit-config__field"><span>Nord (mm)</span><input type="number" min="0" max="5000" value="500" data-world-edit-config-roof-overhang-north></label>
+              <label class="vp-world-edit-config__field"><span>Ost (mm)</span><input type="number" min="0" max="5000" value="500" data-world-edit-config-roof-overhang-east></label>
+              <label class="vp-world-edit-config__field"><span>Süd (mm)</span><input type="number" min="0" max="5000" value="500" data-world-edit-config-roof-overhang-south></label>
+              <label class="vp-world-edit-config__field"><span>West (mm)</span><input type="number" min="0" max="5000" value="500" data-world-edit-config-roof-overhang-west></label>
+              <label class="vp-world-edit-config__field"><span>Je Kante</span><input type="text" placeholder="300 400 500 600" data-world-edit-config-roof-edge-overhangs></label>
+            </details>
+            <details><summary>Sparren &amp; Pfetten</summary>
+              <label class="vp-world-edit-config__field"><span>Sparren B (mm)</span><input type="number" min="20" max="1000" value="80" data-world-edit-config-roof-rafter-width></label>
+              <label class="vp-world-edit-config__field"><span>Sparren H (mm)</span><input type="number" min="20" max="1500" value="200" data-world-edit-config-roof-rafter-height></label>
+              <label class="vp-world-edit-config__field"><span>Sparrenabstand</span><input type="number" min="100" max="3000" value="700" data-world-edit-config-roof-rafter-spacing></label>
+              <label class="vp-world-edit-config__field"><span>Pfette B (mm)</span><input type="number" min="20" max="1500" value="160" data-world-edit-config-roof-purlin-width></label>
+              <label class="vp-world-edit-config__field"><span>Pfette H (mm)</span><input type="number" min="20" max="2000" value="240" data-world-edit-config-roof-purlin-height></label>
+              <label class="vp-world-edit-config__field"><span>Pfettenabstand</span><input type="number" min="250" max="10000" value="2500" data-world-edit-config-roof-purlin-spacing></label>
+            </details>
+            <details><summary>Sonderdach-Parameter</summary>
+              <label class="vp-world-edit-config__field"><span>Plateauanteil</span><input type="number" min="0.05" max="0.8" step="0.01" value="0.25" data-world-edit-config-roof-plateau-ratio></label>
+              <label class="vp-world-edit-config__field"><span>Mansardknick</span><input type="number" min="0.1" max="0.8" step="0.01" value="0.38" data-world-edit-config-roof-mansard-break></label>
+              <label class="vp-world-edit-config__field"><span>Mansarde unten</span><input type="number" min="10" max="85" value="70" data-world-edit-config-roof-mansard-lower-pitch></label>
+              <label class="vp-world-edit-config__field"><span>Mansarde oben</span><input type="number" min="1" max="70" value="28" data-world-edit-config-roof-mansard-upper-pitch></label>
+              <label class="vp-world-edit-config__field"><span>Krüppelwalm</span><input type="number" min="0.1" max="1" step="0.05" value="0.5" data-world-edit-config-roof-hip-end-ratio></label>
+              <label class="vp-world-edit-config__field"><span>Tonnenanstich</span><input type="number" min="100" max="30000" value="3000" data-world-edit-config-roof-barrel-rise></label>
+              <label class="vp-world-edit-config__field"><span>Tonnensegmente</span><input type="number" min="4" max="64" value="12" data-world-edit-config-roof-barrel-segments></label>
+              <label class="vp-world-edit-config__field"><span>Sheddach-Felder</span><input type="number" min="1" max="20" value="3" data-world-edit-config-roof-sawtooth-count></label>
+              <label class="vp-world-edit-config__field"><span>Sheddach (°)</span><input type="number" min="5" max="80" value="35" data-world-edit-config-roof-sawtooth-pitch></label>
+            </details>
           </section>
 
           <section class="vp-world-edit-config__brush" data-world-edit-parcel-grid-settings hidden>
@@ -356,8 +408,8 @@
               <output data-world-edit-config-wall-output>0</output>
             </label>
             <ol class="vp-world-edit-legend vp-world-edit-legend--brush">
-              <li><kbd data-i18n="vectoplan.server.library.inventar.creative_inventar.kbd.linksklick.1d900ae9">Linksklick</kbd><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.pinsel_anwenden.b8862477">Pinsel anwenden</span></li>
-              <li><kbd data-i18n="vectoplan.server.library.inventar.creative_inventar.kbd.rechtsklick.d7ecbc82">Rechtsklick</kbd><span data-i18n="vectoplan.server.library.inventar.creative_inventar.span.mit_gleicher_form_entfernen.8f7cf8bf">Mit gleicher Form entfernen</span></li>
+              <li><kbd data-i18n="vectoplan.server.library.inventar.creative_inventar.kbd.linksklick.1d900ae9">Linksklick</kbd><span data-world-edit-brush-primary>Pinsel anwenden</span></li>
+              <li><kbd data-i18n="vectoplan.server.library.inventar.creative_inventar.kbd.rechtsklick.d7ecbc82">Rechtsklick</kbd><span data-world-edit-brush-secondary>Mit gleicher Form entfernen</span></li>
             </ol>
           </section>
 
@@ -440,12 +492,12 @@
   ></script>
 
   <script
-    src="{{ url_for('static', filename='js/inventar/vectoplan-library-icons.js', v='20260815.4') }}"
+    src="{{ url_for('static', filename='js/inventar/vectoplan-library-icons.js', v='20260823.roof1') }}"
     defer
   ></script>
 
   <script
-    src="{{ url_for('static', filename='js/inventar/creative-library.js', v='20260815.5') }}"
+    src="{{ url_for('static', filename='js/inventar/creative-library.js', v='20260823.roof1') }}"
     defer
   ></script>
 </body>

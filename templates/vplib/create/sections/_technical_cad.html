@@ -174,6 +174,54 @@
       </div>
     </section>
 
+    <section class="vp-create-technical-cad__patterns" aria-labelledby="vp-technical-plan-title">
+      <div class="vp-create-technical-cad__section-heading">
+        <div>
+          <h3 id="vp-technical-plan-title">2D-Planrepräsentation</h3>
+          <p>Lege fest, wie Fenster, Türen, Räume und Raumstempel in Entwurfs-, Eingabe- und Ausführungsplänen erscheinen.</p>
+        </div>
+        <span>Planansicht</span>
+      </div>
+      <div class="vp-create-technical-cad__pattern-grid">
+        <label class="vp-create-field">
+          <span class="vp-create-field__label">Plansymbol</span>
+          <select class="vp-create-select" data-vp-technical-plan-value="cad.plan.symbol_kind">
+            <option value="auto">Automatisch aus Taxonomie</option>
+            <option value="window">Fenster</option>
+            <option value="exterior_door">Außentür</option>
+            <option value="interior_door">Innentür</option>
+            <option value="room">Raumzone</option>
+            <option value="room_stamp">Raumstempel</option>
+            <option value="none">Keine 2D-Darstellung</option>
+          </select>
+          <small class="vp-create-field__hint">Fachliche Symbolform im Grundriss.</small>
+        </label>
+        <label class="vp-create-field">
+          <span class="vp-create-field__label">Vollständige Darstellung ab</span>
+          <select class="vp-create-select" data-vp-technical-plan-value="cad.plan.detail_level">
+            <option value="design">Entwurfsplan</option>
+            <option value="permit">Eingabeplan</option>
+            <option value="execution">Ausführungsplan</option>
+          </select>
+          <small class="vp-create-field__hint">Steuert die Detaildichte je Planart.</small>
+        </label>
+        <label class="vp-create-field"><span class="vp-create-field__label">Fenster-Rahmenlinien</span><input class="vp-create-input" type="number" min="1" max="5" step="1" data-vp-technical-plan-value="cad.plan.frame_line_count"><small class="vp-create-field__hint">Eine bis fünf Rahmen-/Verglasungslinien.</small></label>
+        <label class="vp-create-field"><span class="vp-create-field__label">Fensterflügel</span><input class="vp-create-input" type="number" min="0" max="4" step="1" data-vp-technical-plan-value="cad.plan.leaf_count"><small class="vp-create-field__hint">0 = automatisch nach Fensterbreite, sonst ein bis vier Flügel.</small></label>
+        <label class="vp-create-field"><span class="vp-create-field__label">Plan-Linienstärke</span><div class="vp-create-technical-cad__pattern-number"><input class="vp-create-input" type="number" min="0.1" max="2" step="0.05" data-vp-technical-plan-value="cad.plan.line_weight_mm"><span>mm</span></div><small class="vp-create-field__hint">Linienstärke auf dem Papier.</small></label>
+        <label class="vp-create-field">
+          <span class="vp-create-field__label">Raumfüllung</span>
+          <select class="vp-create-select" data-vp-technical-plan-value="cad.plan.room_fill_mode"><option value="none">Ohne Füllung</option><option value="transparent">Dezent transparent</option><option value="zone">Raumzone farbig</option></select>
+          <small class="vp-create-field__hint">Flächendarstellung von Räumen.</small>
+        </label>
+        <label class="vp-create-field check-field"><input type="checkbox" data-vp-technical-plan-value="cad.plan.show_swing"><span>Tür-Aufschlag anzeigen</span></label>
+        <label class="vp-create-field check-field"><input type="checkbox" data-vp-technical-plan-value="cad.plan.show_opening_label"><span>Öffnungsmaß anzeigen</span></label>
+        <label class="vp-create-field check-field"><input type="checkbox" data-vp-technical-plan-value="cad.plan.show_sill_height"><span>Brüstungshöhe anzeigen</span></label>
+        <label class="vp-create-field check-field"><input type="checkbox" data-vp-technical-plan-value="cad.plan.room_stamp_show_name"><span>Raumname im Stempel</span></label>
+        <label class="vp-create-field check-field"><input type="checkbox" data-vp-technical-plan-value="cad.plan.room_stamp_show_area"><span>Raumfläche im Stempel</span></label>
+        <label class="vp-create-field check-field"><input type="checkbox" data-vp-technical-plan-value="cad.plan.room_stamp_show_floor_finish"><span>Bodenaufbau im Ausführungsstempel</span></label>
+      </div>
+    </section>
+
     <div data-vp-technical-payload-fields hidden></div>
   </div>
 </div>

@@ -183,6 +183,8 @@
   var TOOL_MARKUP = {
     selection: '<path d="M12 27V13h14M46 13h14v14M60 45v14H46M26 59H12V45"/><path d="m27 28 9-5 9 5v11l-9 5-9-5Z"/><path d="m27 28 9 5 9-5M36 33v11"/>',
     room: '<path d="M14 13h44v46H14Z"/><path d="M35 13v19H14M35 32h23M35 46v13M35 46h12v13"/><path d="M14 43h10v16"/>',
+    stair: '<path d="M13 58h46V13H13Z"/><path d="M13 50h8v-8h8v-8h8v-8h8v-8h14"/><path d="m25 55 26-26m0 0h-9m9 0v9" stroke="#52c5e8"/>',
+    roof: '<path d="m10 39 26-25 26 25"/><path d="M16 36v24h40V36"/><path d="M20 38h32l-8-14H28Z" fill="#52c5e8" fill-opacity=".24"/><path d="M36 14v46" stroke="#52c5e8"/>',
     parcel: '<path d="m13 25 17-13 27 8 3 30-20 10-25-8Z"/><path d="m20 29 15-9 17 6-1 18-13 7-17-6Z" stroke-dasharray="4 4"/>',
     "parcel-grid": '<path d="M13 13h46v46H13Z"/><path d="M28 13v46M44 13v46M13 28h46M13 44h46"/><path d="M10 35h52M36 10v52" stroke="#52c5e8" stroke-width="3.5"/>',
     paint: '<path d="m17 50 28-28 10 10-28 28H17Z"/><path d="m41 18 5-5 13 13-5 5"/><path d="M17 50c-7 1-8 8-3 10 5 2 11-1 13-5" fill="#52c5e8" stroke="none"/>',
@@ -192,6 +194,7 @@
     "trigger-volume": '<path d="m14 24 22-11 22 11v26L36 61 14 50Z" stroke-dasharray="5 4"/><path d="m39 23-11 18h9l-4 12 13-19h-9Z" fill="#52c5e8" stroke="none"/>',
     "ruler-laser": '<path d="m14 50 34-34 10 10-34 34Z"/><path d="m25 45 5 5m1-17 5 5m1-17 5 5"/><path d="M10 17h19M10 17l6-6m-6 6 6 6" stroke="#52c5e8"/>',
     "copy-transform": '<rect x="12" y="23" width="29" height="29" rx="3"/><rect x="31" y="12" width="29" height="29" rx="3"/><path d="M24 60h31m0 0-6-6m6 6-6 6" stroke="#52c5e8"/>',
+    "cut-transform": '<path d="M16 15l40 42M56 15 16 57"/><circle cx="15" cy="15" r="7"/><circle cx="15" cy="57" r="7"/><path d="M38 30h21v25H34" stroke="#52c5e8"/>',
     "extrude-flood": '<path d="m13 43 23-11 23 11-23 12Z"/><path d="M36 32V12m-7 7 7-7 7 7" stroke="#52c5e8"/><path d="M13 55c7-5 14 5 22 0s15 5 24 0"/>',
     boulder: '<path d="m14 42 7-20 18-9 17 12 3 19-13 15-21-2Z"/><path d="m21 22 15 10 20-7M36 32l10 27" stroke="#52c5e8"/>',
     cave: '<path d="M9 58c4-30 14-45 27-45s23 15 27 45Z"/><path d="M24 58c1-17 5-26 12-26s11 9 12 26Z" fill="#203956"/><path d="M9 58h54"/>',
