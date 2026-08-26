@@ -274,7 +274,9 @@ def test_vplib_generator_exposes_variant_specific_plan_representation() -> None:
     assert "2D-Planrepräsentation" in template
     assert 'data-vp-technical-plan-value="cad.plan.symbol_kind"' in template
     assert 'data-vp-technical-plan-value="cad.plan.room_stamp_show_area"' in template
+    assert 'data-vp-technical-plan-value="cad.plan.leaf_count"' in template
     assert 'key: "cad.plan.show_swing"' in runtime
+    assert 'key: "cad.plan.leaf_count"' in runtime
     assert 'key: "cad.plan.line_weight_mm"' in runtime
     assert "data-vp-library-inventory-url" in source_template
     assert "hydrateInventoryItem" in source_runtime
@@ -283,6 +285,7 @@ def test_vplib_generator_exposes_variant_specific_plan_representation() -> None:
         "cad.plan.symbol_kind",
         "cad.plan.show_swing",
         "cad.plan.frame_line_count",
+        "cad.plan.leaf_count",
         "cad.plan.room_fill_mode",
         "cad.plan.room_stamp_show_area",
         "cad.plan.line_weight_mm",

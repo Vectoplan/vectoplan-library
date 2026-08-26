@@ -191,6 +191,7 @@
   var WORLD_EDIT_TOOLS = [
     { id: "selection", label: "Selection Tool", icon: "\u2317", group: "basic-tools", ready: true, description: "Quader markieren, an sechs Flaechenpunkten anpassen und als Set, Wand, Fill, Replace oder Clear ausfuehren." },
     { id: "room", label: "Räume", icon: "R", group: "basic-tools", ready: true, description: "Eine beliebige gerade Raumkontur über Blockecken zeichnen, schließen und als semantischen Raum sowie Energiezone speichern." },
+    { id: "stair", label: "Treppenwerkzeug", icon: "▥", group: "basic-tools", ready: true, description: "Treppenbereich zeichnen und Treppentyp, Laufbreite, Antritt, Austritt und Laufrichtung parametrisch einstellen." },
     { id: "roof", label: "Dachgenerator", icon: "⌂", group: "basic-tools", ready: true, description: "Beliebige gerade Dachkontur zeichnen und Dachhaut, Sparren sowie Pfetten live parametrisch in 3D erzeugen." },
     { id: "parcel", label: "Flurstück Tool", icon: "\u2316", group: "basic-tools", ready: true, description: "Flurstücke direkt im 3D-Editor projektweit auswählen oder abwählen." },
     { id: "parcel-grid", label: "Grundstücksraster", icon: "\u22d5", group: "basic-tools", ready: true, description: "Eine Flurstücksgrenze als Bauachse wählen und direkte Grenzbebauung oder einen festen Abstand vorgeben." },
@@ -964,8 +965,8 @@
         : tool.id === "cut-transform"
           ? "Bereich markieren, mit Rechtsklick ausschneiden, am X/Y/Z-Gizmo blockweise bewegen und mit Rechtsklick einfügen."
           : "Bereich markieren, mit Rechtsklick kopieren, am X/Y/Z-Gizmo blockweise bewegen und mit Rechtsklick einfügen.";
-    if (operationField) operationField.hidden = ["parcel", "parcel-grid", "ruler-laser", "room", "roof", "copy-transform", "cut-transform"].indexOf(tool.id) >= 0;
-    if (parcelMask) parcelMask.hidden = ["parcel", "parcel-grid", "ruler-laser", "room", "roof"].indexOf(tool.id) >= 0;
+    if (operationField) operationField.hidden = ["parcel", "parcel-grid", "ruler-laser", "room", "stair", "roof", "copy-transform", "cut-transform"].indexOf(tool.id) >= 0;
+    if (parcelMask) parcelMask.hidden = ["parcel", "parcel-grid", "ruler-laser", "room", "stair", "roof"].indexOf(tool.id) >= 0;
     if (actions) actions.hidden = ["selection", "copy-transform", "cut-transform", "room", "roof", "tentacle"].indexOf(tool.id) < 0;
     if (operationSelect) {
       var clipboardTool = false;

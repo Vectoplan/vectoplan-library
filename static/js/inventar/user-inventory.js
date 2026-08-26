@@ -1871,7 +1871,7 @@
       familyId,
       vplibUid
     ];
-    var knownTools = ["selection", "room", "roof", "paint", "sculpt", "parcel", "parcel-grid", "ruler-laser", "copy-transform", "cut-transform", "tentacle"];
+    var knownTools = ["selection", "room", "stair", "roof", "paint", "sculpt", "parcel", "parcel-grid", "ruler-laser", "copy-transform", "cut-transform", "tentacle"];
     for (var index = 0; index < candidates.length; index += 1) {
       var candidate = cleanString(candidates[index]).toLowerCase().replace(/_/g, "-");
       ["vectoplan.world-edit.", "world-edit.", "world-edit-"].some(function (prefix) {
@@ -1888,6 +1888,7 @@
     var worldEditLabels = {
       selection: "Selection Tool",
       room: "Räume",
+      stair: "Treppenwerkzeug",
       roof: "Dachgenerator",
       paint: "Paint Brush",
       sculpt: "Sculpt Brush",
@@ -2219,6 +2220,7 @@
     var worldEditIcons = {
       selection: "\u2317",
       room: "R",
+      stair: "▥",
       roof: "\u2302",
       paint: "\u270e",
       sculpt: "\u2248",

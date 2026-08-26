@@ -2071,6 +2071,20 @@
       "metadata": {"minimum": 1, "maximum": 5, "render_role": "window_symbol"}
     },
     {
+      "key": "cad.plan.leaf_count",
+      "label": "Fensterflügel",
+      "description": "Anzahl der Fensterflügel in der Grundrissdarstellung; 0 ermittelt sie automatisch aus der Breite.",
+      "active": true,
+      "sort_order": 2485,
+      "value_type": "integer",
+      "widget": "number",
+      "required_default": false,
+      "default_value": 0,
+      "group": "cad",
+      "applies_to": ["simple_cell_block.v1", "catalog_object.v1"],
+      "metadata": {"minimum": 0, "maximum": 4, "render_role": "window_symbol"}
+    },
+    {
       "key": "cad.plan.room_fill_mode",
       "label": "Raumfüllung",
       "description": "Füllung der Raumzone im Grundriss.",

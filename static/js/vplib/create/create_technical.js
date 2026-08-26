@@ -95,6 +95,7 @@
     {key: "cad.plan.show_opening_label", label: "Öffnungsmaß", description: "Breite und Höhe am Öffnungssymbol zeigen.", valueType: "boolean", defaultValue: true},
     {key: "cad.plan.show_sill_height", label: "Brüstungshöhe", description: "Brüstungshöhe am Fenstersymbol zeigen.", valueType: "boolean", defaultValue: true},
     {key: "cad.plan.frame_line_count", label: "Rahmenlinien", description: "Anzahl der Fenster-Rahmenlinien.", valueType: "number", defaultValue: 2},
+    {key: "cad.plan.leaf_count", label: "Fensterflügel", description: "Anzahl der Fensterflügel; 0 ermittelt sie automatisch aus der Breite.", valueType: "number", defaultValue: 0},
     {key: "cad.plan.room_fill_mode", label: "Raumfüllung", description: "Darstellung der Raumzone.", valueType: "string", defaultValue: "zone"},
     {key: "cad.plan.room_stamp_show_name", label: "Raumname", description: "Raumname im Stempel anzeigen.", valueType: "boolean", defaultValue: true},
     {key: "cad.plan.room_stamp_show_area", label: "Raumfläche", description: "Fläche im Raumstempel anzeigen.", valueType: "boolean", defaultValue: true},
