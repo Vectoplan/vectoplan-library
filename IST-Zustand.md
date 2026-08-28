@@ -87,11 +87,8 @@ Daneben existieren im Compose-/Projektkontext weitere Services:
 - vectoplan-chunk-init
 - vectoplan-app
 - vectoplan-editor
-- geoserver
-- geoserver-orchestrator
-- geoserver-orchestrator-db-init
 - openlayer
-- db-postgis-init
+- externer BigData-Geo-Stack mit GeoServer, Orchestrator und PostGIS-Init
 ```
 
 Die geospatial/editorbezogenen Services sind für das spätere Gesamtprodukt wichtig, wurden in diesem Abschnitt aber nicht tief inhaltlich überarbeitet. Die aktuelle Arbeit konzentriert sich auf die Library-/VPLIB-/Inventar-Schicht, weil diese die Basis für Editor-Auswahl, Blöcke, Objekte, Create-Flow und Persistenz liefert.
@@ -316,20 +313,11 @@ vectoplan-server
 ├── vectoplan-editor
 │   └── Editor-/Viewport-Komponente
 │
-├── geoserver
-│   └── GeoServer
-│
-├── geoserver-orchestrator
-│   └── Orchestrierung für GeoServer
-│
-├── geoserver-orchestrator-db-init
-│   └── DB-Init-Job für GeoServer-Orchestrator
-│
 ├── openlayer
 │   └── OpenLayers-/Karten-/Viewer-Komponente
 │
-└── db-postgis-init
-    └── PostGIS-/DB-Initialisierung
+└── externer BigData-Geo-Stack
+    └── GeoServer, GeoServer-Orchestrator und PostGIS-Initialisierung
 ```
 
 ---
