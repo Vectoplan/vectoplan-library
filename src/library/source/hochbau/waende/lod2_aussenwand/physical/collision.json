@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1.0",
+  "shape": "box",
+  "size": [
+    1,
+    1,
+    1
+  ],
+  "unit": "m"
+}

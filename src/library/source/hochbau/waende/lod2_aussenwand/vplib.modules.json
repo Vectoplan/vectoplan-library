@@ -1,0 +1,36 @@
+{
+  "schema_version": "0.1.0",
+  "profile_key": "simple_cell_block.v1",
+  "family_profile_id": "simple_cell_block",
+  "variant_profile_id": "simple_cell_block.v1",
+  "modules": {
+    "family": true,
+    "variants": true,
+    "editor": true,
+    "render": true,
+    "physical": true,
+    "manufacturer": true,
+    "definitions": true
+  },
+  "required_documents": [
+    "vplib.modules.json",
+    "vplib.manifest.json",
+    "family/identity.json",
+    "family/classification.json",
+    "family/lifecycle.json",
+    "family/metadata.json",
+    "variants/index.json",
+    "variants/default.json",
+    "editor/inventory.json",
+    "editor/placement.json",
+    "editor/targeting.json",
+    "editor/anchors.json",
+    "render/render_variants.json",
+    "render/bounds.json",
+    "physical/base.json",
+    "physical/dimensions.json",
+    "physical/collision.json",
+    "manufacturer/contract.json",
+    "definitions/profile.json"
+  ]
+}

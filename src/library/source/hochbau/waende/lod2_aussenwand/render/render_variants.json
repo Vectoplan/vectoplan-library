@@ -1,0 +1,6 @@
+{
+  "schema_version": "0.1.0",
+  "default_variant_id": "default",
+  "render_mode": "cube",
+  "color": "#c9c2aa"
+}

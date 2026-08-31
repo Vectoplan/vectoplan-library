@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.1.0",
+  "provider": "JRC-PVGIS",
+  "version": "5.3",
+  "systemLossPercent": 14,
+  "loss_is_assumption": true,
+  "azimuthConvention": "0=N,90=E,180=S,270=W",
+  "pvgisAspect": "azimuth-180",
+  "unknown_irradiation_result": null,
+  "exclusions": [
+    "local-building-and-tree-shading",
+    "structural-verification",
+    "electrical-design",
+    "self-shading-validation"
+  ]
+}

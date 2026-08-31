@@ -1,0 +1,7 @@
+{
+  "schema_version": "0.1.0",
+  "unit": "mm",
+  "width_mm": 1000,
+  "height_mm": 1000,
+  "depth_mm": 1000
+}

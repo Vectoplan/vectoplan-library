@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1.0",
+  "profile_key": "adaptive_system",
+  "modules": {
+    "family": true,
+    "variants": true,
+    "editor": true,
+    "dynamic": true,
+    "manufacturer": true,
+    "physical": true,
+    "calculation": true
+  },
+  "required_modules": [
+    "family",
+    "variants",
+    "editor",
+    "dynamic",
+    "manufacturer"
+  ]
+}

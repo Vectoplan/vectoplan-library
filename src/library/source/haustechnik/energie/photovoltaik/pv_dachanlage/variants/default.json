@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.1.0",
+  "variant_id": "trinasolar-vertex-s-plus-450",
+  "label": "Trina Solar Vertex S+ 450 Wp",
+  "parameters": {
+    "packageId": "vplib.vp.haustechnik.energie.photovoltaik.pv_dachanlage",
+    "revision": "0.1.0",
+    "variantId": "trinasolar-vertex-s-plus-450",
+    "label": "Trina Solar Vertex S+ · 450 Wp",
+    "widthM": 1.134,
+    "lengthM": 1.762,
+    "thicknessM": 0.03,
+    "powerWp": 450,
+    "sourceUrl": "https://static.trinasolar.com/sites/default/files/Vertex%20S%2B_NEG9R.28_EN_2024_APAC_A_web.pdf"
+  }
+}

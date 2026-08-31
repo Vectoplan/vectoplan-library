@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "required": [
+    "roofCalculation.geometry.faces"
+  ],
+  "optional": [
+    "project.georeference",
+    "solar.irradiation"
+  ],
+  "on_missing_roof": "no-placement",
+  "on_missing_irradiation": "yield-unavailable",
+  "preserve_courtyards": true
+}

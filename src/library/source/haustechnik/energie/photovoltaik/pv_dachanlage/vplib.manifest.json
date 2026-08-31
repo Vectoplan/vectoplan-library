@@ -1,0 +1,21 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "package_id": "vplib.vp.haustechnik.energie.photovoltaik.pv_dachanlage",
+  "family_id": "vp.haustechnik.energie.photovoltaik.pv_dachanlage",
+  "family_slug": "pv_dachanlage",
+  "family_name": "Dach-Photovoltaik",
+  "package_version": "0.1.0",
+  "object_kind": "adaptive_system",
+  "domain": "haustechnik",
+  "category": "energie",
+  "subcategory": "photovoltaik",
+  "default_variant_id": "trinasolar-vertex-s-plus-450",
+  "manufacturer_scope": "generic",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  }
+}

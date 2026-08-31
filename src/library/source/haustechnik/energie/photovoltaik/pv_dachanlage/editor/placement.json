@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.1.0",
+  "mode": "host-surface",
+  "host_object_type": "building_roof",
+  "requires_existing_host": true,
+  "voxel_occupancy": "none",
+  "storage": "host.metadata.solar"
+}
