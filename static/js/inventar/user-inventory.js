@@ -684,6 +684,18 @@
         var message = event && event.data ? event.data : {};
         var detail = message.detail || {};
 
+        if (message.source === "vectoplan-editor" && message.type === EVENTS.setSlot) {
+          // A host pick-block uses this user's normal authenticated inventory
+          // path, including slot locks, persistence and editor synchronization.
+          if (!expectedOrigin || event.origin !== expectedOrigin) return;
+          var pickedSlot = Number(detail.slotIndex);
+          if (!Number.isInteger(pickedSlot) || pickedSlot < 1 || pickedSlot > 9 || !detail.item) return;
+          void setSlotItem(pickedSlot, detail.item, {
+            select: true, persist: true, source: "editor-pick-block"
+          });
+          return;
+        }
+
         if (
           message.source === "vectoplan-editor" &&
           (

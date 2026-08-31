@@ -309,6 +309,16 @@ def inventar_user_set_slot(slot_index: int) -> Response:
         return _json_response(payload, 422)
 
 
+@inventar_user_bp.get("/solar-module")
+def solar_module_descriptor() -> Response:
+    """Read the declarative VPLIB generator, not an executable package script."""
+    from pathlib import Path
+    import json
+    path = Path(__file__).resolve().parents[1] / "src/library/source/haustechnik/energie/photovoltaik/pv_dachanlage/dynamic/generator.json"
+    descriptor = json.loads(path.read_text(encoding="utf-8"))
+    return _json_response({"ok": True, "descriptor": descriptor}, 200)
+
+
 @inventar_user_bp.delete("/slots/<int:slot_index>")
 def inventar_user_clear_slot(slot_index: int) -> Response:
     """

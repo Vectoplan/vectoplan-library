@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1.0",
+  "default_variant_id": "trinasolar-vertex-s-plus-450",
+  "variants": [
+    {
+      "variant_id": "trinasolar-vertex-s-plus-450",
+      "path": "variants/default.json"
+    }
+  ]
+}

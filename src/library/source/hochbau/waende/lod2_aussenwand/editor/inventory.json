@@ -1,0 +1,6 @@
+{
+  "schema_version": "0.1.0",
+  "label": "LoD2 Außenwand",
+  "object_kind": "cell_block",
+  "runtime_block_type_id": "lod2_exterior_wall"
+}

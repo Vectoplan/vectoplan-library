@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1.0",
+  "package_format": "vplib",
+  "package_format_version": "0.1.0",
+  "package_id": "vplib.vp.hochbau.waende.lod2_aussenwand",
+  "family_id": "vp.hochbau.waende.lod2_aussenwand",
+  "family_slug": "lod2_aussenwand",
+  "family_name": "LoD2 Außenwand · Rasterblock 1 m",
+  "package_version": "0.1.0",
+  "object_kind": "cell_block",
+  "domain": "hochbau",
+  "category": "waende",
+  "default_variant_id": "default",
+  "manufacturer_scope": "generic",
+  "lifecycle": {
+    "status": "draft",
+    "published": false,
+    "scanner_ready": true
+  }
+}

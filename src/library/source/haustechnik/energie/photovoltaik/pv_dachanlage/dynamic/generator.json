@@ -1,0 +1,75 @@
+{
+  "schema_version": "vplib-roof-solar-generator.v1",
+  "engine": "roof-solar-layout.v1",
+  "module": {
+    "packageId": "vplib.vp.haustechnik.energie.photovoltaik.pv_dachanlage",
+    "revision": "0.1.0",
+    "variantId": "trinasolar-vertex-s-plus-450",
+    "label": "Trina Solar Vertex S+ · 450 Wp",
+    "widthM": 1.134,
+    "lengthM": 1.762,
+    "thicknessM": 0.03,
+    "powerWp": 450,
+    "sourceUrl": "https://static.trinasolar.com/sites/default/files/Vertex%20S%2B_NEG9R.28_EN_2024_APAC_A_web.pdf"
+  },
+  "modules": [
+    {
+      "packageId": "vplib.vp.haustechnik.energie.photovoltaik.pv_dachanlage",
+      "revision": "0.1.0",
+      "variantId": "trinasolar-vertex-s-plus-450",
+      "label": "Trina Solar Vertex S+ · 450 Wp",
+      "widthM": 1.134,
+      "lengthM": 1.762,
+      "thicknessM": 0.03,
+      "powerWp": 450,
+      "sourceUrl": "https://static.trinasolar.com/sites/default/files/Vertex%20S%2B_NEG9R.28_EN_2024_APAC_A_web.pdf"
+    },
+    {
+      "packageId": "vplib.vp.haustechnik.energie.photovoltaik.pv_dachanlage",
+      "revision": "0.1.0",
+      "variantId": "trinasolar-vertex-s-plus-455",
+      "label": "Trina Solar Vertex S+ · 455 Wp",
+      "widthM": 1.134,
+      "lengthM": 1.762,
+      "thicknessM": 0.03,
+      "powerWp": 455,
+      "sourceUrl": "https://static.trinasolar.com/sites/default/files/Vertex%20S%2B_NEG9R.28_EN_2024_APAC_A_web.pdf"
+    },
+    {
+      "packageId": "vplib.vp.haustechnik.energie.photovoltaik.pv_dachanlage",
+      "revision": "0.1.0",
+      "variantId": "solarwatt-panel-vision-m-5-5-470",
+      "label": "SOLARWATT Panel vision M 5.5 · 470 Wp",
+      "widthM": 1.134,
+      "lengthM": 1.762,
+      "thicknessM": 0.035,
+      "powerWp": 470,
+      "sourceUrl": "https://www.solarwatt.de/strom/solarstromerzeugung/module"
+    }
+  ],
+  "limits": {
+    "maxPanelsPerRoof": 5000,
+    "maxCandidateRectangles": 100000
+  },
+  "edgeMarginM": 0.3,
+  "moduleGapM": 0.02,
+  "flatRoofRowGapMinM": 0.8,
+  "systemLossPercent": 14,
+  "flatRoofTiltDeg": 10,
+  "flatRoofAzimuthDeg": 180,
+  "economics": {
+    "electricityPriceEurPerKwh": 0.3869,
+    "selfConsumptionPercent": 30,
+    "source": "Destatis 61243-0001 · 2. Halbjahr 2025 · 2.500 bis unter 5.000 kWh",
+    "sourceUrl": "https://genesis.destatis.de/datenbank/online/table/61243-0001",
+    "feedInCompensation": {
+      "effectiveFrom": "2026-08-01",
+      "effectiveTo": "2027-01-31",
+      "fixedSurplusTariffEurPerKwh": [[10, 0.077], [40, 0.0666], [100, 0.0544]],
+      "directMarketingValueEurPerKwh": [[10, 0.081], [40, 0.0706], [100, 0.0584], [400, 0.0584], [1000, 0.0584]],
+      "source": "Bundesnetzagentur · EEG-Fördersätze",
+      "sourceUrl": "https://www.bundesnetzagentur.de/DE/Fachthemen/ElektrizitaetundGas/ErneuerbareEnergien/EEG_Foerderung/start.html"
+    }
+  },
+  "executable_code": false
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1.0",
+  "default_variant_id": "default",
+  "variants": [
+    {
+      "variant_id": "default",
+      "path": "variants/default.json"
+    }
+  ]
+}

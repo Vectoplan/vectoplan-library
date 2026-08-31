@@ -1,0 +1,7 @@
+{
+  "schema_version": "0.1.0",
+  "domain": "haustechnik",
+  "category": "energie",
+  "subcategory": "photovoltaik",
+  "object_kind": "adaptive_system"
+}

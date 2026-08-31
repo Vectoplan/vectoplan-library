@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1.0",
+  "bindings": {
+    "host": "building_roof",
+    "faces": "host.roofCalculation.geometry.faces",
+    "settings": "host.metadata.solar",
+    "azimuth": "clockwise-from-true-north",
+    "yield": "editor.api.solar.estimate"
+  }
+}

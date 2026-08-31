@@ -1,0 +1,7 @@
+{
+  "schema_version": "0.1.0",
+  "label": "Solar-Dachanlage",
+  "visible": true,
+  "world_edit_tool": "solar",
+  "icon": "solar-panel"
+}
