@@ -71,10 +71,11 @@
     data-taxonomy-root="true"
     data-taxonomy-url="{{ _taxonomy_url | e }}"
     data-include-world-edit="true"
-    data-selected-domain="all"
+    data-world-edit-only="{{ 'true' if world_edit_only else 'false' }}"
+    data-selected-domain="{{ 'world_edit' if world_edit_only else 'all' }}"
     data-selected-category="all"
     data-selected-subcategory="all"
-    data-taxonomy-locked="false"
+    data-taxonomy-locked="{{ 'true' if world_edit_only else 'false' }}"
     data-taxonomy-filter-cards="true"
     data-taxonomy-lock-aware="true"
 
@@ -128,6 +129,7 @@
           </button>
         </nav>
 
+        {% if not world_edit_only %}
         <div
           class="vp-creative-create-action vp-creative-create-action--tabs"
           aria-label="Neues Element"
@@ -149,6 +151,7 @@
             </span>
           </button>
         </div>
+        {% endif %}
       </div>
 
       <div class="vp-creative-catalog" data-creative-catalog="true">

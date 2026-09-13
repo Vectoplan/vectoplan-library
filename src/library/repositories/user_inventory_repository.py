@@ -33,6 +33,7 @@ from functools import lru_cache
 from typing import Any, Final, Iterable, Mapping
 
 from sqlalchemy.orm import lazyload
+from ..inventory_defaults import PLANNING_INVENTORY_KEY, planning_default_item
 
 
 USER_INVENTORY_REPOSITORY_VERSION: Final[str] = "vectoplan_library.user_inventory.repository.v1"
@@ -452,11 +453,12 @@ class UserInventoryRepository:
                 inventory_key=normalized_inventory_key,
             )
 
+            is_new_inventory = state is None
             if state is None:
                 state = self._create_state(
                     user_id=normalized_user_id,
                     inventory_key=normalized_inventory_key,
-                    active_slot_index=normalized_active_slot_index,
+                    active_slot_index=1 if normalized_inventory_key == PLANNING_INVENTORY_KEY else normalized_active_slot_index,
                 )
                 self.session.add(state)
                 self.flush()
@@ -489,6 +491,8 @@ class UserInventoryRepository:
                         selected=slot_index == active_index,
                     )
                     self.session.add(slot)
+                    if is_new_inventory and normalized_inventory_key == PLANNING_INVENTORY_KEY:
+                        self._assign_slot_item(slot, planning_default_item(slot_index))
                     slots_by_index[slot_index] = slot
                 else:
                     slot = slots_by_index[slot_index]
