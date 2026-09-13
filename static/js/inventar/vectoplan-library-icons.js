@@ -182,7 +182,8 @@
      of mixing font glyphs whose shape changes with the operating system. */
   var TOOL_MARKUP = {
     selection: '<path d="M12 27V13h14M46 13h14v14M60 45v14H46M26 59H12V45"/><path d="m27 28 9-5 9 5v11l-9 5-9-5Z"/><path d="m27 28 9 5 9-5M36 33v11"/>',
-    room: '<path d="M14 13h44v46H14Z"/><path d="M35 13v19H14M35 32h23M35 46v13M35 46h12v13"/><path d="M14 43h10v16"/>',
+    room: '<path d="M13 54V23h28v31h18V13H31"/><path d="M13 23h28v31h18" stroke="#52c5e8"/><circle cx="13" cy="23" r="4"/><circle cx="41" cy="23" r="4"/><circle cx="41" cy="54" r="4"/><circle cx="59" cy="54" r="4"/>',
+    storey: '<path d="m12 21 24-11 24 11-24 11Z"/><path d="m12 33 24 11 24-11M12 45l24 11 24-11"/><path d="M12 21v36M60 21v36M36 32v29" stroke="#52c5e8"/>',
     stair: '<path d="M13 58h46V13H13Z"/><path d="M13 50h8v-8h8v-8h8v-8h8v-8h14"/><path d="m25 55 26-26m0 0h-9m9 0v9" stroke="#52c5e8"/>',
     roof: '<path d="m10 39 26-25 26 25"/><path d="M16 36v24h40V36"/><path d="M20 38h32l-8-14H28Z" fill="#52c5e8" fill-opacity=".24"/><path d="M36 14v46" stroke="#52c5e8"/>',
     parcel: '<path d="m13 25 17-13 27 8 3 30-20 10-25-8Z"/><path d="m20 29 15-9 17 6-1 18-13 7-17-6Z" stroke-dasharray="4 4"/>',

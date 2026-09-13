@@ -39,6 +39,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Any, Final, Mapping
+from ..inventory_defaults import PLANNING_INVENTORY_KEY, is_world_edit_item
 
 
 USER_INVENTORY_SERVICE_VERSION: Final[str] = "vectoplan_library.user_inventory.service.v1"
@@ -217,6 +218,9 @@ def _ensure_terrain_test_item(
     inventory_key: str,
 ) -> Any:
     """Seed the generic terrain block into the first free inventory slot."""
+
+    if inventory_key == PLANNING_INVENTORY_KEY:
+        return snapshot
 
     slots = tuple(getattr(snapshot, "slots", ()) or ())
     for slot in slots:
@@ -400,6 +404,8 @@ def set_slot_response(
         select_after_set = normalize_bool(request_payload.get("select"), default=True)
 
         item_payload = extract_item_payload(request_payload)
+        if inventory_key == PLANNING_INVENTORY_KEY and item_payload and not is_world_edit_item(item_payload):
+            raise UserInventoryServiceValidationError("Die Planungs-Hotbar erlaubt nur WorldEdit-Werkzeuge.")
 
         snapshot = _repository().set_slot_item(
             user_id=user_id,

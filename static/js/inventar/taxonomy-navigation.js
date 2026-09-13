@@ -867,6 +867,12 @@
     clearElement(tabsElement);
 
     var fragment = document.createDocumentFragment();
+    if (document.querySelector('[data-world-edit-only="true"]')) {
+      fragment.appendChild(createTabButton({ id: SPECIAL_WORLD_EDIT, label: "World Edit", active: true, special: true }));
+      tabsElement.appendChild(fragment);
+      return;
+    }
+
 
     fragment.appendChild(
       createTabButton({

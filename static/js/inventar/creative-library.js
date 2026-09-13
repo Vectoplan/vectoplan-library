@@ -190,7 +190,8 @@
 
   var WORLD_EDIT_TOOLS = [
     { id: "selection", label: "Selection Tool", icon: "\u2317", group: "basic-tools", ready: true, description: "Quader markieren, an sechs Flaechenpunkten anpassen und als Set, Wand, Fill, Replace oder Clear ausfuehren." },
-    { id: "room", label: "Räume", icon: "R", group: "basic-tools", ready: true, description: "Eine beliebige gerade Raumkontur über Blockecken zeichnen, schließen und als semantischen Raum sowie Energiezone speichern." },
+    { id: "room", label: "Linienbrush", icon: "L", group: "basic-tools", ready: true, description: "Gebäude entlang einer Linie zeichnen und Breite, Geschosse sowie Dachform einstellen." },
+    { id: "storey", label: "Geschosse", icon: "G", group: "basic-tools", ready: true, description: "Geschosse am Gebäude mit der Maus hinzufügen oder entfernen." },
     { id: "stair", label: "Treppenwerkzeug", icon: "▥", group: "basic-tools", ready: true, description: "Treppenbereich zeichnen und Treppentyp, Laufbreite, Antritt, Austritt und Laufrichtung parametrisch einstellen." },
     { id: "roof", label: "Dachgenerator", icon: "⌂", group: "basic-tools", ready: true, description: "Beliebige gerade Dachkontur zeichnen und Dachhaut, Sparren sowie Pfetten live parametrisch in 3D erzeugen." },
     { id: "parcel", label: "Flurstück Tool", icon: "\u2316", group: "basic-tools", ready: true, description: "Flurstücke direkt im 3D-Editor projektweit auswählen oder abwählen." },
@@ -216,6 +217,10 @@
 
   function clean(value) {
     try { return String(value == null ? "" : value).trim(); } catch (error) { return ""; }
+  }
+
+  function worldEditOnly() {
+    return Boolean(document.querySelector('[data-world-edit-only="true"]'));
   }
 
   function record(value) {
@@ -945,9 +950,9 @@
     if (description) description.textContent = tool.description;
     if (selectionSettings) selectionSettings.hidden = tool.id !== "selection";
     if (brushSettings) brushSettings.hidden = ["paint", "sculpt", "tentacle"].indexOf(tool.id) < 0;
-    if (utilitySettings) utilitySettings.hidden = ["parcel", "parcel-grid", "ruler-laser", "copy-transform", "cut-transform"].indexOf(tool.id) < 0;
+    if (utilitySettings) utilitySettings.hidden = ["room", "storey", "parcel", "parcel-grid", "ruler-laser", "copy-transform", "cut-transform"].indexOf(tool.id) < 0;
     if (parcelGridSettings) parcelGridSettings.hidden = tool.id !== "parcel-grid";
-    if (roomSettings) roomSettings.hidden = tool.id !== "room";
+    if (roomSettings) roomSettings.hidden = true;
     if (roofSettings) roofSettings.hidden = tool.id !== "roof";
     if (brushPrimary) brushPrimary.textContent = tool.id === "sculpt"
       ? "Geländeschicht absenken"
@@ -956,7 +961,7 @@
       ? "Geländeschicht anheben"
       : tool.id === "tentacle" ? "Gelben Punkt löschen; sonst Pfad ausführen" : "Mit gleicher Form entfernen";
     if (utilityTitle) utilityTitle.textContent = tool.label;
-    if (utilityText) utilityText.textContent = tool.id === "parcel"
+    if (utilityText) utilityText.textContent = ["room", "storey"].indexOf(tool.id) >= 0 ? tool.description : tool.id === "parcel"
       ? "Flurstück anvisieren und anklicken. Die Auswahl wird sofort mit Map und Projekt synchronisiert."
       : tool.id === "parcel-grid"
         ? "Grenzkante anvisieren und anklicken. Die cyanfarbene Bauachse zeigt Grenzlage, Abstand und Wirkbereich."
@@ -965,8 +970,8 @@
         : tool.id === "cut-transform"
           ? "Bereich markieren, mit Rechtsklick ausschneiden, am X/Y/Z-Gizmo blockweise bewegen und mit Rechtsklick einfügen."
           : "Bereich markieren, mit Rechtsklick kopieren, am X/Y/Z-Gizmo blockweise bewegen und mit Rechtsklick einfügen.";
-    if (operationField) operationField.hidden = ["parcel", "parcel-grid", "ruler-laser", "room", "stair", "roof", "copy-transform", "cut-transform"].indexOf(tool.id) >= 0;
-    if (parcelMask) parcelMask.hidden = ["parcel", "parcel-grid", "ruler-laser", "room", "stair", "roof"].indexOf(tool.id) >= 0;
+    if (operationField) operationField.hidden = ["parcel", "parcel-grid", "ruler-laser", "room", "storey", "stair", "roof", "copy-transform", "cut-transform"].indexOf(tool.id) >= 0;
+    if (parcelMask) parcelMask.hidden = ["parcel", "parcel-grid", "ruler-laser", "room", "storey", "stair", "roof"].indexOf(tool.id) >= 0;
     if (actions) actions.hidden = ["selection", "copy-transform", "cut-transform", "room", "roof", "tentacle"].indexOf(tool.id) < 0;
     if (operationSelect) {
       var clipboardTool = false;
@@ -1516,8 +1521,10 @@
     if (!grid) return;
     while (grid.firstChild) grid.removeChild(grid.firstChild);
     var fragment = document.createDocumentFragment();
-    WORLD_EDIT_TOOLS.forEach(function (tool) { fragment.appendChild(createWorldEditToolCard(tool)); });
-    items.forEach(function (item) { fragment.appendChild(createCard(item)); });
+    WORLD_EDIT_TOOLS.forEach(function (tool) {
+      if (!worldEditOnly() || tool.ready) fragment.appendChild(createWorldEditToolCard(tool));
+    });
+    if (!worldEditOnly()) items.forEach(function (item) { fragment.appendChild(createCard(item)); });
     grid.appendChild(fragment);
     state.items = items;
     state.itemsSignature = itemsSignature(items);
@@ -1559,6 +1566,7 @@
   function load() {
     var grid = document.querySelector(SELECTORS.grid);
     if (!grid) return Promise.resolve([]);
+    if (worldEditOnly()) { render([]); return Promise.resolve([]); }
     state.loading = true;
     setLoadingStatus("Veröffentlichte VPLIB-Objekte werden geladen …");
     updateEmptyState();
@@ -1590,6 +1598,7 @@
   }
 
   function refreshInBackground() {
+    if (worldEditOnly()) return Promise.resolve([]);
     var grid = document.querySelector(SELECTORS.grid);
     if (!grid || state.loading || document.hidden || document.querySelector(".vp-creative-card--dragging")) {
       return Promise.resolve(state.items);
